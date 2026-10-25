@@ -282,23 +282,36 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const cloud = useCloudSync({user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
     get:()=>({doc:docRef.current,assets:assetsRef.current}),flush,
-    canApply:()=>!dirty.current&&!activeEditor?.isFocused&&!working&&!failed.current&&!cloudApplying.current,
-    apply:async(remote,remoteAssets)=>{
-      if(dirty.current||activeEditor?.isFocused||working||failed.current)throw Error('Finish editing before loading cloud notes.');
-      validate(remote.tables.bullets);
-      validateWorkdays(remote.web.workdays);
-      cloudApplying.current=true;setWorking(true);
-      try{
-      const next=await save(persisted.current,{...restoreDeviceState(remote,docRef.current!),revision:persisted.current!.revision},'cloud download',remoteAssets,true);
-      persisted.current=next;docRef.current=next;assetsRef.current=remoteAssets;pendingAssets.current.clear();history.current={undo:[],redo:[]};
-      setDoc(next);setAssets(remoteAssets);setEditing(null);setStatus('Saved on this device');
-      }finally{cloudApplying.current=false;setWorking(false);}
+    canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!working&&!failed.current&&!cloudApplying.current,
+    selection:()=>editing&&activeEditor?.isFocused?{id:editing,anchor:Math.max(0,activeEditor.state.selection.anchor-1),head:Math.max(0,activeEditor.state.selection.head-1)}:null,
+    apply:async(remote,remoteAssets,sync)=>{
+      if(dirty.current||activeEditor?.view.composing||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
+      validate(remote.tables.bullets);validateWorkdays(remote.web.workdays);
+      const previous=docRef.current!;
+      const incoming={...restoreDeviceState(remote,previous),revision:previous.revision+1} as Workspace;
+      // Publish the incoming view synchronously so typing during the IndexedDB
+      // transaction builds on it. Later edits queue behind the durable adoption.
+      cloudApplying.current=true;
+      docRef.current=incoming;assetsRef.current=remoteAssets;pendingAssets.current.clear();history.current={undo:[],redo:[]};
+      if(editing&&activeEditor&&!activeEditor.isDestroyed){
+        const node=incoming.tables.bullets.find(n=>n.id===editing);
+        if(node){activeEditor.chain().setContent(toEditor(node as Node),{emitUpdate:false}).setMeta('addToHistory',false).run();
+          const sel=sync?.selection;if(sel?.id===editing)activeEditor.commands.setTextSelection({from:Math.min(sel.anchor+1,activeEditor.state.doc.content.size-1),to:Math.min(sel.head+1,activeEditor.state.doc.content.size-1)});
+        }else{activeEditor.commands.blur();setEditing(null);}
+      }
+      setDoc(incoming);setAssets(remoteAssets);
+      const applying=chain.current.then(async()=>{
+        const next=await save(persisted.current,incoming,'cloud download',remoteAssets,true,[],sync?.state);
+        persisted.current=next;
+        if(docRef.current===incoming){docRef.current=next;setDoc(next);if(!dirty.current)setStatus('Saved on this device');}
+      });
+      chain.current=applying.catch(e=>{failed.current=true;dirty.current=true;setStatus('Changes not saved');showError(e);});
+      try{await applying;}finally{cloudApplying.current=false;}
     }
   });
   useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
   const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await googleSignIn();}catch(e){showError(e);}};
   const commit = (next: Workspace, group?: string, record = true) => {
-    if(cloudApplying.current)return;
     if (failed.current) {
       setError(
         "Saving has stopped. Retry saving or export your unsaved work first.",

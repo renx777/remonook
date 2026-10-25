@@ -8,13 +8,13 @@ resolution, force-overwrite, or manual-sync controls to Settings. Ordinary backu
 export/import remains a separate user feature.
 
 Sync retries, ordering, merging and recovery are application responsibilities.
-Upcoming sync protocol changes must move reconciliation and durable recovery into
-the backend, with incremental operations and rich-text CRDT support. Preserve
+The v2 protocol uses backend acknowledgement/journaling, incremental operations
+and rich-text CRDTs. Preserve and extend that architecture. Preserve
 both sides of concurrent edits; never silently discard one version to remove a
 warning. Prefer automatic convergence, and keep recovery history out of routine
 sync flows. An optional future note history is not a required sync decision.
 
 A pending update must not be described as Synced. Genuine storage, sign-in or
 quota failures may need an honest, actionable status. Do not conceal those errors.
-This requirement is not a claim that the current snapshot protocol implements
-CRDT merging: complete the versioned backend migration before making that claim.
+Never reintroduce snapshot replacement for migrated accounts or remove the durable
+outbox as a workaround. See docs/SYNC.md for migration, limits and rollback rules.

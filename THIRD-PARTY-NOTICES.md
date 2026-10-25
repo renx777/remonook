@@ -109,3 +109,12 @@ The app uses React, Tiptap/ProseMirror, JSZip, Lottie-web and their dependencies
 | ws | 8.22.0 | MIT |
 | xml-name-validator | 5.0.0 | Apache-2.0 |
 | xmlchars | 2.2.0 | MIT |
+
+## Sync dependencies
+
+| Package | Version | Declared license |
+| --- | --- | --- |
+| yjs | 13.6.33 | MIT |
+| lib0 | 0.2.119 | MIT |
+| isomorphic.js | 0.2.5 | MIT |
+| diff | 8.0.2 | BSD-3-Clause |
