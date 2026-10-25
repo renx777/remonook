@@ -70,6 +70,8 @@ test("production bundle: interaction smoke test", async context => {
   assert.equal(hero.textContent, 'A space to think.A way to Remember More.');
   assert.equal(hero.querySelector('.landing-hero-line').textContent, 'A way to Remember More.');
   assert.equal(hero.querySelector('.landing-hero-emphasis').textContent, 'Remember More');
+  assert.deepEqual([...hero.querySelectorAll('.landing-hero-blue')].map(node => node.textContent), ['Re', 'Mo'], 'Only Re and Mo should receive the #047EFC accent');
+  assert.equal(hero.querySelectorAll('.landing-hero-blue').length, 2);
   assert.equal(document.querySelector('.landing-wordmark').getAttribute('aria-label'), 'RemoNook — Remember More');
   assert.equal(document.querySelector('.landing-wordmark').textContent, 'RemoNook');
   assert.equal(document.querySelector('.landing-wordmark .landing-brand-blue'), null, 'Animated wordmark should use one neutral text color');

@@ -19,7 +19,8 @@
 .landing-eyebrow>span{width:5px;height:5px;flex-shrink:0;background:#719183;border-radius:50%}
 .landing h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(40px,4.2vw,59px);line-height:1.15;letter-spacing:-1.8px;font-weight:400;margin:0 0 24px;overflow-wrap:normal;max-width:590px}
 .landing h1 .landing-hero-line{display:inline-block;white-space:nowrap;font-size:clamp(20px,8.8cqw,48px);letter-spacing:-.045em;line-height:1.25;color:var(--landing-ink)}
-.landing h1 .landing-hero-emphasis{color:#047EFC;font-style:italic;font-weight:400}
+.landing h1 .landing-hero-emphasis{color:inherit;font-style:italic;font-weight:400}
+.landing h1 .landing-hero-blue{color:#047EFC}
 .landing-description{font-size:15px;line-height:1.75;color:#5c685f;max-width:425px;margin:0 0 30px}
 .landing-entry{display:flex;align-items:center;gap:17px;flex-wrap:wrap}
 .landing .landing-primary{display:inline-flex;align-items:center;justify-content:center;gap:13px;min-height:44px;padding:13px 17px;border:1px solid var(--landing-ink);border-radius:6px;background:var(--landing-ink);color:#fafaf5;font-size:12px;white-space:nowrap}
