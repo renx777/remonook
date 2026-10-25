@@ -3,14 +3,17 @@ import type {User} from 'firebase/auth';
 import {authenticatedUid} from './CloudAccount';
 import {CLOUD_API} from './cloud-config';
 import {cloudCheckpoint,digest,keepCloudRecovery,getCloudRecovery,archive,download,type Workspace} from './data';
-import {cloudDocument,contentKey,syncDecision} from './cloud-model.mjs';
-import {mergeCloudWorkspaces,mergeAssetManifests,equalSyncValue} from './cloud-merge.mjs';
+import {cloudDocument,contentKey,syncDecision,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
+import {mergeCloudWorkspaces,mergeAssetManifests,equalSyncValue,describeSyncConflict} from './cloud-merge.mjs';
 type Asset={path:string;hash:string;size:number;type:string};
 type Remote={revision:number;doc:Workspace|null;assets:Asset[]};
 type Options={user:User|null;revision?:number;ready:boolean;get:()=>{doc:Workspace|null;assets:Map<string,Blob>};flush:()=>Promise<unknown>;canApply:()=>boolean;apply:(doc:Workspace,assets:Map<string,Blob>)=>Promise<void>};
 export function useCloudSync(options:Options){
  const latest=useRef(options);latest.current=options;
  const busy=useRef(false),paused=useRef(false),conflictRef=useRef<Remote|null>(null),cache=useRef(new WeakMap<Blob,string>());
+ const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null),retries=useRef(0),queued=useRef(false),mounted=useRef(true);
+ const reasons=useRef<string[]>([]);
+ const [conflictDetails,setConflictDetails]=useState<string[]>([]);
  const [summary,setSummary]=useState<{local:number;cloud:number}|null>(null);
  const [status,setStatus]=useState(options.user?'Connecting…':'Device only'),[error,setError]=useState(''),[conflict,setConflict]=useState(false);
  const request=async(path:string,init:RequestInit={})=>{
@@ -43,7 +46,8 @@ export function useCloudSync(options:Options){
    const localAssets=await manifest(initial.assets);
    const downloaded=await materializeAssets(remote.assets,initial,localAssets);
    await latest.current.flush();
-   if(!latest.current.canApply()||contentKey(latest.current.get().doc!)!==key)throw Error('Finish editing, then sync again to load cloud changes.');
+   if(!latest.current.canApply()||contentKey(latest.current.get().doc!)!==key||
+     !equalSyncValue(await manifest(latest.current.get().assets),localAssets))throw Error('Finish editing, then sync again to load cloud changes.');
    await latest.current.apply(remote.doc,downloaded);
    const current=latest.current.get().doc!;
    await cloudCheckpoint(checkpointValue(remote.revision,current,remote.assets));
@@ -59,8 +63,9 @@ export function useCloudSync(options:Options){
    }
  }
  async function uploadWorkspace(remote:Remote,doc:Workspace,assets:Asset[]){
-   return await (await request('/workspace',{method:'PUT',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({baseRevision:remote.revision,doc:cloudDocument(doc),assets})})).json();
+   try{return await (await request('/workspace',{method:'PUT',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({baseRevision:remote.revision,doc:cloudDocument(doc),assets})})).json();}
+   catch(error){if((error as any)?.status===409)(error as any).retryRevision=true;throw error;}
  }
  async function push(remote:Remote){
    await latest.current.flush();
@@ -73,10 +78,10 @@ export function useCloudSync(options:Options){
  async function mergeAndPush(remote:Remote,checkpoint:any,localManifest:Asset[]){
    const initial=latest.current.get();
    if(!initial.doc||!remote.doc||!checkpoint?.baseDoc||!Array.isArray(checkpoint.assets)||
-     contentKey(checkpoint.baseDoc)!==checkpoint.key)return null;
+     contentKey(checkpoint.baseDoc)!==checkpoint.key){reasons.current=['This device has no verified common sync baseline. Export both versions before choosing a copy.'];return null;}
    const docResult=mergeCloudWorkspaces(checkpoint.baseDoc,initial.doc,remote.doc);
    const assetResult=mergeAssetManifests(checkpoint.assets,localManifest,remote.assets);
-   if(!docResult.ok||!assetResult.ok||!docResult.doc||!assetResult.assets)return null;
+   if(!docResult.ok||!assetResult.ok||!docResult.doc||!assetResult.assets){reasons.current=[...docResult.conflicts,...assetResult.conflicts];return null;}
    const initialKey=contentKey(initial.doc);
    const mergedDoc=docResult.doc as Workspace;
    const mergedAssets=await materializeAssets(assetResult.assets,initial,localManifest);
@@ -91,7 +96,8 @@ export function useCloudSync(options:Options){
    const result=await uploadWorkspace(remote,mergedDoc,assetResult.assets);
    // Another edit during the upload must remain on this device, not be overwritten.
    const current=latest.current.get();
-   if(!latest.current.canApply()||!current.doc||contentKey(current.doc)!==initialKey)
+   if(!latest.current.canApply()||!current.doc||contentKey(current.doc)!==initialKey||
+     !equalSyncValue(await manifest(current.assets),localManifest))
      throw Error('Cloud accepted the merge, but this device has newer edits. Finish editing and sync again.');
    await latest.current.apply(mergedDoc,mergedAssets);
    const synced=latest.current.get().doc!;
@@ -99,7 +105,10 @@ export function useCloudSync(options:Options){
    return docResult.mergedNodes||0;
  }
  async function sync(resolve?:'local'|'cloud'){
-   if(busy.current||!latest.current.user||!latest.current.ready||(paused.current&&!resolve))return;
+   if(!mounted.current||!latest.current.user||!latest.current.ready)return;
+   if(busy.current){if(!resolve)queued.current=true;return;}
+   queued.current=false;
+   if(retryTimer.current){clearTimeout(retryTimer.current);retryTimer.current=null;}
    busy.current=true;setError('');setStatus('Syncing…');
    let mergedNodes:number|null=null;
    try{
@@ -108,19 +117,37 @@ export function useCloudSync(options:Options){
      const initial=latest.current.get(),local=initial.doc;
      if(!local)return;
      const localManifest=await manifest(initial.assets);
-     const checkpoint=await cloudCheckpoint();
-     const remote:Remote=await (await request('/workspace')).json();
+     const checkpoint=recoverCheckpoint(await cloudCheckpoint());
+     const clean=checkpoint?.baseDoc&&checkpoint.key===contentKey(local)&&equalSyncValue(checkpoint.assets,localManifest);
+     const response=await request('/workspace',clean?{headers:{'If-None-Match':String(checkpoint.revision)}}:{});
+     if(response.status===304){
+       await cloudCheckpoint(checkpoint);
+       const now=latest.current.get();
+       const unchanged=now.doc&&contentKey(now.doc)===checkpoint.key&&equalSyncValue(await manifest(now.assets),localManifest);
+       paused.current=false;conflictRef.current=null;setConflict(false);setConflictDetails([]);retries.current=0;
+       setStatus(unchanged?'Synced':'Saved on device · sync pending');if(!unchanged)queued.current=true;return;
+     }
+     const remote:Remote=await response.json();
+     // Old clients did not store an attachment baseline. Equality on both sides
+     // is sufficient for these assets only; divergent files still need review.
+     if(checkpoint&&!Array.isArray(checkpoint.assets)&&equalSyncValue(localManifest,remote.assets))checkpoint.assets=localManifest;
      let decision=syncDecision(checkpoint,contentKey(local),remote.revision);
-     if(!checkpoint&&remote.revision>0&&local.tables.bullets.length)decision='conflict';
+     reasons.current=[];
+     const alreadyEqual=!!remote.doc&&contentKey(remote.doc)===contentKey(local)&&equalSyncValue(localManifest,remote.assets);
+     if(alreadyEqual){
+       await cloudCheckpoint(checkpointValue(remote.revision,local,localManifest));
+       decision='idle';
+     }
+     if(decision!=='idle'&&!checkpoint&&remote.revision>0&&hasDeviceContent(local,localManifest))decision='conflict';
      // Attachments can change independently of note text. Treat such edits as
      // local changes too; never discard them when the cloud revision advances.
-     if(checkpoint&&Array.isArray(checkpoint.assets)&&
+     if(!alreadyEqual&&checkpoint&&Array.isArray(checkpoint.assets)&&
        !equalSyncValue(localManifest,checkpoint.assets)&&checkpoint.key===contentKey(local)){
        decision=remote.revision===checkpoint.revision?'upload':'conflict';
      }
      if(resolve){
        // Refuse a stale confirmation if another device has updated the cloud.
-       if(remote.revision!==conflictRef.current?.revision)decision='conflict';
+       if(remote.revision!==conflictRef.current?.revision){decision='conflict';reasons.current=['The cloud copy changed since you opened this review. Review the latest copies before choosing again.'];}
        else{
          await keepCloudRecovery({at:Date.now(),cloud:remote,local,assets:[...initial.assets]});
          decision=resolve==='local'?'upload':'download';
@@ -131,6 +158,7 @@ export function useCloudSync(options:Options){
      }
      if(decision==='conflict'){
        paused.current=true;conflictRef.current=remote;
+       setConflictDetails(reasons.current.length?reasons.current.map(p=>describeSyncConflict(p,local)):['The cloud and device copies both changed. A common baseline is needed to merge them safely.']);
        setSummary({local:local.tables.bullets.length,cloud:remote.doc?.tables.bullets.length||0});
        setConflict(true);setStatus('Conflict needs review');return;
      }
@@ -141,19 +169,31 @@ export function useCloudSync(options:Options){
      if(decision==='idle'&&mergedNodes===null&&!checkpoint?.baseDoc&&remote.doc&&
        contentKey(remote.doc)===contentKey(local)&&equalSyncValue(localManifest,remote.assets))
        await cloudCheckpoint(checkpointValue(remote.revision,local,remote.assets));
-     paused.current=false;conflictRef.current=null;setConflict(false);
+     paused.current=false;conflictRef.current=null;setConflict(false);setConflictDetails([]);retries.current=0;
      const checkpointNow=await cloudCheckpoint(),finalState=latest.current.get();
      const finalAssets=await manifest(finalState.assets);
      const trulySynced=checkpointNow?.key===contentKey(finalState.doc!)&&
        (!Array.isArray(checkpointNow?.assets)||equalSyncValue(checkpointNow.assets,finalAssets));
      setStatus(trulySynced?
        (mergedNodes!==null?'Synced · merged '+mergedNodes+' nodes':'Synced'):'Saved on device · sync pending');
-   }catch(e){setStatus('Saved on device · sync pending');setError(e instanceof Error?e.message:String(e));}
-   finally{busy.current=false;}
+     if(!trulySynced)queued.current=true;
+   }catch(e){
+     setStatus('Saved on device · sync pending');
+     // A stale revision is a normal race, not a user conflict. Refetch and
+     // re-merge from the acknowledged baseline, with a bounded backoff.
+     if((e as any)?.retryRevision&&!resolve&&retries.current<3){
+       retries.current++;retryTimer.current=setTimeout(()=>void run.current(),250*2**(retries.current-1));
+     }else setError(e instanceof Error?e.message:String(e));
+   }
+   finally{
+     busy.current=false;
+     if(queued.current&&!retryTimer.current){queued.current=false;retryTimer.current=setTimeout(()=>void run.current(),750);}
+   }
  }
  const run=useRef(sync);run.current=sync;
  useEffect(()=>{if(!options.user||!options.ready)return;const timer=setTimeout(()=>void run.current(),2500);return()=>clearTimeout(timer);},[options.user?.uid,options.revision,options.ready]);
- useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const online=()=>void run.current();const interval=setInterval(()=>{if(document.visibilityState==='visible')void run.current();},60000);window.addEventListener('online',online);window.addEventListener('focus',resume);return()=>{clearInterval(interval);window.removeEventListener('online',online);window.removeEventListener('focus',resume);};},[options.user?.uid]);
+ useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;if(retryTimer.current)clearTimeout(retryTimer.current);};},[]);
+ useEffect(()=>{if(!options.user)return;let blurTimer:ReturnType<typeof setTimeout>;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const online=()=>void run.current();const afterEdit=()=>{clearTimeout(blurTimer);blurTimer=setTimeout(resume,500);};const interval=setInterval(resume,10000);window.addEventListener('online',online);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',afterEdit);return()=>{clearInterval(interval);clearTimeout(blurTimer);window.removeEventListener('online',online);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',afterEdit);};},[options.user?.uid]);
  async function downloadCloudCopy(remote:Remote,name:string){
    if(!remote.doc)throw Error('The cloud workspace has no notes to export.');
    const assets=new Map<string,Blob>();
@@ -185,5 +225,5 @@ export function useCloudSync(options:Options){
      await downloadCloudCopy(recovery.cloud,'remonook-recovery-cloud.remo.zip');
    }catch(e){setError(e instanceof Error?e.message:String(e));}
  }
- return {status,error,conflict,summary,downloadConflict,downloadRecovery,sync:()=>sync(),resolve:(which:'local'|'cloud')=>sync(which)};
+ return {status,error,conflict,conflictDetails,summary,downloadConflict,downloadRecovery,sync:()=>{retries.current=0;return sync();},resolve:(which:'local'|'cloud')=>sync(which)};
 }

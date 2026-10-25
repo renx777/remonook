@@ -1,3 +1,4 @@
+import {restoreDeviceState} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
 import {SaveIndicator} from './SaveIndicator';
@@ -167,6 +168,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [error, setError] = useState<string | null>(null),
     [fatal, setFatal] = useState(false),
     failed = useRef(false),
+    cloudApplying = useRef(false),
     [dialog, setDialog] = useState<string | null>(null),
     [settingsPanel,setSettingsPanel] = useState("appearance"),
     [mcqEditing, setMcqEditing] = useState<string | null>(null),
@@ -280,19 +282,23 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const cloud = useCloudSync({user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
     get:()=>({doc:docRef.current,assets:assetsRef.current}),flush,
-    canApply:()=>!dirty.current&&!activeEditor?.isFocused&&!working&&!failed.current,
+    canApply:()=>!dirty.current&&!activeEditor?.isFocused&&!working&&!failed.current&&!cloudApplying.current,
     apply:async(remote,remoteAssets)=>{
       if(dirty.current||activeEditor?.isFocused||working||failed.current)throw Error('Finish editing before loading cloud notes.');
       validate(remote.tables.bullets);
       validateWorkdays(remote.web.workdays);
-      const next=await save(persisted.current,{...remote,revision:persisted.current!.revision,web:{...remote.web,deviceId:persisted.current!.web.deviceId}},'cloud download',remoteAssets,true);
+      cloudApplying.current=true;setWorking(true);
+      try{
+      const next=await save(persisted.current,{...restoreDeviceState(remote,docRef.current!),revision:persisted.current!.revision},'cloud download',remoteAssets,true);
       persisted.current=next;docRef.current=next;assetsRef.current=remoteAssets;pendingAssets.current.clear();history.current={undo:[],redo:[]};
       setDoc(next);setAssets(remoteAssets);setEditing(null);setStatus('Saved on this device');
+      }finally{cloudApplying.current=false;setWorking(false);}
     }
   });
   useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
   const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await googleSignIn();}catch(e){showError(e);}};
   const commit = (next: Workspace, group?: string, record = true) => {
+    if(cloudApplying.current)return;
     if (failed.current) {
       setError(
         "Saving has stopped. Retry saving or export your unsaved work first.",
@@ -1820,8 +1826,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {settingsPanel==="account" && <section aria-label="Account">
           <section className="cloud-account">
             <div className="cloud-account-heading"><div><h3>{cloudUser ? 'Your account' : 'Your notes, everywhere'}</h3><p>{cloudUser?.email || 'Sign in with Google to keep a private workspace.'}</p></div><span className="cloud-state">{cloud.status}</span></div>
-            {cloudUser ? <><div className="cloud-account-actions"><button className="action" disabled={cloud.conflict} title={cloud.conflict?'Review the conflict below before syncing again':undefined} onClick={()=>void cloud.sync()}>Sync now</button><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Edits save securely in this browser first, including while offline. Your signed-in workspace syncs to the cloud and your other devices when connected.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><p className="dialog-muted">Sync checks every minute and when you return. Independent edits to different notes are merged automatically after a shared sync baseline is established. Overlapping changes require review. Files: 2 MiB each · 20 MiB per account. Notes: 900 KiB per workspace.</p></details>
-            {cloud.conflict&&<div className="cloud-conflict" role="alert"><strong>Sync conflict needs review</strong><p>This device: {cloud.summary?.local} bullets · Cloud: {cloud.summary?.cloud} bullets</p><p>Both devices have changes that could not be safely merged automatically, or this device has not yet established a common sync baseline. Sync is paused to prevent accidental overwrites.</p><p>Download both versions before choosing. RemoNook also saves a local recovery snapshot before applying your decision.</p><div className="cloud-conflict-actions"><button className="action" onClick={()=>void cloud.downloadConflict('local')}>Download device backup</button><button className="action" onClick={()=>void cloud.downloadConflict('cloud')}>Download cloud backup</button></div><div className="cloud-conflict-actions"><button className="action" onClick={()=>{if(window.confirm('Replace this device\'s workspace with the cloud copy? A recovery snapshot will be saved on this device before replacement.'))void cloud.resolve('cloud');}}>Keep cloud version</button><button className="action" onClick={()=>{if(window.confirm('Replace the cloud workspace with this device\'s copy? Other devices will receive this copy after syncing. A recovery snapshot is saved first.'))void cloud.resolve('local');}}>Keep this device version</button></div></div>}
+            {cloudUser ? <><div className="cloud-account-actions"><button className="action" title={cloud.conflict?'Retry merging the latest changes':undefined} onClick={()=>void cloud.sync()}>Sync now</button><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Edits save securely in this browser first, including while offline. Your signed-in workspace syncs to the cloud and your other devices when connected.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><p className="dialog-muted">Sync checks every 10 seconds while visible, when you return, and after you finish editing. Independent notes, note fields and calendar dates merge automatically. Overlapping text edits or unsafe structural changes require review. Files: 2 MiB each · 20 MiB per account. Notes: 900 KiB per workspace.</p></details>
+            {cloud.conflict&&<div className="cloud-conflict" role="alert"><strong>Sync conflict needs review</strong><p>This device: {cloud.summary?.local} bullets · Cloud: {cloud.summary?.cloud} bullets</p><p>Both devices have changes that could not be safely merged automatically, or this device has not yet established a common sync baseline. Both copies are preserved. RemoNook will retry safe merging as new changes arrive.</p><ul>{cloud.conflictDetails.map((detail,i)=><li key={i}>{detail}</li>)}</ul><p>Download both versions before choosing. RemoNook also saves a local recovery snapshot before applying your decision.</p><div className="cloud-conflict-actions"><button className="action" onClick={()=>void cloud.downloadConflict('local')}>Download device backup</button><button className="action" onClick={()=>void cloud.downloadConflict('cloud')}>Download cloud backup</button></div><div className="cloud-conflict-actions"><button className="action" onClick={()=>{if(window.confirm('Replace this device\'s workspace with the cloud copy? A recovery snapshot will be saved on this device before replacement.'))void cloud.resolve('cloud');}}>Keep cloud version</button><button className="action" onClick={()=>{if(window.confirm('Replace the cloud workspace with this device\'s copy? Other devices will receive this copy after syncing. A recovery snapshot is saved first.'))void cloud.resolve('local');}}>Keep this device version</button></div></div>}
             {!doc.tables.bullets.length&&<button className="wide action" disabled={disabled} onClick={async()=>{try{await flush();const guest=await load('remo-web'),guestAssets=await getAssets('remo-web');if(!guest)throw Error('No device-only notes found.');if(!confirm('Copy device-only notes into this account? They will upload to your private cloud workspace.'))return;const next=await save(persisted.current,{...guest,web:{...guest.web,deviceId:docRef.current!.web.deviceId}},'copy device notes',guestAssets,true);persisted.current=next;docRef.current=next;assetsRef.current=guestAssets;setDoc(next);setAssets(guestAssets);}catch(e){showError(e);}}}>Import existing device-only notes…</button>}
             <details className="cloud-recovery"><summary>Recover a previous sync conflict</summary><p className="dialog-muted">Download either version saved before the last conflict was resolved.</p><button className="action" onClick={()=>void cloud.downloadRecovery('local')}>Device version</button><button className="action" onClick={()=>void cloud.downloadRecovery('cloud')}>Cloud version</button></details></> : <><button className="wide action cloud-google" disabled={disabled} onClick={()=>void accountAction()}>Continue with Google</button><p className="dialog-muted">Your current notes stay in the device-only workspace. After signing in, you can choose to import them. Sign out to return to these notes.</p></>}
             {cloud.error&&<p className="cloud-error" role="status">{cloud.error}</p>}

@@ -2,7 +2,8 @@ import {validate} from './domain.mjs';
 import {validateMirrors} from './relations.mjs';
 import {validateStudyLibrary} from './study-library.mjs';
 import {validateOcclusions} from './occlusion.mjs';
-import {validateWorkdays} from './workdays.mjs';
+import {validateWorkdays,emptyWorkdays} from './workdays.mjs';
+import {validateCalendarEvents} from './calendar-events.mjs';
 import {cloudDocument} from './cloud-model.mjs';
 
 // Identity-based three-way merge. Never resolve simultaneous edits to the
@@ -37,7 +38,7 @@ function mergeObject(base,local,remote,path,conflicts,handlers={}) {
   if (base===absent && local===absent && remote===absent) return absent;
   return result;
 }
-function mergeKeyedRows(base,local,remote,key,path,conflicts) {
+function mergeKeyedRows(base,local,remote,key,path,conflicts,mergeRow=choose) {
   if (![base,local,remote].every(Array.isArray)) {
     return choose(base,local,remote,path,conflicts);
   }
@@ -57,13 +58,52 @@ function mergeKeyedRows(base,local,remote,key,path,conflicts) {
   const order=[...new Set([...maps[0].keys(),...maps[1].keys(),...maps[2].keys()])],result=[];
   for(const id of order){
     const [b,l,r]=maps.map(m=>m.has(id)?m.get(id):absent);
-    const chosen=choose(b,l,r,path+'/'+id,conflicts);
+    const chosen=mergeRow(b,l,r,path+'/'+id,conflicts);
     if(chosen!==absent)result.push(chosen);
   }
   return result;
 }
 const keyedTables=new Set(['goals','concepts','cards','review_logs','bullets','media','emojis','decks','trash','study_sessions','study_limits']);
 const keyForTable = table => !keyedTables.has(table)?null:table==='decks'?'rootId':table==='emojis'?'token':table==='study_limits'?'deckId':'id';
+
+// Merge fields only for existing bullets. Delete/edit and colliding creations
+// remain conflicts. Text/format offsets and move coordinates are atomic pairs.
+function mergeBullet(base,local,remote,path,conflicts){
+ if(![base,local,remote].every(plain))return choose(base,local,remote,path,conflicts);
+ const groups=[['text','formatting'],['parentId','position']];
+ const grouped=new Set(groups.flat()),result=mergeObject(
+   Object.fromEntries(Object.entries(base).filter(([k])=>!grouped.has(k))),
+   Object.fromEntries(Object.entries(local).filter(([k])=>!grouped.has(k))),
+   Object.fromEntries(Object.entries(remote).filter(([k])=>!grouped.has(k))),path,conflicts);
+ for(const group of groups){
+   const values=[base,local,remote].map(o=>Object.fromEntries(group.filter(k=>own(o,k)).map(k=>[k,o[k]])));
+   const chosen=choose(...values,path+'.'+group.join('/'),conflicts);
+   if(chosen!==absent)Object.assign(result,chosen);
+ }
+ return result;
+}
+const mergeMap=(b,l,r,path,errors)=>mergeObject(b===absent?{}:b,l===absent?{}:l,r===absent?{}:r,path,errors);
+function mergeTimes(b,l,r,path,errors){
+ const names=keys(b,l,r),handlers={};
+ for(const name of names)handlers[name]=(base,left,right,p,e)=>{
+   if(![left,right].every(plain))return choose(base,left,right,p,e);
+   const out=mergeObject(base,left,right,p,e,{
+     createdAt:(a,c,d)=>Math.min(...[a,c,d].filter(v=>typeof v==='number'&&Number.isFinite(v))),
+     updatedAt:(a,c,d)=>Math.max(...[a,c,d].filter(v=>typeof v==='number'&&Number.isFinite(v)))
+   });return out;
+ };
+ return mergeObject(b===absent?{}:b,l===absent?{}:l,r===absent?{}:r,path,errors,handlers);
+}
+function mergeWorkdays(b,l,r,path,errors){
+ // Defaults permit independent first-time entries without treating missing data
+ // as a deletion. Whole-feature removal still requires review.
+ if(b===absent&&plain(l)&&plain(r))b=emptyWorkdays();
+ if([b,l,r].some(x=>x===absent))return choose(b,l,r,path,errors);
+ return mergeObject(b,l,r,path,errors,{
+   entries:mergeMap,holidays:mergeMap,allowances:mergeMap,
+   policies:(a,c,d,p,e)=>mergeKeyedRows(a,c,d,'effectiveFrom',p,e)
+ });
+}
 
 function validateMerged(doc,conflicts){
   try{
@@ -74,6 +114,7 @@ function validateMerged(doc,conflicts){
     validateStudyLibrary(doc.web);
     validateOcclusions(doc.web.occlusions);
     validateWorkdays(doc.web.workdays);
+    validateCalendarEvents(doc.web.calendarEvents);
     const ids=new Set(nodes.map(n=>n.id)),media=new Set((doc.tables.media||[]).map(row=>row.id));
     for(const item of doc.tables.media||[])if(!ids.has(item.bulletId))throw Error('A media attachment refers to a removed node');
     for(const deck of doc.tables.decks||[])if(!ids.has(deck.rootId))throw Error('A deck refers to a removed node');
@@ -97,12 +138,16 @@ export function mergeCloudWorkspaces(base,local,remote){
    const x=prop(b.tables,name),y=prop(l.tables,name),z=prop(r.tables,name);
    const idField=keyForTable(name);
    const stableIds = idField!==null&&[x,y,z].every(Array.isArray)&&[...x,...y,...z].every(row=>plain(row)&&own(row,idField));
-   tables[name]=stableIds?mergeKeyedRows(x,y,z,keyForTable(name),'tables.'+name,conflicts):choose(x,y,z,'tables.'+name,conflicts);
+   tables[name]=stableIds?mergeKeyedRows(x,y,z,keyForTable(name),'tables.'+name,conflicts,name==='bullets'?mergeBullet:choose):choose(x,y,z,'tables.'+name,conflicts);
  }
  const columns=mergeObject(b.columns,l.columns,r.columns,'columns',conflicts);
- const preferences=mergeObject(b.preferences,l.preferences,r.preferences,'preferences',conflicts);
+ const prefHandlers=Object.fromEntries(keys(b.preferences,l.preferences,r.preferences).map(k=>[k,mergeMap]));
+ const preferences=mergeObject(b.preferences,l.preferences,r.preferences,'preferences',conflicts,prefHandlers);
  const mapHandlers={};
- for(const name of ['noteTimes','occlusions','deckTypes','deckFolders','mcqs','deckDesigns'])mapHandlers[name]=(a,c,d,path,errors)=>mergeObject(a,c,d,path,errors);
+ for(const name of ['occlusions','deckTypes','deckFolders','mcqs','deckDesigns','musicNodes','galleryNodes'])mapHandlers[name]=mergeMap;
+ mapHandlers.noteTimes=mergeTimes;
+ mapHandlers.workdays=mergeWorkdays;
+ for(const name of ['calendarEvents','studyFolders'])mapHandlers[name]=(a,c,d,p,e)=>mergeKeyedRows(a===absent?[]:a,c===absent?[]:c,d===absent?[]:d,'id',p,e);
  const web=mergeObject(b.web,l.web,r.web,'web',conflicts,mapHandlers);
  const doc={...b,tables,columns,preferences,web};
  // Unknown top-level extensions are never dropped silently.
@@ -126,4 +171,19 @@ export function mergeAssetManifests(base,local,remote){
  const merged=mergeKeyedRows(base,local,remote,'path',name,conflicts);
  if(conflicts.length||merged===absent)return {ok:false,conflicts};
  return {ok:true,assets:merged.sort((a,b)=>a.path.localeCompare(b.path)),conflicts:[]};
+}
+
+export function describeSyncConflict(path,doc){
+ const node=path.match(/^tables\.bullets\/([^/.]+)(?:\.(.*))?$/);
+ if(node){const title=doc?.tables?.bullets?.find(n=>n.id===node[1])?.text?.slice(0,80)||'Deleted note';
+   return `“${title}”: ${node[2]?.includes('text')?'both devices changed its text or formatting':node[2]?.includes('parentId')?'both devices moved this note':'overlapping changes or a deletion and edit'}.`;}
+ if(path.startsWith('web.workdays.entries.'))return 'Workdays: both devices changed '+path.slice('web.workdays.entries.'.length)+'.';
+ if(path.startsWith('web.workdays.'))return 'Workdays: overlapping changes to '+path.split('.')[2]+'.';
+ if(path.startsWith('assets'))return 'An attachment was changed differently on both devices.';
+ if(path.startsWith('preferences'))return 'The same setting was changed on both devices.';
+ if(path.startsWith('web.calendarEvents'))return 'The same calendar reminder was changed on both devices.';
+ if(path.startsWith('Outline or linked records:'))return 'The combined changes would leave an invalid outline or a broken link. Both copies have been kept.';
+ if(path.startsWith('tables.'))return 'Overlapping changes to study or note records need review.';
+ if(path.startsWith('web.'))return 'Overlapping changes to workspace settings need review.';
+ return path;
 }
