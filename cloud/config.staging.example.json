@@ -6,6 +6,6 @@
   "workers_dev":true,
   "observability":{"enabled":true,"head_sampling_rate":0.1},
   "vars":{"FIREBASE_PROJECT_ID":"REPLACE_WITH_STAGING_FIREBASE_PROJECT","ALLOWED_ORIGINS":"https://staging.remonook.com"},
-  "d1_databases":[{"binding":"DB","database_name":"remo-sync-staging","database_id":"REPLACE_WITH_NEW_STAGING_D1_ID"}],
+  "d1_databases":[{"binding":"DB","database_name":"remo-sync-staging","database_id":"8343200b-cb13-4d6a-a165-d6881873e306"}],
   "r2_buckets":[{"binding":"FILES","bucket_name":"remo-attachments-staging"}]
 }

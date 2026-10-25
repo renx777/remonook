@@ -10,7 +10,7 @@ GitHub is the source for future development. Production is still the existing Si
 | Staging (planned) | staging.remonook.com | New Firebase project | New Worker, D1 and R2 |
 | Production | remonook.com | Existing remo-978fb | Existing remo-sync and remo-attachments |
 
-Staging infrastructure is not created by adding configuration files. `STAGING_ENABLED` must remain unset until provisioning and isolation checks are complete.
+Staging D1 `remo-sync-staging` and private R2 `remo-attachments-staging` have been created, with the schema initialized in D1. See `cloud/staging-resources.json`. Firebase and the staging frontend are still pending. `STAGING_ENABLED` must remain unset until provisioning and isolation checks are complete.
 
 ## Local
 
@@ -21,7 +21,7 @@ Development, staging and production must use different browser origins. Folder c
 ## Staging activation checklist
 
 1. Create a new Firebase project and register a Web app. Enable Google sign-in and authorize `staging.remonook.com`. Do not reuse `remo-978fb`.
-2. Create Cloudflare D1 `remo-sync-staging` and R2 `remo-attachments-staging`. Never bind the production database or bucket.
+2. Reuse the existing staging D1 and R2 resources recorded in `cloud/staging-resources.json`. Never bind the production database or bucket.
 3. Copy `cloud/config.staging.example.json` to an untracked `cloud/config.staging.local.json`. Replace the project and database placeholders with the new resources. Apply `cloud/schema.sql` to the new database only.
 4. Bundle `cloud/worker.mjs` as an ESM Worker with esbuild, or let Wrangler bundle it. Deploy with the explicit staging config. Verify `/health`, allowed origins, authentication and private user isolation. This Worker now requires `FIREBASE_PROJECT_ID` and `ALLOWED_ORIGINS`; missing configuration returns 503.
 5. Set the frontend settings from `.env.staging.example`, either in `.env.staging.local` for a manual build, or as GitHub repository variables for the staging workflow. The frontend refuses the known production Firebase project or sync API in staging.

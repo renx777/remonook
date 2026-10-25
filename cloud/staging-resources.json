@@ -1,0 +1,21 @@
+{
+  "environment": "staging",
+  "account_id": "e9a5c70b0fbe2e2d493fc21de0bbb40f",
+  "d1": {
+    "name": "remo-sync-staging",
+    "id": "8343200b-cb13-4d6a-a165-d6881873e306",
+    "schema": "cloud/schema.sql"
+  },
+  "r2": {
+    "name": "remo-attachments-staging",
+    "public": false
+  },
+  "firebase": {
+    "status": "awaiting authenticated Firebase console access"
+  },
+  "frontend": {
+    "hostname": "staging.remonook.com",
+    "status": "not deployed"
+  },
+  "production_changed": false
+}
