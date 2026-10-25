@@ -30,7 +30,16 @@
     "url": "https://remo-sync-staging.remo-978fb.workers.dev",
     "deployment_id": "6b4c9f7f1a594a7f9638eb99a4c26c77"
   },
-  "automatic_deployment": "pending GitHub deployment secret and STAGING_ENABLED variable",
+  "automatic_deployment": {
+    "enabled": true,
+    "workflow": ".github/workflows/staging.yml",
+    "trigger": "push to main or workflow_dispatch",
+    "secret": "CLOUDFLARE_API_TOKEN",
+    "worker_scope": "remonook-staging only",
+    "permission": "Individual Workers Editor",
+    "token_expires_on": "2027-01-23",
+    "production_auto_deployment": false
+  },
   "verification": {
     "tests_passed": 156,
     "staging_build": "passed",

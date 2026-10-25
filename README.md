@@ -30,12 +30,12 @@ Build before running the full test suite: the production smoke test exercises `d
 See [the development and deployment guide](docs/ENVIRONMENTS.md).
 
 - `local`: default, device-only. Safe for feature development.
-- `staging`: separate Firebase project, sync Worker, D1 database and R2 bucket. Not provisioned by this import.
+- `staging`: live at https://staging.remonook.com with a separate Firebase project, sync Worker, D1 database and R2 bucket.
 - `production`: existing services, explicitly selected configuration. Still hosted through the existing Sites workflow.
 
 Feature branch → pull request → CI → merge to `main` → staging → explicit production release. Do not create an independent long-lived `develop` branch at this stage.
 
-The current public application is unchanged by pushing this repository. GitHub CI is enabled; cloud deployment requires the setup described in the guide.
+The current public application is unchanged by pushing this repository. GitHub CI and automatic staging frontend deployment are enabled. Pushes to `main` build, test and deploy staging; production remains an explicit release. See the guide for token rotation and backend deployment.
 
 ## Tests and architecture
 

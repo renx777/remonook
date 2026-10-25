@@ -2,7 +2,7 @@
 
 ## Current state
 
-GitHub is the source for future development. Production is still the existing Sites version 43. No DNS, live Worker, database or bucket has been changed by this import. Do not edit the Sites checkout and GitHub checkout independently and deploy both: choose the tested GitHub commit as the source for the next release.
+GitHub is the source for future development. Production is still the existing Sites version 43. Production DNS, Worker, database and bucket remain unchanged. Do not edit the Sites checkout and GitHub checkout independently and deploy both: choose the tested GitHub commit as the source for the next release.
 
 | Environment | Frontend | Authentication | Sync and attachments |
 | --- | --- | --- | --- |
@@ -10,7 +10,7 @@ GitHub is the source for future development. Production is still the existing Si
 | Staging | staging.remonook.com | remonook-staging (Spark) | remo-sync-staging Worker, separate D1 and R2 |
 | Production | remonook.com | Existing remo-978fb | Existing remo-sync and remo-attachments |
 
-Staging is deployed at https://staging.remonook.com with Google sign-in configured in Firebase project `remonook-staging`. D1 `remo-sync-staging` has its schema initialized and R2 `remo-attachments-staging` is private. The sync API is https://remo-sync-staging.remo-978fb.workers.dev. See `cloud/staging-resources.json`. The initial deployment was made through the Cloudflare API; automatic GitHub deployment still needs the deployment secret and activation variable. Production remains unchanged.
+Staging is deployed at https://staging.remonook.com with Google sign-in configured in Firebase project `remonook-staging`. D1 `remo-sync-staging` has its schema initialized and R2 `remo-attachments-staging` is private. The sync API is https://remo-sync-staging.remo-978fb.workers.dev. See `cloud/staging-resources.json`. The initial deployment was made through the Cloudflare API. Automatic frontend deployment is now enabled for pushes to `main`: GitHub holds the encrypted `CLOUDFLARE_API_TOKEN` secret and `STAGING_ENABLED=true`. The token has **Individual Workers Editor** access to **remonook-staging only**, and expires on **23 January 2027**. Rotate and update the GitHub secret before that date. Production remains unchanged.
 
 ## Local
 
@@ -25,7 +25,7 @@ Development, staging and production must use different browser origins. Folder c
 3. Copy `cloud/config.staging.example.json` to an untracked `cloud/config.staging.local.json`. The checked-in example already identifies the actual staging resources. Apply `cloud/schema.sql` to the new database only.
 4. Bundle `cloud/worker.mjs` as an ESM Worker with esbuild, or let Wrangler bundle it. Deploy with the explicit staging config. Verify `/health`, allowed origins, authentication and private user isolation. This Worker now requires `FIREBASE_PROJECT_ID` and `ALLOWED_ORIGINS`; missing configuration returns 503.
 5. Copy the public frontend settings from `.env.staging.example` to `.env.staging.local` for a manual build. The GitHub staging workflow already performs this copy. The frontend refuses the known production Firebase project or sync API in staging.
-6. Add a least-privilege Cloudflare deployment token as the GitHub repository secret `CLOUDFLARE_API_TOKEN` (the account ID is already pinned in the workflow). Do not paste the token into a file or chat. Scope it to the account and Worker deployment permissions required for this frontend.
+6. Add a least-privilege Cloudflare deployment token as the GitHub repository secret `CLOUDFLARE_API_TOKEN` (the account ID is already pinned in the workflow). Do not paste the token into a file or chat. Restrict it to the individual `remonook-staging` Worker using **Individual Workers Editor**. The existing token expires on 23 January 2027; replace the encrypted GitHub secret when rotating it.
 7. Create/attach `staging.remonook.com` to frontend Worker `remonook-staging` after its first deployment. `wrangler.staging.jsonc` serves `dist/`.
 8. Set GitHub repository variable `STAGING_ENABLED=true` only when all of the above is ready. The staging workflow then builds, tests and deploys pushes to main, or can be run manually. It deploys the frontend only; sync/schema changes need their separately reviewed staging deployment.
 
@@ -45,7 +45,7 @@ Publish the tested GitHub commit through the retained Sites workflow during tran
 
 ## Workflow and costs
 
-Use short-lived feature branches and PRs into `main`. CI runs Node 24, `npm ci`, a local-only build and the full tests. Staging is opt-in; production is an explicit release. Branch protection and deployment-review features depend on the GitHub plan and are not configured by these files.
+Use short-lived feature branches and PRs into `main`. CI runs Node 24, `npm ci`, a local-only build and the full tests. Staging frontend deployment is enabled; production is an explicit release. Branch protection and deployment-review features depend on the GitHub plan and are not configured by these files.
 
 Free-tier build and usage quotas apply across the account. Staging does not multiply those allowances. R2 and any other metered resources can generate charges beyond their included usage; no zero-cost guarantee is implied.
 
