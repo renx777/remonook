@@ -29,7 +29,7 @@ export function Landing({onSignIn,signedIn=false}:{onSignIn:()=>Promise<void>;si
     </section>
     <section className="landing-closing"><div><p className="landing-eyebrow">A place for your next thought.</p><h2>Start small. See where it goes.</h2></div><a className="landing-guest" href="#app">Explore Remo <Icon name="forward" size={18}/></a></section>
    </main>
-   <footer className="landing-footer"><a className="landing-brand" href="#home"><RemoLogo/>remo<span className="landing-footer-dot">.</span></a><span>Notes. Connections. A little more clarity.</span><a href="#app">Open the app <Icon name="forward" size={13}/></a></footer>
+   <footer className="landing-footer"><a className="landing-brand" href="#home"><RemoLogo/>remo<span className="landing-footer-dot">.</span></a><span>Notes. Connections. A little more clarity.</span><nav className="landing-footer-social" aria-label="Follow RemoNook"><a href="https://www.instagram.com/remonook.hq/" target="_blank" rel="noopener noreferrer" aria-label="RemoNook on Instagram">Instagram</a><a href="https://x.com/RemoNookhq" target="_blank" rel="noopener noreferrer" aria-label="RemoNook on X">X</a><a href="https://www.youtube.com/@RemoNook" target="_blank" rel="noopener noreferrer" aria-label="RemoNook on YouTube">YouTube</a></nav><a className="landing-footer-app" href="#app">Open the app <Icon name="forward" size={13}/></a></footer>
   </div>
  </div>;
 }
