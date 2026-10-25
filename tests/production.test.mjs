@@ -66,13 +66,21 @@ test("production bundle: interaction smoke test", async context => {
     const main=(await readdir("dist/assets")).find(f=>f.startsWith("index-")&&f.endsWith(".js"));await import("../dist/assets/"+main);
   });
   await wait(() => document.querySelector('.landing'));
-  assert.match(document.querySelector('.landing h1').textContent,/Space to think/);
-  assert.equal(document.querySelector('.landing-wordmark').getAttribute('aria-label'), 'RemoNook — remember more');
-  assert.match(document.querySelector('.landing-description').textContent, /RemoNook/);
+  const hero = document.querySelector('.landing h1');
+  assert.match(hero.textContent, /A space to think\\.A way to Remember More\\./);
+  assert.deepEqual([...hero.querySelectorAll('.landing-brand-blue')].map(span => span.textContent), ['Re', 'Mo'], 'Mascot-blue accents identify Re and Mo');
+  assert.equal(document.querySelector('.landing-wordmark').getAttribute('aria-label'), 'RemoNook — Remember More');
+  assert.equal(document.querySelector('.landing-wordmark .landing-brand-blue').textContent, 'Re');
+  assert.ok(document.querySelector('.landing-flow').textContent.includes('Capture'));
+  assert.ok(document.querySelector('.landing-flow').textContent.includes('Remember'));
+  assert.match(document.querySelector('.landing-description').textContent, /flashcards/);
+  assert.equal(document.querySelector('.landing-preview').getAttribute('role'), 'region');
   for(const [domain,handle] of [['instagram.com','@RemoNook.hq'],['x.com','@RemoNookhq'],['youtube.com','@RemoNook']]){
     const anchor=[...document.querySelectorAll('.landing-footer-social a')].find(a=>new URL(a.href).hostname.includes(domain));
     assert.ok(anchor, `Missing ${domain} social link`);
     assert.ok(anchor.textContent.includes(handle), `Missing ${handle} display handle`);
+    assert.ok(anchor.querySelector('svg[aria-hidden="true"]'), `Missing recognizable ${domain} SVG logo`);
+    assert.ok(anchor.classList.contains('landing-social-link'), `Missing mobile-friendly social link style for ${domain}`);
     assert.equal(anchor.getAttribute('target'),'_blank');
     assert.match(anchor.getAttribute('rel'), /noopener/);
   }
