@@ -28,7 +28,7 @@ import { prepareCoverImage, type DeckDesign } from "./deck-designs";
 import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
 import { MCQEditor } from "./MCQEditor";
 import { BulkMCQEditor } from "./BulkMCQEditor";
-import { FolderStoragePanel, useFolderStorage } from './FolderStorage';
+import {retireLegacyFolderSync} from './retire-folder-sync.mjs';
 import type { ReactionSettings } from "./QuizReactions";
 import {
   bullet,
@@ -61,6 +61,7 @@ import {
   references,
   type Workspace,
   type Node,
+  storageAccountKey,
 } from "./data";
 import { OutlineView } from "./OutlineView";
 import { JumpTo, OutlinePopover, OutlineSidebar } from "./OutlineChrome";
@@ -999,7 +1000,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     try {
       await flush();
       if (failed.current) throw Error("Current changes could not be saved");
-      await folder.beforeRestore();
       const restoredDoc = {
         ...prepared.doc,
         web: { ...prepared.doc.web, deviceId: persisted.current!.web.deviceId },
@@ -1013,7 +1013,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       );
       persisted.current = next;
       docRef.current = next;
-      await folder.restored();
       dirty.current = false;
       setDoc(next);
       setAssets(prepared.assets);
@@ -1031,7 +1030,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     } catch (e) {
       showError(e);
     } finally {
-      folder.endRestore();
       setWorking(false);
     }
   };
@@ -1055,13 +1053,16 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       },
     });
   };
-  const folder = useFolderStorage({revision:doc?.revision,saved:status==='Saved on this device',getSnapshot:()=>({doc:persisted.current,assets:assetsRef.current}),flush:async()=>{await flush();if(failed.current)throw Error('Browser saving failed. Export your unsaved draft before saving a folder copy.');},onImport:importBackup});
+  // Retire existing saved folder permissions, not the user's files or offline notes.
+  useEffect(() => { void retireLegacyFolderSync(storageAccountKey()).catch(() => {
+    // Legacy connection cleanup must never block loading or editing notes.
+  }); }, []);
   useEffect(() => {
     const onVisibility = () => {
-      if (document.hidden) void flush().then(()=>{if(folder.enabled)void folder.write();});
+      if (document.hidden) void flush();
     };
     const before = (e: BeforeUnloadEvent) => {
-      if (dirty.current || status === "Saving…" || (folder.enabled && (folder.pending || folder.busy))) {
+      if (dirty.current || status === "Saving…") {
         void flush();
         e.preventDefault();
         e.returnValue = "";
@@ -1073,7 +1074,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("beforeunload", before);
     };
-  }, [status,folder.enabled,folder.pending,folder.busy]);
+  }, [status]);
   useEffect(()=>{if(!doc)return;const ids=new Set(doc.tables.bullets.map(n=>n.id));for(const pane of views.panes)if(pane.scope&&!ids.has(pane.scope))views.update(pane.id,{scope:null,search:'',back:pane.back.filter(id=>id===null||ids.has(id)),forward:pane.forward.filter(id=>id===null||ids.has(id))});},[doc?.tables.bullets,views.panes]);
   useEffect(() => {
     if (!notice) return;
@@ -1364,7 +1365,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             >
               <Icon name="redo" />
             </button>
-            <SaveIndicator device={status} cloud={{connected:!!cloudUser,status:cloud.status,error:cloud.error,conflict:cloud.conflict}} folder={folder} onOpen={()=>setDialog('settings')}/>
+            <SaveIndicator device={status} cloud={{connected:!!cloudUser,status:cloud.status,error:cloud.error,conflict:cloud.conflict}} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
             {tab === "notes" && <button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
             <button
               className="icon-button workspace-settings"
@@ -1819,8 +1820,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {settingsPanel==="account" && <section aria-label="Account">
           <section className="cloud-account">
             <div className="cloud-account-heading"><div><h3>{cloudUser ? 'Your account' : 'Your notes, everywhere'}</h3><p>{cloudUser?.email || 'Sign in with Google to keep a private workspace.'}</p></div><span className="cloud-state">{cloud.status}</span></div>
-            {cloudUser ? <><div className="cloud-account-actions"><button className="action" onClick={()=>void cloud.sync()}>Sync now</button><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Your changes save here first, then sync across your devices.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><p className="dialog-muted">Sync checks every minute and when you return. Files: 2 MiB each · 20 MiB per account. Notes: 900 KiB per workspace.</p></details>
-            {cloud.conflict&&<div className="cloud-conflict"><strong>Changes on two devices</strong><p>This device: {cloud.summary?.local} bullets · Cloud: {cloud.summary?.cloud} bullets</p><p>Automatic sync is paused. Choose the version to continue with. Both versions are kept in local recovery storage before replacement.</p><button className="action" onClick={()=>void cloud.resolve('cloud')}>Use cloud version</button><button className="action" onClick={()=>void cloud.resolve('local')}>Use this device's version</button><button className="action" onClick={async()=>{try{await flush();download(await archive(docRef.current!,assetsRef.current),'remo-before-sync.remo.zip');}catch(e){showError(e);}}}>Download this device's backup</button></div>}
+            {cloudUser ? <><div className="cloud-account-actions"><button className="action" disabled={cloud.conflict} title={cloud.conflict?'Review the conflict below before syncing again':undefined} onClick={()=>void cloud.sync()}>Sync now</button><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Edits save securely in this browser first, including while offline. Your signed-in workspace syncs to the cloud and your other devices when connected.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><p className="dialog-muted">Sync checks every minute and when you return. Files: 2 MiB each · 20 MiB per account. Notes: 900 KiB per workspace.</p></details>
+            {cloud.conflict&&<div className="cloud-conflict" role="alert"><strong>Sync conflict needs review</strong><p>This device: {cloud.summary?.local} bullets · Cloud: {cloud.summary?.cloud} bullets</p><p>Both devices have changes. RemoNook cannot automatically merge entire workspaces yet, so sync is paused to prevent accidental overwrites.</p><p>Download both versions before choosing. RemoNook also saves a local recovery snapshot before applying your decision.</p><div className="cloud-conflict-actions"><button className="action" onClick={()=>void cloud.downloadConflict('local')}>Download device backup</button><button className="action" onClick={()=>void cloud.downloadConflict('cloud')}>Download cloud backup</button></div><div className="cloud-conflict-actions"><button className="action" onClick={()=>{if(window.confirm('Replace this device\'s workspace with the cloud copy? A recovery snapshot will be saved on this device before replacement.'))void cloud.resolve('cloud');}}>Keep cloud version</button><button className="action" onClick={()=>{if(window.confirm('Replace the cloud workspace with this device\'s copy? Other devices will receive this copy after syncing. A recovery snapshot is saved first.'))void cloud.resolve('local');}}>Keep this device version</button></div></div>}
             {!doc.tables.bullets.length&&<button className="wide action" disabled={disabled} onClick={async()=>{try{await flush();const guest=await load('remo-web'),guestAssets=await getAssets('remo-web');if(!guest)throw Error('No device-only notes found.');if(!confirm('Copy device-only notes into this account? They will upload to your private cloud workspace.'))return;const next=await save(persisted.current,{...guest,web:{...guest.web,deviceId:docRef.current!.web.deviceId}},'copy device notes',guestAssets,true);persisted.current=next;docRef.current=next;assetsRef.current=guestAssets;setDoc(next);setAssets(guestAssets);}catch(e){showError(e);}}}>Import existing device-only notes…</button>}
             <details className="cloud-recovery"><summary>Recover a previous sync conflict</summary><p className="dialog-muted">Download either version saved before the last conflict was resolved.</p><button className="action" onClick={()=>void cloud.downloadRecovery('local')}>Device version</button><button className="action" onClick={()=>void cloud.downloadRecovery('cloud')}>Cloud version</button></details></> : <><button className="wide action cloud-google" disabled={disabled} onClick={()=>void accountAction()}>Continue with Google</button><p className="dialog-muted">Your current notes stay in the device-only workspace. After signing in, you can choose to import them. Sign out to return to these notes.</p></>}
             {cloud.error&&<p className="cloud-error" role="status">{cloud.error}</p>}
@@ -1844,7 +1845,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <Icon name="upload" />
             Restore from backup…
           </button>
-          </div><details className="settings-disclosure settings-folder"><summary><Icon name="folder" size={16}/>Save to a folder<span>{folder.name || 'Optional'}</span></summary><FolderStoragePanel model={folder}/></details>
+          </div><p className="dialog-muted">Automatic folder syncing has been retired. Existing RemoNook folder ZIPs were not deleted; use “Restore from backup…” to import a copy when needed.</p>
           <details className="settings-disclosure"><summary><Icon name="history" size={16}/>Recovery & more</summary><div className="settings-advanced">
           <button
             className="wide action"

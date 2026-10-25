@@ -43,6 +43,13 @@ If deploying this repository's sync Worker, use `cloud/config.json` intentionall
 
 Publish the tested GitHub commit through the retained Sites workflow during transition, or later through a reviewed Cloudflare production workflow. Record a release tag and the frontend/backend versions. Do not assume a frontend rollback undoes database writes or migrations.
 
+## Cloud-first storage and legacy folder migration
+
+- Signed-in workspaces use their existing account-scoped IndexedDB as an offline cache and the matching environment's cloud workspace for cross-device sync. Staging and production must continue to use separate Firebase projects, D1 databases and R2 buckets.
+- Automatic folder ZIP writing, Syncthing-style copying, and associated UI were retired. On first opening the updated app per account/guest workspace, the legacy folder connection entry is removed from its separate IndexedDB settings store. This does not access, overwrite, or delete anything in the old local filesystem folder. The old ZIP archives remain compatible with manual Restore from backup.
+- Always export a full backup from every device with important unsynced changes before resolving conflicts or changing browser storage. Cloud synchronization currently detects divergent *whole workspace* revisions; it does not merge individual bullet edits. In a conflict, users can download the device and cloud versions separately and must confirm which version to retain. A local recovery snapshot is saved before replacing either version.
+- Preserve the browser's regular IndexedDB workspace and attachments for offline editing; never purge them as part of retiring the folder option.
+
 ## Workflow and costs
 
 Use short-lived feature branches and PRs into `main`. CI runs Node 24, `npm ci`, a local-only build and the full tests. Staging frontend deployment is enabled; production is an explicit release. Branch protection and deployment-review features depend on the GitHub plan and are not configured by these files.

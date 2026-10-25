@@ -1,4 +1,4 @@
-.save-indicators { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 64px; width: 64px; height: 32px; }
+.save-indicators { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; width: 32px; height: 32px; }
 /* Status changes never alter this control's occupied space, including on hover. */
 .topbar .save-indicator {
   position: relative;
