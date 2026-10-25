@@ -1,3 +1,6 @@
+import {project,openShared} from './sync-crdt.mjs';
+import {cloudDocument} from './cloud-model.mjs';
+import {recordLocal} from './sync-outbox.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
 import {validateOcclusions} from "./occlusion.mjs";
 import {validateStudyLibrary,studyFolders} from './study-library.mjs';
@@ -211,6 +214,7 @@ export async function save(
   assets?: Map<string, Blob>,
   replace = false,
   removeAssets: string[] = [],
+  adoptSyncState?: string,
 ): Promise<Workspace> {
   validateWorkdays(after.web.workdays);
   const db = await openDb();
@@ -230,7 +234,16 @@ export async function save(
           "Another tab changed these notes. Reload before editing to avoid overwriting it.",
         );
       }
+      const syncMeta=await request<any>(meta.get('sync-v2'));
+      if(adoptSyncState&&syncMeta?.receivedState!==adoptSyncState){
+        tx.abort();await finished.catch(()=>{});throw Object.assign(Error('A newer sync update is ready.'),{deferred:true});
+      }
       const next = { ...after, revision: (before?.revision ?? 0) + 1 };
+      if(syncMeta){
+        if(adoptSyncState){syncMeta.localState=adoptSyncState;syncMeta.mappedDoc=cloudDocument(next);const shared=openShared(adoptSyncState);try{syncMeta.assets=project(shared).assets;}finally{shared.destroy();}}
+        else recordLocal(syncMeta,next);
+        meta.put(syncMeta,'sync-v2');
+      }
       if (replace && before) {
         const oldAssets = await request<Blob[]>(
             tx.objectStore("assets").getAll(),
@@ -625,4 +638,16 @@ export async function keepCloudRecovery(value: any){
 
 export async function getCloudRecovery(): Promise<any>{
  const db=await openDb();try{return await request(db.transaction('recovery','readonly').objectStore('recovery').get('cloud-conflict'));}finally{db.close();}
+}
+
+// The outbox and each local edit share IndexedDB transactions. A response may
+// acknowledge only the IDs it actually accepted; later edits remain queued.
+export async function syncMetadata(change?:(value:any)=>any,expectedRevision?:number):Promise<any>{
+ const db=await openDb();try{
+  const tx=db.transaction('meta',change?'readwrite':'readonly'),finished=done(tx),store=tx.objectStore('meta');
+  if(expectedRevision!==undefined){const workspace=await request<any>(store.get('workspace'));if(workspace?.revision!==expectedRevision){tx.abort();await finished.catch(()=>{});throw Object.assign(Error('Newer device edits are ready.'),{deferred:true});}}
+  let value=await request<any>(store.get('sync-v2'));
+  if(change){value=change(value||null);store.put(value,'sync-v2');}
+  await finished;return value||null;
+ }finally{db.close();}
 }

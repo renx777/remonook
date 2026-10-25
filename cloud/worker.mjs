@@ -1,3 +1,4 @@
+import {syncV2} from './sync-v2.mjs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 // This cache contains only Google's public verification keys, never user data.
 const keys = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
@@ -29,9 +30,10 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID)) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2});
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
+  if(url.pathname==='/sync/v2')return syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT});
   if(url.pathname==='/workspace'){
     if(request.method==='GET'){
       const row=await env.DB.prepare('SELECT revision, body FROM workspaces WHERE uid=?').bind(uid).first();
@@ -40,12 +42,14 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
       return json({revision:row.revision,...JSON.parse(row.body)});
     }
     if(request.method==='PUT'){
+      const migrated=await env.DB.prepare('SELECT revision FROM sync_documents WHERE uid=?').bind(uid).first();
+      if(migrated)fail('An app update is ready. Reload this tab to continue. Your edits remain saved on this device.',426);
       let value;try{value=JSON.parse(new TextDecoder().decode(await readLimited(request,NOTE_LIMIT)));}catch(e){if(e.status)throw e;fail('Invalid JSON.',400);}
       validatePayload(value);
       // Every advertised attachment must already be privately stored for this user.
       if(value.assets.length){if(!env.FILES)fail('Attachment sync is awaiting storage activation.',503);for(const a of value.assets){const found=await env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(uid,a.hash).first();if(!found||found.size!==a.size)fail('Upload attachments before saving notes.',409);}}
       const body=JSON.stringify({doc:value.doc,assets:value.assets});
-      const result=await env.DB.prepare('INSERT INTO workspaces(uid,revision,body,updated_at) SELECT ?,1,?,? WHERE ?=0 OR EXISTS(SELECT 1 FROM workspaces WHERE uid=?) ON CONFLICT(uid) DO UPDATE SET revision=revision+1,body=excluded.body,updated_at=excluded.updated_at WHERE workspaces.revision=? RETURNING revision').bind(uid,body,Date.now(),value.baseRevision,uid,value.baseRevision).first();
+      const result=await env.DB.prepare('INSERT INTO workspaces(uid,revision,body,updated_at) SELECT ?,1,?,? WHERE (?=0 OR EXISTS(SELECT 1 FROM workspaces WHERE uid=?)) AND NOT EXISTS(SELECT 1 FROM sync_documents WHERE uid=?) ON CONFLICT(uid) DO UPDATE SET revision=revision+1,body=excluded.body,updated_at=excluded.updated_at WHERE workspaces.revision=? AND NOT EXISTS(SELECT 1 FROM sync_documents WHERE uid=?) RETURNING revision').bind(uid,body,Date.now(),value.baseRevision,uid,uid,value.baseRevision,uid).first();
       // An absent workspace only accepts revision zero (client cannot recreate a deleted account accidentally).
       if(!result)fail('Cloud notes changed on another device.',409);
       return json({revision:result.revision});
@@ -76,7 +80,7 @@ export default {
     if(!project||project.startsWith('REPLACE_')||!allowed.length)return json({error:'Environment is not configured.'},503);
     const origin=request.headers.get('Origin');if(origin&&!allowed.includes(origin))return json({error:'Origin not allowed.'},403);
     let response;try{response=await route(request,env);}catch(error){const status=error.status||500;response=json({error:status===500?'Cloud sync is temporarily unavailable.':error.message},status);if(status===500)console.error(JSON.stringify({event:'sync_error',message:String(error)}));}
-    const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match');headers.set('Access-Control-Allow-Methods','GET, PUT, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
+    const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match, X-Sync-Vector');headers.set('Access-Control-Allow-Methods','GET, PUT, POST, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
     return new Response(response.body,{status:response.status,headers});
   }
 };
