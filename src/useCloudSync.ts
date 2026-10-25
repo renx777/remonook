@@ -142,8 +142,11 @@ export function useCloudSync(options:Options){
        contentKey(remote.doc)===contentKey(local)&&equalSyncValue(localManifest,remote.assets))
        await cloudCheckpoint(checkpointValue(remote.revision,local,remote.assets));
      paused.current=false;conflictRef.current=null;setConflict(false);
-     const checkpointNow=await cloudCheckpoint();
-     setStatus(checkpointNow?.key===contentKey(latest.current.get().doc!)?
+     const checkpointNow=await cloudCheckpoint(),finalState=latest.current.get();
+     const finalAssets=await manifest(finalState.assets);
+     const trulySynced=checkpointNow?.key===contentKey(finalState.doc!)&&
+       (!Array.isArray(checkpointNow?.assets)||equalSyncValue(checkpointNow.assets,finalAssets));
+     setStatus(trulySynced?
        (mergedNodes!==null?'Synced · merged '+mergedNodes+' nodes':'Synced'):'Saved on device · sync pending');
    }catch(e){setStatus('Saved on device · sync pending');setError(e instanceof Error?e.message:String(e));}
    finally{busy.current=false;}
