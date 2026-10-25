@@ -13,12 +13,13 @@
 .landing-header nav a,.landing-header nav button{display:inline-flex;gap:8px;align-items:center}
 .landing-header nav button{color:inherit;border:0;background:transparent;padding:10px 2px;min-height:44px;border-radius:0;font-size:13px}
 .landing-header nav button:hover{background:transparent;color:var(--landing-ink)}
-.landing-hero{display:grid;grid-template-columns:1fr 1.08fr;gap:64px;align-items:center;padding:54px 0 64px}
+.landing-hero{display:grid;grid-template-columns:minmax(0,1.13fr) minmax(0,.95fr);gap:54px;align-items:center;padding:54px 0 64px}
+.landing-intro{container-type:inline-size}
 .landing-eyebrow{display:flex;gap:9px;align-items:center;font-size:10px;letter-spacing:1.4px;color:var(--landing-muted);text-transform:uppercase;margin:0 0 26px}
 .landing-eyebrow>span{width:5px;height:5px;flex-shrink:0;background:#719183;border-radius:50%}
 .landing h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(40px,4.2vw,59px);line-height:1.15;letter-spacing:-1.8px;font-weight:400;margin:0 0 24px;overflow-wrap:normal;max-width:590px}
-.landing-brand-blue{color:var(--landing-blue)}
-.landing h1 .landing-hero-word{display:inline-block;white-space:nowrap;font-style:italic}
+.landing h1 .landing-hero-line{display:inline-block;white-space:nowrap;font-size:clamp(20px,8.8cqw,48px);letter-spacing:-.045em;line-height:1.25;color:var(--landing-ink)}
+.landing h1 .landing-hero-emphasis{color:#047EFC;font-style:italic;font-weight:400}
 .landing-description{font-size:15px;line-height:1.75;color:#5c685f;max-width:425px;margin:0 0 30px}
 .landing-entry{display:flex;align-items:center;gap:17px;flex-wrap:wrap}
 .landing .landing-primary{display:inline-flex;align-items:center;justify-content:center;gap:13px;min-height:44px;padding:13px 17px;border:1px solid var(--landing-ink);border-radius:6px;background:var(--landing-ink);color:#fafaf5;font-size:12px;white-space:nowrap}
@@ -135,7 +136,7 @@
 
 
 .landing-wordmark{display:inline-flex;align-items:baseline;white-space:nowrap;line-height:1.3;min-width:7.8em;font-variant-ligatures:none}
-.wordmark-cursor{display:inline-block;vertical-align:-.05em;width:1px;height:.85em;background:var(--landing-blue);margin-left:4px;animation:wordmark-blink 1s step-end infinite}
+.wordmark-cursor{display:inline-block;vertical-align:-.05em;width:1px;height:.85em;background:currentColor;margin-left:4px;animation:wordmark-blink 1s step-end infinite}
 .landing-beta{display:none}
 @keyframes wordmark-blink{0%,45%{opacity:1}46%,100%{opacity:0}}
 @media(prefers-reduced-motion:reduce){.wordmark-cursor{display:none}}
