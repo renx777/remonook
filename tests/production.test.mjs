@@ -67,7 +67,7 @@ test("production bundle: interaction smoke test", async context => {
   });
   await wait(() => document.querySelector('.landing'));
   const hero = document.querySelector('.landing h1');
-  assert.match(hero.textContent, /A space to think\\.A way to Remember More\\./);
+  assert.equal(hero.textContent, 'A space to think.A way to Remember More.');
   assert.deepEqual([...hero.querySelectorAll('.landing-brand-blue')].map(span => span.textContent), ['Re', 'Mo'], 'Mascot-blue accents identify Re and Mo');
   assert.equal(document.querySelector('.landing-wordmark').getAttribute('aria-label'), 'RemoNook — Remember More');
   assert.equal(document.querySelector('.landing-wordmark .landing-brand-blue').textContent, 'Re');
