@@ -48,8 +48,8 @@ export function useCloudSync(options:Options){
     meta=await syncMetadata(existing=>existing||initializeOutbox(response.update,response.revision,baseline,current.doc!,files,checkpoint?.assets||[]),current.doc.revision);
    }
    await latest.current.flush();const local=latest.current.get();if(!local.doc)return;
-   const files=await manifest(local.assets);
-   meta=await syncMetadata(m=>{if(contentKey(m.mappedDoc)!==contentKey(local.doc!))recordLocal(m,local.doc!);return stageAssets(m,files);},local.doc.revision);
+   const stagedFiles=await manifest(local.assets);
+   meta=await syncMetadata(m=>{if(contentKey(m.mappedDoc)!==contentKey(local.doc!))recordLocal(m,local.doc!);return stageAssets(m,stagedFiles);},local.doc.revision);
    // Persist a stable batch identity BEFORE sending. New edits append behind it.
    meta=await syncMetadata(claimOutbox);
    if(meta.inflight){
@@ -68,8 +68,12 @@ export function useCloudSync(options:Options){
    const different=!current.doc||contentKey(current.doc)!==contentKey(shared.doc)||JSON.stringify(localAssets)!==JSON.stringify(shared.assets);
    if(different||meta.localState!==meta.receivedState){
     const files=await materialize(shared.assets);
-    await latest.current.flush();const fresh=await syncMetadata();
-    if(!latest.current.canApply()||fresh.receivedState!==meta.receivedState){setStatus('Saved on device · sync pending');queued.current=true;return;}
+    await latest.current.flush();
+    // Files can be restored while this request is in flight without changing
+    // note content. Stage that new local manifest before adopting a cloud view.
+    const assetSnapshot=latest.current.get().assets,newestFiles=await manifest(assetSnapshot);
+    const fresh=await syncMetadata();
+    if(latest.current.get().assets!==assetSnapshot||!latest.current.canApply()||fresh.receivedState!==meta.receivedState||JSON.stringify(newestFiles)!==JSON.stringify(stagedFiles)){setStatus('Saved on device · sync pending');queued.current=true;return;}
     await latest.current.apply(shared.doc,files,{state:meta.receivedState,selection:mappedSelection(meta.localState,meta.receivedState)});
    }
    const final=await syncMetadata(),currentDoc=latest.current.get().doc;
