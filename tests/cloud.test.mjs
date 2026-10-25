@@ -38,30 +38,31 @@ test('two clients reconcile separate nodes with server revision CAS; stale merge
  base.tables.bullets=[bullet('root',{text:'Root'}),bullet('a',{parentId:'root',text:'A'}),bullet('b',{parentId:'root',position:1,text:'B'})];
  const write=async(revision,doc)=>route(req('PUT','/workspace',{baseRevision:revision,doc:cloudDocument(doc),assets:[]}),env,auth);
  const seed=await write(0,base);assert.equal((await seed.json()).revision,1);
- const first=structuredClone(base),second=structuredClone(base),third=structuredClone(base);
+ const first=structuredClone(base),second=structuredClone(base);
  first.tables.bullets[1].text='A from laptop';
  second.tables.bullets[2].text='B from phone';
- third.tables.bullets.push(bullet('c',{parentId:'root',position:2,text:'C from tablet'}));
+
  assert.equal((await(await write(1,first)).json()).revision,2);
  const cloudAt2=await (await route(req('GET','/workspace'),env,auth)).json();
+ const third=structuredClone(cloudAt2.doc);
+ third.tables.bullets.push(bullet('c',{parentId:'root',position:2,text:'C from tablet'}));
  const firstMerge=mergeCloudWorkspaces(base,second,cloudAt2.doc);
  assert.equal(firstMerge.ok,true,JSON.stringify(firstMerge.conflicts));
  // Tablet wins before the phone's merged revision-2 update arrives.
  assert.equal((await(await write(2,third)).json()).revision,3);
  await assert.rejects(write(2,firstMerge.doc),error=>error.status===409);
  const latest=await (await route(req('GET','/workspace'),env,auth)).json();
- // Tablet's snapshot was based on the same common baseline and overwrote A;
- // subsequent manual or automatic reconciliation must never pretend the
- // overwritten change still exists in the remote. Keep this race scenario
- // focused on CAS refusing an outdated write.
+ // Tablet's new node coexists with A because it started from revision 2;
+ // the server rejected the phone's stale PUT rather than discarding C.
  assert.equal(latest.revision,3);
  assert.ok(latest.doc.tables.bullets.some(row=>row.id==='c'));
  assert.equal(latest.doc.tables.bullets.find(row=>row.id==='b').text,'B');
- // A new base-aware client could merge the phone's B change and tablet's C.
+ // A base-aware retry merges the phone's B edit with laptop A and tablet C.
  const finalMerge=mergeCloudWorkspaces(base,second,latest.doc);
  assert.equal(finalMerge.ok,true,JSON.stringify(finalMerge.conflicts));
  assert.equal((await(await write(3,finalMerge.doc)).json()).revision,4);
  const finished=(await(await route(req('GET','/workspace'),env,auth)).json()).doc;
+ assert.equal(finished.tables.bullets.find(n=>n.id==='a').text,'A from laptop');
  assert.equal(finished.tables.bullets.find(n=>n.id==='b').text,'B from phone');
  assert.ok(finished.tables.bullets.some(n=>n.id==='c'));
  env.sqlite.close();
