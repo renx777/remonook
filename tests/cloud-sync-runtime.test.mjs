@@ -95,3 +95,36 @@ test('unchanged polls use 304 and edits arriving during the poll stay pending an
   assert.equal(f.state.doc.tables.bullets[1].text,'Typed during poll');assert.equal(f.putCount,1);
  }finally{await f.close();}
 });
+
+test('editor blur retries an incoming update that was deferred while editing',async()=>{
+ const f=await fixture();try{
+  f.state.canApply=false;const d=copy(f.base);d.tables.bullets[0].text='Desktop update';
+  await f.send('PUT','/workspace',{baseRevision:1,doc:cloudDocument(d),assets:[]});await f.sync();
+  assert.equal(f.state.doc.tables.bullets[0].text,'A');assert.equal(f.result.conflict,false);
+  f.state.canApply=true;await act(async()=>document.dispatchEvent(new window.FocusEvent('focusout',{bubbles:true})));
+  await until(()=>f.state.checkpoint.revision===2);assert.equal(f.state.doc.tables.bullets[0].text,'Desktop update');
+ }finally{await f.close();}
+});
+
+test('a first-sync device with Workdays edits but no bullets never silently discards them',async()=>{
+ const f=await fixture({checkpoint:false});try{
+  f.state.doc.tables.bullets=[];
+  f.state.doc.web.workdays={version:1,enabled:true,view:'month',policies:[],entries:{'2026-10-25':{plan:{status:'WFH',detail:'',updatedAt:1}}},holidays:{},allowances:{}};
+  await f.sync();assert.equal(f.result.conflict,true);assert.equal(f.putCount,0);
+  assert.equal(f.state.doc.web.workdays.entries['2026-10-25'].plan.status,'WFH');
+ }finally{await f.close();}
+});
+
+test('persistent revision races stop after three automatic retries and retain the pending edit',async()=>{
+ const f=await fixture();try{
+  f.state.doc.tables.bullets[1].text='Pending phone edit';
+  const collide=async()=>{
+   const current=await(await f.send('GET','/workspace')).json();
+   current.doc.tables.bullets[0].text='Concurrent '+current.revision;
+   await f.send('PUT','/workspace',{baseRevision:current.revision,doc:current.doc,assets:[]});f.beforePut=collide;
+  };
+  f.beforePut=collide;await f.sync();await until(()=>f.putCount===4&&!!f.result.error);
+  assert.equal(f.result.conflict,false);assert.equal(f.state.doc.tables.bullets[1].text,'Pending phone edit');
+  assert.equal(f.state.checkpoint.revision,1);
+ }finally{await f.close();}
+});
