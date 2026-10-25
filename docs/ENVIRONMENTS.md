@@ -7,10 +7,10 @@ GitHub is the source for future development. Production is still the existing Si
 | Environment | Frontend | Authentication | Sync and attachments |
 | --- | --- | --- | --- |
 | Local | Vite on localhost | Disabled | Device-only IndexedDB |
-| Staging (planned) | staging.remonook.com | New Firebase project | New Worker, D1 and R2 |
+| Staging | staging.remonook.com | remonook-staging (Spark) | remo-sync-staging Worker, separate D1 and R2 |
 | Production | remonook.com | Existing remo-978fb | Existing remo-sync and remo-attachments |
 
-Staging D1 `remo-sync-staging` and private R2 `remo-attachments-staging` have been created, with the schema initialized in D1. See `cloud/staging-resources.json`. Firebase and the staging frontend are still pending. `STAGING_ENABLED` must remain unset until provisioning and isolation checks are complete.
+Staging is deployed at https://staging.remonook.com with Google sign-in configured in Firebase project `remonook-staging`. D1 `remo-sync-staging` has its schema initialized and R2 `remo-attachments-staging` is private. The sync API is https://remo-sync-staging.remo-978fb.workers.dev. See `cloud/staging-resources.json`. The initial deployment was made through the Cloudflare API; automatic GitHub deployment still needs the deployment secret and activation variable. Production remains unchanged.
 
 ## Local
 
@@ -22,14 +22,14 @@ Development, staging and production must use different browser origins. Folder c
 
 1. Create a new Firebase project and register a Web app. Enable Google sign-in and authorize `staging.remonook.com`. Do not reuse `remo-978fb`.
 2. Reuse the existing staging D1 and R2 resources recorded in `cloud/staging-resources.json`. Never bind the production database or bucket.
-3. Copy `cloud/config.staging.example.json` to an untracked `cloud/config.staging.local.json`. Replace the project and database placeholders with the new resources. Apply `cloud/schema.sql` to the new database only.
+3. Copy `cloud/config.staging.example.json` to an untracked `cloud/config.staging.local.json`. The checked-in example already identifies the actual staging resources. Apply `cloud/schema.sql` to the new database only.
 4. Bundle `cloud/worker.mjs` as an ESM Worker with esbuild, or let Wrangler bundle it. Deploy with the explicit staging config. Verify `/health`, allowed origins, authentication and private user isolation. This Worker now requires `FIREBASE_PROJECT_ID` and `ALLOWED_ORIGINS`; missing configuration returns 503.
-5. Set the frontend settings from `.env.staging.example`, either in `.env.staging.local` for a manual build, or as GitHub repository variables for the staging workflow. The frontend refuses the known production Firebase project or sync API in staging.
-6. Add a least-privilege Cloudflare deployment token as the GitHub repository secret `CLOUDFLARE_API_TOKEN` and its account as repository variable `CLOUDFLARE_ACCOUNT_ID`. Do not paste the token into a file or chat. Scope it to the account and Worker deployment permissions required for this frontend.
+5. Copy the public frontend settings from `.env.staging.example` to `.env.staging.local` for a manual build. The GitHub staging workflow already performs this copy. The frontend refuses the known production Firebase project or sync API in staging.
+6. Add a least-privilege Cloudflare deployment token as the GitHub repository secret `CLOUDFLARE_API_TOKEN` (the account ID is already pinned in the workflow). Do not paste the token into a file or chat. Scope it to the account and Worker deployment permissions required for this frontend.
 7. Create/attach `staging.remonook.com` to frontend Worker `remonook-staging` after its first deployment. `wrangler.staging.jsonc` serves `dist/`.
 8. Set GitHub repository variable `STAGING_ENABLED=true` only when all of the above is ready. The staging workflow then builds, tests and deploys pushes to main, or can be run manually. It deploys the frontend only; sync/schema changes need their separately reviewed staging deployment.
 
-All required `VITE_*` names are listed in `.env.staging.example`. They are public build-time values. Environment files ending in `.local` are ignored. The deployment token is a secret.
+The actual staging `VITE_*` values are recorded in `.env.staging.example`. They are public build-time values. Environment files ending in `.local` are ignored. The deployment token is a secret.
 
 Test with synthetic notes and test accounts. Verify Android phone, iPad, desktop, keyboard open/closed, offline reload, backup/restore and sync conflict handling before release. GitHub PR builds receive no deployment secrets.
 

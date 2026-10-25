@@ -14,7 +14,7 @@ export async function readLimited(request, limit) {
 }
 export async function verifyUser(token, project) {
   if(!project)fail("Firebase project is not configured.",503);
-  const {payload}=await jwtVerify(token,keys,{algorithms:['RS256'],issuer:`https://securetoken.google.com/${project}`,audience:PROJECT,requiredClaims:['sub','exp','iat','auth_time']});
+  const {payload}=await jwtVerify(token,keys,{algorithms:['RS256'],issuer:`https://securetoken.google.com/${project}`,audience:project,requiredClaims:['sub','exp','iat','auth_time']});
   const now=Date.now()/1000;
   if(!payload.sub||payload.sub.length>128||typeof payload.iat!=='number'||payload.iat>now||typeof payload.auth_time!=='number'||payload.auth_time>now||payload.firebase?.sign_in_provider!=='google.com')fail('Please sign in with Google.',401);
   return payload.sub;

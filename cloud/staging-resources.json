@@ -11,11 +11,32 @@
     "public": false
   },
   "firebase": {
-    "status": "awaiting authenticated Firebase console access"
+    "status": "configured",
+    "project_id": "remonook-staging",
+    "plan": "Spark",
+    "google_sign_in": true,
+    "web_app_id": "1:282697078059:web:db94ef2bf1c659697da16e",
+    "authorized_domain": "staging.remonook.com"
   },
   "frontend": {
     "hostname": "staging.remonook.com",
-    "status": "not deployed"
+    "status": "deployed",
+    "worker": "remonook-staging",
+    "deployment_id": "44df217dafdb4163bd4c2220c0b0aef5"
   },
-  "production_changed": false
+  "production_changed": false,
+  "sync": {
+    "worker": "remo-sync-staging",
+    "url": "https://remo-sync-staging.remo-978fb.workers.dev",
+    "deployment_id": "6b4c9f7f1a594a7f9638eb99a4c26c77"
+  },
+  "automatic_deployment": "pending GitHub deployment secret and STAGING_ENABLED variable",
+  "verification": {
+    "tests_passed": 156,
+    "staging_build": "passed",
+    "google_sign_in": "passed",
+    "backend_health": "passed",
+    "staging_note_sync": "passed: synthetic note confirmed in staging D1, revision 3",
+    "browser_reload": "passed"
+  }
 }

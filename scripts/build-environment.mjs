@@ -1,4 +1,5 @@
 import {spawnSync} from 'node:child_process';
+import {copyFileSync} from 'node:fs';
 const mode=process.argv[2];
 if(!['staging','production'].includes(mode))throw Error('Choose staging or production explicitly.');
 const env={...process.env,VITE_REMO_ENV:mode};
@@ -7,3 +8,4 @@ for(const args of [['node_modules/typescript/bin/tsc','--noEmit'],['node_modules
  if(result.error)throw result.error;
  if(result.status!==0)process.exit(result.status||1);
 }
+if(mode==='staging')copyFileSync('cloud/staging-headers','dist/_headers');

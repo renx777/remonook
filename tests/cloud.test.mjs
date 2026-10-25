@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {generateKeyPair, exportJWK, SignJWT} from 'jose';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import worker,{route,readLimited,validatePayload,verifyUser} from '../cloud/worker.mjs';
@@ -44,6 +45,14 @@ test('content addressed files enforce ownership, checksums and account quota',as
  await assert.rejects(route(req('PUT','/assets/'+hash,'test','full'),env,auth),e=>e.status===413);env.sqlite.close();
 });
 test('untrusted authentication tokens are rejected',async()=>{await assert.rejects(verifyUser('invalid.jwt.token','test-project'));});
+test('authentication verifies the configured Firebase project and rejects another project',async(t)=>{
+ const {privateKey,publicKey}=await generateKeyPair('RS256');
+ const jwk={...await exportJWK(publicKey),kid:'test-google-key',alg:'RS256',use:'sig'};
+ t.mock.method(globalThis,'fetch',async(url)=>{assert.equal(String(url),'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');return Response.json({keys:[jwk]});});
+ const token=await new SignJWT({auth_time:Math.floor(Date.now()/1000),firebase:{sign_in_provider:'google.com'}}).setProtectedHeader({alg:'RS256',kid:jwk.kid}).setSubject('staging-user').setIssuedAt().setExpirationTime('1h').setIssuer('https://securetoken.google.com/remonook-staging').setAudience('remonook-staging').sign(privateKey);
+ assert.equal(await verifyUser(token,'remonook-staging'),'staging-user');
+ await assert.rejects(verifyUser(token,'remo-978fb'),{code:'ERR_JWT_CLAIM_VALIDATION_FAILED'});
+});
 test('sync decisions protect changes on both devices',()=>{
  const d={revision:1,web:{deviceId:'one'},tables:{bullets:[]}};assert.equal(contentKey(d),contentKey({...d,revision:10,web:{deviceId:'two'}}));assert.equal(cloudDocument(d).revision,undefined);
  assert.equal(syncDecision(null,'new',0),'upload');assert.equal(syncDecision(null,'new',2),'download');assert.equal(syncDecision({revision:2,key:'old'},'new',3),'conflict');assert.equal(syncDecision({revision:2,key:'old'},'old',3),'download');assert.equal(syncDecision({revision:2,key:'old'},'new',2),'upload');
