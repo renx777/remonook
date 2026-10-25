@@ -8,7 +8,8 @@ schemas or requiring all older tabs to upgrade simultaneously.
 - Different bullets merge by ID. Within an existing bullet, independent fields
   merge; text and formatting remain one atomic unit, as do parent and position.
 - Delete versus edit, divergent edits to the same text/formatting, and unsafe
-  tree structures require review. Review names the affected note or calendar date.
+  tree structures remain internally pending until a safe merge is possible.
+  Users are not asked to choose a workspace copy.
 - Derived note timestamps reconcile separately. Workdays entries/holidays/leave
   allowances merge by date/year; policies by effective date. Calendar reminders
   and study folders merge by ID. Attachments remain path/hash checked.
@@ -30,10 +31,12 @@ conditional requests. Incoming replacements wait until editing is safe. Requests
 that arrive during an in-flight sync are queued for another pass. Workspace
 revision races are refetched and re-merged with up to three bounded retries.
 
-Real conflicts preserve both copies and remain retryable; they do not latch the
-client permanently into a paused state. Backup downloads and explicit whole-copy
-replacement remain available. A recovery snapshot is saved before manual
-replacement and automatic merging. Notes and attachment changes arriving during
+Overlapping edits preserve both copies and remain retryable; they do not latch
+the client permanently into a paused state. There are no force-overwrite, manual
+sync or conflict-recovery controls in Settings. A local recovery snapshot is saved
+automatically before a merge and when edits cannot yet merge; repeated unchanged
+checks do not rewrite it. Pending changes are never presented as Synced. Ordinary
+workspace backup export/import remains separate from sync. Notes and attachment changes arriving during
 an upload/download are checked before applying a downloaded/merged copy.
 
 ## Validation
@@ -50,4 +53,7 @@ The transport still transfers workspace snapshots. Per-operation durable outboxe
 server acknowledgements/deduplication, incremental delivery with live invalidation,
 and rich-text CRDT storage are not part of this compatibility release. Introduce
 those behind a protocol version with old-client write protection, data migration,
-replay tests, and a staged rollout. Changing polling alone is not that migration.
+replay tests, and a staged rollout. Backend reconciliation and durable version history must
+resolve concurrent updates without user intervention. See AGENTS.md for the
+owner's persistent product requirement. The current local recovery snapshot is
+not yet a backend version journal. Changing polling alone is not that migration.
