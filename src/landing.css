@@ -71,8 +71,10 @@
 .landing-footer{border-top:1px solid var(--landing-line);padding:25px 0 30px;display:flex;align-items:center;gap:25px;color:#979e92;font-size:9px}
 .landing-footer .landing-brand{font-size:20px;color:#55604f;gap:0;letter-spacing:-1px}
 .landing-footer-dot{color:#88a07d}
-.landing-footer-social{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.landing-footer-social a{color:#7b8773;text-decoration:none;font-size:10px;padding:8px 0;transition:color .15s ease}
+.landing-footer-social{margin-left:auto;display:flex;align-items:center;gap:17px;flex-wrap:wrap}
+.landing-footer-social a{color:#7b8773;text-decoration:none;font-size:10px;padding:5px 0;display:inline-flex;flex-direction:column;align-items:flex-start;gap:3px;transition:color .15s ease}
+.landing-footer-social a small{font-size:9px;color:#979e92;letter-spacing:0;white-space:nowrap}
+.landing-footer-social a:hover small,.landing-footer-social a:focus-visible small{color:#60705e}
 .landing-footer-social a:hover,.landing-footer-social a:focus-visible{color:#394b34;text-decoration:underline;text-underline-offset:3px}
 .landing-footer .landing-footer-app{display:flex;align-items:center;gap:7px;color:#7b8773;white-space:nowrap}
 
@@ -132,4 +134,4 @@
 @media(max-width:520px){.landing-header nav{gap:12px}.landing-header .landing-brand{font-size:22px;gap:6px}.landing-header .remo-logo{--remo-logo-size:32px}}
 @media(max-width:360px){.landing-header .landing-brand{font-size:20px}.landing-wrap{width:calc(100% - 32px)}.landing-header nav button,.landing-header nav a{font-size:11px}}
 @media(max-width:760px){.landing-footer{flex-wrap:wrap;row-gap:8px}.landing-footer-social{margin-left:0;justify-content:flex-start}.landing-footer .landing-footer-app{margin-left:auto}}
-@media(max-width:520px){.landing-footer>span{width:100%;max-width:none}.landing-footer-social{gap:16px}.landing-footer-social a{font-size:11px;min-height:36px;display:inline-flex;align-items:center}}
+@media(max-width:520px){.landing-footer>span{width:100%;max-width:none}.landing-footer-social{gap:16px}.landing-footer-social a{font-size:11px;min-height:40px;display:inline-flex;align-items:flex-start}}
