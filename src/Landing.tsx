@@ -1,0 +1,35 @@
+import {TypingWordmark} from './TypingWordmark';
+import {RemoLogo} from './RemoLogo';
+import {useState} from 'react';
+import {Icon} from './icons';
+import './landing.css';
+export function Landing({onSignIn,signedIn=false}:{onSignIn:()=>Promise<void>;signedIn?:boolean}){
+ const [view,setView]=useState<'notes'|'study'>('notes'),[revealed,setRevealed]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const signIn=async()=>{if(busy)return;setBusy(true);setError('');try{await onSignIn();}catch(e){const code=(e as {code?:string}).code;setError(code==='auth/popup-closed-by-user'?'Sign-in was closed. You can try again or explore as a guest.':code==='auth/popup-blocked'?'Allow the sign-in popup, or explore as a guest.':'Could not sign in. Please try again, or explore as a guest.');}finally{setBusy(false);}};
+ const accountButton=(label:string)=>signedIn?<a className="landing-primary" href="#app">Open your workspace <Icon name="forward" size={16}/></a>:<button className="landing-primary" disabled={busy} onClick={()=>void signIn()}><span className="landing-google" aria-hidden="true">G</span>{busy?'Opening Google…':label}<Icon name="forward" size={16}/></button>;
+ return <div className="landing">
+  <a className="landing-skip" href="#landing-content">Skip to content</a>
+  <div className="landing-wrap">
+   <header className="landing-header"><a className="landing-brand" href="#home" aria-label="Remo home"><RemoLogo/><TypingWordmark/><span className="landing-beta">BETA</span></a><nav aria-label="Welcome navigation"><a href="#how-it-works">A look inside</a>{signedIn?<a href="#app">Your workspace <Icon name="forward" size={14}/></a>:<button disabled={busy} onClick={()=>void signIn()}>Sign in <Icon name="forward" size={14}/></button>}</nav></header>
+   <main id="landing-content">
+    <section className="landing-hero" aria-labelledby="landing-title">
+     <div className="landing-intro"><p className="landing-eyebrow"><span/>A quieter kind of workspace</p><h1 id="landing-title">Space to think.<br/>A way to <em>remember.</em></h1><p className="landing-description">Let your thoughts branch out. Turn what you learn into flashcards. Keep it all together, in Remo.</p><div className="landing-entry">{accountButton('Get started with Google')}<a className="landing-guest" data-guest-entry href="#app">Try as a guest <Icon name="forward" size={16}/></a></div><p className="landing-entry-note">No account needed to explore.<br/>Guest notes stay in this browser.</p>{error&&<p className="landing-error" role="alert">{error}</p>}</div>
+     <div className="landing-preview" id="how-it-works">
+      <div className="landing-preview-bar"><span><span className="landing-preview-dot"/>A thought, taking shape</span><div role="group" aria-label="Interactive preview"><button aria-pressed={view==='notes'} onClick={()=>setView('notes')}>Notes</button><button aria-pressed={view==='study'} onClick={()=>setView('study')}>Flashcard</button></div></div>
+      <div className="landing-preview-body">
+       {view==='notes'?<div className="landing-demo-outline"><p className="landing-demo-label">YOUR IDEAS, CONNECTED</p><div className="landing-demo-root"><span className="landing-bullet landing-parent"/><strong>Machine Learning</strong><span className="landing-demo-tag">#learning</span></div><div className="landing-demo-branch"><div className="landing-demo-topic"><span className="landing-bullet"/>Foundations</div><div className="landing-demo-question"><span className="landing-bullet"/>How does a model learn?<span className="landing-question-tag">Q</span></div><div className="landing-demo-answer"><span className="landing-bullet"/>By finding patterns in examples.</div><div className="landing-demo-topic landing-next-topic"><span className="landing-bullet"/>Ideas to explore</div><div className="landing-demo-faint"><span className="landing-bullet"/>One thought leads to another<span className="landing-demo-caret"/></div></div><button className="landing-preview-link" onClick={()=>{setView('study');setRevealed(false);}}>Now, make it stick <Icon name="forward" size={14}/></button></div>:<div className="landing-demo-study"><div className="landing-demo-label"><span>FOUNDATIONS</span><span>FLASHCARD PREVIEW</span></div><h2>How does a model learn?</h2><div className={`landing-demo-reveal ${revealed?'is-revealed':''}`}>{revealed?<p>By finding patterns in examples.</p>:<p>A little recall goes a long way.</p>}</div><button className="landing-demo-reveal-button" onClick={()=>setRevealed(!revealed)}>{revealed?'Try again':'Reveal answer'}<Icon name={revealed?'renewal':'forward'} size={15}/></button></div>}
+      </div>
+      <div className="landing-preview-foot"><span><Icon name="notes" size={13}/>From a note to something you know.</span><span>Interactive preview</span></div>
+     </div>
+    </section>
+    <section className="landing-features" aria-label="What you can do in Remo">
+     <div><span className="landing-feature-number">01 / THINK</span><h2>Follow the thread.</h2><p>Nested notes, tags and linked ideas. Room for the big picture and every small detail.</p></div>
+     <div><span className="landing-feature-number">02 / REMEMBER</span><h2>Learn from your own notes.</h2><p>Flashcards, quizzes and image occlusion. Review with spaced repetition, or study at your own pace.</p></div>
+     <div><span className="landing-feature-number">03 / KEEP</span><h2>Pick up where you left off.</h2><p>Write offline. Sign in for cloud sync. Keep a full backup, or save a copy to your own folder.</p></div>
+    </section>
+    <section className="landing-closing"><div><p className="landing-eyebrow">A place for your next thought.</p><h2>Start small. See where it goes.</h2></div><a className="landing-guest" href="#app">Explore Remo <Icon name="forward" size={18}/></a></section>
+   </main>
+   <footer className="landing-footer"><a className="landing-brand" href="#home"><RemoLogo/>remo<span className="landing-footer-dot">.</span></a><span>Notes. Connections. A little more clarity.</span><a href="#app">Open the app <Icon name="forward" size={13}/></a></footer>
+  </div>
+ </div>;
+}

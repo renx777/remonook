@@ -1,0 +1,38 @@
+.save-indicators { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 64px; width: 64px; height: 32px; }
+/* Status changes never alter this control's occupied space, including on hover. */
+.topbar .save-indicator {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  height: 32px;
+  min-height: 32px;
+  padding: 3px;
+  margin: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--muted);
+  background: transparent;
+}
+.save-indicator-logo { display: block; flex: none; width: 24px; height: 24px; overflow: visible; }
+.save-indicator[data-state="off"] { opacity: .45; }
+.save-indicator[data-state="off"] .save-indicator-badge, .save-indicator[data-state="off"] .save-indicator-mark { visibility: hidden; }
+.save-indicator-badge { fill: var(--panel); }
+.save-indicator-mark { stroke-width: 1.6; }
+.save-indicator-orbit { opacity: 0; transform-origin: 12px 12px; }
+.save-indicator[data-state="saved"] .save-indicator-mark { color: var(--accent); }
+.save-indicator[data-state="saving"] .save-indicator-orbit,
+.save-indicator[data-state="pending"] .save-indicator-orbit { opacity: .6; animation: save-orbit 1.8s linear infinite; }
+.save-indicator[data-state="pending"] .save-indicator-orbit { animation-duration: 3s; opacity: .3; }
+.save-indicator[data-state="error"] { color: #c95c55; }
+.save-indicator[data-state="attention"] .save-indicator-mark { color: #bd8a46; }
+@keyframes save-orbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .save-indicator[data-state] .save-indicator-orbit { animation: none; }
+}

@@ -1,0 +1,78 @@
+{
+  "goals": [
+    "id",
+    "title",
+    "targetDateEpochDay",
+    "dailyMinutes",
+    "isPrimary",
+    "createdAtEpochMillis"
+  ],
+  "concepts": ["id", "goalId", "title", "mastery", "status"],
+  "cards": [
+    "id",
+    "conceptId",
+    "question",
+    "answer",
+    "sourceLabel",
+    "state",
+    "dueAtEpochMillis",
+    "difficulty",
+    "stability",
+    "retrievability",
+    "createdAtEpochMillis",
+    "repetitionCount",
+    "intervalDays",
+    "easeFactor",
+    "lastReviewAtEpochMillis",
+    "suspended",
+    "buriedUntilEpochMillis"
+  ],
+  "review_logs": [
+    "id",
+    "cardId",
+    "grade",
+    "reviewedAtEpochMillis",
+    "responseTimeMillis",
+    "scheduledNextAtEpochMillis",
+    "mode"
+  ],
+  "bullets": [
+    "id",
+    "parentId",
+    "position",
+    "text",
+    "kind",
+    "collapsed",
+    "formatting",
+    "autoHighlight",
+    "listType",
+    "codeLanguage",
+    "taskState",
+    "dueDate",
+    "journalDate"
+  ],
+  "media": [
+    "id",
+    "bulletId",
+    "fileName",
+    "mimeType",
+    "sourceUrl",
+    "credit",
+    "licenseUrl"
+  ],
+  "emojis": ["token", "fileName", "label"],
+  "decks": ["rootId", "createdAt", "pinned"],
+  "trash": ["id", "title", "deletedAt", "nodeCount", "payload"],
+  "study_sessions": [
+    "id",
+    "scope",
+    "mode",
+    "tag",
+    "queueJson",
+    "cursor",
+    "reviewed",
+    "revealed",
+    "updatedAt"
+  ],
+  "study_limits": ["deckId", "newCards", "reviewCards"]
+}

@@ -1,0 +1,64 @@
+.mobile-edit-dock{display:none}
+@media(max-width:760px){
+ .app{width:100%;max-width:100vw;overflow:hidden}
+ .app>main{min-width:0;width:100%}
+ .sidebar{display:none}
+ .topbar-sidebar-toggle,.sidebar-toggle-btn{display:none!important}
+ .topbar{padding:0 8px;gap:4px;min-height:50px}
+ .topbar-right{gap:2px;min-width:0}
+ .topbar .icon-button{width:34px;height:38px;min-width:34px}
+ .topbar [aria-label="Undo"],.topbar [aria-label="Redo"],.topbar .completed-toggle,.topbar [aria-label="New pane"]{display:none}
+ .topbar .breadcrumbs{flex:1;min-width:50px;max-width:none!important}
+ .topbar .breadcrumbs button{max-width:110px;font-size:12px}
+ .topbar-search{width:34px;padding:7px 8px;border:0}
+ .topbar-search input{width:0;opacity:0;font-size:16px}
+ .topbar-search:focus-within{position:absolute;left:8px;right:8px;width:auto;background:var(--bg);z-index:7;border:1px solid var(--line);padding:8px 10px}
+ .topbar-search:focus-within input{width:100%;opacity:1}
+ .mobile-nav{display:flex;justify-content:space-around;border-top:1px solid var(--line);padding:3px 8px max(4px,env(safe-area-inset-bottom));background:var(--bg);flex-shrink:0}
+ .mobile-nav button{flex-direction:column;gap:3px;font-size:10px;background:transparent;min-width:76px;padding:8px}
+ .outline-scroll{margin:10px 4px 0;scroll-padding-bottom:110px}
+ .notes-panes,.note-pane{min-width:0}
+ .app[data-editing=true] .outline-scroll{padding-bottom:100px}
+ .app[data-editing=true] .mobile-nav{display:none}
+ .app[data-editing=true] .floating-formatbar{display:none!important}
+ .outline-row.selected{scroll-margin-bottom:110px}
+ .tiptap{font-size:max(16px,var(--reading-size,16px))}
+ .app input:not([type=checkbox]):not([type=range]),.app textarea,.app select{font-size:16px}
+ .mobile-edit-dock{position:fixed;display:flex;align-items:center;gap:0;left:0;right:0;z-index:58;border-top:1px solid var(--line);background:var(--panel);color:var(--text);padding:4px max(5px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(5px,env(safe-area-inset-left));box-shadow:0 -4px 16px #0000000a}
+ .mobile-edit-dock[data-keyboard=true]{padding-bottom:4px}
+ .mobile-edit-scroll{display:flex;align-items:center;gap:2px;min-width:0;flex:1;overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x}
+ .mobile-edit-scroll::-webkit-scrollbar{display:none}
+ .mobile-edit-scroll>button,.mobile-edit-done{display:inline-flex;align-items:center;justify-content:center;flex:0 0 42px;min-width:42px;width:42px;height:44px;padding:0;border:0;border-radius:7px;color:var(--text);background:transparent;font-size:17px}
+ .mobile-edit-scroll>button[aria-pressed=true]{background:var(--soft);color:var(--accent)}
+ .mobile-edit-scroll>button:disabled{opacity:.35}
+ .mobile-edit-scroll>select{flex:0 0 76px;width:76px;height:40px;margin:0 5px;padding:3px;border:0;background:transparent;color:var(--text)}
+ .mobile-tool-divider{flex:0 0 1px;width:1px;height:22px;background:var(--line);margin:0 5px}
+ .mobile-edit-done{flex-shrink:0;color:var(--accent);border-left:1px solid var(--line);border-radius:0;margin-left:4px}
+ .mobile-edit-scroll .format-palette-split{flex:0 0 auto;display:flex;align-items:center}
+ .mobile-edit-scroll .palette-apply{min-width:34px;width:34px;height:44px;background:transparent;border:0;padding:0}
+ .mobile-edit-scroll .format-palette summary{height:44px;min-width:25px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+ .mobile-edit-scroll .palette-popover{position:fixed;z-index:60;width:min(280px,calc(100vw - 20px));max-height:50dvh;overflow-y:auto;padding:14px}
+ .mobile-edit-scroll .palette-swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+ .mobile-edit-scroll .palette-swatches button{width:32px;height:32px}
+ .mobile-edit-scroll .palette-panel-heading{font-size:12px}
+ .mobile-edit-scroll .palette-panel-heading span{font-size:10px}
+ .mobile-edit-scroll .palette-panel-footer{font-size:11px;flex-wrap:wrap}
+ .mobile-edit-dock button:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+ .secondary-page{padding:24px 16px}
+ .settings-dialog{max-width:calc(100vw - 20px)}
+ .reminder-tabs{min-width:0}
+}
+@media(max-width:390px){.topbar .save-indicators{gap:0}.topbar .breadcrumbs button{max-width:90px}.topbar-right{gap:0}.topbar .icon-button{min-width:30px;width:30px}}
+@media(max-width:760px){
+ .outline-scroll{padding-left:28px;padding-right:12px}
+ .outline-row .bullet-dot-btn{width:1.25em;min-width:1.25em;margin-right:.25em;color:var(--text);background:transparent}
+ .outline-row .bullet-glyph{width:var(--row-text-size);height:var(--row-text-size)}
+ .outline-row .bullet-dot-btn .bullet-inner-dot{fill:var(--text)}
+ .outline-row .triangle-toggle{left:-16px!important;width:18px;color:var(--muted)}
+ .outline-row .branch-triangle{width:9px;height:9px}
+ .outline-row .row-content{line-height:1.55;overflow-wrap:break-word;word-break:normal}
+ .outline-row .text-button{overflow-wrap:break-word;word-break:normal}
+ .outline-row .row-hover-more{left:-28px!important;width:22px;pointer-events:none}
+ .outline-row .row-hover-more:focus-visible{pointer-events:auto}
+}
+@media(hover:none) and (pointer:coarse){.outline-row .bullet-dot-btn:hover .bullet-inner-dot{fill:var(--text)}.outline-row .row-hover-more{opacity:0!important;pointer-events:none!important}}

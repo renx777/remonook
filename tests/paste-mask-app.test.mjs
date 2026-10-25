@@ -1,0 +1,75 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { JSDOM } from 'jsdom';
+import 'fake-indexeddb/auto';
+import { act } from 'react';
+import { empty, withNodes, save, load, getAssets } from './.build/data.mjs';
+import { bullet, rows } from '../src/domain.mjs';
+
+const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
+for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'HTMLInputElement', 'HTMLTextAreaElement', 'HTMLSelectElement', 'Node', 'DOMParser', 'MutationObserver', 'getComputedStyle']) Object.defineProperty(globalThis, key, { value: key === 'getComputedStyle' ? dom.window.getComputedStyle.bind(dom.window) : dom.window[key], configurable: true });
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+globalThis.ResizeObserver = undefined;
+globalThis.requestAnimationFrame = window.requestAnimationFrame.bind(window); globalThis.cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+HTMLElement.prototype.scrollTo = function ({ top = 0 }) { this.scrollTop = top; };
+dom.window.Range.prototype.getClientRects = () => [];
+dom.window.Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 });
+dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+const wait = async check => { for (let i = 0; i < 150; i++) { if (check()) return; await act(async () => new Promise(resolve => setTimeout(resolve, 20))); } throw Error('Timed out waiting for inline emoji UI'); };
+const key = async value => act(async () => document.querySelector('.tiptap').dispatchEvent(new window.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true })));
+
+test('real paste events import all formats, preserve caret/selection, support undo and retain masks after reload', async () => {
+  await save(null, withNodes(empty(), [bullet('paste', { text: 'Hello world' })]));
+  let app;
+  try {
+    await act(async () => { app = await import('./.build/app.mjs'); });
+    await wait(() => document.querySelector('[data-node-id="paste"] .text-button'));
+    await act(async () => document.querySelector('[data-node-id="paste"] .text-button').click());
+    await wait(() => document.querySelector('.tiptap'));
+    const paste = async (text, html = '') => act(async () => {
+      const event = new window.Event('paste', {bubbles:true,cancelable:true});
+      Object.defineProperty(event,'clipboardData',{ value: { files:[], getData: type => type === 'text/plain' ? text : type === 'text/html' ? html : '' } });
+      document.querySelector('.tiptap').dispatchEvent(event);
+    });
+    const shortcut = async (key, extra = {}) => act(async () => document.querySelector('.tiptap').dispatchEvent(new window.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true,...extra})));
+    let editor = document.querySelector('.tiptap').editor;
+    await act(async () => editor.commands.setTextSelection({from:7,to:12}));
+    await paste('**Earth**');
+    assert.equal(editor.getText(),'Hello Earth');
+    assert.equal(editor.state.selection.from,12,'Caret follows single-bullet paste');
+    assert.equal(document.querySelectorAll('.outline-row').length,1);
+    await act(async () => editor.commands.setTextSelection({from:7,to:12}));
+    await shortcut('M',{code:'KeyM',ctrlKey:true,shiftKey:true});
+    assert.ok(document.querySelector('.tiptap [data-remo-mask]'));
+    await key('Escape');
+    assert.ok(document.querySelector('[data-node-id="paste"] .masked-text'));
+    await act(async () => document.querySelector('[data-node-id="paste"] .masked-text').click());
+    assert.equal(document.querySelector('.tiptap'),null,'Tap reveals a patch without opening the editor');
+    await act(async () => document.querySelector('[aria-label="Hello Earth"]').click());
+    editor = document.querySelector('.tiptap').editor;
+    await act(async () => editor.commands.setTextSelection({from:1,to:editor.state.doc.content.size-1}));
+    await paste('Root\n    Child\n        Grandchild\n    Other child\nNext root');
+    assert.equal(document.querySelectorAll('.outline-row').length,5);
+    await shortcut('z',{ctrlKey:true});
+    assert.equal(document.querySelectorAll('.outline-row').length,1);
+    assert.equal(document.querySelector('.tiptap').editor.getText(),'Hello Earth');
+    editor = document.querySelector('.tiptap').editor;
+    await act(async () => editor.commands.setTextSelection({from:1,to:12}));
+    await paste('<opml version="2.0"><body><outline text="OPML parent"><outline text="OPML child"/></outline><outline text="Sibling"/></body></opml>');
+    assert.equal(document.querySelectorAll('.outline-row').length,3);
+    await shortcut('z',{ctrlKey:true});
+    editor = document.querySelector('.tiptap').editor;
+    await act(async () => editor.commands.setTextSelection({from:1,to:editor.state.doc.content.size-1}));
+    await paste('', '<ul><li><b>Formatted parent</b><ul><li><span data-remo-mask="true">Masked child</span></li></ul></li></ul>');
+    assert.equal(document.querySelectorAll('.outline-row').length,2);
+    await key('Escape');
+    assert.ok(document.querySelector('.masked-text'));
+    await act(async () => new Promise(resolve => setTimeout(resolve,350)));
+    const stored = await load();
+    assert.deepEqual(rows(stored.tables.bullets).map(({bullet:n}) => [n.text,n.parentId]), [['Formatted parent',null],['Masked child','paste']]);
+    assert.match(stored.tables.bullets.find(n => n.id === 'paste').formatting,/BOLD/);
+    assert.match(stored.tables.bullets.find(n => n.parentId === 'paste').formatting,/MASK/);
+  } finally { if(app) await act(async () => app.appRoot.unmount()); dom.window.close(); }
+});

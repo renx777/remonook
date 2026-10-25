@@ -1,0 +1,5 @@
+.remo-logo{--remo-logo-size:32px;position:relative;display:inline-block;flex:0 0 var(--remo-logo-size);width:var(--remo-logo-size);height:var(--remo-logo-size);overflow:hidden;border-radius:calc(var(--remo-logo-size) * .25);background:transparent;vertical-align:middle;isolation:isolate}
+.remo-logo img{position:absolute;display:block;width:130%;height:130%;max-width:none;left:-15.3%;top:-17.7%;object-fit:contain;user-select:none;pointer-events:none}
+.landing-header .remo-logo{--remo-logo-size:40px}
+.landing-footer .remo-logo{--remo-logo-size:26px;margin-right:7px}
+.recovery-screen .recovery-brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:21px;margin-bottom:24px;letter-spacing:-.7px}

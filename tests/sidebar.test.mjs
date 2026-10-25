@@ -1,0 +1,40 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { bullet } from '../src/domain.mjs';
+import { OutlineSidebar } from './.build/OutlineChrome.mjs';
+
+test('sidebar virtualizes 10,000 nesting levels and scrolls selected ancestors into view', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
+  for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'Node']) Object.defineProperty(globalThis, key, { value: dom.window[key], configurable: true });
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  globalThis.ResizeObserver = undefined;
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get() { return this.classList.contains('root-nav') ? 400 : 0; } });
+  HTMLElement.prototype.getBoundingClientRect = function () {
+    const top = this.getAttribute('role') === 'tree' ? 100 - (this.parentElement?.scrollTop || 0) : 0;
+    return { x: 0, y: top, top, bottom: top + 400, left: 0, right: 280, width: 280, height: 400 };
+  };
+  const nodes = Array.from({ length: 10000 }, (_, i) => bullet(`n${i}`, { text: `Level ${i}`, parentId: i ? `n${i - 1}` : null })), navigated = [];
+  const root = createRoot(document.querySelector('#root'));
+  const render = async scope => act(async () => root.render(React.createElement(OutlineSidebar, { nodes, scope, starred: [], savedSearches: [], disabled: false, onNavigate: id => navigated.push(id), onSearch() {}, onAdd() {} })));
+  await render('n9999');
+  assert.ok(document.querySelectorAll('[role="treeitem"]').length < 60, 'Only the visible sidebar window is mounted');
+  assert.equal(document.querySelector('[aria-selected="true"]').getAttribute('aria-level'), '10000');
+  const viewport = document.querySelector('.root-nav');
+  assert.ok(viewport.scrollTop > 290000);
+  await act(async () => { viewport.scrollTop = 0; viewport.dispatchEvent(new window.Event('scroll')); });
+  assert.match(document.querySelector('.sidebar-tree-label').textContent, /Level 0$/);
+  await act(async () => document.querySelector('.sidebar-tree-toggle').click());
+  assert.equal(document.querySelectorAll('[role="treeitem"]').length, 1, 'Collapsing a huge branch remains available');
+  await render('n5000');
+  assert.equal(document.querySelector('[aria-selected="true"]').getAttribute('aria-level'), '5001');
+  await act(async () => document.querySelector('[aria-selected="true"] .sidebar-tree-label').click());
+  assert.deepEqual(navigated, ['n5000']);
+  await render(null);
+  await act(async () => { viewport.scrollTop = 0; viewport.dispatchEvent(new window.Event('scroll')); });
+  await render('n5000');
+  assert.ok(document.querySelector('[aria-selected="true"]'), 'Returning from Home restores the selected location');
+  await act(async () => root.unmount()); dom.window.close();
+});

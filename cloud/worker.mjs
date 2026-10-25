@@ -1,0 +1,82 @@
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+// This cache contains only Google's public verification keys, never user data.
+const keys = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
+export const FILE_LIMIT = 2 * 1024 * 1024, ACCOUNT_LIMIT = 20 * 1024 * 1024, NOTE_LIMIT = 900 * 1024;
+const json = (body, status=200) => Response.json(body, {status});
+const fail = (message, status) => { throw Object.assign(new Error(message), {status}); };
+export async function readLimited(request, limit) {
+  if (Number(request.headers.get('content-length')) > limit) fail('Upload exceeds the size limit.', 413);
+  const reader=request.body?.getReader(); if(!reader)return new Uint8Array();
+  let size=0;const chunks=[];
+  try { while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>limit){await reader.cancel();fail('Upload exceeds the size limit.',413);}chunks.push(value);} }
+  finally{reader.releaseLock();}
+  const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}return bytes;
+}
+export async function verifyUser(token, project) {
+  if(!project)fail("Firebase project is not configured.",503);
+  const {payload}=await jwtVerify(token,keys,{algorithms:['RS256'],issuer:`https://securetoken.google.com/${project}`,audience:PROJECT,requiredClaims:['sub','exp','iat','auth_time']});
+  const now=Date.now()/1000;
+  if(!payload.sub||payload.sub.length>128||typeof payload.iat!=='number'||payload.iat>now||typeof payload.auth_time!=='number'||payload.auth_time>now||payload.firebase?.sign_in_provider!=='google.com')fail('Please sign in with Google.',401);
+  return payload.sub;
+}
+export function validatePayload(value) {
+  if(!value||!Number.isSafeInteger(value.baseRevision)||value.baseRevision<0||!value.doc?.tables||!value.doc?.columns||!value.doc?.preferences||!value.doc?.web||!Array.isArray(value.doc.tables.bullets)||!Array.isArray(value.assets))fail('Invalid workspace.',400);
+  if(value.assets.length>2000)fail('Too many attachments.',413);
+  let total=0;const paths=new Set();for(const a of value.assets){if(typeof a.path!=='string'||!a.path||a.path.length>500||paths.has(a.path)||!/^[a-f0-9]{64}$/.test(a.hash)||!Number.isSafeInteger(a.size)||a.size<0||a.size>FILE_LIMIT||typeof a.type!=='string'||a.type.length>150)fail('Invalid attachment.',400);paths.add(a.path);total+=a.size;}
+  if(total>ACCOUNT_LIMIT)fail('Attachments exceed 20 MiB.',413);
+  return value;
+}
+export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID)) {
+  const url=new URL(request.url);
+  if(request.method==='OPTIONS')return new Response(null,{status:204});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES});
+  const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
+  let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
+  if(url.pathname==='/workspace'){
+    if(request.method==='GET'){
+      const row=await env.DB.prepare('SELECT revision, body FROM workspaces WHERE uid=?').bind(uid).first();
+      if(!row)return json({revision:0,doc:null,assets:[]});
+      if(request.headers.get('If-None-Match')===String(row.revision))return new Response(null,{status:304});
+      return json({revision:row.revision,...JSON.parse(row.body)});
+    }
+    if(request.method==='PUT'){
+      let value;try{value=JSON.parse(new TextDecoder().decode(await readLimited(request,NOTE_LIMIT)));}catch(e){if(e.status)throw e;fail('Invalid JSON.',400);}
+      validatePayload(value);
+      // Every advertised attachment must already be privately stored for this user.
+      if(value.assets.length){if(!env.FILES)fail('Attachment sync is awaiting storage activation.',503);for(const a of value.assets){const found=await env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(uid,a.hash).first();if(!found||found.size!==a.size)fail('Upload attachments before saving notes.',409);}}
+      const body=JSON.stringify({doc:value.doc,assets:value.assets});
+      const result=await env.DB.prepare('INSERT INTO workspaces(uid,revision,body,updated_at) SELECT ?,1,?,? WHERE ?=0 OR EXISTS(SELECT 1 FROM workspaces WHERE uid=?) ON CONFLICT(uid) DO UPDATE SET revision=revision+1,body=excluded.body,updated_at=excluded.updated_at WHERE workspaces.revision=? RETURNING revision').bind(uid,body,Date.now(),value.baseRevision,uid,value.baseRevision).first();
+      // An absent workspace only accepts revision zero (client cannot recreate a deleted account accidentally).
+      if(!result)fail('Cloud notes changed on another device.',409);
+      return json({revision:result.revision});
+    }
+  }
+  const match=url.pathname.match(/^\/assets\/([a-f0-9]{64})$/);
+  if(match){
+    if(!env.FILES)fail('Attachment sync is awaiting storage activation.',503);
+    const hash=match[1],key=uid+'/'+hash;
+    if(request.method==='GET'){
+      const object=await env.FILES.get(key);if(!object)fail('Attachment not found.',404);
+      return new Response(object.body,{headers:{'Content-Type':'application/octet-stream','X-Content-Type-Options':'nosniff','Cache-Control':'private, no-store'}});
+    }
+    if(request.method==='PUT'){
+      const bytes=await readLimited(request,FILE_LIMIT);
+      const actual=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');if(actual!==hash)fail('Attachment checksum mismatch.',400);
+      await env.DB.prepare('INSERT OR IGNORE INTO assets(uid,hash,size) SELECT ?,?,? WHERE (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?) + ? <= ?').bind(uid,hash,bytes.length,uid,bytes.length,ACCOUNT_LIMIT).run();
+      const reserved=await env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(uid,hash).first();if(!reserved||reserved.size!==bytes.length)fail('Cloud attachment storage is full (20 MiB).',413);
+      await env.FILES.put(key,bytes,{httpMetadata:{contentType:'application/octet-stream'}});
+      return json({ok:true});
+    }
+  }
+  fail('Not found.',404);
+}
+export default {
+  async fetch(request,env){
+    const project=env.FIREBASE_PROJECT_ID,allowed=(env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);
+    if(!project||project.startsWith('REPLACE_')||!allowed.length)return json({error:'Environment is not configured.'},503);
+    const origin=request.headers.get('Origin');if(origin&&!allowed.includes(origin))return json({error:'Origin not allowed.'},403);
+    let response;try{response=await route(request,env);}catch(error){const status=error.status||500;response=json({error:status===500?'Cloud sync is temporarily unavailable.':error.message},status);if(status===500)console.error(JSON.stringify({event:'sync_error',message:String(error)}));}
+    const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match');headers.set('Access-Control-Allow-Methods','GET, PUT, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
+    return new Response(response.body,{status:response.status,headers});
+  }
+};

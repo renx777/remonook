@@ -1,0 +1,19 @@
+node_modules/
+tests/.build/
+.openai/local/
+*.log
+cloud/worker.bundle.mjs
+
+# Source-only GitHub repository
+node_modules
+dist/
+.env
+.env.*
+!.env.*.example
+.dev.vars*
+.wrangler/
+.openai/
+*.pem
+*.key
+*service-account*.json
+cloud/config.*.local.json

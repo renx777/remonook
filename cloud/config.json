@@ -1,0 +1,31 @@
+{
+  "name": "remo-sync",
+  "main": "worker.mjs",
+  "account_id": "e9a5c70b0fbe2e2d493fc21de0bbb40f",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "remo-sync",
+      "database_id": "1cb5f16d-ea54-4177-879a-fbaa3bab02b0"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "remo-attachments"
+    }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "remo-978fb",
+    "ALLOWED_ORIGINS": "https://remonook.com,https://remo-notes.arenukaprasad.chatgpt.site"
+  }
+}

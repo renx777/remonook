@@ -1,0 +1,4 @@
+Noto Animated Emoji artwork by Google, CC BY 4.0.
+License: https://creativecommons.org/licenses/by/4.0/
+Source: https://googlefonts.github.io/noto-emoji-animation/
+Fixture WebP and SVG artwork bytes are unmodified downloads from Google's Fonts CDN.

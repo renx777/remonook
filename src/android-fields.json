@@ -1,0 +1,336 @@
+{
+  "goals": {
+    "id": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "title": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "targetDateEpochDay": {
+      "affinity": "INTEGER",
+      "required": false
+    },
+    "dailyMinutes": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "isPrimary": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "createdAtEpochMillis": {
+      "affinity": "INTEGER",
+      "required": true
+    }
+  },
+  "concepts": {
+    "id": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "goalId": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "title": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "mastery": {
+      "affinity": "REAL",
+      "required": true
+    },
+    "status": {
+      "affinity": "TEXT",
+      "required": true
+    }
+  },
+  "cards": {
+    "id": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "conceptId": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "question": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "answer": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "sourceLabel": {
+      "affinity": "TEXT",
+      "required": false
+    },
+    "state": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "dueAtEpochMillis": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "difficulty": {
+      "affinity": "REAL",
+      "required": true
+    },
+    "stability": {
+      "affinity": "REAL",
+      "required": true
+    },
+    "retrievability": {
+      "affinity": "REAL",
+      "required": true
+    },
+    "createdAtEpochMillis": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "repetitionCount": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "intervalDays": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "easeFactor": {
+      "affinity": "REAL",
+      "required": true
+    },
+    "lastReviewAtEpochMillis": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "suspended": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "buriedUntilEpochMillis": {
+      "affinity": "INTEGER",
+      "required": true
+    }
+  },
+  "review_logs": {
+    "id": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "cardId": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "grade": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "reviewedAtEpochMillis": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "responseTimeMillis": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "scheduledNextAtEpochMillis": {
+      "affinity": "INTEGER",
+      "required": false
+    },
+    "mode": {
+      "affinity": "TEXT",
+      "required": true
+    }
+  },
+  "bullets": {
+    "id": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "parentId": {
+      "affinity": "TEXT",
+      "required": false
+    },
+    "position": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "text": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "kind": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "collapsed": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "formatting": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "autoHighlight": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "listType": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "codeLanguage": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "taskState": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "dueDate": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "journalDate": {
+      "affinity": "TEXT",
+      "required": true
+    }
+  },
+  "media": {
+    "id": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "bulletId": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "fileName": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "mimeType": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "sourceUrl": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "credit": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "licenseUrl": {
+      "affinity": "TEXT",
+      "required": true
+    }
+  },
+  "emojis": {
+    "token": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "fileName": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "label": {
+      "affinity": "TEXT",
+      "required": true
+    }
+  },
+  "decks": {
+    "rootId": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "createdAt": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "pinned": {
+      "affinity": "INTEGER",
+      "required": true
+    }
+  },
+  "trash": {
+    "id": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "title": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "deletedAt": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "nodeCount": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "payload": {
+      "affinity": "TEXT",
+      "required": true
+    }
+  },
+  "study_sessions": {
+    "id": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "scope": {
+      "affinity": "TEXT",
+      "required": false
+    },
+    "mode": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "tag": {
+      "affinity": "TEXT",
+      "required": false
+    },
+    "queueJson": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "cursor": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "reviewed": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "revealed": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "updatedAt": {
+      "affinity": "INTEGER",
+      "required": true
+    }
+  },
+  "study_limits": {
+    "deckId": {
+      "affinity": "TEXT",
+      "required": true
+    },
+    "newCards": {
+      "affinity": "INTEGER",
+      "required": true
+    },
+    "reviewCards": {
+      "affinity": "INTEGER",
+      "required": true
+    }
+  }
+}
