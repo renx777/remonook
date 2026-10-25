@@ -17,6 +17,5 @@ export function TypingWordmark(){
   reset();motion.addEventListener('change',reset);
   return()=>{clearTimeout(timer);motion.removeEventListener('change',reset);};
  },[]);
- const segments = text.split(/(Re|Mo)/g).filter(Boolean);
- return <span className="landing-wordmark" aria-label="RemoNook — Remember More"><span aria-hidden="true">{segments.map((segment, i) => <span key={i} className={segment === 'Re' || segment === 'Mo' ? 'landing-brand-blue' : undefined}>{segment}</span>)}<span className="wordmark-cursor"/></span></span>;
+ return <span className="landing-wordmark" aria-label="RemoNook — Remember More"><span aria-hidden="true">{text}<span className="wordmark-cursor"/></span></span>;
 }
