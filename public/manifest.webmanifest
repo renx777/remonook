@@ -1,6 +1,6 @@
 {
-  "name": "Remo",
-  "short_name": "Remo",
+  "name": "RemoNook",
+  "short_name": "RemoNook",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
