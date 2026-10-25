@@ -62,7 +62,8 @@ function mergeKeyedRows(base,local,remote,key,path,conflicts) {
   }
   return result;
 }
-const keyForTable = table => table==='decks'?'rootId':table==='emojis'?'token':table==='study_limits'?'deckId':'id';
+const keyedTables=new Set(['goals','concepts','cards','review_logs','bullets','media','emojis','decks','trash','study_sessions','study_limits']);
+const keyForTable = table => !keyedTables.has(table)?null:table==='decks'?'rootId':table==='emojis'?'token':table==='study_limits'?'deckId':'id';
 
 function validateMerged(doc,conflicts){
   try{
@@ -94,7 +95,8 @@ export function mergeCloudWorkspaces(base,local,remote){
  const tables={};
  for(const name of keys(b.tables,l.tables,r.tables)){
    const x=prop(b.tables,name),y=prop(l.tables,name),z=prop(r.tables,name);
-   const stableIds = [x,y,z].every(Array.isArray)&&[...x,...y,...z].every(row=>plain(row)&&own(row,keyForTable(name)));
+   const idField=keyForTable(name);
+   const stableIds = idField!==null&&[x,y,z].every(Array.isArray)&&[...x,...y,...z].every(row=>plain(row)&&own(row,idField));
    tables[name]=stableIds?mergeKeyedRows(x,y,z,keyForTable(name),'tables.'+name,conflicts):choose(x,y,z,'tables.'+name,conflicts);
  }
  const columns=mergeObject(b.columns,l.columns,r.columns,'columns',conflicts);
@@ -111,8 +113,9 @@ export function mergeCloudWorkspaces(base,local,remote){
  if(!conflicts.length)validateMerged(doc,conflicts);
  if(conflicts.length)return {ok:false,conflicts};
  const before=new Map(b.tables.bullets.map(n=>[n.id,n]));
+ const mergedIds=new Set(doc.tables.bullets.map(n=>n.id));
  const mergedNodes=doc.tables.bullets.filter(n=>!before.has(n.id)||!equalSyncValue(n,before.get(n.id))).length+
-   b.tables.bullets.filter(n=>!doc.tables.bullets.some(item=>item.id===n.id)).length;
+   b.tables.bullets.filter(n=>!mergedIds.has(n.id)).length;
  return {ok:true,doc,conflicts:[],mergedNodes};
 }
 
