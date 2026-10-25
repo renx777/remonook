@@ -24,14 +24,17 @@ function NotoAnimatedEmoji({ item, blob, preview = false, playRequest = 0, local
   const { assets, animate } = useContext(EmojiContext), host = useRef<HTMLSpanElement>(null), lastPlay = useRef(playRequest), known = getNotoEmoji(item.token);
   const animationUrl = useEmojiUrl(blob, 'image/webp'), posterUrl = useEmojiUrl(assets.get(notoPosterPath(item)), 'image/svg+xml');
   const [visible, setVisible] = useState(false), [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches), [hidden, setHidden] = useState(document.hidden),
-    [ready, setReady] = useState(false), [failed, setFailed] = useState(false), [animationFailed, setAnimationFailed] = useState(false), [replay, setReplay] = useState(false);
+    [ready, setReady] = useState(false), [failed, setFailed] = useState(false), [animationFailed, setAnimationFailed] = useState(false), [replay, setReplay] = useState(false), [retry, setRetry] = useState(0);
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)'), change = () => setReduced(media.matches), visibility = () => setHidden(document.hidden);
     media.addEventListener?.('change', change); document.addEventListener('visibilitychange', visibility);
-    return () => { media.removeEventListener?.('change', change); document.removeEventListener('visibilitychange', visibility); };
+    window.addEventListener('focus', visibility); window.addEventListener('pageshow', visibility);
+    change(); visibility();
+    return () => { media.removeEventListener?.('change', change); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('focus', visibility); window.removeEventListener('pageshow', visibility); };
   }, []);
   useEffect(() => {
-    if (!host.current || typeof IntersectionObserver === 'undefined') return;
+    if (!host.current) return;
+    if (typeof IntersectionObserver === 'undefined') { setVisible(true); return; }
     const observer = new IntersectionObserver(entries => setVisible(entries.some(entry => entry.isIntersecting)), { rootMargin: '40px' }); observer.observe(host.current); return () => observer.disconnect();
   }, []);
   useEffect(() => {
@@ -42,11 +45,26 @@ function NotoAnimatedEmoji({ item, blob, preview = false, playRequest = 0, local
   // Only catalog previews contact Google. Reading inserted notes uses saved blobs exclusively.
   const local = known && localAssetBase ? `${localAssetBase}/${known.fileName}` : '';
   const animation = animationUrl || local || (preview && known && !blob ? notoAssetUrl(known) : ''), poster = posterUrl || (local ? local.replace(/\.webp$/,'.svg') : '') || (preview && known && !blob ? notoAssetUrl(known, true) : '');
+  // A failed image is a temporary fallback, not a permanent playback preference.
+  // Retry only visible animations, with a bounded backoff; a refreshed asset or
+  // returning to the tab gives a previously failed image a fresh opportunity.
+  const wantsPlayback = visible && !hidden && ((animate && !reduced) || replay);
+  useEffect(() => { setAnimationFailed(false); setRetry(0); }, [animation, playRequest]);
+  useEffect(() => {
+    const recover = () => { if (!document.hidden) { setAnimationFailed(false); setRetry(0); } };
+    window.addEventListener('focus', recover); window.addEventListener('online', recover); window.addEventListener('pageshow', recover); document.addEventListener('visibilitychange', recover);
+    return () => { window.removeEventListener('focus', recover); window.removeEventListener('online', recover); window.removeEventListener('pageshow', recover); document.removeEventListener('visibilitychange', recover); };
+  }, []);
+  useEffect(() => {
+    if (!animationFailed || !wantsPlayback || retry >= 3) return;
+    const timer = setTimeout(() => { setRetry(value => value + 1); setAnimationFailed(false); }, 1000 * 2 ** retry);
+    return () => clearTimeout(timer);
+  }, [animationFailed, wantsPlayback, retry]);
   const src = visible ? (playing && animation ? animation : poster) : '';
   useLayoutEffect(() => { setReady(false); setFailed(false); }, [src]);
   return <span ref={host} className={`animated-emoji noto-animated-emoji ${preview ? 'emoji-preview' : ''} ${ready && !failed ? 'is-ready' : ''}`} role="img" aria-label={item.label || known?.label || 'Animated emoji'} title={item.label || known?.label} data-emoji-token={item.token}>
     <span className="emoji-fallback" aria-hidden="true">{known?.fallback || '◈'}</span>
-    {src && <img key={src} className="emoji-animation" src={src} alt="" aria-hidden="true" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" onLoad={() => setReady(true)} onError={() => { if (playing && src === animation) setAnimationFailed(true); else setFailed(true); }} />}
+    {src && <img key={`${src}:${retry}`} className="emoji-animation" src={src} alt="" aria-hidden="true" loading="lazy" decoding="async" crossOrigin="anonymous" referrerPolicy="no-referrer" onLoad={() => setReady(true)} onError={() => { if (playing && src === animation) setAnimationFailed(true); else setFailed(true); }} />}
   </span>;
 }
 function LottieEmoji({ item, blob, data, preview = false, playRequest = 0 }: EmojiProps) {
@@ -58,10 +76,13 @@ function LottieEmoji({ item, blob, data, preview = false, playRequest = 0 }: Emo
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)'), change = () => setReduced(media.matches), visibility = () => setHidden(document.hidden);
     media.addEventListener?.('change', change); document.addEventListener('visibilitychange', visibility);
-    return () => { media.removeEventListener?.('change', change); document.removeEventListener('visibilitychange', visibility); };
+    window.addEventListener('focus', visibility); window.addEventListener('pageshow', visibility);
+    change(); visibility();
+    return () => { media.removeEventListener?.('change', change); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('focus', visibility); window.removeEventListener('pageshow', visibility); };
   }, []);
   useEffect(() => {
-    if (!host.current || typeof IntersectionObserver === 'undefined') return;
+    if (!host.current) return;
+    if (typeof IntersectionObserver === 'undefined') { setVisible(true); return; }
     const observer = new IntersectionObserver(entries => setVisible(entries.some(entry => entry.isIntersecting)), { rootMargin: '80px' });
     observer.observe(host.current); return () => observer.disconnect();
   }, []);
