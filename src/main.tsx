@@ -1354,7 +1354,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <ReminderTabs doc={doc} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>
           <div className="topbar-right">
             <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>
-            {tab==='notes'&&<button className="icon-button" aria-label="New pane" title="New pane · Alt+R" onClick={()=>openPane()}><Icon name="pane" size={17}/></button>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
               className={`icon-button completed-toggle ${showCompleted ? "is-active" : ""}`}
@@ -1385,14 +1384,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="redo" />
             </button>
             <SaveIndicator device={status} cloud={{connected:!!cloudUser,status:cloud.status,error:cloud.error,conflict:cloud.conflict}} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
-            {tab === "notes" && <button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
-            <button
-              className="icon-button workspace-settings"
-              aria-label="Settings and backups"
-              onClick={() => setDialog("settings")}
-            >
-              <Icon name="settings" />
-            </button>
+            {<button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
+            {tab==='notes'&&<button className="icon-button" aria-label="New pane" title="New pane · Alt+R" onClick={()=>openPane()}><Icon name="pane" size={17}/></button>}
           </div>
         </header>
         {error && (
@@ -1423,7 +1416,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
             <div className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
             {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className="note-pane" data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
-              <PaneHeader pane={pane} nodes={nodes} multiple={views.panes.length>1} active={views.activePane===pane.id} onNavigate={id=>{views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);}} onHistory={forward=>{views.setActivePane(pane.id);views.history(pane.id,forward);setEditing(null);}} onSearch={q=>{views.setActivePane(pane.id);views.update(pane.id,{search:q});setEditing(null);}} onGlobal={all=>{views.setActivePane(pane.id);views.update(pane.id,{global:all});}} onClose={()=>{views.close(pane.id);setEditing(null);}} onNew={()=>openPane(pane.scope)} onCompleted={()=>views.update(pane.id,{completed:!(pane.completed??showCompleted)})}/>
+              <PaneHeader pane={pane} nodes={nodes} multiple={views.panes.length>1} active={views.activePane===pane.id} onNavigate={id=>{views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);}} onHistory={forward=>{views.setActivePane(pane.id);views.history(pane.id,forward);setEditing(null);}} onSearch={q=>{views.setActivePane(pane.id);views.update(pane.id,{search:q});setEditing(null);}} onGlobal={all=>{views.setActivePane(pane.id);views.update(pane.id,{global:all});}} onClose={()=>{views.close(pane.id);setEditing(null);}} onCompleted={()=>views.update(pane.id,{completed:!(pane.completed??showCompleted)})}/>
             <OutlineView
               nodes={pane.id==='main'?nodes:nodes.map(n=>pane.collapsed[n.id]===undefined?n:{...n,collapsed:pane.collapsed[n.id]})}
               scope={pane.global&&pane.search?null:pane.scope}

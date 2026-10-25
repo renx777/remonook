@@ -18,3 +18,13 @@ A pending update must not be described as Synced. Genuine storage, sign-in or
 quota failures may need an honest, actionable status. Do not conceal those errors.
 Never reintroduce snapshot replacement for migrated accounts or remove the durable
 outbox as a workaround. See docs/SYNC.md for migration, limits and rollback rules.
+
+## Environment parity
+
+GitHub `main` is the canonical application source. Keep the local development
+checkout, staging and production on the same tested application release when
+releasing changes. Stage and validate before publishing production. If production
+is edited first, reconcile the exact changes into GitHub and the local checkout
+and verify the staging deployment before declaring completion. Preserve distinct
+environment configuration, Firebase projects, databases and buckets; source parity
+never means copying production user data into staging. See docs/ENVIRONMENTS.md.

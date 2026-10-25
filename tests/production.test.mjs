@@ -95,8 +95,8 @@ test("production bundle: interaction smoke test", async context => {
   await click(document.querySelector('[data-guest-entry]'));
   await wait(() => document.querySelector(".page-heading"));
   assert.ok(document.querySelector('.sidebar-header .brand').textContent.includes('RemoNook'));
-  assert.equal(document.querySelectorAll('.save-indicator').length,1,'Only one cloud/device save indicator should remain');
-  assert.equal(document.querySelector('.save-indicator').dataset.kind,'cloud');
+  assert.equal(document.querySelectorAll('.save-indicator').length,0,'The animated cloud control is removed');
+  assert.ok(document.querySelector('.save-status'),'Save status remains accessible without a toolbar icon');
   // React may process a continuous-event updater after currentTarget is cleared.
   // Queue several real scroll events in one batch, then scroll back to the top.
   const outlineScroller = document.querySelector('.outline-scroll');
@@ -197,7 +197,7 @@ test("production bundle: interaction smoke test", async context => {
   assert.equal(document.querySelectorAll('.study-limits').length, 1, 'Shared budget data does not open multiple notebook panels');
   await click([...document.querySelectorAll(".sidebar-bottom button")].find(b => b.textContent === "Settings & backups"));
   assert.ok(document.querySelector("dialog[open]"));
-  assert.ok(document.querySelector('.topbar [aria-label="Settings and backups"]'));
+  assert.equal(document.querySelector('.topbar [aria-label="Settings and backups"]'),null);
   assert.ok(document.querySelector('.settings-navigation [aria-current="page"]').textContent.includes('Appearance'));
   await click([...document.querySelectorAll('.settings-navigation button')].find(b=>b.textContent==='Backups'));
   assert.ok([...document.querySelectorAll('button')].some(b=>b.textContent.includes('Download full backup')));

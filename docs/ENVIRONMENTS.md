@@ -2,7 +2,9 @@
 
 ## Current state
 
-GitHub is the source for future development. Production is still the existing Sites version 43. Production DNS, Worker, database and bucket remain unchanged. Do not edit the Sites checkout and GitHub checkout independently and deploy both: choose the tested GitHub commit as the source for the next release.
+GitHub `main` is the source for every environment. The production toolbar and split-pane release was first published as Sites version 49; its eight changed source/test files are now being reconciled into `main`. Local and staging must run that same application source. Environment-specific build configuration, Firebase accounts, database contents and attachment buckets remain separate.
+
+Do not publish changes only from the Sites checkout. Implement and test in the development checkout, commit to GitHub, wait for the staging workflow to succeed, then publish those exact source files through Sites. Before publishing, compare all tracked application files against the selected GitHub commit; exclude only generated `dist/` output and the Sites hosting manifest. After any emergency production edit, reconcile it into GitHub and the local checkout immediately, then wait for staging deployment before declaring the release complete.
 
 | Environment | Frontend | Authentication | Sync and attachments |
 | --- | --- | --- | --- |
@@ -10,7 +12,7 @@ GitHub is the source for future development. Production is still the existing Si
 | Staging | staging.remonook.com | remonook-staging (Spark) | remo-sync-staging Worker, separate D1 and R2 |
 | Production | remonook.com | Existing remo-978fb | Existing remo-sync and remo-attachments |
 
-Staging is deployed at https://staging.remonook.com with Google sign-in configured in Firebase project `remonook-staging`. D1 `remo-sync-staging` has its schema initialized and R2 `remo-attachments-staging` is private. The sync API is https://remo-sync-staging.remo-978fb.workers.dev. See `cloud/staging-resources.json`. The initial deployment was made through the Cloudflare API. Automatic frontend deployment is now enabled for pushes to `main`: GitHub holds the encrypted `CLOUDFLARE_API_TOKEN` secret and `STAGING_ENABLED=true`. The token has **Individual Workers Editor** access to **remonook-staging only**, and expires on **23 January 2027**. Rotate and update the GitHub secret before that date. Production remains unchanged.
+Staging is deployed at https://staging.remonook.com with Google sign-in configured in Firebase project `remonook-staging`. D1 `remo-sync-staging` has its schema initialized and R2 `remo-attachments-staging` is private. The sync API is https://remo-sync-staging.remo-978fb.workers.dev. See `cloud/staging-resources.json`. The initial deployment was made through the Cloudflare API. Automatic frontend deployment is now enabled for pushes to `main`: GitHub holds the encrypted `CLOUDFLARE_API_TOKEN` secret and `STAGING_ENABLED=true`. The token has **Individual Workers Editor** access to **remonook-staging only**, and expires on **23 January 2027**. Rotate and update the GitHub secret before that date. Production remains on Sites hosting.
 
 ## Local
 
@@ -31,7 +33,7 @@ Development, staging and production must use different browser origins. Folder c
 
 The actual staging `VITE_*` values are recorded in `.env.staging.example`. They are public build-time values. Environment files ending in `.local` are ignored. The deployment token is a secret.
 
-Test with synthetic notes and test accounts. Verify Android phone, iPad, desktop, keyboard open/closed, offline reload, backup/restore and sync conflict handling before release. GitHub PR builds receive no deployment secrets.
+Test with synthetic notes and test accounts. Verify Android phone, iPad, desktop, keyboard open/closed, offline reload, backup/restore and automatic concurrent merging before release. GitHub PR builds receive no deployment secrets.
 
 ## Production release
 
@@ -47,11 +49,9 @@ Publish the tested GitHub commit through the retained Sites workflow during tran
 
 - Signed-in workspaces use their existing account-scoped IndexedDB as an offline cache and the matching environment's cloud workspace for cross-device sync. Staging and production must continue to use separate Firebase projects, D1 databases and R2 buckets.
 - Automatic folder ZIP writing, Syncthing-style copying, and associated UI were retired. On first opening the updated app per account/guest workspace, the legacy folder connection entry is removed from its separate IndexedDB settings store. This does not access, overwrite, or delete anything in the old local filesystem folder. The old ZIP archives remain compatible with manual Restore from backup.
-- The existing cloud sync API still exchanges whole workspace snapshots protected by atomic revision compare-and-swap. Updated clients also cache the last confirmed workspace and attachment manifest per account for safe **three-way record merging** on divergent revisions. Separate bullet IDs and other stable-ID rows, metadata maps (e.g., `web.noteTimes`), and distinct attachment paths merge automatically. Simultaneous edits to the same record, invalid parent-child links, incompatible metadata, or same-path attachment changes enter the manual conflict workflow.
-- The merge engine validates the combined outline and dependent records, takes a local recovery snapshot before uploading a merge, and checks server revision again when writing. A 409 means another device wrote first: do not overwrite, retry from its newer snapshot. Local browser edits made while a merge is uploading are never silently replaced.
-- Legacy checkpoints (revision + key only) lack the common ancestor required for safe merging. The client seeds a baseline only after the device and cloud are confirmed identical; existing conflicts continue to require manual resolution. **Both devices must run the updated release and complete a clean sync to benefit consistently.**
-- Always export a full backup from every device with important unsynced changes before resolving conflicts or changing browser storage. In a conflict, users can download the device and cloud versions separately and must confirm which version to retain. A local recovery snapshot is saved before replacing either version.
-- This is an initial compatibility-safe record-level merge, not yet a per-node HTTP API, character-level collaborative editor, or CRDT. Reordering siblings concurrently and editing the same node on two devices can still require user review. Keep server changes and a possible future operation-log protocol as separately reviewed milestones.
+- Signed-in clients use sync protocol v2: incremental Yjs rich-text updates, an atomic durable local outbox, backend acknowledgements, idempotent operation IDs and a server journal. Concurrent updates merge automatically. Users are never asked to choose a device/cloud copy or resolve conflicts.
+- Local data and pending edits survive offline periods and reloads. Genuine storage, authentication or quota failures remain actionable. The toolbar has no animated cloud indicator or manual sync control.
+- The additive v2 schema and backend are deployed independently to both staging and production. Old snapshot clients receive an update-required response after account migration. See [SYNC.md](SYNC.md) for migration, recovery and compatibility limits.
 - Preserve the browser's regular IndexedDB workspace and attachments for offline editing; never purge them as part of retiring the folder option.
 
 ## Workflow and costs
