@@ -50,7 +50,7 @@ export function useCloudSync(options:Options){
        if(remote.revision!==conflictRef.current?.revision)decision='conflict';
        else{await keepCloudRecovery({at:Date.now(),cloud:remote,local,assets:[...latest.current.get().assets]});decision=resolve==='local'?'upload':'download';}
      }
-     if(decision==='conflict'){paused.current=true;conflictRef.current=remote;setSummary({local:local.tables.bullets.length,cloud:remote.doc?.tables.bullets.length||0});setConflict(true);setStatus('Review sync conflict');return;}
+     if(decision==='conflict'){paused.current=true;conflictRef.current=remote;setSummary({local:local.tables.bullets.length,cloud:remote.doc?.tables.bullets.length||0});setConflict(true);setStatus('Conflict needs review');return;}
      if(decision==='download')await pull(remote);
      if(decision==='upload')await push(remote);
      paused.current=false;conflictRef.current=null;setConflict(false);const checkpointNow=await cloudCheckpoint();setStatus(checkpointNow?.key===contentKey(latest.current.get().doc!)?'Synced':'Saved on device · sync pending');
@@ -60,13 +60,36 @@ export function useCloudSync(options:Options){
  const run=useRef(sync);run.current=sync;
  useEffect(()=>{if(!options.user||!options.ready)return;const timer=setTimeout(()=>void run.current(),2500);return()=>clearTimeout(timer);},[options.user?.uid,options.revision,options.ready]);
  useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const online=()=>void run.current();const interval=setInterval(()=>{if(document.visibilityState==='visible')void run.current();},60000);window.addEventListener('online',online);window.addEventListener('focus',resume);return()=>{clearInterval(interval);window.removeEventListener('online',online);window.removeEventListener('focus',resume);};},[options.user?.uid]);
- async function downloadRecovery(which:'local'|'cloud') {
-   try { const recovery=await getCloudRecovery();if(!recovery)throw Error('No sync conflict recovery snapshot yet.');
-     if(which==='local'){download(await archive(recovery.local,new Map(recovery.assets)),'remo-conflict-device.remo.zip');return;}
-     const remote:Remote=recovery.cloud;if(!remote.doc)throw Error('The saved cloud workspace was empty.');const assets=new Map<string,Blob>();
-     for(const a of remote.assets){const bytes=await(await request('/assets/'+a.hash)).arrayBuffer();if(await digest(bytes)!==a.hash)throw Error('Attachment verification failed.');assets.set(a.path,new Blob([bytes],{type:a.type}));}
-     download(await archive({...remote.doc,revision:0,web:{...remote.doc.web,deviceId:crypto.randomUUID()}},assets),'remo-conflict-cloud.remo.zip');
+ async function downloadCloudCopy(remote:Remote,name:string){
+   if(!remote.doc)throw Error('The cloud workspace has no notes to export.');
+   const assets=new Map<string,Blob>();
+   for(const a of remote.assets){
+     const bytes=await (await request('/assets/'+a.hash)).arrayBuffer();
+     if(await digest(bytes)!==a.hash)throw Error('Attachment verification failed.');
+     assets.set(a.path,new Blob([bytes],{type:a.type}));
+   }
+   const doc={...remote.doc,revision:0,web:{...remote.doc.web,deviceId:crypto.randomUUID()}};
+   download(await archive(doc,assets),name);
+ }
+ async function downloadConflict(which:'local'|'cloud'){
+   try{
+     setError('');
+     if(!conflictRef.current)throw Error('No sync conflict is waiting for review.');
+     if(which==='cloud'){await downloadCloudCopy(conflictRef.current,'remonook-cloud-conflict.remo.zip');return;}
+     await latest.current.flush();
+     const snapshot=latest.current.get();
+     if(!snapshot.doc)throw Error('No device workspace to export.');
+     download(await archive(snapshot.doc,snapshot.assets),'remonook-device-conflict.remo.zip');
    }catch(e){setError(e instanceof Error?e.message:String(e));}
  }
- return {status,error,conflict,summary,downloadRecovery,sync:()=>sync(),resolve:(which:'local'|'cloud')=>sync(which)};
+ async function downloadRecovery(which:'local'|'cloud'){
+   try{
+     setError('');
+     const recovery=await getCloudRecovery();
+     if(!recovery)throw Error('No sync conflict recovery snapshot yet.');
+     if(which==='local'){download(await archive(recovery.local,new Map(recovery.assets)),'remonook-recovery-device.remo.zip');return;}
+     await downloadCloudCopy(recovery.cloud,'remonook-recovery-cloud.remo.zip');
+   }catch(e){setError(e instanceof Error?e.message:String(e));}
+ }
+ return {status,error,conflict,summary,downloadConflict,downloadRecovery,sync:()=>sync(),resolve:(which:'local'|'cloud')=>sync(which)};
 }
