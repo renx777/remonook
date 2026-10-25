@@ -68,6 +68,8 @@ import { StudyDesk } from "./StudyDesk";
 import { imageType, mediaLink } from "./media.mjs";
 import { EmojiProvider } from './AnimatedEmoji';
 import { EmojiPicker } from './EmojiPicker';
+import {WorkdaysCalendar} from './WorkdaysCalendar';
+import {workdays,validateWorkdays} from './workdays.mjs';
 import { decodeAnimation, insertEmoji } from './emoji.mjs';
 import { downloadNotoEmoji, getNotoEmoji, isNotoEmoji, notoPosterPath, NOTO_CREDIT_PATH } from './noto-emojis.mjs';
 import './emoji.css';
@@ -281,6 +283,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     apply:async(remote,remoteAssets)=>{
       if(dirty.current||activeEditor?.isFocused||working||failed.current)throw Error('Finish editing before loading cloud notes.');
       validate(remote.tables.bullets);
+      validateWorkdays(remote.web.workdays);
       const next=await save(persisted.current,{...remote,revision:persisted.current!.revision,web:{...remote.web,deviceId:persisted.current!.web.deviceId}},'cloud download',remoteAssets,true);
       persisted.current=next;docRef.current=next;assetsRef.current=remoteAssets;pendingAssets.current.clear();history.current={undo:[],redo:[]};
       setDoc(next);setAssets(remoteAssets);setEditing(null);setStatus('Saved on this device');
@@ -1465,6 +1468,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : (
           <>
           <CalendarView
+            autoOpen={!workdays(doc).enabled}
+            monthView={workdays(doc).enabled&&workdays(doc).view==='month'}
+            workdays={<WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(index(nodes).children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarEvents(doc),date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/>}
             hasReminder={date=>eventsOnDate(calendarEvents(doc),date).length>0}
             reminders={<CalendarReminders doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onOpenDate={date=>{setCalendarDate(date);setEditing(null);}}/>}
             nodes={nodes}

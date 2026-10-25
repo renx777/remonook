@@ -140,6 +140,9 @@ const MONTH_NAMES_SHORT = [
 const WEEKDAY_NAMES_2 = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 type CalendarViewProps = {
+  workdays?: React.ReactNode;
+  monthView?: boolean;
+  autoOpen?: boolean;
   reminders?: React.ReactNode;
   hasReminder?: (date:string)=>boolean;
   nodes: Node[];
@@ -182,8 +185,8 @@ export function CalendarView(props: CalendarViewProps) {
 
   // A day opens with a real editable child, using the same editor as Notes.
   useEffect(() => {
-    if (!props.disabled) props.onOpenDate(selectedDate);
-  }, [selectedDate, props.disabled]);
+    if (!props.disabled && props.autoOpen !== false) props.onOpenDate(selectedDate);
+  }, [selectedDate, props.disabled, props.autoOpen]);
 
   // Picker month navigation state
   const [pickerYear, setPickerYear] = useState(() => parseLocalDate(selectedDate).getFullYear());
@@ -353,7 +356,7 @@ export function CalendarView(props: CalendarViewProps) {
   };
 
   return (
-    <div className="calendar-view">
+    <div className={`calendar-view ${props.autoOpen===false?'has-workdays':''}`}>
       {/* Top Heading */}
       <div className="calendar-header-row">
         <button className="icon-button calendar-more-btn" title="More options" aria-label="More options">
@@ -533,7 +536,8 @@ export function CalendarView(props: CalendarViewProps) {
       )}
 
       {/* Horizontal Date Strip (Timeline) */}
-      <div className="calendar-strip-container">
+      {props.workdays}
+      {!props.monthView && <div className="calendar-strip-container">
         <div className="calendar-strip-nav-left">
           <button
             className="icon-button strip-arrow-btn"
@@ -631,6 +635,7 @@ export function CalendarView(props: CalendarViewProps) {
         </div>
       </div>
 
+      }
       {/* Daily Notes Content Area */}
       {props.reminders}
       <div className="calendar-notes-section">
