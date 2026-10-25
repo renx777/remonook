@@ -334,7 +334,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await wait(() => document.querySelectorAll(".outline-row").length >= 2);
 
   // Sidebar navigation and starred shortcuts operate on the existing outline.
-  const collapsedWelcome = document.querySelector('[aria-label="Expand Welcome to Remo in sidebar"]');
+  const collapsedWelcome = document.querySelector('[aria-label="Expand Welcome to RemoNook in sidebar"]');
   if (collapsedWelcome) await click(collapsedWelcome);
   assert.ok(document.querySelector('[aria-label="Notes tree"] [aria-level="2"]'));
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
@@ -343,9 +343,9 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
   assert.ok((await load()).web.starredNodes.includes('welcome'));
   const starredShortcut = document.querySelector('.outline-sidebar > button');
-  assert.equal(starredShortcut.textContent, 'Welcome to Remo');
+  assert.equal(starredShortcut.textContent, 'Welcome to RemoNook');
   await click(starredShortcut);
-  assert.equal(document.querySelector('.zoomed-title-input').value, 'Welcome to Remo');
+  assert.equal(document.querySelector('.zoomed-title-input').value, 'Welcome to RemoNook');
 
   // Quick jump is keyboard-accessible and opens a selected result without editing it.
   await act(async () => window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
@@ -359,7 +359,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   // Explicit questions, local images, and study sessions use the same saved workspace.
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
   await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Insert animated emoji…'));
-  await click([...document.querySelectorAll('.emoji-sources button')].find(button => button.textContent === 'Remo'));
+  await click([...document.querySelectorAll('.emoji-sources button')].find(button => button.textContent === 'RemoNook'));
   assert.equal(document.querySelectorAll('.emoji-grid button').length, 4);
   await click(document.querySelector('[aria-label="Insert Smile"]'));
   assert.ok(document.querySelector('[data-node-id="welcome"] [data-emoji-token=":remo_smile:"]'));
