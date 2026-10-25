@@ -27,15 +27,16 @@ test('missing saved Noto files recover on reconnect, persist without changing no
  for(const k of ['window','document','navigator'])Object.defineProperty(globalThis,k,{value:dom.window[k],configurable:true});
  globalThis.IS_REACT_ACT_ENVIRONMENT=true;let online=false;Object.defineProperty(navigator,'onLine',{get:()=>online,configurable:true});
  setStorageAccount('emoji-repair-'+crypto.randomUUID());const item=getNotoEmoji(':noto_1f680:'),doc=empty();doc.tables.emojis=[{token:item.token,fileName:item.fileName,label:item.label}];doc.tables.bullets=[bullet('a',{text:'Keep this '+item.token})];let saved=await save(null,doc,'initial'),requests=[];
- const originalFetch=globalThis.fetch;globalThis.fetch=async url=>{requests.push(String(url));return new Response(await readFile(new URL(`./fixtures/noto/1f680.${String(url).endsWith('webp')?'webp':'svg'}`,import.meta.url)));};
- let renderAgain;function Harness(){const [assets,setAssets]=useState(new Map()),[,tick]=useState(0);renderAgain=()=>tick(v=>v+1);useEmojiAssetRepair({emojis:doc.tables.emojis,assets,ready:true,store:async(_item,recovered)=>{saved=await save(saved,saved,'emoji repair',recovered);setAssets(new Map([...assets,...recovered]));}});return null;}
+ const originalFetch=globalThis.fetch;globalThis.fetch=async url=>{requests.push(String(url));if(String(url).includes('/1f600/'))throw Error('Temporarily unavailable');return new Response(await readFile(new URL(`./fixtures/noto/1f680.${String(url).endsWith('webp')?'webp':'svg'}`,import.meta.url)));};
+ const unavailable=getNotoEmoji(':noto_1f600:');
+ let renderAgain;function Harness(){const [assets,setAssets]=useState(new Map()),[,tick]=useState(0);renderAgain=()=>tick(v=>v+1);useEmojiAssetRepair({emojis:[unavailable,...doc.tables.emojis],assets,ready:true,store:async(_item,recovered)=>{saved=await save(saved,saved,'emoji repair',recovered);setAssets(new Map([...assets,...recovered]));}});return null;}
  const root=createRoot(document.getElementById('root'));
  try{
   await act(async()=>root.render(React.createElement(Harness)));await act(()=>new Promise(r=>setTimeout(r,150)));assert.equal(requests.length,0);
   online=true;await act(async()=>window.dispatchEvent(new window.Event('online')));
   for(let i=0;i<100;i++){if((await getAssets()).has(NOTO_CREDIT_PATH))break;await act(()=>new Promise(r=>setTimeout(r,10)));}
-  const files=await getAssets();assert.ok(files.has('emoji/'+item.fileName));assert.ok(files.has(notoPosterPath(item)));assert.ok(files.has(NOTO_CREDIT_PATH));assert.equal((await load()).tables.bullets[0].text,'Keep this '+item.token);assert.equal(requests.length,2);
-  await act(async()=>{renderAgain();window.dispatchEvent(new window.Event('focus'));});await act(()=>new Promise(r=>setTimeout(r,150)));assert.equal(requests.length,2,'Completed assets must not redownload on every render or focus');
-  assert.ok(requests.every(url=>url.startsWith('https://fonts.gstatic.com/s/e/notoemoji/latest/1f680/')));
+  const files=await getAssets();assert.ok(files.has('emoji/'+item.fileName));assert.ok(files.has(notoPosterPath(item)));assert.ok(files.has(NOTO_CREDIT_PATH));assert.equal((await load()).tables.bullets[0].text,'Keep this '+item.token);assert.equal(requests.filter(url=>url.includes('/1f680/')).length,2,'One failing emoji must not block another');
+  await act(async()=>{renderAgain();window.dispatchEvent(new window.Event('focus'));});await act(()=>new Promise(r=>setTimeout(r,150)));assert.equal(requests.filter(url=>url.includes('/1f680/')).length,2,'Completed assets must not redownload on every render or focus');
+  assert.ok(requests.every(url=>url.startsWith('https://fonts.gstatic.com/s/e/notoemoji/latest/1f680/')||url.startsWith('https://fonts.gstatic.com/s/e/notoemoji/latest/1f600/')));
  }finally{await act(async()=>root.unmount());globalThis.fetch=originalFetch;setStorageAccount(null);dom.window.close();}
 });

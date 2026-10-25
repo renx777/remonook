@@ -16,14 +16,18 @@ export function useEmojiAssetRepair(options:Options){
    if(stopped||busy||!navigator.onLine||!latest.current.ready)return;
    busy=true;
    try{
+    let incomplete=false;
     for(const token of tokens){
      const item=latest.current.emojis.find(e=>e.token===token);if(!item)continue;
      const files=latest.current.assets;
      if(files.has('emoji/'+item.fileName)&&files.has(notoPosterPath(item))&&files.has(NOTO_CREDIT_PATH))continue;
-     const recovered=await downloadNotoEmoji(item,controller.signal);
-     if(stopped)return;
-     await latest.current.store(item,recovered);
+     try{
+      const recovered=await downloadNotoEmoji(item,controller.signal);
+      if(stopped)return;
+      await latest.current.store(item,recovered);
+     }catch{if(stopped)return;incomplete=true;}
     }
+    if(incomplete)throw Error('Emoji files are still pending.');
     attempt=0;
    }catch{
     if(!stopped)timer=setTimeout(()=>void run(),Math.min(30000,1000*2**Math.min(attempt++,5)));
