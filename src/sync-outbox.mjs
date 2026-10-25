@@ -14,7 +14,16 @@ export function initializeOutbox(state,revision,baseline,doc,assets,baseAssets=[
  meta.assets=assets;d.destroy();return meta;
 }
 export function recordLocal(meta,doc){const d=localDoc(meta.localState),v=vector(d);applyIntent(d,meta.mappedDoc,doc,meta.assets,meta.assets);queued(meta,d,v);meta.mappedDoc=cloudDocument(doc);d.destroy();return meta;}
-export function stageAssets(meta,assets){const d=localDoc(meta.localState),v=vector(d);applyIntent(d,meta.mappedDoc,meta.mappedDoc,meta.assets,assets);queued(meta,d,v);meta.assets=assets;d.destroy();return meta;}
+export function stageAssets(meta,assets){
+ const d=localDoc(meta.localState),v=vector(d),next=new Map(assets.map(a=>[a.path,a])),prior=new Map(meta.assets.map(a=>[a.path,a]));
+ // Absence from an incomplete browser cache is not deletion of an emoji that
+ // still exists in the document. Keep its cloud manifest so it can download.
+ const emojis=(meta.mappedDoc.tables.emojis||[]).filter(e=>typeof e.fileName==='string'),referenced=new Set(emojis.flatMap(e=>['emoji/'+e.fileName,'emoji/'+e.fileName.replace(/\.webp$/,'.svg')]));
+ if(emojis.some(e=>e.fileName?.endsWith('.webp')))referenced.add('emoji/noto-LICENSE.txt');
+ for(const a of [...project(d).assets,...meta.assets])if(referenced.has(a.path)&&!next.has(a.path)){next.set(a.path,a);prior.set(a.path,a);}
+ const effective=[...next.values()].sort((a,b)=>a.path.localeCompare(b.path));
+ applyIntent(d,meta.mappedDoc,meta.mappedDoc,[...prior.values()],effective);queued(meta,d,v);meta.assets=effective;d.destroy();return meta;
+}
 export function claimOutbox(meta){
  if(!meta.inflight&&meta.pending.length){const batch=meta.pending.slice(0,64);const d=openShared(meta.receivedState);meta.inflight={operationId:crypto.randomUUID(),ids:batch.map(x=>x.id),update:pack(Y.mergeUpdates(batch.map(x=>unpack(x.update)))),vector:vector(d)};d.destroy();}
  return meta;

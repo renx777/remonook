@@ -69,6 +69,7 @@ import { JumpTo, OutlinePopover, OutlineSidebar } from "./OutlineChrome";
 import { StudyDesk } from "./StudyDesk";
 import { imageType, mediaLink } from "./media.mjs";
 import { EmojiProvider } from './AnimatedEmoji';
+import {useEmojiAssetRepair} from './useEmojiAssetRepair';
 import { EmojiPicker } from './EmojiPicker';
 import {WorkdaysCalendar} from './WorkdaysCalendar';
 import {workdays,validateWorkdays} from './workdays.mjs';
@@ -347,6 +348,19 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
+  useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{
+    const current=docRef.current;
+    if(!current||failed.current||!current.tables.emojis.some(e=>e.token===item.token))return;
+    const nextAssets=new Map(assetsRef.current),added=new Map<string,Blob>();
+    for(const [path,blob]of recovered)if(!nextAssets.has(path)){nextAssets.set(path,blob);added.set(path,blob);}
+    if(!added.size)return;
+    try{checkAttachmentBudget(nextAssets);}catch(e){showError(e);throw e;}
+    for(const [path,blob]of added)pendingAssets.current.set(path,blob);
+    assetsRef.current=nextAssets;setAssets(nextAssets);
+    // Save recovered files through the ordinary durable outbox, without editing
+    // note text or creating an outline undo step.
+    commit({...current},undefined,false);await flush();
+  }});
   const mutate = (fn: (nodes: Node[]) => Node[], group?: string) => {
     try {
       const current = docRef.current!;
