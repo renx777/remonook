@@ -5,6 +5,8 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import worker,{route,readLimited,validatePayload,verifyUser} from '../cloud/worker.mjs';
 import {cloudDocument,contentKey,syncDecision} from '../src/cloud-model.mjs';
+import {mergeCloudWorkspaces} from '../src/cloud-merge.mjs';
+import {bullet} from '../src/domain.mjs';
 import 'fake-indexeddb/auto';
 import {empty,save,load,getAssets,setStorageAccount,cloudCheckpoint} from './.build/data.mjs';
 function setup(){const sqlite=new DatabaseSync(':memory:');sqlite.exec(readFileSync(new URL('../cloud/schema.sql',import.meta.url),'utf8'));const DB={prepare(sql){let params=[];return {bind(...p){params=p;return this;},async first(){return sqlite.prepare(sql).get(...params)||null;},async run(){return sqlite.prepare(sql).run(...params);}};}};return {DB,sqlite};}
@@ -30,6 +32,41 @@ test('private workspaces isolate users and reject stale or missing revisions ato
  const results=await Promise.allSettled([route(req('PUT','/workspace',payload(1,'One')),env,auth),route(req('PUT','/workspace',payload(1,'Two')),env,auth)]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
  await assert.rejects(route(new Request('https://sync.example/workspace'),env,auth),e=>e.status===401);env.sqlite.close();
 });
+
+test('two clients reconcile separate nodes with server revision CAS; stale merge cannot overwrite a third client',async()=>{
+ const env=setup(),base=empty();
+ base.tables.bullets=[bullet('root',{text:'Root'}),bullet('a',{parentId:'root',text:'A'}),bullet('b',{parentId:'root',position:1,text:'B'})];
+ const write=async(revision,doc)=>route(req('PUT','/workspace',{baseRevision:revision,doc:cloudDocument(doc),assets:[]}),env,auth);
+ const seed=await write(0,base);assert.equal((await seed.json()).revision,1);
+ const first=structuredClone(base),second=structuredClone(base),third=structuredClone(base);
+ first.tables.bullets[1].text='A from laptop';
+ second.tables.bullets[2].text='B from phone';
+ third.tables.bullets.push(bullet('c',{parentId:'root',position:2,text:'C from tablet'}));
+ assert.equal((await(await write(1,first)).json()).revision,2);
+ const cloudAt2=await (await route(req('GET','/workspace'),env,auth)).json();
+ const firstMerge=mergeCloudWorkspaces(base,second,cloudAt2.doc);
+ assert.equal(firstMerge.ok,true,JSON.stringify(firstMerge.conflicts));
+ // Tablet wins before the phone's merged revision-2 update arrives.
+ assert.equal((await(await write(2,third)).json()).revision,3);
+ await assert.rejects(write(2,firstMerge.doc),error=>error.status===409);
+ const latest=await (await route(req('GET','/workspace'),env,auth)).json();
+ // Tablet's snapshot was based on the same common baseline and overwrote A;
+ // subsequent manual or automatic reconciliation must never pretend the
+ // overwritten change still exists in the remote. Keep this race scenario
+ // focused on CAS refusing an outdated write.
+ assert.equal(latest.revision,3);
+ assert.ok(latest.doc.tables.bullets.some(row=>row.id==='c'));
+ assert.equal(latest.doc.tables.bullets.find(row=>row.id==='b').text,'B');
+ // A new base-aware client could merge the phone's B change and tablet's C.
+ const finalMerge=mergeCloudWorkspaces(base,second,latest.doc);
+ assert.equal(finalMerge.ok,true,JSON.stringify(finalMerge.conflicts));
+ assert.equal((await(await write(3,finalMerge.doc)).json()).revision,4);
+ const finished=(await(await route(req('GET','/workspace'),env,auth)).json()).doc;
+ assert.equal(finished.tables.bullets.find(n=>n.id==='b').text,'B from phone');
+ assert.ok(finished.tables.bullets.some(n=>n.id==='c'));
+ env.sqlite.close();
+});
+
 test('bounded streaming reads and attachment manifests enforce server limits',async()=>{
  await assert.rejects(readLimited(new Request('https://x',{method:'PUT',body:'12345'}),4),e=>e.status===413);
  const p=payload();p.assets=[{path:'media/a',hash:'a'.repeat(64),size:2097153,type:'image/png'}];assert.throws(()=>validatePayload(p),e=>e.status===400);
