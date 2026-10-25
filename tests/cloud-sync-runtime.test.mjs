@@ -18,7 +18,7 @@ await build({entryPoints:['src/useCloudSync.ts'],bundle:true,packages:'external'
  b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?`export const authenticatedUid=()=> 'alice';`:a.path==='./cloud-config'?`export const CLOUD_API='https://sync.test';`:`
  const state=()=>globalThis.__syncDevice;
  export async function cloudCheckpoint(value){if(value!==undefined)state().checkpoint=structuredClone(value);return state().checkpoint;}
- export async function keepCloudRecovery(value){state().recovery=structuredClone(value);}
+ export async function keepCloudRecovery(value){state().recovery=structuredClone(value);state().recoveryWrites=(state().recoveryWrites||0)+1;}
  export async function getCloudRecovery(){return state().recovery;}
  export async function digest(buffer){return Buffer.from(await crypto.subtle.digest('SHA-256',buffer)).toString('hex');}
  export async function archive(){return new Blob();} export function download(){}
@@ -71,18 +71,23 @@ test('revision race automatically refetches and retries without dropping the thi
  }finally{await f.close();}
 });
 
-test('overlapping text exposes the note reason, preserves both sides, and a retry can clear a resolved conflict',async()=>{
+test('overlapping edits are preserved automatically without exposing force-overwrite actions',async()=>{
  const f=await fixture();try{
   f.state.doc.tables.bullets[0].text='Phone';const remote=copy(f.base);remote.tables.bullets[0].text='Desktop';
   await f.send('PUT','/workspace',{baseRevision:1,doc:cloudDocument(remote),assets:[]});await f.sync();
   assert.equal(f.result.conflict,true);assert.match(f.result.conflictDetails.join(' '),/Phone.*text or formatting/);assert.equal(f.putCount,0);
+  assert.match(f.result.status,/pending/);assert.equal(f.result.error,'');
+  assert.equal(f.result.resolve,undefined);assert.equal(f.result.downloadConflict,undefined);assert.equal(f.result.downloadRecovery,undefined);
+  assert.equal(f.state.recovery.local.tables.bullets[0].text,'Phone');
+  assert.equal(f.state.recovery.cloud.doc.tables.bullets[0].text,'Desktop');
+  await f.sync();assert.equal(f.state.recoveryWrites,1);
   assert.equal(f.state.doc.tables.bullets[0].text,'Phone');
   f.state.doc=copy(remote);await f.sync();assert.equal(f.result.conflict,false);assert.equal(f.state.checkpoint.revision,2);
  }finally{await f.close();}
 });
 
 test('a new browser with identical notes establishes a baseline without unnecessary conflict',async()=>{
- const f=await fixture({checkpoint:false});try{await f.sync();assert.equal(f.result.conflict,false);assert.equal(f.state.checkpoint.revision,1);assert.equal(f.putCount,0);}finally{await f.close();}
+ const f=await fixture({checkpoint:false});try{await f.sync();assert.equal(f.result.conflict,false);assert.equal(f.state.checkpoint.revision,1);assert.equal(f.result.error,'');assert.equal(f.putCount,0);}finally{await f.close();}
 });
 
 
@@ -123,8 +128,8 @@ test('persistent revision races stop after three automatic retries and retain th
    current.doc.tables.bullets[0].text='Concurrent '+current.revision;
    await f.send('PUT','/workspace',{baseRevision:current.revision,doc:current.doc,assets:[]});f.beforePut=collide;
   };
-  f.beforePut=collide;await f.sync();await until(()=>f.putCount===4&&!!f.result.error);
+  f.beforePut=collide;await f.sync();await until(()=>f.putCount===4&&f.result.status.includes('pending'));
   assert.equal(f.result.conflict,false);assert.equal(f.state.doc.tables.bullets[1].text,'Pending phone edit');
-  assert.equal(f.state.checkpoint.revision,1);
+  assert.equal(f.state.checkpoint.revision,1);assert.equal(f.result.error,'');
  }finally{await f.close();}
 });

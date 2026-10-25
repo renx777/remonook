@@ -13,7 +13,7 @@ function CloudSaveIcon({state,details,onOpen}:{state:State;details:string;onOpen
 }
 export function SaveIndicator({device,cloud,onOpen}:{device:string;cloud:{connected:boolean;status:string;error:string;conflict:boolean};onOpen:()=>void}){
  const failed=device==='Changes not saved'||device==='Storage unavailable';
- const cloudState:State=failed?'error':cloud.conflict||cloud.error?'attention':!cloud.connected?'off':cloud.status==='Syncing…'||cloud.status==='Connecting…'?'saving':cloud.status.includes('pending')?'pending':'saved';
+ const cloudState:State=failed?'error':cloud.error?'attention':!cloud.connected?'off':cloud.status==='Syncing…'||cloud.status==='Connecting…'?'saving':cloud.conflict||cloud.status.includes('pending')?'pending':'saved';
  const details=`${cloud.connected?'Cloud: '+(cloud.error||cloud.status):'Cloud: sign in to sync across devices'}\nDevice: ${device}`;
  return <div className="save-indicators" role="group" aria-label="Workspace save status">
    <CloudSaveIcon state={cloudState} details={details} onOpen={onOpen}/>
