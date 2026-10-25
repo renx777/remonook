@@ -95,6 +95,8 @@ test("production bundle: interaction smoke test", async context => {
   await click(document.querySelector('[data-guest-entry]'));
   await wait(() => document.querySelector(".page-heading"));
   assert.ok(document.querySelector('.sidebar-header .brand').textContent.includes('RemoNook'));
+  assert.equal(document.querySelectorAll('.save-indicator').length,1,'Only one cloud/device save indicator should remain');
+  assert.equal(document.querySelector('.save-indicator').dataset.kind,'cloud');
   // React may process a continuous-event updater after currentTarget is cleared.
   // Queue several real scroll events in one batch, then scroll back to the top.
   const outlineScroller = document.querySelector('.outline-scroll');
@@ -200,6 +202,8 @@ test("production bundle: interaction smoke test", async context => {
   await click([...document.querySelectorAll('.settings-navigation button')].find(b=>b.textContent==='Backups'));
   assert.ok([...document.querySelectorAll('button')].some(b=>b.textContent.includes('Download full backup')));
   assert.ok([...document.querySelectorAll('button')].some(b=>b.textContent.includes('Restore from backup')));
+  assert.equal(document.querySelector('.settings-folder'),null,'Folder autosync controls must not ship');
+  assert.match(document.querySelector('[aria-label="Backups"]').textContent,/Existing RemoNook folder ZIPs were not deleted/);
   await click([...document.querySelectorAll('.settings-navigation button')].find(b=>b.textContent==='Account'));
   assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent==='Continue with Google'), 'Google sign-in ships in the production settings');
   assert.match(document.querySelector('.cloud-account').textContent,/current notes stay in the device-only workspace/);
