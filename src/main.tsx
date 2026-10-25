@@ -94,7 +94,7 @@ async function downloadRecovery() {
   const doc = draft.doc || await load();
   if (!doc) throw new Error("No workspace is available yet. Reload to retry loading.");
   const assets = draft.doc ? draft.assets : await getAssets();
-  download(await archive(doc, assets, false), "Remo-recovery.remo.zip");
+  download(await archive(doc, assets, false), "RemoNook-recovery.remo.zip");
 }
 function Dialog({
   title,
@@ -970,7 +970,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       const blob = await archive(docRef.current!, assets, android);
       download(
         blob,
-        `Remo-Web-W1-${android ? "Android" : "Full"}-${new Date().toISOString().slice(0, 10)}.remo.zip`,
+        `RemoNook-Web-W1-${android ? "Android" : "Full"}-${new Date().toISOString().slice(0, 10)}.remo.zip`,
       );
       setNotice("Backup downloaded");
     } catch (e) {
@@ -1127,7 +1127,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     return (
       <div className="startup">
         <div className="brand">
-          <RemoLogo/>remo
+          <RemoLogo/>RemoNook
         </div>
         <p>{fatal ? error : "Opening your notes…"}</p>
       </div>
@@ -1211,7 +1211,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                 setTab("notes");
               }}
             >
-              <RemoLogo/>remo
+              <RemoLogo/>RemoNook
               <span className="local-label">WEB</span>
             </a>
             <button
@@ -1251,7 +1251,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </nav>
           <OutlineSidebar nodes={nodes} scope={scope} starred={starred} savedSearches={savedSearches} disabled={disabled} onNavigate={navigateTo} onSearch={query => { navigateTo(null); setSearch(query); }} onAdd={parent => { setTab("notes"); setScope(parent); setSearch(""); add(parent); }} />
           <div className="sidebar-bottom">
-            <button onClick={async()=>{await flush();if(failed.current){showError(Error('Save or export your changes before returning home.'));return;}window.location.hash='home';}}><Icon name="home" size={16}/>Remo home</button>
+            <button onClick={async()=>{await flush();if(failed.current){showError(Error('Save or export your changes before returning home.'));return;}window.location.hash='home';}}><Icon name="home" size={16}/>RemoNook home</button>
             <button disabled={disabled} onClick={() => { setTab("notes"); setScope(null); setSearch(""); add(null); }}><Icon name="plus" /><span>New node</span></button>
             <button onClick={() => setDialog("trash")}>
               <Icon name="trash" />

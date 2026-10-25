@@ -10,10 +10,10 @@ export function Landing({onSignIn,signedIn=false}:{onSignIn:()=>Promise<void>;si
  return <div className="landing">
   <a className="landing-skip" href="#landing-content">Skip to content</a>
   <div className="landing-wrap">
-   <header className="landing-header"><a className="landing-brand" href="#home" aria-label="Remo home"><RemoLogo/><TypingWordmark/><span className="landing-beta">BETA</span></a><nav aria-label="Welcome navigation"><a href="#how-it-works">A look inside</a>{signedIn?<a href="#app">Your workspace <Icon name="forward" size={14}/></a>:<button disabled={busy} onClick={()=>void signIn()}>Sign in <Icon name="forward" size={14}/></button>}</nav></header>
+   <header className="landing-header"><a className="landing-brand" href="#home" aria-label="RemoNook home"><RemoLogo/><TypingWordmark/><span className="landing-beta">BETA</span></a><nav aria-label="Welcome navigation"><a href="#how-it-works">A look inside</a>{signedIn?<a href="#app">Your workspace <Icon name="forward" size={14}/></a>:<button disabled={busy} onClick={()=>void signIn()}>Sign in <Icon name="forward" size={14}/></button>}</nav></header>
    <main id="landing-content">
     <section className="landing-hero" aria-labelledby="landing-title">
-     <div className="landing-intro"><p className="landing-eyebrow"><span/>A quieter kind of workspace</p><h1 id="landing-title">Space to think.<br/>A way to <em>remember.</em></h1><p className="landing-description">Let your thoughts branch out. Turn what you learn into flashcards. Keep it all together, in Remo.</p><div className="landing-entry">{accountButton('Get started with Google')}<a className="landing-guest" data-guest-entry href="#app">Try as a guest <Icon name="forward" size={16}/></a></div><p className="landing-entry-note">No account needed to explore.<br/>Guest notes stay in this browser.</p>{error&&<p className="landing-error" role="alert">{error}</p>}</div>
+     <div className="landing-intro"><p className="landing-eyebrow"><span/>A quieter kind of workspace</p><h1 id="landing-title">Space to think.<br/>A way to <em>remember.</em></h1><p className="landing-description">Let your thoughts branch out. Turn what you learn into flashcards. Keep it all together, in RemoNook.</p><div className="landing-entry">{accountButton('Get started with Google')}<a className="landing-guest" data-guest-entry href="#app">Try as a guest <Icon name="forward" size={16}/></a></div><p className="landing-entry-note">No account needed to explore.<br/>Guest notes stay in this browser.</p>{error&&<p className="landing-error" role="alert">{error}</p>}</div>
      <div className="landing-preview" id="how-it-works">
       <div className="landing-preview-bar"><span><span className="landing-preview-dot"/>A thought, taking shape</span><div role="group" aria-label="Interactive preview"><button aria-pressed={view==='notes'} onClick={()=>setView('notes')}>Notes</button><button aria-pressed={view==='study'} onClick={()=>setView('study')}>Flashcard</button></div></div>
       <div className="landing-preview-body">
@@ -22,14 +22,14 @@ export function Landing({onSignIn,signedIn=false}:{onSignIn:()=>Promise<void>;si
       <div className="landing-preview-foot"><span><Icon name="notes" size={13}/>From a note to something you know.</span><span>Interactive preview</span></div>
      </div>
     </section>
-    <section className="landing-features" aria-label="What you can do in Remo">
+    <section className="landing-features" aria-label="What you can do in RemoNook">
      <div><span className="landing-feature-number">01 / THINK</span><h2>Follow the thread.</h2><p>Nested notes, tags and linked ideas. Room for the big picture and every small detail.</p></div>
      <div><span className="landing-feature-number">02 / REMEMBER</span><h2>Learn from your own notes.</h2><p>Flashcards, quizzes and image occlusion. Review with spaced repetition, or study at your own pace.</p></div>
      <div><span className="landing-feature-number">03 / KEEP</span><h2>Pick up where you left off.</h2><p>Write offline. Sign in for cloud sync. Keep a full backup, or save a copy to your own folder.</p></div>
     </section>
-    <section className="landing-closing"><div><p className="landing-eyebrow">A place for your next thought.</p><h2>Start small. See where it goes.</h2></div><a className="landing-guest" href="#app">Explore Remo <Icon name="forward" size={18}/></a></section>
+    <section className="landing-closing"><div><p className="landing-eyebrow">A place for your next thought.</p><h2>Start small. See where it goes.</h2></div><a className="landing-guest" href="#app">Explore RemoNook <Icon name="forward" size={18}/></a></section>
    </main>
-   <footer className="landing-footer"><a className="landing-brand" href="#home"><RemoLogo/>remo<span className="landing-footer-dot">.</span></a><span>Notes. Connections. A little more clarity.</span><a href="#app">Open the app <Icon name="forward" size={13}/></a></footer>
+   <footer className="landing-footer"><a className="landing-brand" href="#home"><RemoLogo/>RemoNook<span className="landing-footer-dot">.</span></a><span>Notes. Connections. A little more clarity.</span><nav className="landing-footer-social" aria-label="Follow RemoNook"><a href="https://www.instagram.com/remonook.hq/" target="_blank" rel="noopener noreferrer" aria-label="RemoNook on Instagram, @RemoNook.hq"><span>Instagram</span><small>@RemoNook.hq</small></a><a href="https://x.com/RemoNookhq" target="_blank" rel="noopener noreferrer" aria-label="RemoNook on X, @RemoNookhq"><span>X</span><small>@RemoNookhq</small></a><a href="https://www.youtube.com/@RemoNook" target="_blank" rel="noopener noreferrer" aria-label="RemoNook on YouTube, @RemoNook"><span>YouTube</span><small>@RemoNook</small></a></nav><a className="landing-footer-app" href="#app">Open the app <Icon name="forward" size={13}/></a></footer>
   </div>
  </div>;
 }

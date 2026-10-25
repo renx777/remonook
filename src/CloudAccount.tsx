@@ -23,7 +23,7 @@ function CloudAuthGate({children}:{children:(user:User|null)=>React.ReactNode}){
    if(initial.current){try{await prepareTransition();window.location.hash=next?'app':'home';location.reload();}catch(e){setError(e instanceof Error?e.message:String(e));}return;}
    initial.current=true;setStorageAccount(next?.uid||null);setUser(next);
  },e=>setError(e.message)),[]);
- if(user===undefined)return <div className="startup"><div className="brand"><RemoLogo/>remo</div><p>{error||'Opening your workspace…'}</p>{error&&<button onClick={()=>location.reload()}>Retry</button>}</div>;
+ if(user===undefined)return <div className="startup"><div className="brand"><RemoLogo/>RemoNook</div><p>{error||'Opening your workspace…'}</p>{error&&<button onClick={()=>location.reload()}>Retry</button>}</div>;
  if(route==='#home'||!user&&route!=='#app')return <Landing onSignIn={googleSignIn} signedIn={!!user}/>;
  return <>{error&&<p className="cloud-error" role="alert">{error}</p>}{children(user)}</>;
 }

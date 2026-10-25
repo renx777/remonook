@@ -1,4 +1,4 @@
-# Remonook
+# RemoNook
 
 Remo means **remember more**. An outline-first notes and study application: nested notes, linked flashcards, MCQs, image occlusion, calendar reminders, rich media and local-first editing.
 

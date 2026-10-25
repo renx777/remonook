@@ -44,7 +44,7 @@ export function empty(): Workspace {
 export function sample(): Workspace {
   const d = empty();
   d.tables.bullets = [
-    bullet("welcome", { text: "Welcome to Remo" }),
+    bullet("welcome", { text: "Welcome to RemoNook" }),
     bullet("welcome-1", {
       parentId: "welcome",
       text: "A quieter space for your thoughts",

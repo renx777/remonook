@@ -24,13 +24,13 @@ export class RecoveryBoundary extends React.Component<{
   render() {
     if (!this.state.error) return this.props.children;
     return <main className="recovery-screen" role="alert">
-      <div className="recovery-brand"><RemoLogo/>remo</div>
-      <h1>Remo needs to recover</h1>
+      <div className="recovery-brand"><RemoLogo/>RemoNook</div>
+      <h1>RemoNook needs to recover</h1>
       <p>An unexpected error interrupted this screen. Your stored notes have not been cleared.</p>
       <p>Download a backup of the current draft before reloading. If this happens again, share the error details below.</p>
       <div className="recovery-actions">
         <button onClick={() => void this.props.onBackup().catch(error => this.setState({ backupError: String(error) }))}>Download recovery backup</button>
-        <button onClick={() => location.reload()}>Reload Remo</button>
+        <button onClick={() => location.reload()}>Reload RemoNook</button>
       </div>
       {this.state.backupError && <p>Backup could not be downloaded: {this.state.backupError}</p>}
       <details open><summary>Error details</summary><pre>{this.state.error.stack || String(this.state.error)}</pre></details>

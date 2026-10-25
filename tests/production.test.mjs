@@ -67,12 +67,22 @@ test("production bundle: interaction smoke test", async context => {
   });
   await wait(() => document.querySelector('.landing'));
   assert.match(document.querySelector('.landing h1').textContent,/Space to think/);
+  assert.equal(document.querySelector('.landing-wordmark').getAttribute('aria-label'), 'RemoNook — remember more');
+  assert.match(document.querySelector('.landing-description').textContent, /RemoNook/);
+  for(const [domain,handle] of [['instagram.com','@RemoNook.hq'],['x.com','@RemoNookhq'],['youtube.com','@RemoNook']]){
+    const anchor=[...document.querySelectorAll('.landing-footer-social a')].find(a=>new URL(a.href).hostname.includes(domain));
+    assert.ok(anchor, `Missing ${domain} social link`);
+    assert.ok(anchor.textContent.includes(handle), `Missing ${handle} display handle`);
+    assert.equal(anchor.getAttribute('target'),'_blank');
+    assert.match(anchor.getAttribute('rel'), /noopener/);
+  }
   assert.equal(await load(),null,'The landing page does not create or overwrite guest notes');
   await click([...document.querySelectorAll('.landing-preview-bar button')].find(button=>button.textContent==='Flashcard'));
   await click(document.querySelector('.landing-demo-reveal-button'));
   assert.match(document.querySelector('.landing-demo-reveal').textContent,/finding patterns/);
   await click(document.querySelector('[data-guest-entry]'));
   await wait(() => document.querySelector(".page-heading"));
+  assert.ok(document.querySelector('.sidebar-header .brand').textContent.includes('RemoNook'));
   // React may process a continuous-event updater after currentTarget is cleared.
   // Queue several real scroll events in one batch, then scroll back to the top.
   const outlineScroller = document.querySelector('.outline-scroll');
