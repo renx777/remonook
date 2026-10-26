@@ -15,6 +15,6 @@ if(mode==='staging'){
   const html=readFileSync('dist/index.html','utf8');
   if(!html.includes('<head>'))throw Error('Staging HTML has no head tag.');
   writeFileSync('dist/index.html',html.replace('<head>','<head><meta name="robots" content="noindex, nofollow">'));
-  writeFileSync('dist/robots.txt','User-agent: *\\nDisallow: /\\n'.replaceAll('\\n','\n'));
+  writeFileSync('dist/robots.txt','User-agent: *\nDisallow: /\n');
   rmSync('dist/sitemap.xml',{force:true});
 }
