@@ -57,7 +57,7 @@ export function OutlinePopover({ title, anchor, onClose, children, className = "
         close.current();
       }
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        const elements = [...(panel.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input, select, summary") || [])].filter(el => !el.closest("details:not([open])") || el.tagName === "SUMMARY" && el.parentElement === el.closest("details:not([open])"));
+        const elements = [...(panel.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input, select, summary") || [])].filter(el => !el.closest("[hidden]") && (!el.closest("details:not([open])") || el.tagName === "SUMMARY" && el.parentElement === el.closest("details:not([open])")));
         const at = elements.indexOf(document.activeElement as HTMLElement);
         if ((event.target as HTMLElement).tagName === "SELECT") return;
         event.preventDefault();

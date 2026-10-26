@@ -14,7 +14,8 @@ test('editing shows emoji widgets while preserving source positions, arrow navig
  try{
   await act(async()=>{editor=new Editor({element:document.getElementById('editor'),extensions:[StarterKit,editorEmoji(()=>library,()=>code)],content:`<p>${item.token} tail</p>`});});
   assert.equal(editor.getText(),item.token+' tail');assert.equal(document.querySelectorAll('.editor-emoji-widget').length,1);assert.equal(document.querySelector('.editor-emoji-source').textContent,item.token);
-  await act(async()=>{editor.commands.setTextSelection(1);editor.view.dom.dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));});assert.equal(editor.state.selection.from,1+item.token.length);
+  const widget=document.querySelector('.editor-emoji-widget');
+  await act(async()=>{editor.commands.setTextSelection(1);editor.view.dom.dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));});assert.equal(editor.state.selection.from,1+item.token.length);assert.equal(document.querySelector('.editor-emoji-widget'),widget,'Caret movement must not restart the animation');
   await act(async()=>editor.view.dom.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true})));assert.equal(editor.getText(),' tail');
   code='javascript';await act(async()=>editor.commands.setContent(`<p>${item.token}</p>`));assert.equal(document.querySelector('.editor-emoji-widget'),null);assert.equal(editor.getText(),item.token);
  }finally{if(editor)await act(async()=>editor.destroy());dom.window.close();}
