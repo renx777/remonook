@@ -1,0 +1,7 @@
+import {Children,isValidElement,useId,useState,type ReactElement,type ReactNode} from 'react';
+export function BulletMenuBody({children}:{children:ReactNode}){
+ const items=Children.toArray(children),sections=items.filter((c):c is ReactElement<any>=>isValidElement(c)&&c.type==='details');
+ const [active,setActive]=useState(0),id=useId();
+ const label=(section:ReactElement<any>)=>{const summary=Children.toArray(section.props.children)[0] as ReactElement<any>;return (Children.toArray(summary.props.children)[1] as ReactElement<any>).props.children;};
+ return <div className="bullet-menu-body">{items.filter(c=>!isValidElement(c)||c.type!=='details')}<div className="bullet-menu-tabs" role="tablist" aria-label="Bullet action categories">{sections.map((section,i)=><button key={i} role="tab" id={`${id}-tab-${i}`} aria-controls={`${id}-panel-${i}`} aria-selected={active===i} tabIndex={active===i?0:-1} onClick={()=>setActive(i)} onKeyDown={e=>{if(['ArrowRight','ArrowLeft','Home','End'].includes(e.key)){e.preventDefault();const n=e.key==='Home'?0:e.key==='End'?sections.length-1:(i+(e.key==='ArrowRight'?1:-1)+sections.length)%sections.length;setActive(n);document.getElementById(`${id}-tab-${n}`)?.focus();}}}>{label(section)}</button>)}</div>{sections.map((section,i)=><section key={i} id={`${id}-panel-${i}`} role="tabpanel" aria-labelledby={`${id}-tab-${i}`} hidden={active!==i}>{Children.toArray(section.props.children).slice(1)}</section>)}</div>;
+}

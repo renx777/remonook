@@ -14,7 +14,8 @@ import { TextSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import { marks, encode } from "./domain.mjs";
 import type { Node } from "./data";
-import { EmojiText } from './AnimatedEmoji';
+import { EmojiText,useEmojiLibrary } from './AnimatedEmoji';
+import {editorEmoji} from './EditorEmoji';
 import { Notation, notationParts } from './Notation';
 export { notationParts } from './Notation';
 /** Apply source-range formatting to the rendered equation as one visual unit. */
@@ -306,6 +307,7 @@ export function BulletEditor({
   onReady: (editor: Editor | null) => void;
   disabled: boolean;
 }) {
+  const emojiLibrary=useEmojiLibrary(),emojiLibraryRef=useRef(emojiLibrary);emojiLibraryRef.current=emojiLibrary;
   const host = useRef<HTMLDivElement>(null),
     editor = useRef<Editor | null>(null),
     callbacks = useRef({ onChange, onCommand, onOutlinePaste, onImages, onReady, node });
@@ -331,6 +333,7 @@ export function BulletEditor({
           link: false,
           undoRedo: false,
         }),
+        editorEmoji(()=>emojiLibraryRef.current,()=>callbacks.current.node.codeLanguage),
         codeHighlight(() => callbacks.current.node.codeLanguage),
         tagHighlight(() => callbacks.current.node.codeLanguage),
         RemoCode,
@@ -481,7 +484,7 @@ export function BulletEditor({
     }
     e.setEditable(!disabled && !unsupportedFormatting(node), false);
     e.view.dispatch(e.state.tr);
-  }, [node.text, node.formatting, node.codeLanguage, disabled]);
+  }, [node.text, node.formatting, node.codeLanguage, disabled,emojiLibrary]);
   return (
     <>
       {node.codeLanguage && <div className="code-toolbar"><label>Language <select aria-label="Code language" value={codeLanguages.includes(node.codeLanguage) ? node.codeLanguage : 'plaintext'} disabled={disabled} onChange={event => onCommand('language:' + event.target.value, node.id, 0, 0)}>{codeLanguages.map(language => <option key={language} value={language}>{language === 'plaintext' ? 'Plain text' : language}</option>)}</select></label><small>Enter: new line · Tab: indent · Ctrl/⌘ Enter: next bullet</small></div>}

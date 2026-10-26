@@ -305,3 +305,19 @@ kbd { font: 11px inherit; color: var(--muted); white-space: nowrap; }
 .outline-row.is-important .bullet-dot-btn.has-children.is-collapsed .bullet-outer-circle{stroke:#e88c87;opacity:.5}
 .outline-row.is-mirror .bullet-dot-btn .bullet-outer-circle{stroke:var(--accent);stroke-width:1.5;opacity:.55}
 @media(hover:hover) and (pointer:fine){.outline-row .bullet-dot-btn:hover .bullet-outer-circle{stroke:var(--accent);opacity:.5}.outline-row .bullet-dot-btn:hover .bullet-inner-dot{fill:var(--accent)}}
+/* Keep the action target reachable across the entire gutter, including parents. */
+.outline-gutter::before{content:'';position:absolute;left:-54px;right:0;top:0;height:100%;}
+.outline-row:focus-within .row-hover-more,.outline-row.has-children .row-hover-more,.outline-row .outline-gutter:hover .row-hover-more{opacity:.6;pointer-events:auto;}
+.outline-row .row-hover-more{min-width:28px;min-height:28px;z-index:3;}
+.outline-row .row-hover-more:hover,.outline-row .row-hover-more:focus-visible{background:var(--hover);opacity:1;}
+.outline-popover.bullet-actions-menu{width:360px;max-width:calc(100vw - 16px);border-radius:12px;}
+.bullet-menu-body{padding:6px 10px 12px;}
+.bullet-actions-menu .popover-heading{padding:12px 14px;font-size:13px;border-bottom:1px solid var(--line);}
+.bullet-actions-menu .popover-quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px 0 12px;}
+.bullet-actions-menu .popover-quick-actions button{background:var(--soft);min-height:38px;}
+.bullet-actions-menu .popover-quick-actions kbd{display:none;}
+.bullet-menu-tabs{display:flex;gap:4px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line);}
+.bullet-menu-tabs button{border:0;background:transparent;color:var(--muted);border-radius:6px;padding:7px 9px;font-size:11px;}
+.bullet-menu-tabs button[aria-selected=true]{background:var(--soft);color:var(--text);font-weight:600;}
+.bullet-actions-menu [role=tabpanel] .bullet-section-content{padding-top:5px;}
+.bullet-actions-menu [role=tabpanel] button:hover{background:var(--hover);}

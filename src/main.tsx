@@ -69,6 +69,7 @@ import { JumpTo, OutlinePopover, OutlineSidebar } from "./OutlineChrome";
 import { StudyDesk } from "./StudyDesk";
 import { imageType, mediaLink } from "./media.mjs";
 import { EmojiProvider } from './AnimatedEmoji';
+import {BulletMenuBody} from './BulletMenuBody';
 import {useEmojiAssetRepair} from './useEmojiAssetRepair';
 import { EmojiPicker } from './EmojiPicker';
 import {WorkdaysCalendar} from './WorkdaysCalendar';
@@ -1609,7 +1610,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }} />}
       {menuNode && (
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
-<div className="bullet-menu-body"><div className="popover-quick-actions">
+<BulletMenuBody><div className="popover-quick-actions">
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
             <button disabled={disabled} onClick={()=>command('action:date',menuNode.id,0,0)}><Icon name="calendar" size={16}/><span>Add date…</span></button>
             <button disabled={disabled} onClick={() => { command("complete", menuNode.id, 0, 0); setMenu(null); }}><Icon name="check" size={16} /><span>{menuNode.taskState === "DONE" ? "Uncomplete" : "Complete"}</span><kbd>Ctrl ↵</kbd></button>
@@ -1750,7 +1751,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             commit({ ...current, web: { ...current.web, mcqs, deckTypes } }); setMenu(null);
           }}>Convert MCQ to regular flashcard</button>}
           <p className="deck-preview">{generatedCards(nodes, [{ rootId: menuNode.id }], doc.tables.media).length} cards · nested question/answer pairs are included. A single pair uses this bullet as the question.</p>
-</div></details></div><div className="bullet-menu-danger">          <button
+</div></details></BulletMenuBody><div className="bullet-menu-danger">          <button
             className="wide danger action"
             disabled={disabled}
             onClick={() => remove(menuNode.id)}
