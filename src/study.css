@@ -129,6 +129,17 @@
 .flashcard-answer-row > div { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .answer-dot { color: var(--muted); }
 .answer-done { color: var(--muted); }
+.flashcard-answer-heading { display: flex; align-items: center; gap: 8px; }
+.flashcard-step-badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 9px; font-size: 10px; font-weight: 550; background: var(--hover); color: var(--accent); letter-spacing: 0; }
+.flashcard-bullet-dots { display: flex; gap: 5px; margin: 6px 0 12px; align-items: center; }
+.flashcard-bullet-dots .bullet-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background 0.18s ease, transform 0.18s ease; }
+.flashcard-bullet-dots .bullet-dot.is-revealed { background: var(--accent); transform: scale(1.2); }
+.flashcard-answer-row.is-newly-revealed { animation: study-bullet-appear 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes study-bullet-appear { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .flashcard-answer-row.is-newly-revealed { animation: none; } }
+.study-step-actions { display: flex; align-items: center; gap: 8px; justify-content: center; width: 100%; flex-wrap: wrap; }
+.dock-show-all { font-size: 11px; color: var(--muted); padding: 8px 12px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); white-space: nowrap; }
+.dock-show-all:hover:not(:disabled) { color: var(--fg); border-color: var(--muted); }
 .flashcard-plain { font-size: 16px; line-height: 1.7; white-space: pre-wrap; }
 .reveal-actions { margin: 25px 0; text-align: center; }
 .reveal-actions .study-primary { min-width: 215px; padding: 13px 20px; }

@@ -45,6 +45,15 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     [coverEditor, setCoverEditor] = useState<{ id: string; title: string } | null>(null),
     [reactionEditor, setReactionEditor] = useState(false),
     [preferImmersive, setPreferImmersive] = useState(false),
+    [bulletRevealMode, setBulletRevealMode] = useState<"step" | "all">(() => {
+      try {
+        const saved = window.localStorage.getItem('remo-study-bullet-reveal');
+        return saved === 'all' ? 'all' : 'step';
+      } catch {
+        return 'step';
+      }
+    }),
+    [revealedBullets, setRevealedBullets] = useState<number>(1),
     [cardZoom, setCardZoom] = useState(() => { try { const value = Number(window.localStorage.getItem('remo-study-card-zoom')); return value >= 70 && value <= 150 ? Math.round(value / 10) * 10 : 100; } catch { return 100; } }),
     [clock, setClock] = useState(Date.now()),
     shownAt = useRef(Date.now()),
@@ -57,6 +66,12 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     idx = useMemo(() => index(doc.tables.bullets), [doc.tables.bullets]);
   const mode = doc.web.lastStudyMode === 'NORMAL' ? 'NORMAL' : 'SPACED';
   const setMode = (value:string) => { if(!disabled)onChange({...doc,web:{...doc.web,lastStudyMode:value}}); };
+  const occlusion = currentId ? occlusionDefinition(doc,currentId) : null;
+  const currentMcq = currentId ? mcqDefinition(doc, currentId, idx) : null;
+  const isFlashcard = !currentMcq && !occlusion;
+  const totalBullets = isFlashcard ? (source?.answerRows?.length ?? (card?.answer ? card.answer.split('\n').filter(Boolean).length : 0)) : 0;
+  const hasStepBullets = isFlashcard && totalBullets > 1 && bulletRevealMode === 'step';
+  const isAllBulletsRevealed = !hasStepBullets || revealedBullets >= totalBullets;
   const studyContext = useMemo(() => createStudyContext(doc, clock), [doc, clock]);
   const folders=studyFolders(doc),currentFolder=folders.find(f=>f.id===activeFolder);
   useEffect(()=>{if(activeFolder&&!currentFolder)setActiveFolder(null);},[activeFolder,!!currentFolder]);
@@ -66,8 +81,6 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     onDragLeave:(event:React.DragEvent)=>{if(!event.currentTarget.contains(event.relatedTarget as globalThis.Node))setDropFolder(null);},
     onDrop:(event:React.DragEvent)=>{event.preventDefault();if(draggedDeck&&event.dataTransfer.getData('application/x-remo-study-deck')===draggedDeck)moveDeckTo(draggedDeck,id);setDraggedDeck(null);setDropFolder(null);}
   });
-  const occlusion = currentId ? occlusionDefinition(doc,currentId) : null;
-  const currentMcq = currentId ? mcqDefinition(doc, currentId, idx) : null;
   const storedAttempt = session ? mcqAttempt(doc, session) : null;
   const attempt = storedAttempt?.fingerprint === currentMcq?.fingerprint ? storedAttempt : null;
   const options = currentMcq?.valid ? orderedMcqOptions(currentMcq, `${session?.tag || "legacy"}:${currentId}`) : [];
@@ -85,7 +98,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   const { rootRef, immersive, fullscreenNotice, enterImmersive, exitImmersive, lastNativeExit } = useImmersiveStudy(screen === "session"),
     cardScroll = useRef<HTMLDivElement>(null),
     cardMenu = useRef<HTMLDivElement>(null);
-  useEffect(()=>{setCardMenuOpen(false);touchStart.current=null;},[currentId,screen]);
+  useEffect(()=>{setCardMenuOpen(false);touchStart.current=null;setRevealedBullets(bulletRevealMode === 'all' ? 9999 : 1);},[currentId,screen,session?.cursor,session?.tag]);
   useEffect(()=>{if(!cardMenuOpen)return;const close=(event:PointerEvent)=>{if(!cardMenu.current?.contains(event.target as globalThis.Node))setCardMenuOpen(false);};window.addEventListener("pointerdown",close);cardMenu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();return()=>window.removeEventListener("pointerdown",close);},[cardMenuOpen]);
   const showLibrary = () => { exitImmersive(); setScreen("library"); };
   const resizeCard = (value: number) => {
@@ -103,7 +116,32 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     if (scope && deckTopics(doc, scope, Date.now()).length) { setTopicDeck(scope); setScreen('topics'); }
     else start(scope);
   };
-  const reveal = () => { if (session && card && availableCard(card, Date.now())) updateSession({ ...session, revealed: 1, updatedAt: Date.now() }); };
+  const reveal = (allAtOnce = false) => {
+    if (session && card && availableCard(card, Date.now())) {
+      setRevealedBullets(allAtOnce || bulletRevealMode === 'all' ? 9999 : 1);
+      updateSession({ ...session, revealed: 1, updatedAt: Date.now() });
+    }
+  };
+  const nextBullet = () => {
+    if (hasStepBullets && revealedBullets < totalBullets) {
+      setRevealedBullets(prev => Math.min(prev + 1, totalBullets));
+      return true;
+    }
+    return false;
+  };
+  const showAllBullets = () => {
+    setRevealedBullets(totalBullets || 9999);
+  };
+  const toggleBulletRevealMode = () => {
+    const next = bulletRevealMode === 'step' ? 'all' : 'step';
+    setBulletRevealMode(next);
+    try { window.localStorage.setItem('remo-study-bullet-reveal', next); } catch {}
+    if (next === 'all') {
+      setRevealedBullets(9999);
+    } else {
+      setRevealedBullets(1);
+    }
+  };
   const grade = (value: string) => {
     if (disabled || !session || !card || !session.revealed || !availableCard(card, Date.now())) return;
     onChange(reviewCard(doc, session, value, Date.now() - shownAt.current));
@@ -117,6 +155,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     if (!session || disabled || navigationLock.current) return;
     if (currentMcq) { if (attempt) navigate('next'); return; }
     if (!session.revealed) reveal();
+    else if (hasStepBullets && revealedBullets < totalBullets) nextBullet();
     else if (session.mode === 'NORMAL') grade('GOOD');
     else navigate('next');
   };
@@ -151,6 +190,21 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     if (viewport.height > 0 && bounds.top > viewport.bottom - 64)
       scroll.scrollTo({ top: scroll.scrollTop + bounds.top - viewport.top - 24, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [session?.revealed]);
+  useEffect(() => {
+    if (!session?.revealed || revealedBullets <= 1) return;
+    const scroll = cardScroll.current;
+    const rows = scroll?.querySelectorAll<HTMLElement>(".flashcard-answer-row");
+    if (!rows || !rows.length || !scroll) return;
+    const lastRow = rows[Math.min(revealedBullets - 1, rows.length - 1)];
+    if (!lastRow) return;
+    const viewport = scroll.getBoundingClientRect(), bounds = lastRow.getBoundingClientRect();
+    if (viewport.height > 0 && bounds.bottom > viewport.bottom - 48) {
+      const nextTop = scroll.scrollTop + bounds.bottom - viewport.bottom + 56;
+      if (typeof scroll.scrollTo === 'function')
+        scroll.scrollTo({ top: nextTop, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      else scroll.scrollTop = nextTop;
+    }
+  }, [revealedBullets, session?.revealed]);
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 30000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -168,6 +222,21 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
       if (disabled) return;
       if (event.key === 'ArrowLeft' && !event.repeat) { event.preventDefault(); navigate('previous'); return; }
       if (event.key === 'ArrowRight' && !event.repeat) { event.preventDefault(); tapNext(); return; }
+      if ((event.key === 'a' || event.key === 'A') && !event.repeat && isFlashcard && session?.revealed && hasStepBullets && revealedBullets < totalBullets) {
+        event.preventDefault();
+        showAllBullets();
+        return;
+      }
+      if (event.key === 'ArrowUp' && !event.repeat && isFlashcard && session?.revealed && hasStepBullets && revealedBullets > 1) {
+        event.preventDefault();
+        setRevealedBullets(prev => Math.max(1, prev - 1));
+        return;
+      }
+      if (event.key === 'ArrowDown' && !event.repeat && isFlashcard && session?.revealed && hasStepBullets && revealedBullets < totalBullets) {
+        event.preventDefault();
+        nextBullet();
+        return;
+      }
       if (event.repeat) { if (event.key === " ") event.preventDefault(); return; }
       if (currentMcq) {
         if (!attempt && ["1", "2", "3", "4"].includes(event.key)) { event.preventDefault(); const option = options[Number(event.key) - 1]; if (option) choose(option.id); }
@@ -175,13 +244,21 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         return;
       }
       if (event.key === " " && target.closest("button")) return;
-      if (event.key === " " && card && !session?.revealed) { event.preventDefault(); reveal(); }
-      if (event.key === " " && session?.revealed && session.mode === "NORMAL") { event.preventDefault(); grade("GOOD"); }
+      if (event.key === " " && card && !session?.revealed) { event.preventDefault(); if (event.shiftKey) reveal(true); else reveal(); return; }
+      if (event.key === " " && session?.revealed) {
+        if (hasStepBullets && revealedBullets < totalBullets) {
+          event.preventDefault();
+          if (event.shiftKey) showAllBullets();
+          else nextBullet();
+          return;
+        }
+        if (session.mode === "NORMAL") { event.preventDefault(); grade("GOOD"); return; }
+      }
       if (session?.revealed && ["1", "2", "3", "4"].includes(event.key)) { event.preventDefault(); grade(["AGAIN", "HARD", "GOOD", "EASY"][Number(event.key) - 1]); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [screen, session, card, doc, disabled, immersive, attempt, editingCard, cardMenuOpen]);
+  }, [screen, session, card, doc, disabled, immersive, attempt, editingCard, cardMenuOpen, isFlashcard, hasStepBullets, revealedBullets, totalBullets]);
 
   const all = scopedCards(doc, null, clock, studyContext), due = dueCards(doc, null, clock, studyContext),
     today = new Date(clock).toDateString(),
@@ -225,7 +302,26 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         <article className="flashcard" aria-label="Flashcard">
 {editingCard && !occlusion ? <StudyCardEditor key={card.id} doc={doc} id={card.id} disabled={disabled} startWithBullet={editingAdd} onSave={onChange} onClose={()=>{setEditingCard(false);setEditingAdd(false);shownAt.current=Date.now();}}/> : <>           <div className="flashcard-label"><span>QUESTION</span><div className="study-card-tools"><button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(false);setEditingCard(true);}}><Icon name="edit" size={13}/>Edit card</button>{source && !currentMcq && !occlusion && <button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(true);setEditingCard(true);}}><Icon name="plus" size={13}/>Add bullet</button>}{source && <button className="study-text-button" onClick={() => { exitImmersive(); onSource(card.id); }}><Icon name="link" size={13} />Open source</button>}</div></div>
           <div className="flashcard-question">{occlusion ? <><RichRead node={source?.node as Node || idx.byId.get(card.id) as Node}/><OcclusionStudyImage definition={occlusion} blob={assets.get("media/"+occlusion.media.fileName)} revealed={!!session.revealed}/></> : source ? content(source.node as Node) : card.question}</div>
-          {currentMcq ? <MCQCard key={`${session.tag}:${card.id}:${currentMcq.fingerprint}`} definition={currentMcq} options={options} attempt={attempt} doc={doc} assets={assets} disabled={disabled} onChoose={choose} /> : !!session.revealed && <div className="flashcard-answer"><div className="flashcard-label">ANSWER</div>{occlusion ? <div className="flashcard-plain">{occlusion.masks.find((mask:any)=>mask.id===occlusion.maskId)?.label || "Look at the revealed region above."}</div> : source ? source.answerRows.map(({ node, depth }: any) => <div key={node.id} className={`flashcard-answer-row ${node.taskState === "DONE" ? "answer-done" : ""}`} style={{ paddingLeft: Math.min(depth, 10) * 20 }}><span className="answer-dot">{node.taskState === "DONE" ? "✓" : node.taskState === "TODO" ? "☐" : "•"}</span><div>{content(node)}</div></div>) : <div className="flashcard-plain">{card.answer}</div>}</div>}
+          {currentMcq ? <MCQCard key={`${session.tag}:${card.id}:${currentMcq.fingerprint}`} definition={currentMcq} options={options} attempt={attempt} doc={doc} assets={assets} disabled={disabled} onChoose={choose} /> : !!session.revealed && <div className="flashcard-answer">
+            <div className="flashcard-label">
+              <div className="flashcard-answer-heading">
+                <span>ANSWER</span>
+                {hasStepBullets && <span className="flashcard-step-badge" aria-live="polite">Bullet {Math.min(revealedBullets, totalBullets)} of {totalBullets}</span>}
+              </div>
+              <div className="study-card-tools">
+                {hasStepBullets && revealedBullets < totalBullets && <button type="button" className="study-text-button flashcard-show-all-btn" title="Show all bullets at once · A" disabled={disabled} onClick={() => showAllBullets()}>Show full bullets</button>}
+                {isFlashcard && totalBullets > 1 && <button type="button" className="study-text-button flashcard-toggle-reveal-mode" title={bulletRevealMode === 'step' ? "Currently showing 1 by 1. Click to show full bullets at once by default" : "Currently showing full bullets. Click to show bullets 1 by 1 by default"} disabled={disabled} onClick={() => toggleBulletRevealMode()}><Icon name="notes" size={13} />{bulletRevealMode === 'step' ? "1-by-1" : "Full bullets"}</button>}
+              </div>
+            </div>
+            {hasStepBullets && totalBullets > 1 && totalBullets <= 16 && (
+              <div className="flashcard-bullet-dots" role="presentation" aria-hidden="true">
+                {Array.from({ length: totalBullets }).map((_, i) => (
+                  <span key={i} className={`bullet-dot ${i < revealedBullets ? 'is-revealed' : ''}`} />
+                ))}
+              </div>
+            )}
+            {occlusion ? <div className="flashcard-plain">{occlusion.masks.find((mask:any)=>mask.id===occlusion.maskId)?.label || "Look at the revealed region above."}</div> : source ? (hasStepBullets ? source.answerRows.slice(0, revealedBullets) : source.answerRows).map(({ node, depth }: any, index: number) => <div key={node.id} className={`flashcard-answer-row ${node.taskState === "DONE" ? "answer-done" : ""} ${hasStepBullets && index === revealedBullets - 1 && revealedBullets > 1 ? "is-newly-revealed" : ""}`} style={{ paddingLeft: Math.min(depth, 10) * 20 }}><span className="answer-dot">{node.taskState === "DONE" ? "✓" : node.taskState === "TODO" ? "☐" : "•"}</span><div>{content(node)}</div></div>) : <div className="flashcard-plain">{hasStepBullets && card.answer ? card.answer.split('\n').slice(0, revealedBullets).join('\n') : card.answer}</div>}
+          </div>}
 </>}        </article>
         {currentMcq && attempt && <aside className={`study-reaction-rail ${attempt.correct ? "reaction-left" : "reaction-right"}`} aria-label={attempt.correct ? "Correct answer reaction" : "Wrong answer reaction"}><QuizFeedback key={`${session.tag}:${currentId}:${attempt.answeredAt}`} correct={attempt.correct} seed={attempt.answeredAt} doc={doc} assets={assets} /></aside>}
         </div>
@@ -236,7 +332,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
           <nav className="study-card-navigation" aria-label="Card navigation">
             <button className="study-nav-arrow" aria-label="Previous card" title="Previous card" disabled={disabled||session.cursor===0} onClick={()=>navigate('previous')}><Icon name="back" size={18}/></button>
             <div className={`study-dock-main ${!done&&valid?(!session.revealed?"reveal-actions":session.mode==="NORMAL"?"cram-actions":""):""}`}>
-              {done?<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value)}</small></button>)}</div>:<button className="study-primary dock-primary" disabled={disabled} onClick={event=>{if(event.detail>1)return;if(session.revealed)grade('GOOD');else reveal();}}>{session.revealed?'Next card':'Show answer'}</button>}
+              {done?<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history&&isAllBulletsRevealed?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value)}</small></button>)}</div>:session.revealed&&hasStepBullets&&revealedBullets<totalBullets?<div className="study-step-actions"><button className="study-primary dock-primary" disabled={disabled} onClick={()=>nextBullet()}>Next bullet ({revealedBullets}/{totalBullets})</button><button className="study-text-button dock-show-all" disabled={disabled} title="Show all bullets at once · A" onClick={()=>showAllBullets()}>Show full bullets</button></div>:<button className="study-primary dock-primary" disabled={disabled} onClick={event=>{if(event.detail>1)return;if(session.revealed)grade('GOOD');else reveal();}}>{session.revealed?'Next card':'Show answer'}</button>}
             </div>
             <button className="study-nav-arrow" aria-label="Next card" title="Next card" disabled={disabled||done||!valid||!session.revealed||!!currentMcq&&!attempt} onClick={tapNext}><Icon name="forward" size={18}/></button>
             <div className="study-more-actions" ref={cardMenu}>
@@ -244,7 +340,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
               {cardMenuOpen&&<div className="study-more-menu" role="menu" aria-label="Card actions" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();setCardMenuOpen(false);cardMenu.current?.querySelector<HTMLButtonElement>('button')?.focus();}else if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')],at=buttons.indexOf(document.activeElement as HTMLButtonElement),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(at+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next]?.focus();}}}><button role="menuitem" onClick={()=>{setCardMenuOpen(false);pauseCard(false);}}>Hide until tomorrow</button><button role="menuitem" onClick={()=>{setCardMenuOpen(false);pauseCard(true);}}>Suspend card</button></div>}
             </div>
           </nav>
-          <p className="study-dock-hint" aria-live="polite">{done?'Session complete':!valid?'Continue to the next available card':currentMcq?!attempt?'Choose an answer to continue': 'Tap left for previous · right for next':!session.revealed?'Click or tap anywhere to reveal':session.mode==='SPACED'&&!history?'Rate to schedule · tap left / right to navigate':'Tap left for previous · right for next'}</p>
+          <p className="study-dock-hint" aria-live="polite">{done?'Session complete':!valid?'Continue to the next available card':currentMcq?!attempt?'Choose an answer to continue': 'Tap left for previous · right for next':!session.revealed?'Click or tap anywhere to reveal':hasStepBullets&&revealedBullets<totalBullets?`Tap or Space for next bullet (${revealedBullets} of ${totalBullets}) · Press A for full bullets`:session.mode==='SPACED'&&!history?'Rate to schedule · tap left / right to navigate':'Tap left for previous · right for next'}</p>
         </div>
       </footer>
       {editingCard && card && occlusion?.valid && <OcclusionEditor doc={doc} item={occlusion.media} assets={assets} groupId={occlusion.groupId} disabled={disabled} onSave={next=>onChange({...next,tables:{...next.tables,study_sessions:next.tables.study_sessions.map(s=>s.id===session.id?{...s,revealed:0}:s)}})} onClose={()=>{setEditingCard(false);shownAt.current=Date.now();}}/>}

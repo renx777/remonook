@@ -38,7 +38,7 @@ test('edit flashcards and MCQs in study without changing position or schedules; 
   assert.equal(document.querySelector('dialog.study-card-editor'),null,'Editor is embedded in the card');
   await clickText('Add bullet');await wait(()=>document.querySelector('.study-card-editor .tiptap'));await append('Extra detail');await clickText('Save changes');
   await clickText('Show answer');assert.match(document.querySelector('.flashcard-answer').textContent,/First answer revised/);
-  assert.match(document.querySelector('.flashcard-answer').textContent,/Extra detail/);
+  await clickText('Show full bullets');assert.match(document.querySelector('.flashcard-answer').textContent,/Extra detail/);
   await clickText('Next card');await wait(()=>document.querySelector('.mcq-options'));
   await act(async()=>document.querySelectorAll('.mcq-option')[1].click());assert.match(document.querySelector('.mcq-feedback').textContent,/Not quite/);
   await edit();await append(' revised');await act(async()=>document.querySelector('[data-node-id="o2"] .study-edit-preview').click());await append(' revised');

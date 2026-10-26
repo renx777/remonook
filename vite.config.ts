@@ -4,6 +4,9 @@ export default defineConfig(({mode})=>{
  resolveEnvironment({...loadEnv(mode,process.cwd(),"VITE_"),...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.startsWith("VITE_")))});
  return {
   server: { allowedHosts: ["terminal.local"] },
+  resolve: {
+    extensions: [".tsx", ".ts", ".jsx", ".js", ".mjs", ".json"],
+  },
   build: {
     rollupOptions: {
       output: {
