@@ -19,7 +19,7 @@ const wait = async check => { for (let i = 0; i < 150; i++) { if (check()) retur
 const click = async element => { assert.ok(element); await act(async () => element.click()); };
 const button = text => [...document.querySelectorAll('button')].find(element => element.textContent.trim().endsWith(text));
 const search = async value => act(async () => { const input = document.querySelector('[aria-label="Find an animated emoji"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value); input.dispatchEvent(new window.Event('input', { bubbles: true })); });
-const open = async () => { await click(document.querySelector('[data-node-id="welcome"] .row-hover-more')); await click(button('Insert animated emoji…')); await wait(() => document.querySelector('.emoji-grid')); };
+const open = async () => { await click(document.querySelector('[data-node-id="welcome"] .row-hover-more')); await click(document.querySelector('[data-category="1"]')); await click(button('Insert animated emoji…')); await wait(() => document.querySelector('.emoji-grid')); };
 
 test('Noto picker searches the full catalog, saves an offline insertion, reuses it and cancels failed/pending downloads', async () => {
   const doc = withNodes(empty(), [bullet('welcome', { text: 'Nice work! ' })]); await save(null, doc);

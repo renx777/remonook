@@ -72,6 +72,7 @@ test('slash commands convert blocks, highlight code, preserve text and open MCQs
     await act(async () => document.querySelector('[aria-label="Close MCQ editor"]').click());
     const itemId = stored.tables.bullets.find(node => node.text === 'First item').id;
     await act(async () => document.querySelector(`[data-node-id="${itemId}"] [aria-label="Bullet actions"]`).click());
+    await act(async () => document.querySelector('[data-category="0"]').click());
     await wait(() => document.querySelector('[aria-label="Bullet text style"]'));
     await act(async () => { const select = document.querySelector('[aria-label="Bullet text style"]'); select.value = 'h3'; select.dispatchEvent(new window.Event('change', {bubbles:true})); });
     await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent.includes('Insert horizontal divider')).click());
