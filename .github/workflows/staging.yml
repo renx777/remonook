@@ -26,7 +26,11 @@ jobs:
       - run: npm ci
       - run: cp .env.staging.example .env.staging.local
       - run: npm run build:staging
-      - run: npm test
+      # Fast release-gating checks. The full suite remains in the separate CI workflow.
+      - name: Run targeted staging regression checks
+        run: |
+          node scripts/prepare-tests.mjs
+          node --test --test-concurrency=2 tests/study-bullet-reveal-app.test.mjs tests/study-edit-app.test.mjs tests/study-library-app.test.mjs tests/environment.test.mjs tests/production.test.mjs tests/seo.test.mjs
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
