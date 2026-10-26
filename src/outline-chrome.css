@@ -306,8 +306,9 @@ kbd { font: 11px inherit; color: var(--muted); white-space: nowrap; }
 .outline-row.is-mirror .bullet-dot-btn .bullet-outer-circle{stroke:var(--accent);stroke-width:1.5;opacity:.55}
 @media(hover:hover) and (pointer:fine){.outline-row .bullet-dot-btn:hover .bullet-outer-circle{stroke:var(--accent);opacity:.5}.outline-row .bullet-dot-btn:hover .bullet-inner-dot{fill:var(--accent)}}
 /* Keep the action target reachable across the entire gutter, including parents. */
-.outline-gutter::before{content:'';position:absolute;left:-54px;right:0;top:0;height:100%;}
-.outline-row:focus-within .row-hover-more,.outline-row.has-children .row-hover-more,.outline-row .outline-gutter:hover .row-hover-more{opacity:.6;pointer-events:auto;}
+/* The gutter is a stable hover bridge, not a large invisible overlay. */
+.outline-gutter::before{content:'';position:absolute;left:-54px;right:0;top:0;height:100%;pointer-events:none;}
+@media(hover:hover) and (pointer:fine){.outline-row:hover .row-hover-more,.outline-row .outline-gutter:hover .row-hover-more,.outline-row .row-hover-more:focus-visible{opacity:1;pointer-events:auto;}}
 .outline-row .row-hover-more{min-width:28px;min-height:28px;z-index:3;}
 .outline-row .row-hover-more:hover,.outline-row .row-hover-more:focus-visible{background:var(--hover);opacity:1;}
 /* A compact command list with progressive disclosure, shared by click and context menu. */
@@ -341,3 +342,36 @@ kbd { font: 11px inherit; color: var(--muted); white-space: nowrap; }
 .bullet-no-results{padding:24px 10px;font-size:13px;line-height:1.7;color:var(--text);text-align:center;}
 .bullet-no-results span{color:var(--muted);font-size:12px;}
 @media(pointer:coarse){.bullet-actions-menu .popover-quick-actions button,.bullet-actions-menu .bullet-section-content button,.bullet-menu-danger button,.bullet-category-back{min-height:44px;}.bullet-action-search{min-height:44px;}.bullet-action-search input{font-size:16px;}}
+
+/* 2026-10: consistent single-disc collapsed bullet across pointer types. */
+.outline-row .bullet-dot-btn.has-children.is-collapsed .bullet-outer-circle{fill:var(--muted);stroke:none;opacity:.55;}
+.outline-row .bullet-dot-btn.has-children.is-collapsed .bullet-inner-dot{fill:var(--text);}
+.outline-row .bullet-dot-btn:not(.is-collapsed) .bullet-outer-circle{fill:none;stroke:none;opacity:0;}
+.outline-row.is-important .bullet-dot-btn.has-children.is-collapsed .bullet-outer-circle{fill:#e88c87;stroke:none;}
+.outline-row.is-mirror .bullet-dot-btn.has-children.is-collapsed .bullet-outer-circle{fill:var(--accent);stroke:none;opacity:.45;}
+@media(hover:hover) and (pointer:fine){
+ .outline-row .row-hover-more{opacity:0;pointer-events:none;}
+ .outline-row:hover .row-hover-more,.outline-row .row-hover-more:hover,.outline-row .row-hover-more:focus-visible{opacity:1;pointer-events:auto;}
+}
+@media(hover:none),(pointer:coarse){.outline-row .row-hover-more{opacity:0;pointer-events:none}.outline-row .row-hover-more:focus-visible{opacity:1;pointer-events:auto}}
+/* Action drawer: calmer typography, grouped commands, aligned controls. */
+.outline-popover.bullet-actions-menu{width:340px;max-width:calc(100vw - 24px);border:1px solid var(--line);background:var(--panel);}
+.bullet-actions-menu .popover-heading{padding:14px 16px 8px;font-size:14px;font-weight:650;}
+.bullet-menu-body{padding:0 12px;}
+.bullet-action-search{margin:4px 0 12px;border-radius:10px;min-height:42px;background:var(--soft);}
+.bullet-group-label,.bullet-search-results h3{margin:12px 10px 8px;font-size:10px;letter-spacing:.09em;}
+.bullet-category-list{padding:8px 0;}
+.bullet-category-list>button{min-height:58px;gap:12px;padding:10px 12px;}
+.bullet-category-list>button>svg:first-child{width:18px;height:18px;flex:none;color:var(--muted);}
+.bullet-category-list strong{font-size:13px;font-weight:600;line-height:1.3;}
+.bullet-category-list small{font-size:11px;line-height:1.4;margin-top:2px;}
+.bullet-actions-menu .popover-quick-actions button,.bullet-actions-menu .bullet-section-content button{min-height:42px;gap:12px;padding:10px 12px;font-size:13px;text-align:left;justify-content:flex-start;}
+.bullet-actions-menu .bullet-section-content button>svg,.bullet-actions-menu .popover-quick-actions button>svg{flex:0 0 18px;width:18px;height:18px;}
+.bullet-category-title{font-size:13px;margin:12px 10px 10px;}
+.bullet-category-back{font-weight:550;}
+.bullet-actions-menu .field-label{font-size:13px;}
+.bullet-actions-menu .field-label select{min-height:36px;border-radius:8px;}
+.bullet-actions-menu .deck-preview{padding:8px 12px;line-height:1.5;}
+.bullet-menu-danger{padding:8px 12px;}
+.bullet-menu-danger button{min-height:42px;font-size:12px;}
+@media(max-width:500px){.outline-popover.bullet-actions-menu{width:min(340px,calc(100vw - 24px));}.bullet-action-scroll{max-height:min(58dvh,530px);}.bullet-category-list>button{min-height:56px;}}
