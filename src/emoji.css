@@ -90,3 +90,8 @@ dialog:has(.emoji-picker) .dialog-head { margin-bottom: 4px; }
 .tiptap .editor-emoji-source{font-size:0;color:transparent;}
 .editor-emoji-widget{display:inline-block;vertical-align:baseline;cursor:pointer;user-select:none;}
 .editor-emoji-widget .animated-emoji{font-size:1rem;}
+
+/* Keep a visible text insertion caret after an inline emoji. */
+.tiptap .editor-emoji-source{font-size:0;color:transparent;}
+.tiptap .editor-emoji-widget{position:relative;white-space:nowrap;}
+.tiptap .editor-emoji-widget::after{content:'\200b';display:inline;font-size:1px;}
