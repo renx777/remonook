@@ -358,6 +358,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
 
   // Explicit questions, local images, and study sessions use the same saved workspace.
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
+  await click(document.querySelector('[data-category="1"]'));
   await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Insert animated emoji…'));
   await click([...document.querySelectorAll('.emoji-sources button')].find(button => button.textContent === 'RemoNook'));
   assert.equal(document.querySelectorAll('.emoji-grid button').length, 4);
@@ -368,6 +369,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await click(document.querySelector('[aria-label="Redo"]'));
   assert.ok(document.querySelector('[data-node-id="welcome"] [data-emoji-token=":remo_smile:"]'));
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
+  await click(document.querySelector('[data-category="1"]'));
   await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Insert animated emoji…'));
   const emojiInput = document.querySelector('[aria-label="Import animated emoji files"]');
   Object.defineProperty(emojiInput, 'files', { configurable: true, value: [new File(['not-json'], 'broken.json', { type: 'application/json' })] });
@@ -386,6 +388,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   assert.ok((await (await import('./.build/data.mjs')).getAssets()).has('emoji/' + stored.tables.emojis[1].fileName));
 
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
+  await click(document.querySelector('[data-category="0"]'));
   await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Turn into question'));
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
   stored = await load();
@@ -393,6 +396,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await click(document.querySelector('[data-node-id="welcome-1"] [aria-label="Bullet actions"]'));
   const imageInput = document.querySelector('[aria-label="Choose images for bullet"]');
   // Files are selected by the browser's file picker; inject its result in jsdom.
+  await click(document.querySelector('[data-category="1"]'));
   await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Add images…'));
   Object.defineProperty(imageInput, 'files', { configurable: true, value: [new File(['<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="blue"/></svg>'], 'diagram.svg', { type: 'image/svg+xml' })] });
   await act(async () => imageInput.dispatchEvent(new window.Event('change', { bubbles: true })));
