@@ -33,6 +33,7 @@ test("configure a four-child MCQ, study choices, resume feedback, practice misse
   assert.ok(nested.querySelector('.outline-gutter > .row-hover-more'), "Each nested bullet owns its action gutter");
   assert.equal(nested.querySelector('.row-hover-more').style.left, '-28px', "Leaf dots sit immediately beside the child bullet");
   await click(document.querySelector('[data-node-id="q"] .row-hover-more'));
+  await click(document.querySelector('[data-category="4"]'));
   await click(button("Turn into MCQ…"));
   await wait(() => document.querySelector('.mcq-editor[open]'));
   assert.equal(document.querySelectorAll('.mcq-answer-picker input').length, 4);
@@ -106,6 +107,7 @@ test("configure a four-child MCQ, study choices, resume feedback, practice misse
   assert.equal(stored.tables.review_logs.length, 2);
   await click([...document.querySelectorAll('.sidebar nav button')].find(element => element.textContent.startsWith('Notes')));
   await click(document.querySelector('[data-node-id="notebook"] .row-hover-more'));
+  await click(document.querySelector('[data-category="4"]'));
   await click(button('Make MCQ notebook'));
   await wait(() => document.querySelector('#bulk-mcq-title'));
   assert.match(document.querySelector('.bulk-mcq-summary').textContent, /2 ready/);
