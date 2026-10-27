@@ -179,6 +179,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [bulkMcqEditing, setBulkMcqEditing] = useState<string | null>(null),
     [menu, setMenu] = useState<string | null>(null),
     menuAnchor = useRef<HTMLElement | null>(null),
+    menuSelection = useRef<string[]>([]),
     [viewMenu, setViewMenu] = useState(false),
     viewAnchor = useRef<HTMLElement | null>(null),
     [restore, setRestore] = useState<Awaited<
@@ -401,8 +402,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setCaret(pos);
   };
   const openPane=(id:string|null=scope)=>{if(!docRef.current)return;views.add(id,docRef.current.tables.bullets as Node[]);setTab('notes');setEditing(null);setMenu(null);};
-  const openBulletMenu = (id: string, anchor?: HTMLElement) => {
+  const openBulletMenu = (id: string, anchor?: HTMLElement, selectedIds?: string[]) => {
     menuAnchor.current = anchor || [...document.querySelectorAll<HTMLElement>("[data-node-id]")].find(el => el.dataset.nodeId === id) || null;
+    menuSelection.current = selectedIds?.includes(id) ? selectedIds : [id];
     setViewMenu(false);
     setMenu(id);
   };
@@ -758,7 +760,19 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const mirrorHere = (at:string,source:string) => {
     try {const result=createMirror(docRef.current!.tables.bullets,at,source);mutate(()=>result.nodes);focus(result.id);setConnectionTarget(null);setMenu(null);setNotice('Mirror created. Edits update every location.');}catch(error){showError(error);}
   };
-  const command = (action: string, id: string, start: number, end: number) => {
+  const bulletTargets = (id: string, selectedIds?: string[]) => new Set((selectedIds?.includes(id) ? selectedIds : menu === id ? menuSelection.current : [id]).map(target => sourceId(docRef.current!.tables.bullets, target)));
+  const command = (action: string, id: string, start: number, end: number, selectedIds?: string[]) => {
+    const targets = bulletTargets(id, selectedIds);
+    if (action.startsWith('list:')) {
+      const listType = action.slice(5);
+      if (['NONE','UNORDERED','ORDERED'].includes(listType)) mutate(ns => ns.map(node => targets.has(node.id) ? {...node,listType} : node));
+      return;
+    }
+    if (action.startsWith('kind:')) {
+      const kind = action.slice(5);
+      if (['NOTE','QUESTION','ANSWER'].includes(kind)) mutate(ns => ns.map(node => targets.has(node.id) ? {...node,kind,autoHighlight:false} : node));
+      return;
+    }
     if(action==='action:pane'){openPane(id);return;}
     if(action==='action:countdown'){const n=docRef.current!.tables.bullets.find(n=>n.id===id);setReminderEditor({date:n?.dueDate||getLocalDateString(),kind:'target',title:n?.text.slice(0,160)||''});return;}
     if(action==='action:date'){const n=docRef.current!.tables.bullets.find(n=>n.id===id);setNodeDate({id,date:n?.dueDate||getLocalDateString()});setMenu(null);return;}
@@ -862,7 +876,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         return;
       }
       mutate(ns => ns.map(n => {
-        if (n.id !== id) return n;
+        if (!targets.has(n.id)) return n;
         if (action.startsWith('language:')) return { ...n, codeLanguage: type };
         const normal = { ...n, blockStyle: 'paragraph', codeLanguage: '' };
         if (/^h[1-3]$/.test(type) || type === 'paragraph' || type === 'quote') return { ...normal, blockStyle: type, listType: 'NONE' };
@@ -1245,6 +1259,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     ap = doc.preferences.appearance,
     showCompleted = doc.preferences.editor_tools?.showCompleted !== false,
     disabled = working || failed.current;
+  const menuTargets = menuNode ? [...bulletTargets(menuNode.id)].map(id => idx.byId.get(id)).filter(Boolean) : [];
+  const menuListStyle = new Set(menuTargets.map(node => node.listType)).size > 1 ? '' : menuNode?.listType;
+  const menuBulletKind = new Set(menuTargets.map(node => node.kind)).size > 1 ? '' : menuNode?.kind;
   const starred: string[] = Array.isArray(doc.web.starredNodes) ? doc.web.starredNodes : [],
     savedSearches: string[] = Array.isArray(doc.web.starredSearches) ? doc.web.starredSearches : [];
   const navigateTo = (id: string | null) => {
@@ -1525,7 +1542,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                   id,
                 )
               }
-              onCommand={(action,id,start,end)=>{if(pane.id!=='main'&&['toggleCollapse','expandBranch','collapseBranch'].includes(action)){const ids=action==='toggleCollapse'?new Set([id]):descendants(nodes,id),collapsed={...pane.collapsed};for(const key of ids)collapsed[key]=action==='toggleCollapse'?!(collapsed[key]??idx.byId.get(key)?.collapsed):action==='collapseBranch';views.update(pane.id,{collapsed});return;}command(action,id,start,end);}}
+              onCommand={(action,id,start,end,selectedIds)=>{if(pane.id!=='main'&&['toggleCollapse','expandBranch','collapseBranch'].includes(action)){const ids=action==='toggleCollapse'?new Set([id]):descendants(nodes,id),collapsed={...pane.collapsed};for(const key of ids)collapsed[key]=action==='toggleCollapse'?!(collapsed[key]??idx.byId.get(key)?.collapsed):action==='collapseBranch';views.update(pane.id,{collapsed});return;}command(action,id,start,end,selectedIds);}}
               onOutlinePaste={pasteAsOutline}
               onReady={(e) => {
                 if(views.activePane===pane.id){editor.current=e;setActiveEditor(e);}
@@ -1703,17 +1720,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             List style
             <select
               disabled={disabled}
-              value={menuNode.listType}
-              onChange={(e) =>
-                mutate((ns) =>
-                  ns.map((n) =>
-                    n.id === menuNode.id
-                      ? { ...n, listType: e.target.value }
-                      : n,
-                  ),
-                )
-              }
+              aria-label="List style"
+              value={menuListStyle}
+              onChange={e => command('list:' + e.target.value, menuNode.id, 0, 0)}
             >
+              <option value="" disabled>Mixed</option>
               <option value="NONE">None</option>
               <option value="UNORDERED">Bulleted</option>
               <option value="ORDERED">Numbered</option>
@@ -1723,17 +1734,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             Bullet type
             <select
               disabled={disabled}
-              value={menuNode.kind}
-              onChange={(e) =>
-                mutate((ns) =>
-                  ns.map((n) =>
-                    n.id === menuNode.id
-                      ? { ...n, kind: e.target.value, autoHighlight: false }
-                      : n,
-                  ),
-                )
-              }
+              aria-label="Bullet type"
+              value={menuBulletKind}
+              onChange={e => command('kind:' + e.target.value, menuNode.id, 0, 0)}
             >
+              <option value="" disabled>Mixed</option>
               <option value="NOTE">Note</option>
               <option value="QUESTION">Question</option>
               <option value="ANSWER">Answer</option>

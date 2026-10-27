@@ -39,12 +39,12 @@ type Props = {
   onOpenPane?: (id:string)=>void;
   onToggle: (id: string) => void;
   onChange: (id: string, value: { text: string; formatting: string }) => void;
-  onCommand: (action: string, id: string, start: number, end: number) => void;
+  onCommand: (action: string, id: string, start: number, end: number, selectedIds?: string[]) => void;
   onOutlinePaste: (id: string, start: number, end: number, text: ClipboardInput) => void;
   onReady: (editor: Editor | null) => void;
   onMove: (id: string, target: string, zone: string) => void;
   onTask: (id: string) => void;
-  onMenu: (id: string, anchor?: HTMLElement) => void;
+  onMenu: (id: string, anchor?: HTMLElement, selectedIds?: string[]) => void;
   onAdd?: (parentId?: string | null) => void;
   onDeleteNodes?: (ids: string[]) => void;
   setNotice?: (msg: string) => void;
@@ -111,6 +111,7 @@ export function OutlineView(p: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()),
     selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
+  const openMenu = (id: string, anchor?: HTMLElement) => p.onMenu(id, anchor, selectedIdsRef.current.has(id) ? [...selectedIdsRef.current] : [id]);
   const [boxSelect, setBoxSelect] = useState(false),
     dragSelectRef = useRef<{
       startX: number;
@@ -415,7 +416,7 @@ export function OutlineView(p: Props) {
     };
 
     const clearOutside = (e: PointerEvent) => {
-      if (e.target instanceof window.Element && !scroller.current?.contains(e.target)) setSelectedIds(new Set());
+      if (e.target instanceof window.Element && !scroller.current?.contains(e.target) && !e.target.closest('.bullet-actions-menu')) setSelectedIds(new Set());
     };
 
     window.addEventListener("pointerdown", clearOutside);
@@ -502,6 +503,14 @@ export function OutlineView(p: Props) {
         return;
       }
 
+      if (!p.disabled && (e.ctrlKey || e.metaKey) && e.shiftKey && ['7','8','Digit7','Digit8'].includes(e.code || e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const ids = [...selectedIds];
+        p.onCommand(e.code === 'Digit7' || e.key === '7' ? 'block:numbered' : 'block:bulleted', ids[0], 0, 0, ids);
+        return;
+      }
+
       if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
         deleteSelected();
@@ -535,7 +544,7 @@ export function OutlineView(p: Props) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIds, layout, p.onDeleteNodes]);
+  }, [selectedIds, layout, p.onDeleteNodes, p.onCommand, p.disabled]);
 
   return (
     <div
@@ -658,7 +667,7 @@ export function OutlineView(p: Props) {
                 // Touch long-press belongs to native text selection, not menus.
                 if ((event.nativeEvent as PointerEvent).pointerType === 'touch' || window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
                 event.preventDefault();
-                if (!p.disabled) p.onMenu(n.id, event.currentTarget);
+                if (!p.disabled) openMenu(n.id, event.currentTarget);
               }}
               className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${hasImportantTag(n.text)?"is-important":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
               style={{
@@ -708,7 +717,7 @@ export function OutlineView(p: Props) {
                 disabled={p.disabled}
                 onClick={(e) => {
                   e.stopPropagation();
-                  p.onMenu(n.id, e.currentTarget);
+                  openMenu(n.id, e.currentTarget);
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="3" cy="9" r="1.5" fill="currentColor" /><circle cx="9" cy="9" r="1.5" fill="currentColor" /><circle cx="15" cy="9" r="1.5" fill="currentColor" /></svg>
@@ -888,7 +897,7 @@ export function OutlineView(p: Props) {
                   aria-label="Bullet actions"
                   title="Bullet actions"
                   disabled={p.disabled}
-                  onClick={event => p.onMenu(n.id, event.currentTarget)}
+                  onClick={event => openMenu(n.id, event.currentTarget)}
                 >
                   <Icon name="more" size={17} />
                 </button>
@@ -929,6 +938,15 @@ export function OutlineView(p: Props) {
             {selectedRoots.length} bullet{selectedRoots.length === 1 ? "" : "s"} selected
           </span>
           <span className="separator" />
+          <select aria-label="Selected list style" disabled={p.disabled} value="" onChange={event => {
+            const ids = [...selectedIds];
+            p.onCommand('list:' + event.target.value, ids[0], 0, 0, ids);
+          }}>
+            <option value="" disabled>List style…</option>
+            <option value="ORDERED">Numbered</option>
+            <option value="UNORDERED">Bulleted</option>
+            <option value="NONE">None</option>
+          </select>
           <button
             className="selection-btn"
             title="Copy (Ctrl+C)"

@@ -644,6 +644,10 @@ p {
   user-select: none;
 }
 .selection-action-bar {
+  width:max-content;
+  max-width:calc(100vw - 16px);
+  flex-wrap:wrap;
+  justify-content:center;
   position: fixed;
   bottom: 24px;
   left: 50%;
@@ -670,6 +674,7 @@ p {
   color: var(--text-secondary, #4b5563);
   padding: 0 4px;
 }
+.selection-action-bar select { border:0; background:var(--hover); font-size:12px; padding:5px 7px; max-width:130px; min-height:30px; }
 [data-theme="Dark"] .selection-count {
   color: #9ca3af;
 }

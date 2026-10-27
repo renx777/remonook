@@ -131,7 +131,6 @@
 .answer-dot { color: var(--muted); flex-shrink:0; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .answer-done { color: var(--muted); }
 .flashcard-answer-heading { display: flex; align-items: center; gap: 8px; }
-.flashcard-step-badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 9px; font-size: 10px; font-weight: 550; background: var(--hover); color: var(--accent); letter-spacing: 0; }
 .flashcard-bullet-dots { display: flex; gap: 5px; margin: 6px 0 12px; align-items: center; }
 .flashcard-bullet-dots .bullet-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background 0.18s ease, transform 0.18s ease; }
 .flashcard-bullet-dots .bullet-dot.is-revealed { background: var(--accent); transform: scale(1.2); }

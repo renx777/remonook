@@ -81,14 +81,15 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     assert.deepEqual([...document.querySelectorAll('.flashcard-answer-row .answer-dot')].map(el=>el.textContent), ['1.'], 'Step reveal retains the ordered marker');
 
     // In step mode, Bullet 1 of 3 is shown first
-    assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 1 of 3/);
+    assert.equal(document.querySelector('.flashcard-step-badge'),null);
+    assert.equal(document.querySelector('[aria-label="Answer reveal progress"]').getAttribute('aria-valuenow'),'1');
     assert.match(document.querySelector('.flashcard-answer').textContent, /Encapsulation/);
     assert.doesNotMatch(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
     assert.doesNotMatch(document.querySelector('.flashcard-answer').textContent, /Polymorphism/);
 
     // Keep the primary control and progress cues, without duplicate footer bars.
     assert.ok(document.querySelector('.study-step-actions'), 'Step actions in dock');
-    assert.match(document.querySelector('.dock-primary').textContent, /Next bullet \(1\/3\)/);
+    assert.match(document.querySelector('.dock-primary').textContent, /^Next bullet$/);
     assert.ok(document.querySelector('.flashcard-show-all-btn'), 'Card header Show full bullets button exists');
     assert.equal(document.querySelector('.dock-show-all'),null,'Full-bullet action is kept in the card header only');
     assert.equal(document.querySelector('.study-dock-hint').textContent,'','Step mode reserves the footer space without shortcut text');
@@ -100,20 +101,21 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     assert.equal(document.querySelectorAll('.flashcard-bullet-dots .is-revealed').length,2);
     assert.deepEqual([...document.querySelectorAll('.flashcard-answer-row .answer-dot')].map(el=>el.textContent), ['1.','1.'], 'Nested answers restart numbering within their parent');
     assert.equal(document.querySelectorAll('.flashcard-answer-row')[1].style.paddingLeft,'20px');
-    assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 2 of 3/);
+    assert.equal(document.querySelector('[aria-label="Answer reveal progress"]').getAttribute('aria-valuenow'),'2');
     assert.match(document.querySelector('.flashcard-answer').textContent, /Encapsulation/);
     assert.match(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
     assert.doesNotMatch(document.querySelector('.flashcard-answer').textContent, /Polymorphism/);
-    assert.match(document.querySelector('.dock-primary').textContent, /Next bullet \(2\/3\)/);
+    assert.match(document.querySelector('.dock-primary').textContent, /^Next bullet$/);
 
     // Step back 1 bullet using ArrowUp
     await keyDown('ArrowUp');
-    assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 1 of 3/);
+    assert.equal(document.querySelector('.flashcard-step-badge'),null);
+    assert.equal(document.querySelector('[aria-label="Answer reveal progress"]').getAttribute('aria-valuenow'),'1');
     assert.doesNotMatch(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
 
     // Press 'a' keyboard action to show full bullets at once
     await keyDown('a');
-    assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 3 of 3/);
+    assert.equal(document.querySelector('[aria-label="Answer reveal progress"]').getAttribute('aria-valuenow'),'3');
     assert.deepEqual([...document.querySelectorAll('.flashcard-answer-row .answer-dot')].map(el=>el.textContent), ['1.','1.','2.'], 'Full reveal retains sibling numbering across nested answers');
     assert.match(document.querySelector('.flashcard-answer').textContent, /Encapsulation/);
     assert.match(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
@@ -144,16 +146,17 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     // Reset bullets to 1 by tapping previous bullet or setting
     await keyDown('ArrowUp');
     await keyDown('ArrowUp');
-    assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 1 of 3/);
+    assert.equal(document.querySelector('.flashcard-step-badge'),null);
+    assert.equal(document.querySelector('[aria-label="Answer reveal progress"]').getAttribute('aria-valuenow'),'1');
 
     // Tap right side (x = 600 > 400) to advance bullet via tap
     await tap(600);
-    assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 2 of 3/, 'Tap right side advanced to bullet 2');
+    assert.equal(document.querySelector('[aria-label="Answer reveal progress"]').getAttribute('aria-valuenow'),'2','Tap right side advances the progress circles');
     assert.match(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
 
     // Tap right side again to advance to bullet 3
     await tap(600);
-    assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 3 of 3/, 'Tap right side advanced to bullet 3');
+    assert.equal(document.querySelector('[aria-label="Answer reveal progress"]').getAttribute('aria-valuenow'),'3','Tap right side completes the progress circles');
     assert.match(document.querySelector('.flashcard-answer').textContent, /Polymorphism/);
   } finally {
     if (app) await act(async () => app.appRoot.unmount());

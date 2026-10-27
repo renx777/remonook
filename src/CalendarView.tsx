@@ -154,12 +154,12 @@ type CalendarViewProps = {
   onZoom: (id: string) => void;
   onToggle: (id: string) => void;
   onChange: (id: string, value: { text: string; formatting: string }) => void;
-  onCommand: (action: string, id: string, start: number, end: number) => void;
+  onCommand: (action: string, id: string, start: number, end: number, selectedIds?: string[]) => void;
   onOutlinePaste: (id: string, start: number, end: number, text: ClipboardInput) => void;
   onReady: (editor: Editor | null) => void;
   onMove: (id: string, target: string, zone: string) => void;
   onTask: (id: string) => void;
-  onMenu: (id: string) => void;
+  onMenu: (id: string, anchor?: HTMLElement, selectedIds?: string[]) => void;
   editing: string | null;
   caret: number | null;
   disabled: boolean;
