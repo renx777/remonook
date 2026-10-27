@@ -5,6 +5,8 @@ import { ALL_MCQS, mcqDefinition } from "./mcq.mjs";
 export const STUDY_SESSION = "web-current";
 export const availableCard = (card, now) => card.state === "ACTIVE" && !card.suspended && (card.buriedUntilEpochMillis || 0) <= now;
 
+const mcqScope = (doc, scope) => scope === ALL_MCQS || doc.web?.deckTypes?.[scope] === "MCQ" || !!doc.web?.mcqs?.[scope];
+
 // Reuse tree indexes and daily history across every notebook on the shelf.
 // The context is render-local, not a stale global cache of mutable imports.
 export function createStudyContext(doc, now = Date.now()) {
@@ -46,7 +48,7 @@ export function scopedCards(doc, scope = null, now = Date.now(), context = creat
     if (!availableCard(card, now) || (scoped && card.id !== scope && (!range || at === undefined || at < range.start || at >= range.end))) return false;
     if (!definitions.has(card.id)) definitions.set(card.id, mcqDefinition(doc, card.id, idx));
     const mcq = definitions.get(card.id);
-    return (!mcq || mcq.valid) && ((scope !== ALL_MCQS && doc.web?.deckTypes?.[scope] !== "MCQ") || !!mcq?.valid);
+    return mcqScope(doc, scope) ? !!mcq?.valid : !mcq;
   })
     .sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity) || a.createdAtEpochMillis - b.createdAtEpochMillis || a.id.localeCompare(b.id));
 }
@@ -123,6 +125,19 @@ export function sessionQueue(session) {
     const queue = JSON.parse(session.queueJson);
     return Array.isArray(queue) && queue.every(id => typeof id === "string") ? queue : [];
   } catch { return []; }
+}
+
+// Older flashcard sessions may contain MCQs. Keep their progress and review
+// history while removing those entries from the saved queue.
+export function separateFlashcardSession(doc, session) {
+  if (mcqScope(doc, session.scope)) return session;
+  const queue = sessionQueue(session), keep = id => !doc.web?.mcqs?.[id];
+  const filtered = queue.filter(keep);
+  if (filtered.length === queue.length) return session;
+  return { ...session, queueJson: JSON.stringify(filtered),
+    cursor: queue.slice(0, session.cursor).filter(keep).length,
+    ...(session.furthestCursor !== undefined ? { furthestCursor: queue.slice(0, studyFrontier(session)).filter(keep).length } : {}),
+    revealed: keep(queue[session.cursor]) ? session.revealed : 0 };
 }
 export function saveSession(doc, session) {
   const extras = ['topicId', 'furthestCursor'].filter(key => session[key] !== undefined && !doc.columns?.study_sessions.includes(key));

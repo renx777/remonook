@@ -55,6 +55,8 @@ test("configure a four-child MCQ, study choices, resume feedback, practice misse
   const originalSchedule = stored.tables.cards.find(card => card.id === 'q').dueAtEpochMillis;
   await click([...document.querySelectorAll('.sidebar nav button')].find(element => element.textContent.includes('Study Desk')));
   assert.ok(document.querySelector('.mcq-deck-badge'));
+  assert.equal(document.querySelector('[aria-label="Open All flashcards notebook"]').disabled, true, 'An MCQ-only workspace has no flashcards to study');
+  assert.equal(document.querySelector('[aria-label="Open All MCQs notebook"]').disabled, false, 'MCQs remain available in their own collection');
   await click(button('Cram'));
   const article = [...document.querySelectorAll('.study-deck')].find(article => article.querySelector('h2').textContent === 'Which color is the sky?');
   await click(article.querySelector('.study-primary'));

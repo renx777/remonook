@@ -1,10 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { bullet, refreshCards, generatedCards } from "../src/domain.mjs";
-import { dueCards, newStudySession, reviewCard, saveSession, scopedCards, sessionQueue, tomorrow } from "../src/study.mjs";
+import { dueCards, newStudySession, reviewCard, saveSession, scopedCards, separateFlashcardSession, sessionQueue, tomorrow } from "../src/study.mjs";
 import { mediaLink, mediaLinks, imageType } from "../src/media.mjs";
 
 const now = new Date(2026, 9, 20, 12).getTime();
+test('legacy flashcard sessions remove MCQs without losing the current card or review history', () => {
+  const doc = { web: { mcqs: { mcq: {} } } };
+  const original = { scope: null, queueJson: JSON.stringify(['mcq', 'first', 'mcq', 'last']), cursor: 1, furthestCursor: 3, revealed: 1, reviewed: 2 };
+  const next = separateFlashcardSession(doc, original);
+  assert.deepEqual(sessionQueue(next), ['first', 'last']);
+  assert.equal(next.cursor, 0);
+  assert.equal(next.furthestCursor, 1);
+  assert.equal(next.revealed, 1);
+  assert.equal(next.reviewed, 2);
+  assert.equal(original.cursor, 1);
+  assert.equal(separateFlashcardSession(doc, {...original, cursor: 0}).revealed, 0);
+  assert.equal(separateFlashcardSession(doc, {...original, cursor: 4}).cursor, 2);
+  const mcqSession = {...original, scope: '__all_mcqs__'};
+  assert.equal(separateFlashcardSession(doc, mcqSession), mcqSession);
+  assert.equal(separateFlashcardSession(doc, next), next);
+});
 test("a single question with answer children can be registered as a one-card deck", () => {
   const nodes = [bullet('q', { text: 'What is machine learning?' }), bullet('a', { parentId: 'q', text: 'Learning patterns from data.' })];
   const cards = generatedCards(nodes, [{ rootId: 'q' }]);

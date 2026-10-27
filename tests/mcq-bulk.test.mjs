@@ -49,7 +49,12 @@ test("All MCQs always includes standalone questions and named-deck questions, bu
   const now = Date.now() + 1000, context = createStudyContext(doc, now);
   assert.deepEqual(new Set(scopedCards(doc, ALL_MCQS, now, context).map(card => card.id)), new Set(['inside', 'orphan']));
   assert.deepEqual(scopedCards(doc, 'deck', now, context).map(card => card.id), ['inside']);
-  assert.equal(scopedCards(doc, null, now, context).length, 3);
+  assert.deepEqual(scopedCards(doc, null, now, context).map(card => card.id), ['regular']);
+  assert.deepEqual(dueCards(doc, null, now, context).map(card => card.id), ['regular']);
+  for (const mode of ['NORMAL', 'SPACED']) {
+    assert.deepEqual(JSON.parse(newStudySession(doc, null, mode, now).queueJson), ['regular']);
+    assert.deepEqual(new Set(JSON.parse(newStudySession(doc, ALL_MCQS, mode, now).queueJson)), new Set(['inside', 'orphan']));
+  }
   assert.equal(dueCards(doc, ALL_MCQS, now, context).length, 2);
   assert.equal(JSON.parse(newStudySession(doc, ALL_MCQS, 'NORMAL', now).queueJson).length, 2);
   assert.equal(doc.tables.decks.some(deck => deck.rootId === 'orphan'), false, 'No one-question notebook is required');

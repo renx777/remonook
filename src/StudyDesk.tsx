@@ -4,7 +4,7 @@ import {OcclusionEditor} from "./OcclusionEditor";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Workspace, RecordData, Node } from "./data";
 import { flashcardSources, index, rows } from "./domain.mjs";
-import { availableCard, createStudyContext, deckTopics, dueCards, intervalLabel, navigateStudyCard, newStudySession, reviewCard, saveSession, scopedCards, sessionQueue, studyFrontier, STUDY_SESSION, tomorrow } from "./study.mjs";
+import { availableCard, createStudyContext, deckTopics, dueCards, intervalLabel, navigateStudyCard, newStudySession, reviewCard, saveSession, scopedCards, separateFlashcardSession, sessionQueue, studyFrontier, STUDY_SESSION, tomorrow } from "./study.mjs";
 import { RichRead } from "./editor";
 import { MediaContent } from "./MediaContent";
 import { Icon } from "./icons";
@@ -59,7 +59,8 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     [cardZoom, setCardZoom] = useState(() => { try { const value = Number(window.localStorage.getItem('remo-study-card-zoom')); return value >= 70 && value <= 150 ? Math.round(value / 10) * 10 : 100; } catch { return 100; } }),
     [clock, setClock] = useState(Date.now()),
     shownAt = useRef(Date.now()),
-    session = doc.tables.study_sessions.find(s => s.id === STUDY_SESSION) || doc.tables.study_sessions[0],
+    storedSession = doc.tables.study_sessions.find(s => s.id === STUDY_SESSION) || doc.tables.study_sessions[0],
+    session = storedSession ? separateFlashcardSession(doc, storedSession) : undefined,
     queue = session ? sessionQueue(session) : [],
     currentId = session ? queue[session.cursor] : null,
     card = doc.tables.cards.find(card => card.id === currentId),
@@ -107,7 +108,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     const next = Math.max(70, Math.min(150, value)); setCardZoom(next);
     try { window.localStorage.setItem('remo-study-card-zoom', String(next)); } catch {}
   };
-  const resume = () => { setShowRevealHint(true); if(session)onChange({...doc,web:{...doc.web,lastStudyMode:session.mode}}); setScreen("session"); if (preferImmersive) enterImmersive(); };
+  const resume = () => { setShowRevealHint(true); if(session)onChange(saveSession({...doc,web:{...doc.web,lastStudyMode:session.mode}},session)); setScreen("session"); if (preferImmersive) enterImmersive(); };
   const updateSession = (value: RecordData) => onChange(saveSession({...doc,web:{...doc.web,lastStudyMode:value.mode}}, value));
   const start = (scope: string | null, topicId: string | null = null) => {
     setShowRevealHint(true);
@@ -264,7 +265,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     return () => window.removeEventListener("keydown", handler);
   }, [screen, session, card, doc, disabled, immersive, attempt, editingCard, cardMenuOpen, isFlashcard, hasStepBullets, revealedBullets, totalBullets]);
 
-  const all = scopedCards(doc, null, clock, studyContext), due = dueCards(doc, null, clock, studyContext),
+  const all = [...scopedCards(doc, null, clock, studyContext), ...scopedCards(doc, ALL_MCQS, clock, studyContext)], due = [...dueCards(doc, null, clock, studyContext), ...dueCards(doc, ALL_MCQS, clock, studyContext)],
     today = new Date(clock).toDateString(),
     todayCount = doc.tables.review_logs.filter(log => new Date(log.reviewedAtEpochMillis).toDateString() === today).length;
   const content = (node: Node) => <><RichRead node={node} /><MediaContent nodeId={node.id} text={node.text} media={doc.tables.media} assets={assets} /></>;
@@ -356,7 +357,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     const cards = scopedCards(doc, topicDeck, clock, studyContext), due = dueCards(doc, topicDeck, clock, studyContext);
     return <section className="study-desk study-topic-picker"><button className="study-text-button" onClick={showLibrary}><Icon name="back" size={16} />Study Desk</button><div className="study-heading"><div><span className="eyebrow">CHOOSE A TOPIC</span><h1>{title}</h1><p>Study one topic, or review the whole deck.</p></div></div><div className="study-mode-switch" aria-label="Topic study mode">{[['SPACED','Spaced repetition'],['NORMAL','Cram']].map(([value,label])=><button key={value} className={mode === value ? 'is-active' : ''} aria-pressed={mode === value} onClick={()=>setMode(value)}>{label}</button>)}</div><div className="study-topic-list"><button className="study-topic" disabled={disabled || !(mode === 'SPACED' ? due.length : cards.length)} onClick={()=>start(topicDeck)}><span><strong>All topics</strong><small>{cards.length} cards · {due.length} due</small></span><Icon name="forward" size={18} /></button>{topics.map((topic: {id:string; title:string; cards:number; due:number})=><button key={topic.id} className="study-topic" aria-label={`Study topic ${topic.title}`} disabled={disabled || !(mode === 'SPACED' ? topic.due : topic.cards)} onClick={()=>start(topicDeck,topic.id)}><span><strong>{topic.title}</strong><small>{topic.cards} cards · {topic.due} due</small></span><Icon name="forward" size={18} /></button>)}</div></section>;
   }
-  const decks = [{ rootId: null, title: "All flashcards", description: "Every question across your outline" }, { rootId: ALL_MCQS, title: "All MCQs", description: "Every MCQ, including questions outside a notebook" }, ...doc.tables.decks.map(deck => ({ rootId: deck.rootId, title: idx.byId.get(deck.rootId)?.text || "Untitled deck", description: "Linked to your notes · updates automatically" }))];
+  const decks = [{ rootId: null, title: "All flashcards", description: "Every flashcard across your outline" }, { rootId: ALL_MCQS, title: "All MCQs", description: "Every MCQ, including questions outside a notebook" }, ...doc.tables.decks.map(deck => ({ rootId: deck.rootId, title: idx.byId.get(deck.rootId)?.text || "Untitled deck", description: "Linked to your notes · updates automatically" }))];
   return <section ref={rootRef} className={`study-desk ${deskDesign.backdrop ? "has-study-background" : ""}`} style={backdropStyle(deskDesign, deskImage)}>
     <div className="study-heading"><div><span className="eyebrow">LEARN FROM YOUR NOTES</span><h1>Study Desk</h1><p>Your outline, turned into something you remember.</p></div><Icon name="study" size={34} /></div>
     <div className="study-shelf-tools"><span>Your notebook shelf</span><div className="study-shelf-buttons"><button className="study-text-button" disabled={disabled} onClick={()=>setFolderEditor({})}><Icon name="folder" size={15}/>New folder</button><button className="study-text-button" disabled={disabled} onClick={() => setReactionEditor(true)}>Quiz reactions</button><button className="study-text-button" disabled={disabled} onClick={() => setCoverEditor({ id: "__desk__", title: "Study Desk" })}><Icon name="image" size={15} />Personalize space</button></div></div>

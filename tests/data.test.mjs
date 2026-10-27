@@ -4,7 +4,7 @@ import "fake-indexeddb/auto";
 import JSZip from "jszip";
 import { newStudySession, reviewCard } from "../src/study.mjs";
 import { builtinEmojis } from '../src/emoji-builtins.mjs';
-import { configureMcq, answerMcq, mcqAttempt } from '../src/mcq.mjs';
+import { ALL_MCQS, configureMcq, answerMcq, mcqAttempt } from '../src/mcq.mjs';
 import { bullet } from '../src/domain.mjs';
 import {
   empty,
@@ -25,7 +25,7 @@ test("MCQ answers, first attempts and custom reaction GIFs survive a full backup
   doc = configureMcq(doc, 'mcq', { correctOptionId: 'choice-2', explanation: 'C is correct.', shuffle: true });
   doc = withNodes(doc, doc.tables.bullets);
   doc.web.deckTypes = { mcq: 'MCQ' };
-  const session = { ...newStudySession(doc, null, 'NORMAL'), tag: 'backup-test' };
+  const session = { ...newStudySession(doc, ALL_MCQS, 'NORMAL'), tag: 'backup-test' };
   doc.tables.study_sessions = [session];
   doc = answerMcq(doc, session, 'choice-2');
   const path = 'media/quiz-test.gif', bytes = new Uint8Array([71,73,70,56,57,97,1,0,1,0]);
