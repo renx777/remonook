@@ -314,7 +314,6 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
             <div className="flashcard-label">
               <div className="flashcard-answer-heading">
                 <span>ANSWER</span>
-                {hasStepBullets && <span className="flashcard-step-badge" aria-live="polite">Bullet {Math.min(revealedBullets, totalBullets)} of {totalBullets}</span>}
               </div>
               <div className="study-card-tools">
                 {hasStepBullets && revealedBullets < totalBullets && <button type="button" className="study-text-button flashcard-show-all-btn" title="Show all bullets at once · A" disabled={disabled} onClick={() => showAllBullets()}>Show full bullets</button>}
@@ -322,9 +321,9 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
               </div>
             </div>
             {hasStepBullets && totalBullets > 1 && totalBullets <= 16 && (
-              <div className="flashcard-bullet-dots" role="presentation" aria-hidden="true">
+              <div className="flashcard-bullet-dots" role="progressbar" aria-label="Answer reveal progress" aria-valuemin={0} aria-valuemax={totalBullets} aria-valuenow={Math.min(revealedBullets,totalBullets)}>
                 {Array.from({ length: totalBullets }).map((_, i) => (
-                  <span key={i} className={`bullet-dot ${i < revealedBullets ? 'is-revealed' : ''}`} />
+                  <span key={i} aria-hidden="true" className={`bullet-dot ${i < revealedBullets ? 'is-revealed' : ''}`} />
                 ))}
               </div>
             )}
@@ -340,7 +339,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
           <nav className="study-card-navigation" aria-label="Card navigation">
             <button className="study-nav-arrow" aria-label="Previous card" title="Previous card" disabled={disabled||session.cursor===0} onClick={()=>navigate('previous')}><Icon name="back" size={18}/></button>
             <div className={`study-dock-main ${!done&&valid?(!session.revealed?"reveal-actions":session.mode==="NORMAL"?"cram-actions":""):""}`}>
-              {done?<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history&&isAllBulletsRevealed?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value)}</small></button>)}</div>:<button className={`study-primary dock-primary ${session.revealed&&hasStepBullets&&revealedBullets<totalBullets?'study-step-actions':''}`} disabled={disabled} onClick={event=>{if(event.detail>1)return;if(!session.revealed)reveal();else if(hasStepBullets&&revealedBullets<totalBullets)nextBullet();else grade('GOOD');}}>{!session.revealed?'Show answer':hasStepBullets&&revealedBullets<totalBullets?`Next bullet (${revealedBullets}/${totalBullets})`:'Next card'}</button>}
+              {done?<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history&&isAllBulletsRevealed?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value)}</small></button>)}</div>:<button className={`study-primary dock-primary ${session.revealed&&hasStepBullets&&revealedBullets<totalBullets?'study-step-actions':''}`} disabled={disabled} onClick={event=>{if(event.detail>1)return;if(!session.revealed)reveal();else if(hasStepBullets&&revealedBullets<totalBullets)nextBullet();else grade('GOOD');}}>{!session.revealed?'Show answer':hasStepBullets&&revealedBullets<totalBullets?'Next bullet':'Next card'}</button>}
             </div>
             <button className="study-nav-arrow" aria-label="Next card" title="Next card" disabled={disabled||done||!valid||!session.revealed||!!currentMcq&&!attempt} onClick={tapNext}><Icon name="forward" size={18}/></button>
 

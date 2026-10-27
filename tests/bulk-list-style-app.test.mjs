@@ -1,0 +1,64 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {JSDOM} from 'jsdom';
+import 'fake-indexeddb/auto';
+import {act} from 'react';
+import {empty,withNodes,save,load} from './.build/data.mjs';
+import {bullet} from '../src/domain.mjs';
+
+const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost',pretendToBeVisual:true});
+for(const key of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Node','DOMParser','MutationObserver','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key],configurable:true});
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+globalThis.ResizeObserver=undefined;
+globalThis.requestAnimationFrame=window.requestAnimationFrame.bind(window);
+globalThis.cancelAnimationFrame=window.cancelAnimationFrame.bind(window);
+window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
+HTMLElement.prototype.scrollTo=function({top=0}){this.scrollTop=top;};
+window.Range.prototype.getClientRects=()=>[];
+window.Range.prototype.getBoundingClientRect=()=>({left:0,right:0,top:0,bottom:0,width:0,height:0});
+const click=async(selector,options={})=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);el.dispatchEvent(new window.MouseEvent('click',{bubbles:true,...options}));});
+const choose=async(selector,value)=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);el.dispatchEvent(new window.MouseEvent('pointerdown',{bubbles:true}));el.value=value;el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+const stored=async()=>{await act(async()=>new Promise(resolve=>setTimeout(resolve,250)));return load();};
+const wait=async check=>{for(let i=0;i<100;i++){if(check())return;await act(async()=>new Promise(resolve=>setTimeout(resolve,20)));}throw Error('Timed out waiting for outline');};
+
+test('list styles and bullet types apply atomically to selected branches through toolbar, menu and shortcuts',async()=>{
+ await save(null,withNodes(empty(),[bullet('a',{text:'First',collapsed:true}),bullet('child',{parentId:'a',text:'Hidden child'}),bullet('b',{position:1,text:'Second'}),bullet('c',{position:2,text:'Outside selection'})]));
+ let app;
+ const types=doc=>Object.fromEntries(doc.tables.bullets.map(n=>[n.id,n.listType]));
+ try{
+  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="a"]'));
+  await click('[data-node-id="a"] .text-button',{ctrlKey:true});
+  await click('[data-node-id="b"] .text-button',{ctrlKey:true});
+  await choose('[aria-label="Selected list style"]','ORDERED');
+  assert.deepEqual(types(await stored()),{a:'ORDERED',child:'ORDERED',b:'ORDERED',c:'NONE'});
+  await click('[data-node-id="b"] .row-hover-more');await click('[data-category="0"]');
+  await choose('[aria-label="List style"]','UNORDERED');
+  assert.ok(document.querySelector('.is-multi-selected'),'Menu interaction preserves the selection');
+  assert.deepEqual(types(await stored()),{a:'UNORDERED',child:'UNORDERED',b:'UNORDERED',c:'NONE'});
+  await choose('[aria-label="Bullet type"]','QUESTION');
+  const questionDoc=await stored();
+  assert.ok(questionDoc.tables.bullets.filter(n=>n.id!=='c').every(n=>n.kind==='QUESTION'));
+  assert.equal(questionDoc.tables.bullets.find(n=>n.id==='c').kind,'NOTE');
+  // Close just the menu while retaining the selection.
+  await click('.bullet-actions-menu .popover-heading .icon-button');
+  await act(async()=>window.dispatchEvent(new window.KeyboardEvent('keydown',{key:'7',code:'Digit7',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true})));
+  assert.deepEqual(types(await stored()),{a:'ORDERED',child:'ORDERED',b:'ORDERED',c:'NONE'});
+  await act(async()=>window.dispatchEvent(new window.KeyboardEvent('keydown',{key:'8',code:'Digit8',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true})));
+  assert.deepEqual(types(await stored()),{a:'UNORDERED',child:'UNORDERED',b:'UNORDERED',c:'NONE'});
+  await click('.topbar [aria-label="Undo"]');
+  assert.deepEqual(types(await stored()),{a:'ORDERED',child:'ORDERED',b:'ORDERED',c:'NONE'});
+  await click('.topbar [aria-label="Undo"]');
+  assert.deepEqual(types(await stored()),{a:'UNORDERED',child:'UNORDERED',b:'UNORDERED',c:'NONE'},'One undo restores the entire bulk operation');
+  await click('[data-node-id="c"] .row-hover-more');await click('[data-category="0"]');
+  await choose('[aria-label="List style"]','ORDERED');
+  assert.deepEqual(types(await stored()),{a:'UNORDERED',child:'UNORDERED',b:'UNORDERED',c:'ORDERED'},'An unrelated bullet menu changes only that bullet');
+  await click('.bullet-actions-menu .popover-heading .icon-button');
+  await click('[aria-label="Deselect"]');
+  await click('[data-node-id="a"] .text-button',{ctrlKey:true});
+  await click('[data-node-id="c"] .text-button',{ctrlKey:true});
+  await click('[data-node-id="a"] .row-hover-more');await click('[data-category="0"]');
+  assert.equal(document.querySelector('[aria-label="List style"]').value,'','Mixed selections do not falsely report the first bullet’s style');
+  await choose('[aria-label="List style"]','UNORDERED');
+  assert.deepEqual(types(await stored()),{a:'UNORDERED',child:'UNORDERED',b:'UNORDERED',c:'UNORDERED'});
+ }finally{if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
+});
