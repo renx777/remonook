@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,existsSync} from 'node:fs';
 
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const robots=readFileSync(new URL('../public/robots.txt',import.meta.url),'utf8');
@@ -45,4 +45,20 @@ test('staging remains excluded even if static hosting ignores _headers',()=>{
 test('landing visibly explains RemoNook search topics',()=>{
   assert.match(landing,/Outline notes · Flashcards · Spaced repetition/);
   assert.match(landing,/Organize ideas in nested notes/);
+});
+
+test('Google-facing favicon uses stable, crawlable square elephant PNG assets',()=>{
+  assert.match(html, /rel="icon" type="image\/png" sizes="192x192" href="\/brand\/icon-192.png"/);
+  assert.match(html, /rel="icon" type="image\/png" sizes="48x48" href="\/brand\/favicon-48.png"/);
+  assert.doesNotMatch(html, /rel="icon"[^>]*href="[^"]*\?v=/);
+  for (const [path,dimension] of [['icon-192.png',192],['favicon-48.png',48]]) {
+    const url=new URL('../public/brand/'+path,import.meta.url);
+    assert.ok(existsSync(url), 'Missing branded favicon: '+path);
+    const png=readFileSync(url);
+    assert.equal(png.subarray(1,4).toString('ascii'),'PNG');
+    assert.equal(png.readUInt32BE(16),dimension);
+    assert.equal(png.readUInt32BE(20),dimension);
+  }
+  assert.match(robots,/User-agent: \*/);
+  assert.match(robots,/Allow: \//);
 });
