@@ -4,6 +4,7 @@ import {Bold,Italic,Underline,Strikethrough,CodeXml,EyeOff,PencilLine,RemoveForm
 // theme color and decorative accessibility contract. Other icons stay unchanged.
 const lucideIcons:Record<string,LucideIcon>={bold:Bold,italic:Italic,underline:Underline,strike:Strikethrough,code:CodeXml,mask:EyeOff,sketch:PencilLine,clearFormat:RemoveFormatting,format:Type,insert:ImagePlus,connections:Waypoints,organize:ListTree,learn:GraduationCap,link:Link,backlinks:CornerDownLeft,mirror:PanelsLeftRight,indent:IndentIncrease,outdent:IndentDecrease,numbered:ListOrdered,quote:TextQuote,equation:Sigma,diagram:Workflow,table:Table2,categoryBack:ChevronLeft};
 const paths: Record<string, string> = {
+  bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   logout: "M9 4H4v16h5M13 8l4 4-4 4m-5-4h13",
   skipBack:"M5 5v14M19 5 7 12l12 7Z",
   skipNext:"M19 5v14M5 5l12 7-12 7Z",

@@ -167,6 +167,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
     [nodeDate,setNodeDate]=useState<{id:string;date:string}|null>(null),
     [reminderEditor,setReminderEditor]=useState<ReminderTarget|null>(null),
+    [remindersVisible,setRemindersVisible]=useState(true),
     [status, setStatus] = useState("Loading"),
     [error, setError] = useState<string | null>(null),
     [fatal, setFatal] = useState(false),
@@ -1423,8 +1424,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               </>
             )}
           </div>
-          <ReminderTabs doc={doc} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>
+          <div id="topbar-reminders" className="topbar-reminders" data-visible={remindersVisible}>
+            <ReminderTabs doc={doc} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>
+          </div>
           <div className="topbar-right">
+            <button className="icon-button reminders-toggle" aria-label={remindersVisible?'Hide reminders':'Show reminders'} title={remindersVisible?'Hide reminders':'Show reminders'} aria-expanded={remindersVisible} aria-controls="topbar-reminders" onClick={()=>setRemindersVisible(visible=>!visible)}><Icon name="bell" size={18}/></button>
             <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
