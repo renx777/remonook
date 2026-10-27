@@ -8,6 +8,7 @@ import {createRoot} from 'react-dom/client';
 import 'fake-indexeddb/auto';
 import {empty,save,load,getAssets,setStorageAccount} from './.build/data.mjs';
 import {getNotoEmoji,notoPosterPath,NOTO_CREDIT_PATH} from '../src/noto-emojis.mjs';
+import {getFluentEmoji,fluentPosterPath,FLUENT_CREDIT_PATH} from '../src/fluent-emojis.mjs';
 import {bullet} from '../src/domain.mjs';
 import {seed,sharedState,project,openShared} from '../src/sync-crdt.mjs';
 import {initializeOutbox,stageAssets,recordLocal} from '../src/sync-outbox.mjs';
@@ -39,4 +40,20 @@ test('missing saved Noto files recover on reconnect, persist without changing no
   await act(async()=>{renderAgain();window.dispatchEvent(new window.Event('focus'));});await act(()=>new Promise(r=>setTimeout(r,150)));assert.equal(requests.filter(url=>url.includes('/1f680/')).length,2,'Completed assets must not redownload on every render or focus');
   assert.ok(requests.every(url=>url.startsWith('https://fonts.gstatic.com/s/e/notoemoji/latest/1f680/')||url.startsWith('https://fonts.gstatic.com/s/e/notoemoji/latest/1f600/')));
  }finally{await act(async()=>root.unmount());globalThis.fetch=originalFetch;setStorageAccount(null);dom.window.close();}
+});
+
+test('automatic repair restores Fluent animation, extracted poster and license without editing note text',async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'https://fluent-repair.test',pretendToBeVisual:true});
+ for(const k of ['window','document','navigator'])Object.defineProperty(globalThis,k,{value:dom.window[k],configurable:true});
+ globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+ const item=getFluentEmoji(':fluent_1f600:'),original=globalThis.fetch;let requests=0,recovered,renderAgain;
+ globalThis.fetch=async()=>{requests++;return new Response(await readFile(new URL('./fixtures/fluent/1f600.png',import.meta.url)));};
+ function Harness(){const [assets,setAssets]=useState(new Map()),[,tick]=useState(0);renderAgain=()=>tick(n=>n+1);useEmojiAssetRepair({emojis:[item],assets,ready:true,store:async(record,files)=>{assert.equal(record.token,item.token);recovered=files;setAssets(files);}});return null;}
+ const root=createRoot(document.getElementById('root'));
+ try{
+  await act(async()=>root.render(React.createElement(Harness)));
+  for(let i=0;i<100&&!recovered;i++)await act(()=>new Promise(r=>setTimeout(r,15)));
+  assert.ok(recovered.has('emoji/'+item.fileName));assert.ok(recovered.has(fluentPosterPath(item)));assert.ok(recovered.has(FLUENT_CREDIT_PATH));assert.equal(requests,1);
+  await act(async()=>{renderAgain();window.dispatchEvent(new window.Event('focus'));});await act(()=>new Promise(r=>setTimeout(r,150)));assert.equal(requests,1);
+ }finally{await act(async()=>root.unmount());globalThis.fetch=original;dom.window.close();}
 });

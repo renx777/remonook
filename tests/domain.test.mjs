@@ -189,6 +189,19 @@ test("deck conversion excludes nested questions from parent answer; card edits r
   );
   assert.equal(removed.find((c) => c.id === "q2").state, "INACTIVE");
 });
+test("dividers are excluded from flashcard decks and study sources", () => {
+  const ns = [
+    b("root"),
+    b("div1", { parentId: "root", text: "Section Divider", blockStyle: "divider" }),
+    b("q", { parentId: "root", text: "Real Question" }),
+    b("div2", { parentId: "q", text: "Mid Divider", blockStyle: "divider" }),
+    b("a", { parentId: "q", text: "Answer text" }),
+  ], decks = [{ rootId: "root" }];
+  const cs = generatedCards(ns, decks);
+  assert.equal(cs.length, 1);
+  assert.equal(cs[0].id, "q");
+  assert.equal(cs[0].answer, "Answer text");
+});
 test("scheduler matches Android initial grades and uses old ease for later base", () => {
   const card = { repetitionCount: 0, intervalDays: 0, easeFactor: 2.5 };
   assert.equal(schedule(card, "AGAIN", 100).dueAtEpochMillis, 600100);

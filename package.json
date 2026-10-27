@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build && node scripts/build-offline.mjs",
-    "test": "node scripts/prepare-tests.mjs && node --test tests/*.test.mjs",
+    "test": "node scripts/prepare-tests.mjs && node --test --test-concurrency=2 tests/*.test.mjs",
     "start": "node scripts/serve.mjs",
     "check": "tsc --noEmit",
     "build:staging": "node scripts/build-environment.mjs staging",
     "build:production": "node scripts/build-environment.mjs production"
   },
   "dependencies": {
+    "@phosphor-icons/react": "2.1.10",
     "@tiptap/core": "^3.0.0",
     "@tiptap/pm": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
@@ -23,10 +24,12 @@
     "jszip": "^3.10.1",
     "katex": "^0.19.0",
     "lottie-web": "^5.13.0",
+    "lucide-react": "1.61.0",
     "marked": "^18.1.1",
     "mermaid": "^12.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "rough-notation": "0.5.1",
     "yjs": "13.6.33"
   },
   "devDependencies": {

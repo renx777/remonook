@@ -1,8 +1,9 @@
 import { marked } from 'marked';
 import { encode, marks, parseOutlineText } from './domain.mjs';
+import {parseRoughStyle,roughStyle} from './rough-annotations.mjs';
 
 export type ClipboardInput = string | { text: string; html?: string; opml?: string };
-export type OutlineLine = { depth: number; text: string; formatting: string; listType: string; taskState: string; codeLanguage: string; blockStyle?: string; collapsed?: boolean };
+export type OutlineLine = { depth: number; text: string; formatting: string; listType: string; taskState: string; codeLanguage: string; blockStyle?: string; dividerStyle?: string; dividerColor?: string; collapsed?: boolean };
 const line = (depth: number, extra: Partial<OutlineLine> = {}): OutlineLine => ({ depth, text: '', formatting: '', listType: 'NONE', taskState: 'NONE', codeLanguage: '', ...extra });
 const ignored = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'SVG', 'TEMPLATE', 'HEAD', 'META', 'LINK']);
 const blocks = new Set(['P', 'DIV', 'SECTION', 'ARTICLE', 'BLOCKQUOTE', 'UL', 'OL', 'LI', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR', 'TABLE', 'TR', 'DL', 'DT', 'DD']);
@@ -58,6 +59,7 @@ function inline(nodes: Iterable<globalThis.Node>, preserveWhitespace = false) {
     if (tag === 'U' || /underline/.test(el.style.textDecoration)) styles.push('UNDERLINE');
     if (tag === 'CODE') styles.push('CODE');
     if (el.hasAttribute('data-remo-mask') || el.classList.contains('masked-text')) styles.push('MASK');
+    const rough=roughStyle(el.dataset.remoRough,el.dataset.remoRoughColor||'AUTO');if(rough)styles.push(rough);
     const fg = color(el.style.color || el.getAttribute('color') || ''), bg = color(el.style.backgroundColor);
     if (fg && !(blocks.has(tag) && isNeutralColor(fg) && !el.hasAttribute('data-remo-color'))) {
       for (let i = styles.length - 1; i >= 0; i--) if (styles[i].startsWith('COLOR_')) styles.splice(i, 1);
@@ -131,6 +133,10 @@ function htmlLines(html: string): OutlineLine[] {
     const blockStyle = el.getAttribute('data-remo-block-style');
     if (blockStyle && /^(h[1-3]|paragraph|quote|divider)$/.test(blockStyle)) item.blockStyle = blockStyle;
     else { const heading = Array.from(el.children).find(child => /^H[1-3]$/.test(child.tagName)); if (heading) item.blockStyle = heading.tagName.toLowerCase(); else if (Array.from(el.children).some(child => child.tagName === 'HR')) item.blockStyle = 'divider'; }
+    const dividerStyle = el.getAttribute('data-remo-divider-style');
+    if (dividerStyle) item.dividerStyle = dividerStyle;
+    const dividerColor = el.getAttribute('data-remo-divider-color');
+    if (dividerColor) item.dividerColor = dividerColor;
     const storedList = el.getAttribute('data-remo-list-type'), storedTask = el.getAttribute('data-remo-task');
     if (storedList && ['NONE', 'ORDERED', 'UNORDERED'].includes(storedList)) item.listType = storedList;
     if (storedTask && ['NONE', 'TODO', 'DONE'].includes(storedTask)) item.taskState = storedTask;
@@ -194,7 +200,9 @@ export function outlineClipboardHtml(lines: OutlineLine[]) {
       const b = points[i + 1]; let html = escape(item.text.slice(a, b)).replace(/\n/g, '<br>');
       for (const m of ms.filter((m: any) => m.start <= a && m.end >= b)) {
         const style = m.style;
-        if (style === 'MASK') html = `<span data-remo-mask="true">${html}</span>`;
+        const rough=parseRoughStyle(style);
+        if(rough)html=`<span data-remo-rough="${rough.type}" data-remo-rough-color="${rough.color}">${html}</span>`;
+        else if (style === 'MASK') html = `<span data-remo-mask="true">${html}</span>`;
         else if (style.startsWith('COLOR_')) html = `<span style="color:#${style.slice(6)}">${html}</span>`;
         else if (style.startsWith('HIGHLIGHT')) html = `<mark style="background-color:#${style.includes('_') ? style.slice(10) : 'FFE082'}">${html}</mark>`;
         else { const tag = ({ BOLD: 'strong', ITALIC: 'em', UNDERLINE: 'u', CODE: 'code' } as Record<string, string>)[style]; if (tag) html = `<${tag}>${html}</${tag}>`; }
@@ -210,7 +218,8 @@ export function outlineClipboardHtml(lines: OutlineLine[]) {
     while (depth < item.depth) { html += '<ul><li>'; depth++; }
     if (!html.endsWith('<li>')) html += '<li>';
     const style = /^(h[1-3]|paragraph|quote|divider)$/.test(item.blockStyle || '') ? item.blockStyle : 'paragraph';
-    html = html.replace(/<li>$/, `<li data-remo-list-type="${escape(item.listType)}" data-remo-task="${escape(item.taskState)}" data-remo-block-style="${style}">`);
+    const divAttrs = (style === 'divider' ? (item.dividerStyle ? ` data-remo-divider-style="${escape(item.dividerStyle)}"` : '') + (item.dividerColor ? ` data-remo-divider-color="${escape(item.dividerColor)}"` : '') : '');
+    html = html.replace(/<li>$/, `<li data-remo-list-type="${escape(item.listType)}" data-remo-task="${escape(item.taskState)}" data-remo-block-style="${style}"${divAttrs}>`);
     html += item.codeLanguage ? `<pre><code class="language-${escape(item.codeLanguage)}">${inlineHtml(item).replace(/<br>/g, "\n")}</code></pre>` : style === 'quote' ? '<blockquote>'+inlineHtml(item)+'</blockquote>' : style === 'divider' ? '<hr>' + inlineHtml(item) : /^h[1-3]$/.test(style!) ? `<${style}>${inlineHtml(item)}</${style}>` : inlineHtml(item);
   }
   while (depth >= 0) { html += '</li></ul>'; depth--; }

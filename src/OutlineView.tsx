@@ -646,8 +646,13 @@ export function OutlineView(p: Props) {
                 const files = [...event.dataTransfer.files].filter(file => imageType(file.name, file.type));
                 if (files.length) { event.preventDefault(); event.stopPropagation(); p.onImages(n.id, files); }
               }}
-              onContextMenu={event => { event.preventDefault(); if (!p.disabled) p.onMenu(n.id, event.currentTarget); }}
-              className={`outline-row ${hasImportantTag(n.text)?"is-important":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
+              onContextMenu={event => {
+                // Touch long-press belongs to native text selection, not menus.
+                if ((event.nativeEvent as PointerEvent).pointerType === 'touch' || window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
+                event.preventDefault();
+                if (!p.disabled) p.onMenu(n.id, event.currentTarget);
+              }}
+              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${hasImportantTag(n.text)?"is-important":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
               style={{
                 top: r.top,
                 paddingLeft: depthIndent(r.depth, view.width),
@@ -803,7 +808,7 @@ export function OutlineView(p: Props) {
                     aria-label={n.text || "Edit empty bullet"}
                     aria-disabled={p.disabled}
                     onKeyDown={e => {
-                      if (!p.disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); p.onEdit(n.id); }
+                      if (!p.disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setReaderRange(n.blockStyle === 'divider' ? {id:n.id,anchor:n.text.length,head:n.text.length} : null); p.onEdit(n.id); }
                     }}
                     onClick={(e) => {
                       if (p.disabled || didDragSelect.current) return;
@@ -833,7 +838,7 @@ export function OutlineView(p: Props) {
                       }
                       selectionAnchor.current = n.id;
                       const source = e.currentTarget.querySelector<HTMLElement>('.bullet-read-source');
-                      setReaderRange(e.detail && source ? { id: n.id, ...readerSelection(source, e.clientX, e.clientY, n.text.length) } : null);
+                      setReaderRange(n.blockStyle === 'divider' ? {id:n.id,anchor:n.text.length,head:n.text.length} : e.detail && source ? { id: n.id, ...readerSelection(source, e.clientX, e.clientY, n.text.length) } : null);
                       p.onEdit(n.id);
                     }}
                   >

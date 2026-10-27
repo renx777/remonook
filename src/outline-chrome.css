@@ -93,6 +93,160 @@ kbd { font: 11px inherit; color: var(--muted); white-space: nowrap; }
 .row-content[data-block-style="h3"] .tiptap { font-size: calc(var(--reading-size, 16px) * 1.2); }
 .row-content[data-block-style^="h"] .tiptap { font-weight: 650; line-height: 1.35; }
 .note-divider { display: block; width: 100%; border: 0; border-top: 1px solid var(--line); margin: 13px 0; }
+.outline-row[data-block-style="divider"] .bullet-dot-btn,
+.outline-row[data-block-style="divider"] .branch-btn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.outline-row[data-block-style="divider"]:hover .bullet-dot-btn,
+.outline-row[data-block-style="divider"]:hover .branch-btn,
+.outline-row[data-block-style="divider"].selected .bullet-dot-btn,
+.outline-row[data-block-style="divider"].selected .branch-btn,
+.outline-row[data-block-style="divider"]:focus-within .bullet-dot-btn,
+.outline-row[data-block-style="divider"]:focus-within .branch-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.outline-row[data-block-style="divider"] .row-content {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+}
+.outline-row[data-block-style="divider"] .text-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.outline-row[data-block-style="divider"] .bullet-read-source {
+  display: block;
+  width: 100%;
+}
+.note-divider-wrap {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+  margin: 0;
+  min-height: var(--row-first-line, 24px);
+  user-select: none;
+}
+.note-divider-wrap.is-empty .note-divider-line {
+  flex: 1 1 100%;
+}
+.note-divider-line {
+  flex: 1 1 0;
+  min-width: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.note-divider-wrap[data-divider-style="straight"] .note-divider-line,
+.note-divider-wrap:not([data-divider-style]) .note-divider-line {
+  border-top: 1.5px solid var(--divider-color, var(--line));
+  height: 0;
+}
+.note-divider-wrap[data-divider-style="dotted"] .note-divider-line {
+  border-top: 2.5px dotted var(--divider-color, var(--line));
+  height: 0;
+}
+.note-divider-wrap[data-divider-style="squiggly"] .note-divider-line {
+  height: 6px;
+  background-color: var(--divider-color, var(--line));
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3 Q 5 0, 10 3 T 20 3' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E") repeat-x 0 50% / 16px 6px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3 Q 5 0, 10 3 T 20 3' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E") repeat-x 0 50% / 16px 6px;
+  border: 0;
+}
+.note-divider-title {
+  flex: 0 1 auto;
+  max-width: 80%;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--divider-color, var(--text-muted));
+  letter-spacing: 0.02em;
+  user-select: text;
+}
+.note-divider-wrap.is-editing {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+}
+.note-divider-title-editor {
+  flex: 0 1 auto;
+  min-width: 120px;
+  max-width: 80%;
+  display: flex;
+  justify-content: center;
+}
+.note-divider-editor {
+  width: 100%;
+}
+.note-divider-editor .tiptap {
+  /* The decorative divider disables selection; its editable title must not. */
+  user-select: text;
+  -webkit-user-select: text;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--divider-color, var(--text));
+  min-height: 1.5em;
+  padding: 0 4px;
+}
+.note-divider-editor .tiptap p {
+  position: relative;
+  text-align: center;
+}
+.note-divider-editor .tiptap p:first-child:empty::before,
+.note-divider-editor .tiptap p:first-child:has(> br:only-child)::before {
+  content: "Divider title…";
+  color: var(--muted);
+  opacity: 0.65;
+  pointer-events: none;
+  font-style: italic;
+  font-weight: 400;
+  position: absolute;
+  inset-inline: 0;
+  text-align: center;
+}
+.selection-divider-style {
+  height: 32px;
+  font-size: 11px;
+  padding: 3px 6px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.divider-color-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.divider-color-swatch-preview {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.divider-color-popover {
+  width: 220px;
+}
+.divider-swatch-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(0,0,0,0.1);
+  cursor: pointer;
+}
 .outline-popover[open] { position: fixed; inset: auto; margin: 0; width: 280px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; padding: 6px; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 5px 24px #0003; background: var(--panel); color: var(--text); z-index: 60; }
 .outline-popover::backdrop { background: transparent; }
 .popover-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 5px 4px 8px; font-size: 11px; color: var(--muted); }

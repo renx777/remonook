@@ -7,7 +7,7 @@ export function emojiQuery(text, caret) {
 export function emojiSuggestions(items, query, limit = 8) {
   const words = query.toLowerCase().replace(/[_-]/g, ' ').trim().split(/\s+/).filter(Boolean);
   return items.map((item, order) => {
-    const label = (item.label || '').toLowerCase(), searchable = [label, item.token, item.fallback, ...(item.tags || [])].join(' ').toLowerCase().replace(/[_-]/g, ' ');
-    return { item, order, score: label === words.join(' ') ? 0 : label.startsWith(words.join(' ')) ? 1 : 2, matches: words.every(word => searchable.includes(word)) };
+    const labels = [item.label || '',...(item.searchLabels || [])].map(label=>label.toLowerCase()), searchable = [...labels, item.token, item.fallback, ...(item.tags || [])].join(' ').toLowerCase().replace(/[_-]/g, ' ');
+    return { item, order, score: labels.includes(words.join(' ')) ? 0 : labels.some(label=>label.startsWith(words.join(' '))) ? 1 : 2, matches: words.every(word => searchable.includes(word)) };
   }).filter(result => result.matches).sort((a, b) => a.score - b.score || a.order - b.order).slice(0, limit).map(result => result.item);
 }

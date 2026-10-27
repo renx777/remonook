@@ -1,6 +1,12 @@
 # Third-party notices
 
+Selected interface controls use Lucide React 1.61.0 (ISC, with upstream artwork notices retained in `LICENSES/lucide-react-LICENSE.txt`). Study Desk empty-state artwork uses Phosphor Icons React 2.1.10 (MIT; see `LICENSES/phosphor-icons-MIT.txt`). Both are bundled locally and imported selectively.
+
+Sketch annotations use Rough Notation 0.5.1 by Preet Shihn, under the MIT license. The library is bundled locally; see `LICENSES/rough-notation-MIT.txt` and https://github.com/rough-stuff/rough-notation.
+
 The app uses React, Tiptap/ProseMirror, JSZip, Lottie-web and their dependencies. Build/test dependencies are also listed below. Full license notices accompany the source in `LICENSES/`. No Android signing key or reference implementation is redistributed.
+
+Microsoft Fluent Emoji Animated and Fluent Emoji artwork is used under the MIT license. See `LICENSES/fluentui-emoji-MIT.txt`. Source revisions and animation SHA-256 digests are pinned in `src/fluent-emoji-catalog.json`. Animation bytes are unmodified; offline static posters are extracted from the PNG default image. Selected emojis retain the full license notice in web backups.
 
 | Package | Version | Declared license |
 | --- | --- | --- |

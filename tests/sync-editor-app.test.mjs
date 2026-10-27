@@ -1,3 +1,4 @@
+import {pathToFileURL} from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
@@ -13,7 +14,7 @@ import {bullet} from '../src/domain.mjs';
 import {openShared,project,applyIntent,vector,delta} from '../src/sync-crdt.mjs';
 import {route} from '../cloud/worker.mjs';
 await build({entryPoints:['src/main.tsx'],bundle:true,packages:'external',outfile:'tests/.build/sync-app.mjs',format:'esm',platform:'node',jsx:'automatic',loader:{'.css':'empty'},define:{'import.meta.env.PROD':'true'},plugins:[{name:'signed-in-fixture',setup(b){
- b.onResolve({filter:/^\.\/data$/},()=>({path:resolve('tests/.build/data.mjs'),external:true}));
+ b.onResolve({filter:/^\.\/data$/},()=>({path:pathToFileURL(resolve('tests/.build/data.mjs')).href,external:true}));
  b.onResolve({filter:/^\.\/(CloudAccount|cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));
  b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?`export const authenticatedUid=()=> 'alice';export const googleSignIn=async()=>{};export const googleSignOut=async()=>{};export const setAccountTransitionHandler=()=>()=>{};const user={uid:'alice',email:'test@example.invalid',getIdToken:async()=> 'token'};export function AuthGate({children}){return children(user);}`:`export const CLOUD_API='https://sync.test';`}));
 }}]});

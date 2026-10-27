@@ -95,3 +95,20 @@ dialog:has(.emoji-picker) .dialog-head { margin-bottom: 4px; }
 .tiptap .editor-emoji-source{font-size:0;color:transparent;}
 .tiptap .editor-emoji-widget{position:relative;white-space:nowrap;}
 .tiptap .editor-emoji-widget::after{content:'\200b';display:inline;font-size:1px;}
+.editor-emoji-source.editor-emoji-caret { position:relative; }
+.editor-emoji-source.editor-emoji-caret::after { content:''; position:absolute; left:0; bottom:-.2em; font-size:var(--row-text-size, 1rem); width:0; height:1.2em; border-left:1px solid var(--text); pointer-events:none; visibility:hidden; }
+.editor-emoji-source.editor-emoji-caret.is-before::after { left:-1.65rem; }
+.ProseMirror-focused .editor-emoji-caret::after { visibility:visible; animation:emoji-caret-blink 1s step-end infinite; }
+@keyframes emoji-caret-blink { 50% { visibility:hidden; } }
+@media (prefers-reduced-motion:reduce) { .ProseMirror-focused .editor-emoji-caret::after { animation:none; } }
+
+.emoji-collection-filters{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0 4px}
+.emoji-collection-filters button{flex:1;min-height:32px;padding:5px 8px;font-size:11px;border-radius:8px;background:transparent;white-space:nowrap;color:var(--muted)}
+.emoji-collection-filters button[aria-pressed="true"]{background:var(--soft);border-color:var(--accent);color:var(--text)}
+.emoji-grid button .emoji-tile-label{font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.emoji-grid button .emoji-collection-label{font-size:9px;color:var(--muted);line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.emoji-picker .emoji-grid button:has(.emoji-collection-label){gap:3px;min-height:66px}
+.inline-emoji-picker .emoji-collection-filters{margin:0 0 7px;gap:3px}
+.inline-emoji-picker .emoji-collection-filters button{font-size:9px;padding:4px 5px;min-height:27px}
+.inline-emoji-picker [role="option"]{height:65px;padding-bottom:17px}
+.inline-emoji-picker .inline-emoji-collection{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:8px;color:var(--muted)}

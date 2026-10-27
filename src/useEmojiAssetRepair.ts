@@ -1,12 +1,12 @@
 import {useEffect,useRef} from 'react';
 import type {RecordData} from './data';
-import {downloadNotoEmoji,getNotoEmoji,notoPosterPath,NOTO_CREDIT_PATH} from './noto-emojis.mjs';
+import {downloadCatalogEmoji,getCatalogEmoji,catalogAssetPaths} from './emoji-catalog.mjs';
 type Options={emojis:RecordData[];assets:Map<string,Blob>;ready:boolean;store:(item:RecordData,files:Map<string,Blob>)=>Promise<void>};
 // Old imports and incomplete caches can retain emoji records without their files.
 // Recover only bundled catalog items, using the validated, allow-listed downloader.
 export function useEmojiAssetRepair(options:Options){
  const latest=useRef(options);latest.current=options;
- const missing=options.ready?options.emojis.filter(item=>getNotoEmoji(item.token)&&(!options.assets.has('emoji/'+item.fileName)||!options.assets.has(notoPosterPath(item))||!options.assets.has(NOTO_CREDIT_PATH))).map(item=>item.token).sort():[];
+ const missing=options.ready?options.emojis.filter(item=>getCatalogEmoji(item.token)&&catalogAssetPaths(item).some(path=>!options.assets.has(path))).map(item=>item.token).sort():[];
  const key=JSON.stringify(missing);
  useEffect(()=>{
   const tokens:string[]=JSON.parse(key);if(!tokens.length)return;
@@ -20,9 +20,9 @@ export function useEmojiAssetRepair(options:Options){
     for(const token of tokens){
      const item=latest.current.emojis.find(e=>e.token===token);if(!item)continue;
      const files=latest.current.assets;
-     if(files.has('emoji/'+item.fileName)&&files.has(notoPosterPath(item))&&files.has(NOTO_CREDIT_PATH))continue;
+     if(catalogAssetPaths(item).every(path=>files.has(path)))continue;
      try{
-      const recovered=await downloadNotoEmoji(item,controller.signal);
+      const recovered=await downloadCatalogEmoji(item,controller.signal);
       if(stopped)return;
       await latest.current.store(item,recovered);
      }catch{if(stopped)return;incomplete=true;}

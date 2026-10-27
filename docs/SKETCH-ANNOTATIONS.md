@@ -1,0 +1,11 @@
+# Sketch annotations
+
+Select note text, open **Sketch annotations** (the dotted-circle tool) in the selection toolbar, choose a color, then Circle, Box, Sketch underline or Sketch highlight. The same tool is available in the mobile editing dock and requires a text selection. Choosing the same style/color toggles it off; Remove annotation removes the sketch from the selection. Clear formatting also removes annotations. Normal bold, italic, color and highlight tools remain separate.
+
+Annotations are range formatting: `start:end:ROUGH_<CIRCLE|BOX|UNDERLINE|HIGHLIGHT>_<AUTO|RRGGBB>`. They round-trip through Tiptap marks, split/merge, undo/redo, safe HTML copy/paste and full web backups. They use the existing Yjs rich-text attributes and durable outbox; concurrent styles and text edits converge without snapshot replacement or user conflict decisions. Android-compatible backups are blocked until the Android renderer understands these marks. Legacy clients preserve unknown formatting rather than discarding it.
+
+Rough Notation 0.5.1 is bundled locally under MIT. No annotation data is sent to a service. Drawings are decorative SVG siblings inside a dedicated wrapper, outside the editor's editable contentDOM. Mark views ignore drawing mutations; serialization saves only text and validated style/color attributes, never generated geometry. Reading views use the same rendering in notes, calendar and study content. Partial source selections inside equations, note links and emoji tokens decorate the complete rendered unit without changing the saved source selection.
+
+Each reading annotation animates once when first visible. Editing and layout redraws are static; reduced motion and print disable drawing animations. Resize, pane layout, text changes and font loading refresh geometry. Observers, event handlers and SVGs are removed on unmount. A CSS fallback retains the annotation style if geometry cannot be drawn. Automatic outline colors use currentColor; automatic sketch highlight uses amber with a dark foreground for contrast.
+
+Tests cover validated encoding, editor mark serialization and removal, drawing DOM isolation during typing, clipboard/full backup preservation, split/merge, partial equations/emoji, CRDT concurrency, reduced motion, redraw and cleanup. Production publishing remains a separate release step.

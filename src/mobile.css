@@ -62,3 +62,9 @@
  .outline-row .row-hover-more:focus-visible{pointer-events:auto}
 }
 @media(hover:none) and (pointer:coarse){.outline-row .bullet-dot-btn:hover .bullet-inner-dot{fill:var(--text)}.outline-row .row-hover-more{opacity:0!important;pointer-events:none!important}}
+/* Touch users open actions explicitly; long-press remains text selection. */
+@media (max-width:760px), (pointer:coarse) {
+ .outline-row .row-hover-more { display:none; }
+ .outline-row .row-end { display:flex; opacity:1; flex-shrink:0; margin:0; align-self:flex-start; }
+ .outline-row .row-end > .icon-button[aria-label="Bullet actions"] { display:inline-flex; align-items:center; justify-content:center; width:44px; min-width:44px; height:44px; min-height:44px; padding:10px; color:var(--muted); }
+}

@@ -34,7 +34,7 @@ export function BulletMenuBody({children}:{children:ReactNode}) {
         <h3 className="bullet-group-label">Quick actions</h3>{common}
         <div className="bullet-category-list">{sections.map((section,i)=><button key={section.label} data-category={i} aria-controls={`${id}-category`} onClick={()=>open(i)}>{section.icon}<span><strong>{section.label}</strong><small>{descriptions[i]}</small></span><Icon name="chevron" size={14}/></button>)}</div>
       </> : <section id={`${id}-category`} aria-label={sections[active].label}>
-        <button className="bullet-category-back" onClick={()=>open(null)}><span aria-hidden="true">←</span><span>All actions</span></button>
+        <button className="bullet-category-back" onClick={()=>open(null)}><Icon name="categoryBack" size={15}/><span>All actions</span></button>
         <h3 className="bullet-category-title">{sections[active].label}</h3>
         {sections[active].content}
       </section>}

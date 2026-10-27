@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {JSDOM} from 'jsdom';
+import 'fake-indexeddb/auto';
+import {act} from 'react';
+import {empty,withNodes,save,load,getAssets} from './.build/data.mjs';
+import {bullet} from '../src/domain.mjs';
+import {FLUENT_CREDIT_PATH} from '../src/fluent-emojis.mjs';
+const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost',pretendToBeVisual:true});
+for(const key of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Node','DOMParser','MutationObserver','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key],configurable:true});
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;globalThis.ResizeObserver=undefined;
+globalThis.requestAnimationFrame=window.requestAnimationFrame.bind(window);globalThis.cancelAnimationFrame=window.cancelAnimationFrame.bind(window);
+window.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});
+HTMLElement.prototype.scrollTo=function({top=0}){this.scrollTop=top;};
+dom.window.Range.prototype.getClientRects=()=>[];dom.window.Range.prototype.getBoundingClientRect=()=>({left:0,right:0,top:0,bottom:0,width:0,height:0});
+dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
+const wait=async check=>{for(let i=0;i<150;i++){if(check())return;await act(()=>new Promise(r=>setTimeout(r,20)));}throw Error('Timed out waiting for Fluent UI');};
+const click=async element=>{assert.ok(element);await act(async()=>element.click());};
+const filter=label=>[...document.querySelectorAll('.emoji-collection-filters button')].find(x=>x.textContent===label);
+const search=async value=>act(async()=>{const input=document.querySelector('[aria-label="Find an animated emoji"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new window.Event('input',{bubbles:true}));});
+const open=async()=>{await click(document.querySelector('[data-node-id="mixed"] .row-hover-more'));await click(document.querySelector('[data-category="1"]'));await click([...document.querySelectorAll('button')].find(x=>x.textContent.trim().endsWith('Insert animated emoji…')));await wait(()=>document.querySelector('.emoji-grid'));};
+test('both collections can coexist in a note; collection choice persists across full and inline pickers, and Fluent insertion reuses offline assets',async()=>{
+ await save(null,withNodes(empty(),[bullet('mixed',{text:'Nice '})]));
+ const originalFetch=globalThis.fetch,requests=[];let app;
+ globalThis.fetch=async url=>{requests.push(String(url));return new Response(await readFile(new URL(String(url).includes('fluentui-emoji-animated')?'./fixtures/fluent/1f600.png':`./fixtures/noto/1f600.${String(url).endsWith('webp')?'webp':'svg'}`,import.meta.url)));};
+ try{
+  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="mixed"]'));await open();
+  assert.equal(filter('All').getAttribute('aria-pressed'),'true');assert.match(document.querySelector('.emoji-result-count').textContent,/1695/);
+  await search('grinning face');assert.ok(document.querySelector('.emoji-grid [data-emoji-token=":noto_1f600:"]'));assert.ok(document.querySelector('.emoji-grid [data-emoji-token=":fluent_1f600:"]'));
+  await click(filter('Microsoft Fluent'));assert.ok([...document.querySelectorAll('.emoji-grid [data-emoji-token]')].every(x=>x.dataset.emojiToken.startsWith(':fluent_')));
+  await click(document.querySelector('[data-emoji-token=":fluent_1f600:"]').closest('button'));await wait(()=>!document.querySelector('.emoji-picker'));
+  await act(()=>new Promise(r=>setTimeout(r,250)));let stored=await load();assert.match(stored.tables.bullets[0].text,/:fluent_1f600:/);assert.equal(requests.length,1);
+  const assets=await getAssets();assert.ok(assets.has('emoji/fluent_1f600.png'));assert.ok(assets.has('emoji/fluent_1f600.poster.png'));assert.ok(assets.has(FLUENT_CREDIT_PATH));
+  await open();assert.equal(filter('Microsoft Fluent').getAttribute('aria-pressed'),'true');await click(filter('Google Noto'));await search('1f600');
+  await click(document.querySelector('[data-emoji-token=":noto_1f600:"]').closest('button'));await wait(()=>!document.querySelector('.emoji-picker'));
+  await click(document.querySelector('[data-node-id="mixed"] .text-button'));await wait(()=>document.querySelector('.tiptap'));
+  const editor=document.querySelector('.tiptap').editor;
+  await act(async()=>{editor.commands.focus('end');editor.commands.insertContent(' :grinning_face');});await wait(()=>document.querySelector('.inline-emoji-picker'));
+  assert.equal(filter('Google Noto').getAttribute('aria-pressed'),'true');await click(filter('Microsoft Fluent'));assert.equal(filter('Microsoft Fluent').getAttribute('aria-pressed'),'true');
+  assert.ok(document.querySelector('.inline-emoji-picker [data-emoji-token=":fluent_1f600:"]'));
+  globalThis.fetch=async()=>{throw Error('offline');};await act(async()=>document.querySelector('.tiptap').dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));
+  await wait(()=>!document.querySelector('.inline-emoji-picker'));assert.match(editor.getText(),/:fluent_1f600:$/);assert.equal((editor.getText().match(/:fluent_1f600:/g)||[]).length,2);
+  await act(()=>new Promise(r=>setTimeout(r,250)));stored=await load();assert.equal(stored.tables.emojis.length,2);assert.ok(stored.tables.bullets[0].text.includes(':noto_1f600:'));assert.equal(requests.length,3);
+ }finally{globalThis.fetch=originalFetch;if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
+});

@@ -67,6 +67,13 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     // Initially, question is shown and answer is hidden
     assert.match(document.querySelector('.flashcard-question').textContent, /three pillars of OOP/);
     assert.equal(document.querySelector('.flashcard-answer'), null, 'Answer is initially hidden');
+    assert.match(document.querySelector('.study-keyboard-hint').textContent, /Press Space/);
+    assert.match(document.querySelector('.study-touch-hint').textContent, /Tap the card/);
+    assert.ok(document.querySelector('.study-card-tools [aria-label="Card actions"]'));
+    assert.equal(document.querySelector('.study-action-dock [aria-label="Card actions"]'), null);
+    await click('[aria-label="Card actions"]');
+    assert.ok(document.querySelector('.flashcard [role="menu"]'));
+    await keyDown('Escape');
 
     // Reveal answer via Space bar
     await keyDown(' ');
@@ -78,13 +85,18 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     assert.doesNotMatch(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
     assert.doesNotMatch(document.querySelector('.flashcard-answer').textContent, /Polymorphism/);
 
-    // Verify dock has Next bullet and Show full bullets
+    // Keep the primary control and progress cues, without duplicate footer bars.
     assert.ok(document.querySelector('.study-step-actions'), 'Step actions in dock');
     assert.match(document.querySelector('.dock-primary').textContent, /Next bullet \(1\/3\)/);
     assert.ok(document.querySelector('.flashcard-show-all-btn'), 'Card header Show full bullets button exists');
+    assert.equal(document.querySelector('.dock-show-all'),null,'Full-bullet action is kept in the card header only');
+    assert.equal(document.querySelector('.study-dock-hint').textContent,'','Step mode reserves the footer space without shortcut text');
+    assert.equal(document.querySelectorAll('.flashcard-bullet-dots .bullet-dot').length,3,'All bullet progress circles remain visible');
+    assert.equal(document.querySelectorAll('.flashcard-bullet-dots .is-revealed').length,1,'Only the revealed bullet is filled');
 
     // Trigger next bullet via ArrowDown or tap Next bullet
     await keyDown('ArrowDown');
+    assert.equal(document.querySelectorAll('.flashcard-bullet-dots .is-revealed').length,2);
     assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 2 of 3/);
     assert.match(document.querySelector('.flashcard-answer').textContent, /Encapsulation/);
     assert.match(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
