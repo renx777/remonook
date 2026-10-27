@@ -455,7 +455,7 @@ export function flashcardSources(nodes, decks, media = []) {
     while (stack.length) {
       const [b, depth] = stack.pop(),
         ordinal = ordinals.get(b.id) || 1;
-      answerRows.push({ node: b, depth });
+      answerRows.push({ node: b, depth, ordinal });
       const prefix =
         b.taskState === "TODO"
           ? "☐ "

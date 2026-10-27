@@ -31,9 +31,9 @@ test('flashcard study mode reveals child bullets one by one with option to show 
   const nodes = [
     bullet('deck', { text: 'Deck with multi bullets' }),
     bullet('q1', { parentId: 'deck', text: 'What are the three pillars of OOP?' }),
-    bullet('b1', { parentId: 'q1', position: 0, text: 'Encapsulation' }),
-    bullet('b2', { parentId: 'q1', position: 1, text: 'Inheritance' }),
-    bullet('b3', { parentId: 'q1', position: 2, text: 'Polymorphism' }),
+    bullet('b1', { parentId: 'q1', position: 0, text: 'Encapsulation', listType: 'ORDERED' }),
+    bullet('b2', { parentId: 'b1', position: 0, text: 'Inheritance', listType: 'ORDERED' }),
+    bullet('b3', { parentId: 'q1', position: 2, text: 'Polymorphism', listType: 'ORDERED' }),
   ];
   let doc = empty();
   doc.tables.decks = [{ rootId: 'deck', createdAt: Date.now(), pinned: 0 }];
@@ -78,6 +78,7 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     // Reveal answer via Space bar
     await keyDown(' ');
     assert.ok(document.querySelector('.flashcard-answer'), 'Answer container is revealed');
+    assert.deepEqual([...document.querySelectorAll('.flashcard-answer-row .answer-dot')].map(el=>el.textContent), ['1.'], 'Step reveal retains the ordered marker');
 
     // In step mode, Bullet 1 of 3 is shown first
     assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 1 of 3/);
@@ -97,6 +98,8 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     // Trigger next bullet via ArrowDown or tap Next bullet
     await keyDown('ArrowDown');
     assert.equal(document.querySelectorAll('.flashcard-bullet-dots .is-revealed').length,2);
+    assert.deepEqual([...document.querySelectorAll('.flashcard-answer-row .answer-dot')].map(el=>el.textContent), ['1.','1.'], 'Nested answers restart numbering within their parent');
+    assert.equal(document.querySelectorAll('.flashcard-answer-row')[1].style.paddingLeft,'20px');
     assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 2 of 3/);
     assert.match(document.querySelector('.flashcard-answer').textContent, /Encapsulation/);
     assert.match(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
@@ -111,6 +114,7 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     // Press 'a' keyboard action to show full bullets at once
     await keyDown('a');
     assert.match(document.querySelector('.flashcard-step-badge').textContent, /Bullet 3 of 3/);
+    assert.deepEqual([...document.querySelectorAll('.flashcard-answer-row .answer-dot')].map(el=>el.textContent), ['1.','1.','2.'], 'Full reveal retains sibling numbering across nested answers');
     assert.match(document.querySelector('.flashcard-answer').textContent, /Encapsulation/);
     assert.match(document.querySelector('.flashcard-answer').textContent, /Inheritance/);
     assert.match(document.querySelector('.flashcard-answer').textContent, /Polymorphism/);
