@@ -128,7 +128,7 @@
 .flashcard-answer > .flashcard-label { margin-bottom: 16px; }
 .flashcard-answer-row { display: flex; gap: 12px; font-size: 16px; line-height: 1.65; font-family: var(--reading-font); margin: 4px 0; white-space: pre-wrap; }
 .flashcard-answer-row > div { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.answer-dot { color: var(--muted); }
+.answer-dot { color: var(--muted); flex-shrink:0; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .answer-done { color: var(--muted); }
 .flashcard-answer-heading { display: flex; align-items: center; gap: 8px; }
 .flashcard-step-badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 9px; font-size: 10px; font-weight: 550; background: var(--hover); color: var(--accent); letter-spacing: 0; }
