@@ -57,6 +57,14 @@ export function OutlineView(p: Props) {
   const readingSize = p.readingSize || 16,
     rowHeight = readingSize * 1.5 + 4;
   const idx = useMemo(() => index(p.nodes), [p.nodes]),
+    ordinals = useMemo(() => {
+      const numbers = new Map<string, number>();
+      for (const siblings of idx.children.values()) {
+        let ordinal = 0;
+        for (const node of siblings) if (node.listType === "ORDERED") numbers.set(node.id, ++ordinal);
+      }
+      return numbers;
+    }, [idx]),
     rs = useMemo(
       () => {
         const expanded = !!p.search,
@@ -725,9 +733,9 @@ export function OutlineView(p: Props) {
               )}
 
               </span>
-              {/* Bullet dot */}
+              {/* Numbers replace the dot while retaining zoom and drag controls. */}
               <button
-                className={`bullet-dot-btn ${childCount > 0 ? "has-children" : "no-children"} ${childCount > 0 && n.collapsed ? "is-collapsed outer-slate" : "is-expanded"}`}
+                className={`bullet-dot-btn ${n.listType === "ORDERED" ? "is-numbered" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${childCount > 0 && n.collapsed ? "is-collapsed outer-slate" : "is-expanded"}`}
                 aria-label="Zoom into bullet"
                 title="Click to zoom; drag to move"
                 disabled={p.disabled}
@@ -754,10 +762,10 @@ export function OutlineView(p: Props) {
                   });
                 }}
               >
-                <svg className="bullet-glyph" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                {n.listType === "ORDERED" ? <span className="list-marker">{`${ordinals.get(n.id)}. `}</span> : <svg className="bullet-glyph" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
                   <circle className="bullet-outer-circle" cx="10" cy="10" r="7.5" fill="none" />
                   <circle className="bullet-inner-dot" cx="10" cy="10" r="3" />
-                </svg>
+                </svg>}
               </button>
 
               {r.depth > 8 && <span className="outline-depth-badge" title={`Nesting level ${r.depth + 1}. Indentation is compressed; click the bullet to zoom into this branch.`}>L{r.depth + 1}</span>}
@@ -842,9 +850,6 @@ export function OutlineView(p: Props) {
                       p.onEdit(n.id);
                     }}
                   >
-                    {n.listType === "ORDERED" && <span className="list-marker">
-                      {`${(idx.children.get(n.parentId) || []).filter((x: Node) => x.listType === "ORDERED").findIndex((x: Node) => x.id === n.id) + 1}. `}
-                    </span>}
                     {n.text || n.blockStyle === 'divider' ? (
                       <>
                         <span className="bullet-read-source"><RichRead node={n} search={p.search} /></span><span className="bullet-inline-media" onKeyDown={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>                {badges.get(n.id)?.has('image')&&<span className="bullet-media-indicator" title="Images in this branch" aria-label="Images in this branch"><Icon name="image" size={14}/></span>}
