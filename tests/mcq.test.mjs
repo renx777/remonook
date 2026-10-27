@@ -60,7 +60,7 @@ test("MCQ notebooks filter ordinary flashcards and edited answers invalidate old
   doc.tables.bullets.push(bullet("collection", { text: "Mixed notes" }));
   doc.tables.bullets.find(node => node.id === "q").parentId = "collection";
   doc.tables.bullets.find(node => node.id === "regular").parentId = "collection";
-  assert.equal(scopedCards(doc, "collection", 1000).length, 2);
+  assert.deepEqual(scopedCards(doc, "collection", 1000).map(card => card.id), ["regular"]);
   doc.web.deckTypes = { collection: "MCQ" };
   assert.deepEqual(scopedCards(doc, "collection", 1000).map(card => card.id), ["q"]);
   const before = mcqDefinition(doc, "q").fingerprint;
