@@ -22,7 +22,7 @@ const { createRoot } = await import('react-dom/client');
 const { OutlineView } = await import('./.build/OutlineView.mjs');
 const { sourceOffset } = await import('./.build/outline-selection.mjs');
 const noop = () => {};
-let editor, deleted, copied;
+let editor, deleted, copied, menuCalls = [];
 Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { copied = text; } } });
 const nodes = [
   bullet('a', { text: 'Alpha beta gamma', position: 0, collapsed: true }),
@@ -32,7 +32,7 @@ const nodes = [
 ];
 function Harness() {
   const [editing, onEdit] = useState(null);
-  return React.createElement(OutlineView, { nodes, scope: null, search: '', showCompleted: true, editing, caret: null, disabled: false, assets: new Map(), media: [], onEdit, onZoom: noop, onToggle: noop, onChange: noop, onCommand: noop, onOutlinePaste: noop, onReady: e => { editor = e; }, onMove: noop, onTask: noop, onMenu: noop, onDeleteNodes: ids => { deleted = ids; } });
+  return React.createElement(OutlineView, { nodes, scope: null, search: '', showCompleted: true, editing, caret: null, disabled: false, assets: new Map(), media: [], onEdit, onZoom: noop, onToggle: noop, onChange: noop, onCommand: noop, onOutlinePaste: noop, onReady: e => { editor = e; }, onMove: noop, onTask: noop, onMenu: id => menuCalls.push(id), onDeleteNodes: ids => { deleted = ids; } });
 }
 const row = id => document.querySelector(`[data-node-id="${id}"]`);
 const pointer = (target, type, x, y) => target.dispatchEvent(new window.MouseEvent(type, { button: 0, clientX: x, clientY: y, bubbles: true, cancelable: true }));
@@ -134,4 +134,24 @@ test('click position, modifier selection, outside dismissal and touch scrolling 
     });
     assert.equal(document.querySelector('.is-multi-selected'), null, 'Touch gestures remain available for native scrolling');
   } finally { await act(async () => root.unmount()); }
+});
+
+test('touch long-press keeps native selection while explicit dots and desktop right-click open actions', async () => {
+ const root = createRoot(document.getElementById('root')), originalMedia = window.matchMedia;
+ menuCalls = [];
+ try {
+  await act(async () => root.render(React.createElement(Harness)));
+  window.matchMedia = () => ({matches:true,addEventListener(){},removeEventListener(){}});
+  const longPress = new window.MouseEvent('contextmenu',{bubbles:true,cancelable:true});
+  await act(async () => row('a').querySelector('.text-button').dispatchEvent(longPress));
+  assert.deepEqual(menuCalls,[]);
+  assert.equal(longPress.defaultPrevented,false,'Native text selection is not suppressed');
+  await click(row('a').querySelector('.row-end [aria-label="Bullet actions"]'));
+  assert.deepEqual(menuCalls,['a']);
+  window.matchMedia = originalMedia;
+  const rightClick = new window.MouseEvent('contextmenu',{bubbles:true,cancelable:true});
+  await act(async () => row('b').dispatchEvent(rightClick));
+  assert.deepEqual(menuCalls,['a','b']);
+  assert.equal(rightClick.defaultPrevented,true);
+ } finally {window.matchMedia=originalMedia;await act(async()=>root.unmount());}
 });

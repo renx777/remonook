@@ -119,14 +119,16 @@ test('headings and dividers survive formatted copy, nesting and paste without du
   const source = [
     {depth:0,text:'Section',formatting:'0:7:BOLD',listType:'NONE',taskState:'NONE',codeLanguage:'',blockStyle:'h1'},
     {depth:1,text:'Subsection',formatting:'',listType:'NONE',taskState:'NONE',codeLanguage:'',blockStyle:'h2'},
-    {depth:1,text:'',formatting:'',listType:'NONE',taskState:'NONE',codeLanguage:'',blockStyle:'divider'},
+    {depth:1,text:'Break Title',formatting:'',listType:'NONE',taskState:'NONE',codeLanguage:'',blockStyle:'divider',dividerStyle:'squiggly',dividerColor:'#e06c75'},
     {depth:0,text:'Body',formatting:'',listType:'NONE',taskState:'NONE',codeLanguage:'',blockStyle:'paragraph'},
   ];
   const result = parseClipboard({text:'',html:outlineClipboardHtml(source)}).lines;
-  assert.deepEqual(result.map(({depth,text,blockStyle})=>({depth,text,blockStyle})),source.map(({depth,text,blockStyle})=>({depth,text,blockStyle})));
+  assert.deepEqual(result.map(({depth,text,blockStyle,dividerStyle,dividerColor})=>({depth,text,blockStyle,dividerStyle,dividerColor})),source.map(({depth,text,blockStyle,dividerStyle,dividerColor})=>({depth,text,blockStyle,dividerStyle,dividerColor})));
   const pasted = pasteOutline([bullet('target')], 'target', 0, 0, result, ['sub','divider','body']);
   assert.equal(pasted.nodes.find(node=>node.id==='target').blockStyle,'h1');
   assert.equal(pasted.nodes.find(node=>node.id==='divider').blockStyle,'divider');
+  assert.equal(pasted.nodes.find(node=>node.id==='divider').dividerStyle,'squiggly');
+  assert.equal(pasted.nodes.find(node=>node.id==='divider').dividerColor,'#e06c75');
   const markdown = parseClipboard('# Title\n\nBody\n\n---\n\n## Subtitle').lines;
   assert.deepEqual(markdown.map(node=>node.blockStyle || 'paragraph'),['h1','paragraph','divider','h2']);
 });

@@ -11,7 +11,7 @@ import { inspectZip } from "./zip-safety";
 import fieldRules from "./android-fields.json" with { type: "json" };
 import schema from "./android-schema.json" with { type: "json" };
 import { bullet, validate, refreshCards } from "./domain.mjs";
-import { isNotoEmoji, notoPosterPath, NOTO_CREDIT_PATH } from './noto-emojis.mjs';
+import { isCatalogEmoji, catalogAssetPaths } from './emoji-catalog.mjs';
 export type Node = ReturnType<typeof bullet> & Record<string, any>;
 export type RecordData = Record<string, any>;
 export type Workspace = {
@@ -76,7 +76,7 @@ export function withNodes(doc: Workspace, nodes: Node[]): Workspace {
   nodes = syncMirrors(doc.tables.bullets, nodes);
   const oldNodes=new Map(doc.tables.bullets.map(n=>[n.id,n]));
   const noteTimes={...doc.web.noteTimes},now=Date.now();
-  for(const n of nodes){const before=oldNodes.get(n.id);if(!before||['text','formatting','parentId','position','taskState','dueDate','kind','blockStyle','codeLanguage'].some(k=>before[k]!==n[k]))noteTimes[n.id]={...noteTimes[n.id],...(!before?{createdAt:now}:{}),updatedAt:now};}
+  for(const n of nodes){const before=oldNodes.get(n.id);if(!before||['text','formatting','parentId','position','taskState','dueDate','kind','blockStyle','codeLanguage','dividerStyle','dividerColor'].some(k=>before[k]!==n[k]))noteTimes[n.id]={...noteTimes[n.id],...(!before?{createdAt:now}:{}),updatedAt:now};}
   doc={...doc,web:{...doc.web,noteTimes}};
   const detached=nodes.filter(n=>!n.mirrorSourceId&&oldNodes.get(n.id)?.mirrorSourceId);
   const detachedMedia=detached.flatMap(n=>doc.tables.media.filter(m=>m.bulletId===oldNodes.get(n.id)!.mirrorSourceId).map(m=>({...m,id:crypto.randomUUID(),bulletId:n.id})));
@@ -93,7 +93,7 @@ export function withNodes(doc: Workspace, nodes: Node[]): Workspace {
     ...doc,
     columns: { ...doc.columns,
       media: media.some(item=>item.displayWidth!==undefined) && !doc.columns.media.includes("displayWidth") ? [...doc.columns.media,"displayWidth"] : doc.columns.media,
-      bullets: [...new Set([...doc.columns.bullets.filter(field=>nodes.some(n=>n.mirrorSourceId)||!['mirrorSourceId','mirrorRootId'].includes(field)), ...nodes.flatMap(node => node.mirrorSourceId ? ['mirrorSourceId','mirrorRootId'] : []), ...(nodes.some(node=>node.blockStyle&&node.blockStyle!=='paragraph')?['blockStyle']:[])])],
+      bullets: [...new Set([...doc.columns.bullets.filter(field=>nodes.some(n=>n.mirrorSourceId)||!['mirrorSourceId','mirrorRootId'].includes(field)), ...nodes.flatMap(node => node.mirrorSourceId ? ['mirrorSourceId','mirrorRootId'] : []), ...(nodes.some(node=>node.blockStyle&&node.blockStyle!=='paragraph')?['blockStyle']:[]), ...(nodes.some(node=>node.dividerStyle)?['dividerStyle']:[]), ...(nodes.some(node=>node.dividerColor)?['dividerColor']:[])])],
       decks: doc.tables.decks.some(deck => deck.layout) && !doc.columns.decks.includes('layout') ? [...doc.columns.decks, 'layout'] : doc.columns.decks,
     },
     tables: {
@@ -128,7 +128,8 @@ export function androidBlockers(doc: Workspace) {
   if(doc.web.studyFolders?.length||Object.keys(doc.web.deckFolders||{}).length||doc.web.studyExcludedCards?.length)reasons.push("Study folders and removed study cards require a full web backup");
   if(Object.keys(doc.web.occlusions||{}).length)reasons.push("Image occlusion cards require a full web backup");
   if (doc.tables.bullets.some(node => /(?:^|;)\d+:\d+:MASK(?:;|$)/.test(node.formatting || ""))) reasons.push("Masked text requires a full web backup");
-  if (doc.tables.emojis.some(isNotoEmoji)) reasons.push("Noto animated WebP emojis require a full web backup");
+  if (doc.tables.bullets.some(node => /(?:^|;)\d+:\d+:ROUGH_/.test(node.formatting || ''))) reasons.push('Sketch annotations require a full web backup');
+  if (doc.tables.emojis.some(isCatalogEmoji)) reasons.push("Google Noto and Microsoft Fluent animated emojis require a full web backup");
   if (Object.keys(doc.web.deckDesigns || {}).length || doc.web.pinnedDecks?.length)
     reasons.push("Notebook covers and shelf preferences require a full web backup");
   if (Object.keys(doc.web.mcqs || {}).length || Object.keys(doc.web.deckTypes || {}).length || Object.keys(doc.web.mcqRuns || {}).length || doc.web.quizReactions)
@@ -348,8 +349,7 @@ export function references(doc: Workspace) {
     if (design && typeof design.image === "string" && design.image) paths.add(design.image);
   for (const m of doc.tables.media) paths.add("media/" + m.fileName);
   for (const e of doc.tables.emojis) {
-    paths.add("emoji/" + e.fileName);
-    if (isNotoEmoji(e)) { paths.add(notoPosterPath(e)); paths.add(NOTO_CREDIT_PATH); }
+    for (const path of catalogAssetPaths(e)) paths.add(path);
   }
   for (const t of doc.tables.trash) {
     const p = JSON.parse(t.payload);

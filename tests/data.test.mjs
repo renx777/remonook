@@ -337,11 +337,13 @@ test('masked text survives persistence and full backup and is protected from inc
 });
 
 test('heading and divider metadata survives full backup and preserves inline formatting', async () => {
-  const doc = withNodes(empty(), [bullet('heading', {text:'Title',blockStyle:'h1',formatting:'0:5:COLOR_2463BB'}), bullet('divider',{position:1,blockStyle:'divider'}),bullet('body',{position:2,text:'Body'})]);
+  const doc = withNodes(empty(), [bullet('heading', {text:'Title',blockStyle:'h1',formatting:'0:5:COLOR_2463BB'}), bullet('divider',{position:1,blockStyle:'divider',dividerStyle:'dotted',dividerColor:'#27ae60'}),bullet('body',{position:2,text:'Body'})]);
   const restored = await parseArchive(await archive(doc,new Map()));
   assert.equal(restored.doc.tables.bullets.find(node=>node.id==='heading').blockStyle,'h1');
   assert.equal(restored.doc.tables.bullets.find(node=>node.id==='heading').formatting,'0:5:COLOR_2463BB');
   assert.equal(restored.doc.tables.bullets.find(node=>node.id==='divider').blockStyle,'divider');
+  assert.equal(restored.doc.tables.bullets.find(node=>node.id==='divider').dividerStyle,'dotted');
+  assert.equal(restored.doc.tables.bullets.find(node=>node.id==='divider').dividerColor,'#27ae60');
   assert.equal(restored.doc.tables.bullets.find(node=>node.id==='body').text,'Body');
 });
 

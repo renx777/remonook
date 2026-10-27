@@ -1,3 +1,4 @@
+import {pathToFileURL} from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
@@ -14,7 +15,7 @@ import {bullet} from '../src/domain.mjs';
 import {cloudDocument,contentKey} from '../src/cloud-model.mjs';
 import {openShared,sharedState,project,vector,delta,applyIntent} from '../src/sync-crdt.mjs';
 await build({entryPoints:['src/useCloudSync.ts'],bundle:true,packages:'external',outfile:'tests/.build/sync-hook.mjs',format:'esm',platform:'node',plugins:[{name:'test-auth-only',setup(b){
- b.onResolve({filter:/^\.\/data$/},()=>({path:resolve('tests/.build/data.mjs'),external:true}));
+ b.onResolve({filter:/^\.\/data$/},()=>({path:pathToFileURL(resolve('tests/.build/data.mjs')).href,external:true}));
  b.onResolve({filter:/^\.\/(CloudAccount|cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));
  b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?`export const authenticatedUid=()=> 'alice';`:`export const CLOUD_API='https://sync.test';`}));
 }}]});

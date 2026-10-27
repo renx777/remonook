@@ -76,10 +76,11 @@ const click = async (el) => {
     el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
   });
 };
-test("DOM integration: blank persistence, keyboard split, nesting, undo and Trash restore", async () => {
-  let app;
+test("DOM integration: blank persistence, keyboard split, nesting, undo and Trash restore", async t => {
+  let app, currentRoot;
+  t.after(async () => { if (currentRoot) await act(async () => currentRoot.unmount()); dom.window.close(); });
   await act(async () => {
-    app = await import("./.build/app.mjs");
+    app = await import("./.build/app.mjs"); currentRoot = app.appRoot;
   });
   await wait(() => document.querySelector(".page-heading"));
   await click(
@@ -152,7 +153,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   assert.ok(stored.tables.bullets.some((n) => n.id === next));
   await act(async () => app.appRoot.unmount());
   document.getElementById("root").innerHTML = "";
-  const root = createRoot(document.getElementById("root"));
+  const root = currentRoot = createRoot(document.getElementById("root"));
   await act(async () => root.render(React.createElement(app.App)));
   await wait(() => document.querySelector(".page-heading"));
   assert.ok(document.querySelector(`[data-node-id="${id}"]`));
@@ -350,7 +351,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   // Quick jump is keyboard-accessible and opens a selected result without editing it.
   await act(async () => window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
   assert.ok(document.querySelector('.jump-search'));
-  assert.equal(document.activeElement, document.querySelector('.jump-search'));
+  assert.ok(document.activeElement === document.querySelector('.jump-search'), 'Quick jump receives keyboard focus');
   await click([...document.querySelectorAll('.jump-results button')].find(button => button.textContent.includes('Ideas')));
   assert.equal(document.querySelector('.zoomed-title-input').value, 'Ideas');
   assert.equal(document.querySelector('.jump-search'), null);
@@ -453,10 +454,10 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   };
   const enterImmersive = () => document.querySelector('[aria-label="Enter immersive mode"]');
   await click(enterImmersive());
-  assert.equal(fullscreenElement, document.querySelector('.study-session'));
+  assert.ok(fullscreenElement === document.querySelector('.study-session'), 'The study session owns fullscreen');
   assert.equal(document.querySelector('.study-session').getAttribute('aria-modal'), 'true');
   assert.equal(sidebar.inert, true, 'Background navigation is inaccessible in focus view');
-  assert.equal(document.activeElement, document.querySelector('.study-dock-main button'));
+  assert.ok(document.activeElement === document.querySelector('.study-dock-main button'), 'Primary study control receives focus');
   await act(async () => document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
   assert.equal(document.querySelector('.jump-search'), null, 'Background quick-jump stays inactive in immersive mode');
   await act(async () => document.body.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
@@ -486,14 +487,15 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   };
   await click(document.querySelector('.study-resume button'));
   assert.ok(document.querySelector('.study-session.is-immersive'), 'Resume honors the immersive-start preference');
-  assert.equal(fullscreenElement, document.querySelector('.study-session'));
+  assert.ok(fullscreenElement === document.querySelector('.study-session'), 'The study session owns fullscreen');
   await click(document.querySelector('[aria-label="Exit immersive mode"]'));
   const revealButton = document.querySelector('.study-dock-main button');
   assert.ok(revealButton.closest('.study-action-dock'));
   await click([...document.querySelectorAll('.reveal-actions button')][0]);
   assert.ok(document.querySelector('.flashcard-answer .note-image img'));
-  assert.equal(document.querySelector('.cram-actions button'), revealButton, 'Reveal and next share the same stable button');
+  assert.ok(document.querySelector('.cram-actions button') === revealButton, 'Reveal and next share the same stable button');
   assert.equal(document.querySelector('.study-action-dock .flashcard-answer'), null, 'Answer content scrolls independently of the controls');
+  if (document.querySelector('.flashcard-show-all-btn')) await click(document.querySelector('.flashcard-show-all-btn'));
   const scheduleBefore = stored.tables.cards.find(card => card.id === 'welcome').dueAtEpochMillis;
   await click(document.querySelector('.cram-actions button'));
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
@@ -506,8 +508,9 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await click(document.querySelector('.study-deck .study-primary'));
   assert.ok(document.querySelector('.study-session.is-immersive'));
   await click(document.querySelector('.study-dock-main button'));
+  if (document.querySelector('.flashcard-show-all-btn')) await click(document.querySelector('.flashcard-show-all-btn'));
   assert.equal(document.querySelectorAll('.study-action-dock .study-grades button').length, 4);
-  assert.equal(document.activeElement, document.querySelector('.grade-again'), 'Focus moves to the rating controls after reveal');
+  assert.ok(document.activeElement === document.querySelector('.grade-again'), 'Focus moves to the rating controls after reveal');
   await click([...document.querySelectorAll('.flashcard-label button')].find(button => button.textContent.includes('Open source')));
   assert.equal(fullscreenElement, null, 'Opening the source safely leaves fullscreen');
   assert.ok(!sidebar.inert);
@@ -587,6 +590,6 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
     assert.ok(stored.tables.bullets.some((n) => n.id === deletedId), `Bullet ${deletedId} must be restored on undo`);
   }
 
-  await act(async () => root.unmount());
+  await act(async () => root.unmount()); currentRoot = undefined;
   dom.window.close();
 });

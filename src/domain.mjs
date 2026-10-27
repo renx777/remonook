@@ -1,3 +1,4 @@
+import {roughPattern} from './rough-annotations.mjs';
 /** @returns {string} */
 export const uuid = () => crypto.randomUUID();
 export const bullet = (id = uuid(), extra = {}) => ({
@@ -218,7 +219,9 @@ export function pasteOutline(nodes, id, start, end, value, newIds = []) {
           text: prefix + first.text,
           formatting: encode([...leftMarks, ...marks(first.formatting || "", first.text.length).map(m => ({ ...m, start: m.start + prefix.length, end: m.end + prefix.length }))]),
           ...(replaceWholeBullet ? { codeLanguage: first.codeLanguage || "" } : {}),
-          ...(replaceWholeBullet ? { blockStyle: first.blockStyle || 'paragraph' } : {}),
+          ...(replaceWholeBullet ? { blockStyle: n.blockStyle === 'divider' && lines.length === 1 && !first.codeLanguage && (!first.blockStyle || first.blockStyle === 'paragraph') ? 'divider' : first.blockStyle || 'paragraph' } : {}),
+          ...(replaceWholeBullet && first.dividerStyle ? { dividerStyle: first.dividerStyle } : {}),
+          ...(replaceWholeBullet && first.dividerColor ? { dividerColor: first.dividerColor } : {}),
           ...(lines[1]?.depth > 0 ? { collapsed: false } : {}),
           ...(replaceWholeBullet && first.listType !== "NONE"
             ? { listType: first.listType }
@@ -247,6 +250,8 @@ export function pasteOutline(nodes, id, start, end, value, newIds = []) {
         formatting: line.formatting || "",
         codeLanguage: line.codeLanguage || "",
         ...(line.blockStyle ? { blockStyle: line.blockStyle } : {}),
+        ...(line.dividerStyle ? { dividerStyle: line.dividerStyle } : {}),
+        ...(line.dividerColor ? { dividerColor: line.dividerColor } : {}),
       });
     changed = [...changed, added];
     const at = insertions.get(parentId) ?? 0;
@@ -298,7 +303,7 @@ export function marks(encoded, length) {
         m.end > m.start &&
         m.end <= length &&
         (/^(BOLD|ITALIC|UNDERLINE|HIGHLIGHT|CODE|MASK)$/.test(m.style) ||
-          /^(COLOR|HIGHLIGHT)_[0-9a-f]{6}$/i.test(m.style)),
+          /^(COLOR|HIGHLIGHT)_[0-9a-f]{6}$/i.test(m.style) || roughPattern.test(m.style)),
     );
 }
 export const encode = (ms) =>
@@ -400,14 +405,14 @@ export function merge(nodes, id, scope = null) {
   return { nodes: changed, id: p.id, caret };
 }
 export function inferDeckLayout(nodes, rootId) {
-  const idx = index(nodes), children = idx.children.get(rootId) || [];
+  const idx = index(nodes), children = (idx.children.get(rootId) || []).filter(n => n.blockStyle !== 'divider');
   if (idx.byId.get(rootId)?.kind === 'QUESTION' || children.some(node => node.kind === 'QUESTION')) return 'FLAT';
-  return children.some(topic => (idx.children.get(topic.id) || []).some(question => (idx.children.get(question.id) || []).length)) ? 'TOPICS' : 'FLAT';
+  return children.some(topic => (idx.children.get(topic.id) || []).filter(n => n.blockStyle !== 'divider').some(question => (idx.children.get(question.id) || []).filter(n => n.blockStyle !== 'divider').length)) ? 'TOPICS' : 'FLAT';
 }
 export function flashcardSources(nodes, decks, media = []) {
   const idx = index(nodes),
     questionIds = new Set(
-      nodes.filter((n) => n.kind === "QUESTION").map((n) => n.id),
+      nodes.filter((n) => n.kind === "QUESTION" && n.blockStyle !== 'divider').map((n) => n.id),
     ),
     generated = new Set();
   const ordinals = new Map();
@@ -417,10 +422,10 @@ export function flashcardSources(nodes, decks, media = []) {
       .forEach((n, i) => ordinals.set(n.id, i + 1));
   for (const d of decks) {
     if (d.layout === 'TOPICS') {
-      for (const topic of idx.children.get(d.rootId) || []) {
+      for (const topic of (idx.children.get(d.rootId) || []).filter(t => t.blockStyle !== 'divider')) {
         questionIds.delete(topic.id);
         for (const question of idx.children.get(topic.id) || [])
-          if (question.blockStyle !== 'divider' && (idx.children.get(question.id) || []).length) generated.add(question.id);
+          if (question.blockStyle !== 'divider' && (idx.children.get(question.id) || []).filter(c => c.blockStyle !== 'divider').length) generated.add(question.id);
       }
       continue;
     }
@@ -428,20 +433,20 @@ export function flashcardSources(nodes, decks, media = []) {
     let pairs = 0;
     while (stack.length) {
       const [id, depth] = stack.pop(),
-        cs = idx.children.get(id) || [];
-      if (depth % 2 === 1 && cs.length) { generated.add(id); pairs++; }
+        cs = (idx.children.get(id) || []).filter(c => c.blockStyle !== 'divider');
+      if (depth % 2 === 1 && cs.length && idx.byId.get(id)?.blockStyle !== 'divider') { generated.add(id); pairs++; }
       for (let i = cs.length - 1; i >= 0; i--)
         stack.push([cs[i].id, depth + 1]);
     }
     // A single question with direct answer bullets is also a useful one-card deck.
-    if (!pairs && (idx.children.get(d.rootId) || []).length) generated.add(d.rootId);
+    if (!pairs && (idx.children.get(d.rootId) || []).filter(c => c.blockStyle !== 'divider').length && idx.byId.get(d.rootId)?.blockStyle !== 'divider') generated.add(d.rootId);
   }
   const excluded = new Set([...questionIds, ...generated]),
     mediaIds = new Set(media.map((m) => m.bulletId)),
     out = [];
   for (const { bullet: q } of indexedRows(idx, null, true)) {
-    if (q.mirrorSourceId || (!q.text.trim() && !mediaIds.has(q.id)) || !excluded.has(q.id)) continue;
-    const answers = (idx.children.get(q.id) || []).filter(a => !excluded.has(a.id));
+    if (q.mirrorSourceId || q.blockStyle === 'divider' || (!q.text.trim() && !mediaIds.has(q.id)) || !excluded.has(q.id)) continue;
+    const answers = (idx.children.get(q.id) || []).filter(a => !excluded.has(a.id) && a.blockStyle !== 'divider');
     const lines = [], answerRows = [],
       stack = answers
         .slice()
@@ -465,7 +470,7 @@ export function flashcardSources(nodes, decks, media = []) {
         lines.push("  ".repeat(Math.min(depth, 100)) + prefix + (b.text.trim() || "[Image]"));
       const cs = idx.children.get(b.id) || [];
       for (let i = cs.length - 1; i >= 0; i--)
-        if (!excluded.has(cs[i].id) && cs[i].kind !== "QUESTION")
+        if (!excluded.has(cs[i].id) && cs[i].kind !== "QUESTION" && cs[i].blockStyle !== 'divider')
           stack.push([cs[i], depth + 1]);
     }
     if (lines.length) out.push({ id: q.id, question: q.text.trim() || "[Image question]", answer: lines.join("\n"), node: q, answerRows });

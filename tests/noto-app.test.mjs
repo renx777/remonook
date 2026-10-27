@@ -30,6 +30,7 @@ test('Noto picker searches the full catalog, saves an offline insertion, reuses 
     await act(async () => { app = await import('./.build/app.mjs'); });
     await wait(() => document.querySelector('[data-node-id="welcome"]'));
     await open();
+    await click([...document.querySelectorAll('.emoji-collection-filters button')].find(element=>element.textContent==='Google Noto'));
     assert.equal(document.querySelectorAll('.emoji-grid button').length, 48, 'The full catalog is paginated, not mounted all at once');
     assert.match(document.querySelector('.emoji-result-count').textContent, /881/);
     assert.equal(document.querySelectorAll('.emoji-category option').length, 10);

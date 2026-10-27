@@ -1,3 +1,8 @@
+import {Bold,Italic,Underline,Strikethrough,CodeXml,EyeOff,PencilLine,RemoveFormatting,Type,ImagePlus,Waypoints,ListTree,GraduationCap,Link,CornerDownLeft,PanelsLeftRight,IndentIncrease,IndentDecrease,ListOrdered,TextQuote,Sigma,Workflow,Table2,ChevronLeft,type LucideIcon} from 'lucide-react';
+
+// A curated first pass: shared editor and action symbols keep the existing size,
+// theme color and decorative accessibility contract. Other icons stay unchanged.
+const lucideIcons:Record<string,LucideIcon>={bold:Bold,italic:Italic,underline:Underline,strike:Strikethrough,code:CodeXml,mask:EyeOff,sketch:PencilLine,clearFormat:RemoveFormatting,format:Type,insert:ImagePlus,connections:Waypoints,organize:ListTree,learn:GraduationCap,link:Link,backlinks:CornerDownLeft,mirror:PanelsLeftRight,indent:IndentIncrease,outdent:IndentDecrease,numbered:ListOrdered,quote:TextQuote,equation:Sigma,diagram:Workflow,table:Table2,categoryBack:ChevronLeft};
 const paths: Record<string, string> = {
   logout: "M9 4H4v16h5M13 8l4 4-4 4m-5-4h13",
   skipBack:"M5 5v14M19 5 7 12l12 7Z",
@@ -68,6 +73,8 @@ const paths: Record<string, string> = {
   forward: "m10 19 7-7-7-7",
 };
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {
+  const Component=lucideIcons[name];
+  if(Component)return <Component className="remo-icon" data-icon-library="lucide" data-icon={name} size={size} strokeWidth={1.65} color="currentColor" aria-hidden="true" focusable="false" style={{flexShrink:0,verticalAlign:'middle'}}/>;
   return (
     <svg
       className="remo-icon"

@@ -1,5 +1,6 @@
 import {Y,openShared,sharedState,vector,delta,pack,unpack,applyIntent,project} from './sync-crdt.mjs';
 import {cloudDocument} from './cloud-model.mjs';
+import {catalogAssetPaths} from './emoji-catalog.mjs';
 const actor=new Y.Doc(),sessionClient=actor.clientID;actor.destroy();
 const localDoc=state=>{const d=openShared(state);d.clientID=sessionClient;return d;};
 function queued(meta,d,v){
@@ -18,8 +19,7 @@ export function stageAssets(meta,assets){
  const d=localDoc(meta.localState),v=vector(d),next=new Map(assets.map(a=>[a.path,a])),prior=new Map(meta.assets.map(a=>[a.path,a]));
  // Absence from an incomplete browser cache is not deletion of an emoji that
  // still exists in the document. Keep its cloud manifest so it can download.
- const emojis=(meta.mappedDoc.tables.emojis||[]).filter(e=>typeof e.fileName==='string'),referenced=new Set(emojis.flatMap(e=>['emoji/'+e.fileName,'emoji/'+e.fileName.replace(/\.webp$/,'.svg')]));
- if(emojis.some(e=>e.fileName?.endsWith('.webp')))referenced.add('emoji/noto-LICENSE.txt');
+ const emojis=(meta.mappedDoc.tables.emojis||[]).filter(e=>typeof e.fileName==='string'),referenced=new Set(emojis.flatMap(catalogAssetPaths));
  for(const a of [...project(d).assets,...meta.assets])if(referenced.has(a.path)&&!next.has(a.path)){next.set(a.path,a);prior.set(a.path,a);}
  const effective=[...next.values()].sort((a,b)=>a.path.localeCompare(b.path));
  applyIntent(d,meta.mappedDoc,meta.mappedDoc,[...prior.values()],effective);queued(meta,d,v);meta.assets=effective;d.destroy();return meta;

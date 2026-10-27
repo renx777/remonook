@@ -11,10 +11,19 @@ export function editorEmoji(getLibrary:()=>Library,getCode:()=>string){return Ex
  const library=getLibrary(),decorations:Decoration[]=[];if(!versions.has(library))versions.set(library,++nextVersion);
  state.doc.descendants((node,pos)=>{if(!node.isText||node.marks.some(m=>['remoCode','code','remoMask'].includes(m.type.name))||!library.matcher)return;
  for(const match of (node.text||'').matchAll(new RegExp(library.matcher.source,'g'))){const item=library.emojis.get(match[0]);if(!item)continue;const from=pos+match.index!,to=from+match[0].length;
- decorations.push(Decoration.inline(from,to,{class:'editor-emoji-source'}));
+ const hasCaret=state.selection.empty&&state.selection.from>=from&&state.selection.from<=to;
+ decorations.push(Decoration.inline(from,to,{class:`editor-emoji-source${hasCaret?' editor-emoji-caret'+(state.selection.from===from?' is-before':''):''}`}));
  decorations.push(Decoration.widget(from,view=>{const host=document.createElement('span');host.className='editor-emoji-widget';host.contentEditable='false';const root=createRoot(host);queueMicrotask(()=>{if(host.isConnected)root.render(<EmojiProvider emojis={[...library.emojis.values()]} assets={library.assets} animate={library.animate}><AnimatedEmoji item={item} blob={library.assets.get('emoji/'+item.fileName)}/></EmojiProvider>);});host.onmousedown=e=>{e.preventDefault();e.stopPropagation();view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc,to)));view.focus();};host.onclick=e=>{e.preventDefault();e.stopPropagation();view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc,to)));view.focus();};(host as any).dispose=()=>queueMicrotask(()=>root.unmount());return host;},{key:`${from}:${item.token}:${versions.get(library)}`,side:-1,ignoreSelection:true,destroy:node=>(node as any).dispose?.()}));
- }});return DecorationSet.create(state.doc,decorations);
+ }});
+ // Paint the cursor through the source span's CSS pseudo-element. Inserting
+ // another widget before the animation would recreate its DOM on selection.
+ return DecorationSet.create(state.doc,decorations);
  },handleKeyDown(view,event){if(getCode()||!view.state.selection.empty||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return false;const {from}=view.state.selection;let range:{from:number;to:number}|undefined;const matcher=getLibrary().matcher;if(!matcher)return false;
  view.state.doc.descendants((node,pos)=>{if(!node.isText||node.marks.some(m=>['remoCode','code','remoMask'].includes(m.type.name)))return;for(const m of (node.text||'').matchAll(new RegExp(matcher.source,'g'))){const start=pos+m.index!,end=start+m[0].length;if((['Backspace','ArrowLeft'].includes(event.key)&&from>start&&from<=end)||(['Delete','ArrowRight'].includes(event.key)&&from>=start&&from<end))range={from:start,to:end};}});
  if(!range)return false;const r=range as {from:number;to:number};event.preventDefault();view.dispatch(['Backspace','Delete'].includes(event.key)?view.state.tr.delete(r.from,r.to):view.state.tr.setSelection(TextSelection.create(view.state.doc,event.key==='ArrowLeft'?r.from:r.to)));return true;
- }}})];}});}
+ }},appendTransaction(transactions,_old,state){
+ if(getCode()||!state.selection.empty||!transactions.some(tr=>tr.selectionSet))return null;
+ const matcher=getLibrary().matcher;if(!matcher)return null;let end:number|undefined;
+ state.doc.descendants((node,pos)=>{if(!node.isText||node.marks.some(m=>['remoCode','code','remoMask'].includes(m.type.name)))return;for(const match of (node.text||'').matchAll(new RegExp(matcher.source,'g'))){const from=pos+match.index!,to=from+match[0].length;if(state.selection.from>from&&state.selection.from<to)end=to;}});
+ return end===undefined?null:state.tr.setSelection(TextSelection.create(state.doc,end));
+ }})];}});}

@@ -15,7 +15,11 @@ test('editing shows emoji widgets while preserving source positions, arrow navig
   await act(async()=>{editor=new Editor({element:document.getElementById('editor'),extensions:[StarterKit,editorEmoji(()=>library,()=>code)],content:`<p>${item.token} tail</p>`});});
   assert.equal(editor.getText(),item.token+' tail');assert.equal(document.querySelectorAll('.editor-emoji-widget').length,1);assert.equal(document.querySelector('.editor-emoji-source').textContent,item.token);
   const widget=document.querySelector('.editor-emoji-widget');
-  await act(async()=>{editor.commands.setTextSelection(1);editor.view.dom.dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));});assert.equal(editor.state.selection.from,1+item.token.length);assert.equal(document.querySelector('.editor-emoji-widget'),widget,'Caret movement must not restart the animation');
+  await act(async()=>editor.commands.setTextSelection(3));
+  assert.equal(editor.state.selection.from,1+item.token.length,'A click inside hidden emoji source lands after the emoji');
+  assert.ok(document.querySelector('.editor-emoji-caret'),'Emoji boundary has a visible-height caret decoration');
+  assert.doesNotMatch(editor.getHTML(),/editor-emoji-caret/,'Cursor decorations never enter saved content');
+  await act(async()=>{editor.commands.setTextSelection(1);editor.view.dom.dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));});assert.equal(editor.state.selection.from,1+item.token.length);assert.ok(document.querySelector('.editor-emoji-widget')===widget,'Caret movement must not restart the animation');
   await act(async()=>editor.view.dom.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true})));assert.equal(editor.getText(),' tail');
   code='javascript';await act(async()=>editor.commands.setContent(`<p>${item.token}</p>`));assert.equal(document.querySelector('.editor-emoji-widget'),null);assert.equal(editor.getText(),item.token);
  }finally{if(editor)await act(async()=>editor.destroy());dom.window.close();}

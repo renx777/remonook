@@ -4,18 +4,20 @@ import type { Editor } from '@tiptap/core';
 import type { RecordData } from './data';
 import { Icon } from './icons';
 import { AnimatedEmoji, useEmojiLibrary } from './AnimatedEmoji';
-import { notoEmojis } from './noto-emojis.mjs';
+import { catalogEmojis, emojiCollection, emojiCollectionLabel, collectionFilters } from './emoji-catalog.mjs';
+import {useEmojiCollection} from './useEmojiCollection';
 import { builtinEmojis } from './emoji-builtins.mjs';
 import { emojiQuery, emojiSuggestions } from './emoji-suggestions.mjs';
 
 export function InlineEmojiPicker({ editor, nodeId, enabled, keyHandler }: { editor: Editor; nodeId: string; enabled: boolean; keyHandler: MutableRefObject<((event: KeyboardEvent) => boolean) | null> }) {
   const { emojis, assets, onInsert } = useEmojiLibrary(), listId = useId();
+  const [collection,setCollection] = useEmojiCollection();
   const [query, setQuery] = useState<ReturnType<typeof emojiQuery>>(null), [active, setActive] = useState(0), [position, setPosition] = useState({ left: 0, top: 0, height: 320 }), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const dismissed = useRef(''), lastQuery = useRef(''), pending = useRef(false), mounted = useRef(true), popup = useRef<HTMLDivElement>(null);
   const items = useMemo(() => {
-    const catalog = new Map(notoEmojis.map(item => [item.token, item]));
-    return [...new Map([...notoEmojis, ...builtinEmojis, ...emojis.values()].map(item => [item.token, { ...item, ...catalog.get(item.token) }])).values()];
-  }, [emojis]);
+    const catalog = new Map(catalogEmojis.map(item => [item.token, item]));
+    return [...new Map([...catalogEmojis, ...builtinEmojis, ...emojis.values()].map(item => [item.token, { ...item, ...catalog.get(item.token) }])).values()].filter(item=>collection==='all'||emojiCollection(item)==='custom'||emojiCollection(item)===collection);
+  }, [emojis,collection]);
   const matches: RecordData[] = useMemo(() => query ? emojiSuggestions(items, query.query) : [], [items, query]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
@@ -29,7 +31,7 @@ export function InlineEmojiPicker({ editor, nodeId, enabled, keyHandler }: { edi
       setQuery(previous => previous?.start === next.start && previous?.end === next.end && previous?.query === next.query ? previous : next);
       try {
         const caret = editor.view.coordsAtPos(from), width = Math.min(296, window.innerWidth - 16), below = window.innerHeight - caret.bottom - 12, above = caret.top - 12;
-        const desired = Math.min(360, 132 + Math.ceil(Math.max(1, emojiSuggestions(items, next.query).length) / 4) * 58 + (error ? 72 : 0));
+        const desired = Math.min(420, 170 + Math.ceil(Math.max(1, emojiSuggestions(items, next.query).length) / 4) * 69 + (error ? 72 : 0));
         const placeBelow = below >= desired || below >= above, height = Math.max(60, Math.min(desired, placeBelow ? below : above));
         setPosition({ left: Math.max(8, Math.min(caret.left, window.innerWidth - width - 8)), top: placeBelow ? caret.bottom + 6 : Math.max(8, caret.top - height - 6), height });
       } catch { /* A detached editor cannot provide a caret rectangle. */ }
@@ -43,7 +45,7 @@ export function InlineEmojiPicker({ editor, nodeId, enabled, keyHandler }: { edi
     if (!query) return;
     const identity = `${query.start}:${query.query}`;
     if (lastQuery.current !== identity) { lastQuery.current = identity; setActive(0); setError(''); }
-  }, [query?.query, query?.start]);
+  }, [query?.query, query?.start,collection]);
   useEffect(() => { popup.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest' }); }, [active]);
   const dismiss = () => { if (query) dismissed.current = `${query.start}:${query.end}:${query.query}`; setQuery(null); };
   const choose = async (item: RecordData) => {
@@ -70,11 +72,12 @@ export function InlineEmojiPicker({ editor, nodeId, enabled, keyHandler }: { edi
   if (!query) return null;
   return createPortal(<div ref={popup} className="inline-emoji-picker" style={{ left: position.left, top: position.top, maxHeight: position.height }} onPointerDown={event => event.stopPropagation()} onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}>
     <div className="inline-emoji-heading"><span><Icon name="emoji" size={16} /> Emojis</span><button type="button" className="inline-emoji-close" aria-label="Close emoji suggestions" disabled={busy} onClick={dismiss}><Icon name="close" size={14} /></button></div>
+    <div className="emoji-collection-filters" role="group" aria-label="Emoji artwork collection">{collectionFilters.map(([value,label])=><button type="button" key={value} aria-pressed={collection===value} disabled={busy} onClick={()=>{setCollection(value);setActive(0);setError('');}}>{label}</button>)}</div>
     <div className="inline-emoji-query"><span>{query.query ? `:${query.query}` : 'Type a name to find an emoji'}</span><small>{matches.length} suggestions</small></div>
-    <div role="listbox" id={listId} aria-label="Emoji suggestions" aria-busy={busy}>{matches.map((item, index) => <button type="button" role="option" id={`${listId}-${index}`} key={item.token} aria-selected={active === index} aria-label={item.label} title={item.label} disabled={busy} tabIndex={-1} onMouseEnter={() => setActive(index)} onClick={() => void choose(item)}><AnimatedEmoji item={item} blob={assets.get('emoji/' + item.fileName)} data={item.data} preview /><span className="inline-emoji-label">{item.label}</span>{assets.has('emoji/' + item.fileName) && <small className="inline-emoji-offline" title="Saved offline"><Icon name="check" size={10} /></small>}</button>)}</div>
+    <div role="listbox" id={listId} aria-label="Emoji suggestions" aria-busy={busy}>{matches.map((item, index) => <button type="button" role="option" id={`${listId}-${index}`} key={item.token} aria-selected={active === index} aria-label={`${item.label} · ${emojiCollectionLabel(item)}`} title={`${item.label} · ${emojiCollectionLabel(item)}`} disabled={busy} tabIndex={-1} onMouseEnter={() => setActive(index)} onClick={() => void choose(item)}><AnimatedEmoji item={item} blob={assets.get('emoji/' + item.fileName)} data={item.data} preview /><span className="inline-emoji-label">{item.label}</span><small className="inline-emoji-collection">{emojiCollection(item)==='fluent'?'Fluent':emojiCollection(item)==='noto'?'Noto':'Custom'}</small>{assets.has('emoji/' + item.fileName) && <small className="inline-emoji-offline" title="Saved offline"><Icon name="check" size={10} /></small>}</button>)}</div>
     {!matches.length && <p>No emojis found. Keep typing or press Escape.</p>}
     {error && <p role="alert" className="emoji-import-error">{error}</p>}
-    <div className="inline-emoji-selection" role="status">{busy ? 'Saving for offline use…' : matches[Math.min(active, matches.length - 1)]?.label || 'Try another name'}</div>
-    <footer><span>↑↓←→ browse · ↵ insert · Esc close</span><small>Noto by Google · first use needs internet</small></footer>
+    <div className="inline-emoji-selection" role="status">{busy ? 'Saving for offline use…' : matches.length ? `${matches[Math.min(active, matches.length - 1)].label} · ${emojiCollectionLabel(matches[Math.min(active, matches.length - 1)])}` : 'Try another name'}</div>
+    <footer><span>↑↓←→ browse · ↵ insert · Esc close</span><small>Google Noto · Microsoft Fluent · first use needs internet</small></footer>
   </div>, editor.view.dom.closest('.app') || document.body);
 }

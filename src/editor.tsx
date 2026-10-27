@@ -16,6 +16,8 @@ import { marks, encode } from "./domain.mjs";
 import type { Node } from "./data";
 import { EmojiText,useEmojiLibrary } from './AnimatedEmoji';
 import {editorEmoji} from './EditorEmoji';
+import {RemoRough,RoughAnnotation} from './RoughAnnotation';
+import {parseRoughStyle,roughStyle} from './rough-annotations.mjs';
 import { Notation, notationParts } from './Notation';
 export { notationParts } from './Notation';
 /** Apply source-range formatting to the rendered equation as one visual unit. */
@@ -120,6 +122,7 @@ export const RemoHighlight = Mark.create({
   },
 });
 function tipmark(style: string) {
+  const rough=parseRoughStyle(style);if(rough)return {type:'remoRough',attrs:rough};
   if (style === "MASK") return { type: "remoMask" };
   if (style.startsWith("COLOR_"))
     return { type: "remoColor", attrs: { value: style.slice(6) } };
@@ -168,7 +171,9 @@ export function fromEditor(json: JSONContent) {
       text += n.type === "hardBreak" ? "\n" : n.text || "";
       for (const m of n.marks || []) {
         const style =
-          m.type === "remoColor"
+          m.type === 'remoRough'
+            ? roughStyle(m.attrs?.type,m.attrs?.color)
+            : m.type === "remoColor"
             ? "COLOR_" + m.attrs?.value
             : m.type === "remoHighlight"
               ? "HIGHLIGHT_" + m.attrs?.value
@@ -202,9 +207,44 @@ export function fromEditor(json: JSONContent) {
 export function RichRead({ node, search = "", literal = false, connected = true }: { node: Node; search?: string; literal?: boolean; connected?:boolean }) {
   if(!literal && /^!\[[^\]]*\]\(https?:\/\/[^\s]+\)$/.test(node.text.trim()))return null;
   if(readTable(node.text))return <NoteTable id={node.id} text={node.text}/>;
-  if(node.blockStyle==='quote')return <span className="block-quote"><RichRead node={{...node,blockStyle:undefined}} search={search} literal={literal}/></span>;
-  if (node.blockStyle === 'divider') return <><hr className="note-divider" />{node.text && <RichRead node={{ ...node, blockStyle: undefined }} search={search} literal={literal} />}</>;
-  if (/^h[1-3]$/.test(node.blockStyle || '')) return <span className={`block-read block-${node.blockStyle}`} role="heading" aria-level={Number(node.blockStyle[1])}><RichRead node={{ ...node, blockStyle: undefined }} search={search} literal={literal} /></span>;
+  if (node.blockStyle === 'divider') {
+    const dividerStyle = node.dividerStyle || 'straight';
+    const dividerColor = node.dividerColor || undefined;
+    const styleObj = dividerColor ? ({ '--divider-color': dividerColor, color: dividerColor } as React.CSSProperties) : undefined;
+    return (
+      <div
+        className={`note-divider-wrap ${node.text ? 'has-title' : 'is-empty'} style-${dividerStyle}`}
+        data-divider-style={dividerStyle}
+        style={styleObj}
+      >
+        <hr className="note-divider note-divider-line" />
+        {node.text ? (
+          <>
+            <span className="note-divider-title">
+              <RichRead node={{ ...node, blockStyle: undefined }} search={search} literal={literal} />
+            </span>
+            <hr className="note-divider note-divider-line" />
+          </>
+        ) : null}
+      </div>
+    );
+  }
+  const semanticUnits=[...(literal?[]:notationParts(node.text)),...noteLinks(node.text),...[...node.text.matchAll(/:[a-z][a-z0-9_-]+:/gi)].map(match=>({start:match.index!,end:match.index!+match[0].length}))];
+  const roughRanges=node.codeLanguage?[]:marks(node.formatting,node.text.length).filter((m:any)=>parseRoughStyle(m.style)).map((range:any)=>{
+    // Equations, note links and emoji tokens render as complete visual units.
+    // A partial source selection decorates that unit without breaking its syntax.
+    let start=range.start,end=range.end;for(const unit of semanticUnits)if(start<unit.end&&end>unit.start){start=Math.min(start,unit.start);end=Math.max(end,unit.end);}return {...range,start,end};
+  });
+  if(roughRanges.length){
+    const points=[...new Set<number>([0,node.text.length,...roughRanges.flatMap((m:any)=>[m.start,m.end])])].sort((a,b)=>a-b);
+    return <>{points.slice(0,-1).map((start,i)=>{
+      const end=points[i+1],fragment=sliceNode(node,start,end);
+      fragment.formatting=encode(marks(fragment.formatting,fragment.text.length).filter((m:any)=>!parseRoughStyle(m.style)));
+      let content:React.ReactNode=<RichRead node={fragment} search={search} literal={literal} connected={connected}/>;
+      for(const range of roughRanges.filter((m:any)=>m.start<=start&&m.end>=end)){const config=parseRoughStyle(range.style)!;content=<RoughAnnotation type={config.type as 'circle'} color={config.color}>{content}</RoughAnnotation>;}
+      return <span key={start}>{content}</span>;
+    })}</>;
+  }
   const maskRanges = marks(node.formatting, node.text.length).filter((m: any) => m.style === 'MASK').sort((a: any, b: any) => a.start - b.start).reduce((ranges: { start: number; end: number }[], mark: any) => {
     const last = ranges.at(-1); if (last && last.end >= mark.start) last.end = Math.max(last.end, mark.end); else ranges.push({ start: mark.start, end: mark.end }); return ranges;
   }, []);
@@ -286,7 +326,12 @@ export const unsupportedFormatting = (node: Node) =>
     .split(";")
     .filter(Boolean)
     .some((part: string) => marks(part, node.text.length).length !== 1);
-export function BulletEditor({
+export function BulletEditor(props: Parameters<typeof MountedBulletEditor>[0]) {
+  // Divider conversion changes the editable host. Remount the complete editor
+  // and its inline pickers together so none retain a detached/destroyed view.
+  return <MountedBulletEditor key={`${props.node.id}:${props.node.blockStyle === 'divider' ? 'divider' : 'text'}`} {...props}/>;
+}
+function MountedBulletEditor({
   node,
   caret,
   initialSelection,
@@ -308,6 +353,7 @@ export function BulletEditor({
   disabled: boolean;
 }) {
   const emojiLibrary=useEmojiLibrary(),emojiLibraryRef=useRef(emojiLibrary);emojiLibraryRef.current=emojiLibrary;
+  const isDivider = node.blockStyle === 'divider';
   const host = useRef<HTMLDivElement>(null),
     editor = useRef<Editor | null>(null),
     callbacks = useRef({ onChange, onCommand, onOutlinePaste, onImages, onReady, node });
@@ -340,6 +386,7 @@ export function BulletEditor({
         RemoMask,
         RemoColor,
         RemoHighlight,
+        RemoRough,
       ],
       content: toEditor(node),
       editorProps: {
@@ -402,6 +449,13 @@ export function BulletEditor({
           }
           else if (event.key === "Tab")
             command = event.shiftKey ? "outdent" : "indent";
+          else if (
+            event.key === "Backspace" &&
+            callbacks.current.node.blockStyle === "divider" &&
+            !e.state.doc.textContent.trim()
+          ) {
+            command = "deleteDivider";
+          }
           else if (event.key === "Backspace" && from === 1 && from === to)
             command = "merge";
           else if (event.key === "Escape") command = "stop";
@@ -482,14 +536,36 @@ export function BulletEditor({
       e.commands.setContent(toEditor(node), { emitUpdate: false });
       e.commands.setTextSelection(Math.min(pos, node.text.length + 1));
     }
-    e.setEditable(!disabled && !unsupportedFormatting(node), false);
-    e.view.dispatch(e.state.tr);
-  }, [node.text, node.formatting, node.codeLanguage, disabled,emojiLibrary]);
+    const editable = !disabled && !unsupportedFormatting(node);
+    if (e.isEditable !== editable) e.setEditable(editable, false);
+  }, [node.text, node.formatting, disabled]);
+  // Refresh decorations only when their inputs change. Dispatching an empty
+  // transaction for every local text echo can restore an older DOM selection
+  // while the browser is still processing native typing.
+  useEffect(() => {
+    const e = editor.current;
+    if (e && !e.isDestroyed) e.view.dispatch(e.state.tr);
+  }, [node.codeLanguage, emojiLibrary]);
   return (
     <>
       {node.codeLanguage && <div className="code-toolbar"><label>Language <select aria-label="Code language" value={codeLanguages.includes(node.codeLanguage) ? node.codeLanguage : 'plaintext'} disabled={disabled} onChange={event => onCommand('language:' + event.target.value, node.id, 0, 0)}>{codeLanguages.map(language => <option key={language} value={language}>{language === 'plaintext' ? 'Plain text' : language}</option>)}</select></label><small>Enter: new line · Tab: indent · Ctrl/⌘ Enter: next bullet</small></div>}
-      <div ref={host} className="bullet-editor" />
-      {emojiEditor && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':['pane','date','image','complete','countdown','table','gallery','music'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
+      {isDivider ? (
+        <div
+          key="divider-editor"
+          className="note-divider-wrap is-editing"
+          data-divider-style={node.dividerStyle || 'straight'}
+          style={node.dividerColor ? ({ '--divider-color': node.dividerColor, color: node.dividerColor } as React.CSSProperties) : undefined}
+        >
+          <hr className="note-divider note-divider-line" />
+          <div className="note-divider-title-editor">
+            <div ref={host} className="bullet-editor note-divider-editor" />
+          </div>
+          <hr className="note-divider note-divider-line" />
+        </div>
+      ) : (
+        <div key="text-editor" ref={host} className="bullet-editor" />
+      )}
+      {emojiEditor && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':['pane','date','image','complete','countdown','table','gallery','music','divider'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
       {emojiEditor && <InlineConnections editor={emojiEditor} nodeId={node.id} enabled={!disabled&&!node.codeLanguage&&!unsupportedFormatting(node)} keyHandler={connectionKeys}/>}
       {emojiEditor && <InlineEmojiPicker editor={emojiEditor} nodeId={node.id} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node) && !/^(?:```|\$\$|\\\[)/.test(node.text)} keyHandler={emojiKeys} />}
       {!node.codeLanguage && notationParts(node.text).length > 0 && <div className="notation-preview"><small>Preview · edit source above</small><RichRead node={node} /></div>}

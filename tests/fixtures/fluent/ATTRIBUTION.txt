@@ -1,0 +1,5 @@
+Microsoft Fluent Emoji Animated, MIT License.
+Source: https://github.com/microsoft/fluentui-emoji-animated
+Pinned source revision and SHA-256 animation digests: src/fluent-emoji-catalog.json.
+Fixtures are unmodified original animations (grinning face and thumbs up: light skin tone).
+See LICENSES/fluentui-emoji-MIT.txt for the full required copyright and license notice.

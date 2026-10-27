@@ -1,6 +1,8 @@
 .note-tag { color:var(--accent);border-radius:3px;background:color-mix(in srgb,currentColor 9%,transparent);padding:0 2px;cursor:pointer;white-space:nowrap; }
 .note-reference { color:var(--accent);border-bottom:1px solid color-mix(in srgb,var(--accent) 40%,transparent);cursor:pointer; }
 .note-reference.is-missing { color:var(--muted);border-bottom-style:dashed; }
+.note-reference>.remo-icon { margin-right:3px; }
+.backlinks-panel button span>.remo-icon { margin-right:5px; }
 .note-tag:hover,.note-reference:hover { filter:brightness(1.2); }
 .outline-row.is-important .bullet-inner-dot { fill:#e88c87; }
 .outline-row.is-important .bullet-outer-circle { fill:#e88c8728; }

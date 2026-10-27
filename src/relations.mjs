@@ -1,5 +1,5 @@
 import {bullet,index,descendants,move} from './domain.mjs';
-export const contentFields=['text','formatting','kind','autoHighlight','listType','codeLanguage','taskState','dueDate','blockStyle'];
+export const contentFields=['text','formatting','kind','autoHighlight','listType','codeLanguage','taskState','dueDate','blockStyle','dividerStyle','dividerColor'];
 export function sourceId(nodes,id){return nodes.find(n=>n.id===id)?.mirrorSourceId||id;}
 export function noteLinks(text){return [...text.matchAll(/\[\[([^\]\n|]*)\|([^\]\n|]+)\]\]/g)].map(m=>({start:m.index,end:m.index+m[0].length,label:m[1],id:m[2],raw:m[0]}));}
 export function internalLink(node){return `[[${(node.text||'Untitled').replace(/[\[\]|\n]/g,' ').slice(0,120)}|${node.id}]]`;}

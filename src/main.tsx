@@ -25,6 +25,7 @@ import { createRoot } from "react-dom/client";
 import type { Editor } from "@tiptap/core";
 import { parseClipboard, type ClipboardInput } from "./clipboard";
 import { SelectionFormatting } from "./SelectionFormatting";
+import { textColors } from "./color-palettes";
 import { prepareCoverImage, type DeckDesign } from "./deck-designs";
 import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
 import { MCQEditor } from "./MCQEditor";
@@ -75,7 +76,7 @@ import { EmojiPicker } from './EmojiPicker';
 import {WorkdaysCalendar} from './WorkdaysCalendar';
 import {workdays,validateWorkdays} from './workdays.mjs';
 import { decodeAnimation, insertEmoji } from './emoji.mjs';
-import { downloadNotoEmoji, getNotoEmoji, isNotoEmoji, notoPosterPath, NOTO_CREDIT_PATH } from './noto-emojis.mjs';
+import { downloadCatalogEmoji, getCatalogEmoji, isCatalogEmoji, catalogAssetPaths } from './emoji-catalog.mjs';
 import './emoji.css';
 import {
   CalendarView,
@@ -535,7 +536,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         added.push({ token: ':remo_' + id + ':', fileName, label: file.name.replace(/\.(json|tgs)$/i, '').slice(0, 100) || 'Emoji' });
       }
       const current = docRef.current!;
-      if (current.tables.emojis.filter(item => !isNotoEmoji(item)).length + added.length > 500) throw Error('This workspace supports up to 500 custom emojis. Noto catalog emojis do not use this allowance.');
+      if (current.tables.emojis.filter(item => !isCatalogEmoji(item)).length + added.length > 500) throw Error('This workspace supports up to 500 custom emojis. Google and Microsoft catalog emojis do not use this allowance.');
       checkAttachmentBudget(nextAssets);
       if (failed.current) throw Error('Saving is paused. Return to Settings to recover your draft.');
       for (const item of added) pendingAssets.current.set('emoji/' + item.fileName, nextAssets.get('emoji/' + item.fileName)!);
@@ -546,7 +547,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const chooseEmoji = async (item: Record<string, any>, inline = false) => {
     if (working || failed.current || !emojiTarget.current) return;
-    const target = emojiTarget.current, { id, start, end } = target, known = getNotoEmoji(item.token), controller = new AbortController();
+    const target = emojiTarget.current, { id, start, end } = target, known = getCatalogEmoji(item.token), controller = new AbortController();
     const originalText = docRef.current!.tables.bullets.find(n => n.id === id)?.text;
     const insertionEditor = editor.current;
     emojiDownload.current = controller;
@@ -554,9 +555,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     try {
       let record = docRef.current!.tables.emojis.find(e => e.token === item.token);
       if (known) {
-        if (!assetsRef.current.has('emoji/' + known.fileName) || !assetsRef.current.has(notoPosterPath(known)) || !assetsRef.current.has(NOTO_CREDIT_PATH)) {
+        if (catalogAssetPaths(known).some(path => !assetsRef.current.has(path))) {
           setWorking(true);
-          for (const [path, blob] of await downloadNotoEmoji(known, controller.signal)) added.set(path, blob);
+          for (const [path, blob] of await downloadCatalogEmoji(known, controller.signal)) added.set(path, blob);
         }
         record = { token: known.token, fileName: known.fileName, label: known.label };
       } else if (!record && item.data) {
@@ -774,6 +775,18 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }
       focus(local?.id||target,pos);
     };
+    if(action==='action:divider'){
+      const current = docRef.current!.tables.bullets as Node[], n = index(current).byId.get(id);
+      if(!n) return;
+      const at = (index(current).children.get(n.parentId) || []).findIndex((item: Node) => item.id === id);
+      const dividerId = n.text || n.codeLanguage ? crypto.randomUUID() : id, nextId = crypto.randomUUID();
+      mutate(ns => {
+        const divided = dividerId === id ? ns.map(node => node.id === id ? { ...node, blockStyle: 'divider', listType: 'NONE', taskState: 'NONE', kind: 'NOTE' } : node) : move([...ns, bullet(dividerId, { blockStyle: 'divider' })], dividerId, n.parentId, at + 1);
+        return move([...divided, bullet(nextId)], nextId, n.parentId, at + (dividerId === id ? 1 : 2));
+      });
+      commandFocus(dividerId === id ? dividerId : nextId, 0);
+      return;
+    }
     if(instance?.mirrorSourceId&&!['toggleCollapse','expandBranch','collapseBranch','zoomIn','zoomOut','stop','undo','redo','previous','next','moveUp','moveDown'].includes(action)){
       if(instance.id===mirrorRoot&&['merge','indent','outdent'].includes(action)){setNotice('Open the mirror source to change its parent or merge its root.');return;}
       const rootSplitHere=action==='enter'&&instance.id===mirrorRoot&&!(start===instance.text.length&&start===end&&!instance.collapsed&&(index(docRef.current!.tables.bullets).children.get(instance.id)||[]).length);
@@ -794,18 +807,57 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       );
       return;
     }
+    if (action.startsWith("dividerStyle:")) {
+      const style = action.slice("dividerStyle:".length);
+      mutate(ns => ns.map(n => n.id === id ? { ...n, dividerStyle: style } : n));
+      return;
+    }
+    if (action.startsWith("dividerColor:")) {
+      const color = action.slice("dividerColor:".length);
+      mutate(ns => ns.map(n => n.id === id ? { ...n, dividerColor: color } : n));
+      return;
+    }
+    if (action === "deleteDivider") {
+      const current = docRef.current!,
+        ns = current.tables.bullets as Node[],
+        rs = rows(ns, outlineScope),
+        at = rs.findIndex((r: any) => r.bullet.id === id);
+      if (at < 0) return;
+      const targetBullet = at > 0 ? rs[at - 1].bullet : rs[1]?.bullet;
+      if (targetBullet) {
+        const children = index(ns).children.get(id) || [];
+        const parentId = at > 0 ? rs[at - 1].bullet.parentId : (rs[1]?.bullet.parentId ?? null);
+        let nextNodes = ns.filter(node => node.id !== id);
+        for (const child of children) {
+          nextNodes = move(nextNodes, child.id, parentId, (index(nextNodes).children.get(parentId) || []).length);
+        }
+        commit(withNodes(current, nextNodes));
+        commandFocus(targetBullet.id, at > 0 ? targetBullet.text.length : 0);
+      } else {
+        const nextNodes = ns.map(node => node.id === id ? { ...node, blockStyle: 'paragraph', text: '', formatting: '', dividerStyle: undefined, dividerColor: undefined } : node);
+        commit(withNodes(current, nextNodes));
+        commandFocus(id, 0);
+      }
+      return;
+    }
     if (action.startsWith("block:") || action.startsWith("language:")) {
       const type = action.split(":")[1];
       if (action === "block:mcq") { setMcqEditing(id); return; }
       if (type === 'divider') {
         const current = docRef.current!.tables.bullets as Node[], n = index(current).byId.get(id);
+        if (!n) return;
         const at = (index(current).children.get(n.parentId) || []).findIndex((item: Node) => item.id === id);
-        const dividerId = n.text || n.codeLanguage ? crypto.randomUUID() : id, nextId = crypto.randomUUID();
-        mutate(ns => {
-          const divided = dividerId === id ? ns.map(node => node.id === id ? { ...node, blockStyle: 'divider', listType: 'NONE', taskState: 'NONE', kind: 'NOTE' } : node) : move([...ns, bullet(dividerId, { blockStyle: 'divider' })], dividerId, n.parentId, at + 1);
-          return move([...divided, bullet(nextId)], nextId, n.parentId, at + (dividerId === id ? 1 : 2));
-        });
-        commandFocus(nextId, 0);
+        if (!n.text && !n.codeLanguage) {
+          const nextId = crypto.randomUUID();
+          mutate(ns => {
+            const divided = ns.map(node => node.id === id ? { ...node, blockStyle: 'divider', listType: 'NONE', taskState: 'NONE', kind: 'NOTE' } : node);
+            return move([...divided, bullet(nextId)], nextId, n.parentId, at + 1);
+          });
+          commandFocus(id, 0);
+        } else {
+          mutate(ns => ns.map(node => node.id === id ? { ...node, blockStyle: 'divider', listType: 'NONE', taskState: 'NONE', kind: 'NOTE' } : node));
+          commandFocus(id, n.text.length);
+        }
         return;
       }
       mutate(ns => ns.map(n => {
@@ -922,8 +974,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (action === "merge") {
       try {
         const current = docRef.current!,
-          ns = current.tables.bullets as Node[],
-          result = merge(ns, id, outlineScope);
+          ns = current.tables.bullets as Node[];
+        const targetBullet = ns.find(n => n.id === id);
+        if (targetBullet?.blockStyle === 'divider' && !targetBullet.text.trim()) {
+          command('deleteDivider', id, start, end);
+          return;
+        }
+        const result = merge(ns, id, outlineScope);
         if (result) {
           const withMedia = {
             ...current,
@@ -1489,7 +1546,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <ConnectionPanel id={pane.scope||(views.activePane===pane.id?editing:null)}/>
             </section>{i<views.panes.length-1&&<PaneDivider onResize={delta=>views.resize(pane.id,views.panes[i+1].id,delta)}/>}</React.Fragment>)}
             </div>
-            {selected&&<SelectionFormatting editor={activeEditor} disabled={disabled||unsupportedFormatting(selected)} blockStyle={selected.blockStyle||'paragraph'} onBlock={type=>command('block:'+type,selected.id,0,0)}/>}
+            {selected&&<SelectionFormatting editor={activeEditor} disabled={disabled||unsupportedFormatting(selected)} blockStyle={selected.blockStyle||'paragraph'} onBlock={type=>command('block:'+type,selected.id,0,0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style=>command('dividerStyle:'+style,selected.id,0,0)} onDividerColor={color=>command('dividerColor:'+color,selected.id,0,0)}/>}
           </>
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
@@ -1565,10 +1622,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             onDeleteNodes={removeMultiple}
             setNotice={setNotice}
           />
-          {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} />}
+          {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style => command('dividerStyle:' + style, selected.id, 0, 0)} onDividerColor={color => command('dividerColor:' + color, selected.id, 0, 0)} />}
           </>
         )}
-        {selected && tab!=="study" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
+        {selected && tab!=="study" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
         <nav className="mobile-nav" aria-label="Mobile navigation">
           {[
             ["notes", "Notes", "notes"],
@@ -1616,8 +1673,25 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <button disabled={disabled} onClick={() => { command("complete", menuNode.id, 0, 0); setMenu(null); }}><Icon name="check" size={16} /><span>{menuNode.taskState === "DONE" ? "Uncomplete" : "Complete"}</span><kbd>Ctrl ↵</kbd></button>
             <button disabled={disabled} onClick={() => { toggleStar(menuNode.id); setMenu(null); }}><Icon name="star" size={16} /><span>{starred.includes(menuNode.id) ? "Unstar" : "Star"}</span></button>
             {(idx.children.get(menuNode.id) || []).length > 0 && <button disabled={disabled} onClick={() => { command("toggleCollapse", menuNode.id, 0, 0); setMenu(null); }}><Icon name={menuNode.collapsed ? "expand" : "collapse"} size={16} /><span>{menuNode.collapsed ? "Expand" : "Collapse"}</span><kbd>Ctrl Space</kbd></button>}
-</div><details className="bullet-action-section"><summary><Icon name="notes" size={16}/><span>Format & type</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <label className="field-label">Text style<select aria-label="Bullet text style" disabled={disabled} value={['h1','h2','h3','quote','divider'].includes(menuNode.blockStyle) ? menuNode.blockStyle : 'paragraph'} onChange={event => command('block:' + event.target.value, menuNode.id, 0, 0)}><option value="paragraph">Paragraph</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option><option value="quote">Quote</option><option value="divider" disabled>Divider</option></select></label>
-            <button disabled={disabled} onClick={() => { command('block:divider', menuNode.id, 0, 0); setMenu(null); }}><Icon name="divider" size={16}/><span>Insert horizontal divider</span></button>
+</div><details className="bullet-action-section"><summary><Icon name="format" size={16}/><span>Format & type</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <label className="field-label">Text style<select aria-label="Bullet text style" disabled={disabled} value={['h1','h2','h3','quote','divider'].includes(menuNode.blockStyle) ? menuNode.blockStyle : 'paragraph'} onChange={event => command('block:' + event.target.value, menuNode.id, 0, 0)}><option value="paragraph">Paragraph</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option><option value="quote">Quote</option><option value="divider">Divider</option></select></label>
+            {menuNode.blockStyle === 'divider' && (
+              <>
+                <label className="field-label">Divider line style
+                  <select aria-label="Divider line style" disabled={disabled} value={menuNode.dividerStyle || 'straight'} onChange={e => { mutate(ns => ns.map(n => n.id === menuNode.id ? { ...n, dividerStyle: e.target.value } : n)); }}>
+                    <option value="straight">Straight line</option>
+                    <option value="squiggly">Squiggly line</option>
+                    <option value="dotted">Dotted line</option>
+                  </select>
+                </label>
+                <label className="field-label">Divider color
+                  <select aria-label="Divider color" disabled={disabled} value={menuNode.dividerColor || ''} onChange={e => { mutate(ns => ns.map(n => n.id === menuNode.id ? { ...n, dividerColor: e.target.value } : n)); }}>
+                    <option value="">Default color</option>
+                    {textColors.map(([name, hex]) => <option key={hex} value={'#' + hex}>{name}</option>)}
+                  </select>
+                </label>
+              </>
+            )}
+            <button disabled={disabled} onClick={() => { command('action:divider', menuNode.id, 0, 0); setMenu(null); }}><Icon name="divider" size={16}/><span>Insert horizontal divider</span></button>
             <button disabled={disabled} onClick={() => { command("block:code", menuNode.id, 0, 0); focus(menuNode.id); setMenu(null); }}><Icon name="code" size={16}/><span>Turn into code block</span><kbd>Ctrl Alt C</kbd></button>
             <button disabled={disabled} onClick={() => { mutate(ns => ns.map(node => node.id === menuNode.id ? { ...node, taskState: node.taskState === "NONE" ? "TODO" : "NONE", dueDate: "" } : node)); setMenu(null); }}><Icon name="check" size={16} /><span>{menuNode.taskState === "NONE" ? "Turn into task" : "Remove task checkbox"}</span></button>
             <button disabled={disabled} onClick={() => { mutate(ns => ns.map(node => node.id === menuNode.id ? { ...node, kind: node.kind === "QUESTION" ? "NOTE" : "QUESTION" } : node)); setMenu(null); setNotice(menuNode.kind === "QUESTION" ? "Question unmarked" : "Question marked. Its children are the answer."); }}><Icon name="study" size={16} /><span>{menuNode.kind === "QUESTION" ? "Remove question mark" : "Turn into question"}</span></button>
@@ -1661,18 +1735,18 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <option value="ANSWER">Answer</option>
             </select>
           </label>
-</div></details><details className="bullet-action-section"><summary><Icon name="plus" size={16}/><span>Insert</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content"><button disabled={disabled} onClick={()=>command('action:music',menuNode.id,0,0)}><Icon name="music" size={16}/><span>{doc.web.musicNodes?.[menuNode.id]?"Turn off music gallery":"Music gallery"}</span></button><button disabled={disabled} onClick={()=>command('action:gallery',menuNode.id,0,0)}><Icon name="image" size={16}/><span>{doc.web.galleryNodes?.[menuNode.id]?"Turn off gallery":"Show as gallery"}</span></button><button disabled={disabled} onClick={()=>command('action:table',menuNode.id,0,0)}><Icon name="notes" size={16}/><span>Insert table</span></button>            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => insertNotation(menuNode.id, false)}><span aria-hidden="true">∑</span><span>Insert LaTeX equation</span></button>
-            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => insertNotation(menuNode.id, true)}><span aria-hidden="true">◇</span><span>Insert Mermaid diagram</span></button>
+</div></details><details className="bullet-action-section"><summary><Icon name="insert" size={16}/><span>Insert</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content"><button disabled={disabled} onClick={()=>command('action:music',menuNode.id,0,0)}><Icon name="music" size={16}/><span>{doc.web.musicNodes?.[menuNode.id]?"Turn off music gallery":"Music gallery"}</span></button><button disabled={disabled} onClick={()=>command('action:gallery',menuNode.id,0,0)}><Icon name="image" size={16}/><span>{doc.web.galleryNodes?.[menuNode.id]?"Turn off gallery":"Show as gallery"}</span></button><button disabled={disabled} onClick={()=>command('action:table',menuNode.id,0,0)}><Icon name="table" size={16}/><span>Insert table</span></button>            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => insertNotation(menuNode.id, false)}><Icon name="equation" size={16}/><span>Insert LaTeX equation</span></button>
+            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => insertNotation(menuNode.id, true)}><Icon name="diagram" size={16}/><span>Insert Mermaid diagram</span></button>
             <button disabled={disabled} onClick={() => { mediaTarget.current = menuNode.id; imageInput.current?.click(); }}><Icon name="image" size={16} /><span>Add images…</span></button>
             <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => openEmojiPicker(menuNode.id)}><Icon name="emoji" size={16} /><span>Insert animated emoji…</span></button>
             <button disabled={disabled} onClick={() => { mediaTarget.current = menuNode.id; setEmbedValue(""); setMenu(null); setDialog("embed"); }}><Icon name="play" size={16} /><span>Insert media link…</span></button>
-</div></details><details className="bullet-action-section"><summary><Icon name="link" size={16}/><span>Connections</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <button disabled={disabled} onClick={()=>command('relation:link',menuNode.id,menuNode.text.length,menuNode.text.length)}><Icon name="link" size={16}/><span>Link to a bullet…</span><kbd>[[</kbd></button>
-            <button disabled={disabled} onClick={()=>command('relation:mirror',menuNode.id,menuNode.text.length,menuNode.text.length)}><Icon name="copy" size={16}/><span>Mirror a bullet here…</span><kbd>((</kbd></button>
-            <button onClick={()=>command('relation:backlinks',menuNode.id,0,0)}><Icon name="link" size={16}/><span>Backlinks & mirrors…</span></button>
-            {menuNode.mirrorSourceId&&<button onClick={()=>{navigateTo(menuNode.mirrorSourceId);setMenu(null);}}><Icon name="link" size={16}/><span>Open mirror source</span></button>}
-            {menuNode.mirrorSourceId&&<button disabled={disabled} onClick={()=>{mutate(ns=>detachMirror(ns,menuNode.id));setMenu(null);setNotice('Mirror detached. This branch is now independent.');}}><Icon name="copy" size={16}/><span>Detach mirror</span></button>}
+</div></details><details className="bullet-action-section"><summary><Icon name="connections" size={16}/><span>Connections</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <button disabled={disabled} onClick={()=>command('relation:link',menuNode.id,menuNode.text.length,menuNode.text.length)}><Icon name="link" size={16}/><span>Link to a bullet…</span><kbd>[[</kbd></button>
+            <button disabled={disabled} onClick={()=>command('relation:mirror',menuNode.id,menuNode.text.length,menuNode.text.length)}><Icon name="mirror" size={16}/><span>Mirror a bullet here…</span><kbd>((</kbd></button>
+            <button onClick={()=>command('relation:backlinks',menuNode.id,0,0)}><Icon name="backlinks" size={16}/><span>Backlinks & mirrors…</span></button>
+            {menuNode.mirrorSourceId&&<button onClick={()=>{navigateTo(menuNode.mirrorSourceId);setMenu(null);}}><Icon name="mirror" size={16}/><span>Open mirror source</span></button>}
+            {menuNode.mirrorSourceId&&<button disabled={disabled} onClick={()=>{mutate(ns=>detachMirror(ns,menuNode.id));setMenu(null);setNotice('Mirror detached. This branch is now independent.');}}><Icon name="mirror" size={16}/><span>Detach mirror</span></button>}
 
-</div></details><details className="bullet-action-section"><summary><Icon name="indent" size={16}/><span>Organize branch</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">
+</div></details><details className="bullet-action-section"><summary><Icon name="organize" size={16}/><span>Organize branch</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">
           <div className="action-grid">
             {(idx.children.get(menuNode.id) || []).length > 0 && <>
               <button disabled={disabled} onClick={() => { command("expandBranch", menuNode.id, 0, 0); setMenu(null); }}><Icon name="expand" size={16} />Expand entire branch</button>
@@ -1709,7 +1783,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               Outdent
             </button>
           </div>
-</div></details><details className="bullet-action-section"><summary><Icon name="study" size={16}/><span>Study</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <button disabled={disabled} onClick={() => { setMcqEditing(menuNode.id); setMenu(null); }}><span aria-hidden="true">Ⓐ</span><span>{doc.web.mcqs?.[menuNode.id] ? "Edit MCQ…" : "Turn into MCQ…"}</span></button>
+</div></details>{menuNode.blockStyle !== 'divider' && <details className="bullet-action-section"><summary><Icon name="learn" size={16}/><span>Study</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <button disabled={disabled} onClick={() => { setMcqEditing(menuNode.id); setMenu(null); }}><span aria-hidden="true">Ⓐ</span><span>{doc.web.mcqs?.[menuNode.id] ? "Edit MCQ…" : "Turn into MCQ…"}</span></button>
           <button
             className="wide action"
             disabled={disabled}
@@ -1751,7 +1825,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             commit({ ...current, web: { ...current.web, mcqs, deckTypes } }); setMenu(null);
           }}>Convert MCQ to regular flashcard</button>}
           <p className="deck-preview">{generatedCards(nodes, [{ rootId: menuNode.id }], doc.tables.media).length} cards · nested question/answer pairs are included. A single pair uses this bullet as the question.</p>
-</div></details></BulletMenuBody><div className="bullet-menu-danger">          <button
+</div></details>}</BulletMenuBody><div className="bullet-menu-danger">          <button
             className="wide danger action"
             disabled={disabled}
             onClick={() => remove(menuNode.id)}

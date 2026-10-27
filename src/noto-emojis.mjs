@@ -70,7 +70,7 @@ export function prepareNotoPoster(bytes) {
   for (const [name, value] of entities) text = text.replaceAll(`&${name};`, value);
   return validateNotoPoster(new TextEncoder().encode(text));
 }
-async function resource(url, signal, maximum) {
+export async function resource(url, signal, maximum) {
   const response = await fetch(url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer', mode: 'cors' });
   if (!response.ok) throw Error(`Emoji download failed (${response.status}). Try again when online.`);
   if (Number(response.headers.get('content-length')) > maximum) throw Error('Emoji download exceeds its size limit.');
