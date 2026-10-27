@@ -67,5 +67,35 @@
  .outline-row .row-hover-more { display:none; }
  /* Reserve horizontal space only: actions must not increase measured row height. */
  .outline-row .row-end { display:flex; position:relative; opacity:1; flex:0 0 44px; width:44px; min-height:0; margin:0; align-self:stretch; }
- .outline-row .row-end > .icon-button[aria-label="Bullet actions"] { position:absolute; inset:0; display:inline-flex; align-items:center; justify-content:center; width:44px; min-width:44px; height:100%; min-height:0; padding:0; color:var(--muted); }
+ .outline-row .row-end > .icon-button[aria-label="Bullet actions"] { position:absolute; inset:0; display:inline-flex; visibility:hidden; pointer-events:none; align-items:center; justify-content:center; width:44px; min-width:44px; height:100%; min-height:0; padding:0; color:var(--muted); }
+ .outline-row.selected .row-end > .icon-button[aria-label="Bullet actions"] { visibility:visible; pointer-events:auto; }
+}
+
+.topbar-reminders { display:contents; }
+.reminders-toggle { display:none; }
+.search-trigger { display:inline-flex; flex-shrink:0; align-items:center; justify-content:center; border:0; background:transparent; color:var(--muted); padding:0; border-radius:6px; }
+.search-close { display:none; }
+.topbar-search { transition:background-color .15s,border-color .15s; }
+.topbar-search input { min-width:0; }
+@media(max-width:760px) {
+ .topbar { position:relative; }
+ .topbar .reminders-toggle { display:inline-flex; }
+ .topbar .reminders-toggle[aria-expanded=true] { color:var(--accent); }
+ .topbar-reminders { display:flex; order:5; flex:0 0 100%; min-width:0; }
+ .topbar-reminders[data-visible=false] { display:none; }
+ .topbar .topbar-reminders .reminder-tabs { flex:1; }
+ .topbar-reminders .reminder-empty-tab span { display:inline; }
+ .topbar:has(.topbar-reminders) { flex-wrap:wrap; height:auto; min-height:50px; padding-top:4px; padding-bottom:4px; }
+ .topbar .topbar-right { margin-left:auto; }
+ .topbar .topbar-right .topbar-search { position:static; flex:none; width:38px; height:38px; padding:0; gap:0; border:0; border-radius:8px; background:transparent; transition:none; }
+ .topbar .search-trigger { width:38px; height:38px; }
+ .topbar .search-box.has-query .search-trigger { color:var(--accent); background:var(--soft); }
+ .topbar .search-box input,.topbar .search-box .topbar-search-clear { display:none; }
+ .topbar .topbar-right .search-box.is-open { position:absolute; left:8px; right:8px; top:4px; width:auto; height:42px; padding:0 6px; gap:6px; border:1px solid var(--line); background:var(--panel); z-index:60; }
+ .topbar .search-box.is-open input { display:block; flex:1; width:100%; opacity:1; font-size:16px; }
+ .topbar .search-box.is-open .topbar-search-clear { display:inline-flex; min-width:32px!important; min-height:36px!important; }
+ .topbar .search-box.is-open .search-close { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:36px; height:36px; border:0; background:transparent; padding:0; }
+ .topbar .search-options { width:100%; max-width:none; left:0; right:0; border-radius:10px; }
+ .pane-header .search-box { position:relative; padding:4px 8px; }
+ .pane-header .search-box input { width:100%; opacity:1; }
 }
