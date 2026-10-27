@@ -317,6 +317,8 @@ kbd { font: 11px inherit; color: var(--muted); white-space: nowrap; }
 .outline-row .triangle-toggle,.outline-row .row-hover-more { height:var(--row-first-line); margin-top:2px; }
 .outline-row input[type="checkbox"] { width:var(--row-text-size); height:var(--row-text-size); margin-top:calc((var(--row-first-line) - var(--row-text-size)) / 2 + 2px); }
 .outline-row .list-marker { font-size:var(--row-text-size); line-height:1.35; }
+.outline-row .bullet-dot-btn.is-numbered { width:auto; min-width:1.3em; font-size:var(--row-text-size); color:var(--text); border-radius:4px; }
+.outline-row .bullet-dot-btn .list-marker { color:inherit; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .outline-popover.bullet-actions-menu { width: 292px; padding: 0; border-radius: 13px; overflow: hidden; box-shadow: 0 10px 38px #0002, 0 2px 8px #0001; }
 .bullet-actions-menu .popover-heading { padding: 9px 10px 6px 14px; font-size: 11px; }
 .bullet-menu-body { max-height: min(520px, calc(100dvh - 120px)); overflow-y: auto; overscroll-behavior: contain; padding: 0 6px 6px; }
