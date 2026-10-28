@@ -423,7 +423,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     const source=sourceId(docRef.current!.tables.bullets,id);
     const node=docRef.current!.tables.bullets.find(n=>n.id===source);
     researchOrigin.current=menuAnchor.current;setMenu(null);setEditing(null);
-    if(!research.state.drafts[source]){
+    if(!Object.hasOwn(research.state.drafts,source)){
       try{await research.put({id:source,query:node?.text||'',answer:'',updatedAt:Date.now()},source);}catch{/* The live draft remains available for copying. */}
     }
     setResearchTarget(source);
@@ -452,7 +452,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       await research.put(null,draft.id);
       setResearchTarget(null);setTab('notes');setSearch('');
       // Open the source branch so the new answer is visible even from a mirror or a filtered view.
-      if(!rows(docRef.current!.tables.bullets,scope,true).some((r:any)=>r.bullet.id===draft.id))setScope(parent.parentId);
+      if(scope!==draft.id&&!rows(docRef.current!.tables.bullets.map(n=>({...n,collapsed:views.active.collapsed[n.id]??n.collapsed})),scope).some((r:any)=>r.bullet.id===draft.id))setScope(parent.parentId);
       views.update(views.active.id,{collapsed:{...views.active.collapsed,[draft.id]:false}});focus(id!,0);setNotice('Answer added. You can undo this insertion.');
     }finally{researchBusy.current=false;}
   };
@@ -1749,7 +1749,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {menuNode && (
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
-            <button disabled={!research.state} onClick={()=>void openResearch(menuNode.id)}><Icon name="search" size={16}/><span>{research.state?.drafts[sourceId(nodes,menuNode.id)]?'Resume research…':'Research answer…'}</span></button>
+            <button disabled={!research.state} onClick={()=>void openResearch(menuNode.id)}><Icon name="search" size={16}/><span>{research.state&&Object.hasOwn(research.state.drafts,sourceId(nodes,menuNode.id))?'Resume research…':'Research answer…'}</span></button>
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
             <button disabled={disabled} onClick={()=>command('action:date',menuNode.id,0,0)}><Icon name="calendar" size={16}/><span>Add date…</span></button>
             <button disabled={disabled} onClick={() => { command("complete", menuNode.id, 0, 0); setMenu(null); }}><Icon name="check" size={16} /><span>{menuNode.taskState === "DONE" ? "Uncomplete" : "Complete"}</span><kbd>Ctrl ↵</kbd></button>
