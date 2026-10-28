@@ -243,6 +243,7 @@ export async function save(
       if(adoptSyncState&&syncMeta?.receivedState!==adoptSyncState){
         tx.abort();await finished.catch(()=>{});throw Object.assign(Error('A newer sync update is ready.'),{deferred:true});
       }
+      if(operation==='restore'||operation==='copy device notes')meta.put({generation:uuid(),drafts:{}},'research-drafts');
       const next = { ...after, revision: (before?.revision ?? 0) + 1 };
       if(syncMeta){
         if(adoptSyncState){syncMeta.localState=adoptSyncState;syncMeta.mappedDoc=cloudDocument(next);const shared=openShared(adoptSyncState);try{syncMeta.assets=project(shared).assets;}finally{shared.destroy();}}
@@ -704,5 +705,19 @@ export async function syncMetadata(change?:(value:any)=>any,expectedRevision?:nu
   let value=await request<any>(store.get('sync-v2'));
   if(change){value=change(value||null);store.put(value,'sync-v2');}
   await finished;return value||null;
+ }finally{db.close();}
+}
+
+// Device-local research is deliberately outside workspace records and exports.
+export type ResearchDraft={id:string;query:string;answer:string;updatedAt:number;insertedId?:string};
+export type ResearchState={generation:string;drafts:Record<string,ResearchDraft>};
+export async function researchStore(change?: (value:ResearchState)=>ResearchState, expectedGeneration?:string, name=storageName):Promise<ResearchState>{
+ const db=await openDb(name);try{
+  const tx=db.transaction('meta','readwrite'),finished=done(tx),store=tx.objectStore('meta');
+  let value=await request<ResearchState|undefined>(store.get('research-drafts'));
+  value=value||{generation:uuid(),drafts:{}};
+  if(expectedGeneration&&value.generation!==expectedGeneration){tx.abort();await finished.catch(()=>{});throw Error('The workspace changed. Reopen research to continue.');}
+  if(change)value=change(value);
+  store.put(value,'research-drafts');await finished;return value;
  }finally{db.close();}
 }

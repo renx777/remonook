@@ -30,7 +30,7 @@ jobs:
       - name: Run targeted staging regression checks
         run: |
           node scripts/prepare-tests.mjs
-          node --test --test-concurrency=2 tests/divider-app.test.mjs tests/outline-selection.test.mjs tests/editor-emoji-runtime.test.mjs tests/fluent.test.mjs tests/fluent-app.test.mjs tests/fluent-render.test.mjs tests/rough-annotations.test.mjs tests/rough-annotations-runtime.test.mjs tests/study-bullet-reveal-app.test.mjs tests/study-edit-app.test.mjs tests/study-library-app.test.mjs tests/dashboard.test.mjs tests/dashboard-app.test.mjs tests/environment.test.mjs tests/production.test.mjs tests/seo.test.mjs
+          node --test --test-concurrency=2 tests/divider-app.test.mjs tests/outline-selection.test.mjs tests/editor-emoji-runtime.test.mjs tests/fluent.test.mjs tests/fluent-app.test.mjs tests/fluent-render.test.mjs tests/rough-annotations.test.mjs tests/rough-annotations-runtime.test.mjs tests/study-bullet-reveal-app.test.mjs tests/study-edit-app.test.mjs tests/study-library-app.test.mjs tests/dashboard.test.mjs tests/dashboard-app.test.mjs tests/research-app.test.mjs tests/environment.test.mjs tests/production.test.mjs tests/seo.test.mjs
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
