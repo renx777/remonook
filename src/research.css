@@ -16,3 +16,12 @@
 @media(max-width:650px){.research-panel{width:100%;height:var(--research-height,100dvh);top:var(--research-top,0px);bottom:auto;z-index:110}.research-panel header{padding:16px}.research-body{padding:16px}.research-panel input,.research-panel textarea{font-size:16px}.research-panel h2{font-size:21px}.research-panel header button{min-width:44px;min-height:44px}.research-panel textarea{min-height:180px}.research-panel footer{padding-inline:16px}}
 
 .research-search svg{display:inline-block;vertical-align:middle;transform:rotate(-45deg);margin-left:4px}
+
+/* Keep the question and fetched excerpts together in a compact research view. */
+.research-panel h2{font-family:inherit;font-size:21px;font-weight:500;line-height:1.25;letter-spacing:-.3px}
+.research-panel header{padding:16px 20px}.research-destination{margin-bottom:16px}
+.research-panel textarea{min-height:140px}.research-search{width:100%;background:var(--soft);font:inherit;font-size:13px;cursor:pointer;margin:10px 0 18px;min-height:44px}
+.research-results{margin-bottom:22px}.research-results-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.research-results-heading h3{font-size:14px;font-weight:600;margin:0}.research-results-heading small{font-size:10px;color:var(--muted)}
+.research-result{border:1px solid var(--line);border-radius:8px;padding:14px;margin:12px 0;background:var(--bg)}.research-result-source{font-size:11px;color:var(--muted);text-decoration:none;overflow-wrap:anywhere}.research-result h4{font-size:14px;line-height:1.4;margin:7px 0;font-weight:600}.research-result-text{font-size:14px;line-height:1.65;margin:8px 0;white-space:pre-line;overflow-wrap:anywhere;user-select:text}.research-result button{font-size:12px;background:var(--soft);color:var(--accent);border:1px solid var(--line);border-radius:5px;min-height:44px;padding:9px 12px}.research-search-status{color:var(--muted);font-size:13px;min-height:48px}.research-error button{min-height:44px;color:var(--accent);background:transparent;border:0}
+
+.research-result-source svg{display:inline-block;vertical-align:middle;transform:rotate(-45deg)}

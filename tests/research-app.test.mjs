@@ -12,6 +12,9 @@ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost/#app',pretend
 for(const key of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Node','Element','DOMParser','MutationObserver','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key],configurable:true});
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 globalThis.ResizeObserver=undefined;
+const realFetch=globalThis.fetch,requests=[];
+const result={title:'Types of machine learning',text:'Supervised, unsupervised and reinforcement learning are common categories.',url:'https://example.com/learning',source:'example.com'};
+globalThis.fetch=async(url,options)=>{if(url==='/api/research/search'){requests.push({url,...options});return Response.json({results:[result],provider:'Bing'});}return realFetch(url,options);};
 const realInterval=globalThis.setInterval;globalThis.setInterval=(fn,delay,...args)=>realInterval(fn,delay===1000?3600000:delay,...args);
 globalThis.requestAnimationFrame=window.requestAnimationFrame.bind(window);globalThis.cancelAnimationFrame=window.cancelAnimationFrame.bind(window);
 window.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});
@@ -40,11 +43,14 @@ test('research drafts recover locally, append once, support clipboard fallback, 
   await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('.outline-scroll'));
   await action();await click(researchButton());await wait(()=>document.querySelector("#research-answer"));await wait(()=>document.querySelector('.research-panel'));
   assert.equal(document.querySelector('.research-panel input').value,'What are the types of machine learning?');
+  await wait(()=>document.querySelector('.research-result'));assert.ok(requests.length>0,'opening Research fetches results automatically');
+  await click(textButton('.research-result button','Use as answer'));assert.equal(document.querySelector('#research-answer').value,result.text);
   await input('.research-panel input','machine learning categories');
+  await click('.research-search');await wait(()=>document.querySelector('.research-result'));assert.equal(JSON.parse(requests.at(-1).body).query,'machine learning categories');
   await input('#research-answer','Supervised learning\nUnsupervised learning\nReinforcement learning');
   await wait(()=>!!document.querySelector('.research-search'));
-  assert.match(document.querySelector('.research-search').href,/q=machine%20learning%20categories/);
-  assert.equal(document.querySelector('.research-search').target,'_blank');
+  assert.equal(document.querySelector('.research-search').tagName,'BUTTON','search stays inside the app');
+  assert.equal(document.querySelector('.research-result-source').href,result.url);
   await click(textButton('.research-panel button','Paste from clipboard'));
   assert.match(document.querySelector('.research-message').textContent,/normal|keyboard|touch/);
   assert.equal(document.activeElement.id,'research-answer');
@@ -69,7 +75,7 @@ test('research drafts recover locally, append once, support clipboard fallback, 
   assert.equal((await load()).tables.bullets.filter(n=>n.parentId==='q').length,1,'failed save leaves durable notes unchanged');
   await click(textButton('button','Retry saving'));await stored();await click(textButton('.research-panel button','Finish saving'));await wait(()=>!document.querySelector('.research-panel'));
   assert.equal((await load()).tables.bullets.filter(n=>n.parentId==='q').length,2,'retry saves the existing insertion once');
- }finally{if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
+ }finally{globalThis.fetch=realFetch;if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
 });
 
 test('draft database isolates accounts, survives reload, and rotates on restore without entering exports',async()=>{

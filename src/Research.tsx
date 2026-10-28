@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {researchStore,type ResearchDraft,type ResearchState,type Node} from './data';
+import {ResearchResults} from './ResearchResults';
 import {Icon} from './icons';
 import './research.css';
 
@@ -35,16 +36,16 @@ export function ResearchPanel(p:Props){
  const insert=async()=>{if(busy.current||!p.draft)return;busy.current=true;setSaving(true);setMessage('');try{await p.onInsert(p.draft);}catch(e){setMessage((e as Error).message);}finally{busy.current=false;setSaving(false);}};
  const edit=(patch:Partial<ResearchDraft>)=>{if(p.draft)p.onEdit({...p.draft,...patch,updatedAt:Date.now()});};
  return <aside ref={root} className="research-panel" aria-label="Research answer" role={mobile?'dialog':undefined} aria-modal={mobile||undefined} tabIndex={-1} onKeyDown={e=>{if(mobile&&e.key==='Tab'){const controls=[...e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input,textarea')];const first=controls[0],last=controls.at(-1);if(e.shiftKey&&(document.activeElement===first||document.activeElement===root.current)){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}if(e.key==='Escape'){e.stopPropagation();p.onClose();}}}>
-  <header><div><small>RESEARCH</small><h2>{p.draft?'A little room to find an answer':'Research drafts'}</h2></div><button className="icon-button" aria-label="Close research" onClick={p.onClose}><Icon name="close"/></button></header>
+  <header><div><small>RESEARCH</small><h2>{p.draft?'Research answer':'Research drafts'}</h2></div><button className="icon-button" aria-label="Close research" onClick={p.onClose}><Icon name="close"/></button></header>
   <div className="research-body">
    {p.error&&<p role="alert" className="research-error">{p.error}</p>}
    {p.draft?<>
     <div className="research-destination"><small>Answer under</small><strong>{node?.text||p.draft.query||'Untitled bullet'}</strong>{!node&&<p>This bullet is no longer available. Your draft is still here to copy.</p>}</div>
-    <label className="field-label">Search query<input value={p.draft.query} maxLength={2000} onChange={e=>edit({query:e.target.value})}/></label>
-    <a className="research-search" href={'https://www.google.com/search?q='+encodeURIComponent(p.draft.query)} target="_blank" rel="noopener noreferrer" aria-label="Search Google (opens in a new tab)" aria-disabled={!p.draft.query.trim()} onClick={e=>{if(!p.draft?.query.trim()){e.preventDefault();return;}setMessage('Copy useful text from Google, then paste and review it here.');}}>Search Google <Icon name="forward" size={13}/></a>
-    <div className="research-answer-heading"><label htmlFor="research-answer">Answer draft</label><button onClick={()=>void paste()} disabled={alreadyInserted||saving}>Paste from clipboard</button></div>
-    <textarea ref={answer} id="research-answer" value={p.draft.answer} readOnly={alreadyInserted||saving} placeholder="Paste what you find, then make it your own…" onChange={e=>edit({answer:e.target.value})}/>
-    <p className="research-hint">Your draft stays on this device when you switch tabs or close this panel.</p>
+    <label className="field-label">Search query<input value={p.draft.query} maxLength={1000} onChange={e=>edit({query:e.target.value})}/></label>
+    <ResearchResults key={p.draft.id} id={p.draft.id} query={p.draft.query} disabled={alreadyInserted||saving} onUse={text=>{const existing=p.draft!.answer;edit({answer:existing.trim()?existing+'\n\n'+text:text});setMessage('Excerpt added. Review it below, then choose Add answer.');requestAnimationFrame(()=>answer.current?.scrollIntoView?.({block:'nearest',behavior:'smooth'}));}}/>
+    <div className="research-answer-heading"><label htmlFor="research-answer">Answer to add</label><button onClick={()=>void paste()} disabled={alreadyInserted||saving}>Paste from clipboard</button></div>
+    <textarea ref={answer} id="research-answer" value={p.draft.answer} readOnly={alreadyInserted||saving} placeholder="Choose a result above, then edit your answer here…" onChange={e=>edit({answer:e.target.value})}/>
+    <p className="research-hint">Your answer draft is saved on this device until you add or discard it.</p>
     {alreadyInserted&&<p role="status">This answer has already been added. Your draft is kept until saving succeeds.</p>}
     <button className="research-discard" disabled={saving} onClick={()=>void p.onDiscard().catch(()=>setMessage('Could not discard this draft. Try again.'))}>Discard draft</button>
     {p.drafts.length>1&&<button className="research-drafts-link" onClick={()=>p.onChoose('')}>All research drafts ({p.drafts.length})</button>}
