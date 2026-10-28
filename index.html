@@ -5,19 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#fafaf8">
   <title>RemoNook | Nested Notes, Flashcards & Spaced Repetition</title>
-  <meta name="description" content="Organize ideas in nested notes, turn outlines into flashcards, and remember more with spaced repetition. RemoNook is a calm workspace for thinking and learning.">
+  <meta name="description" content="RemoNook is an independent, outline-first note-taking and flashcard application with nested notes, knowledge organization, and spaced repetition learning.">
   <link rel="canonical" href="https://remonook.com/">
 
   <meta property="og:site_name" content="RemoNook">
   <meta property="og:type" content="website">
   <meta property="og:title" content="RemoNook | Nested Notes & Flashcards">
-  <meta property="og:description" content="Organize ideas in nested notes, turn outlines into flashcards, and remember more with spaced repetition. RemoNook is a calm workspace for thinking and learning.">
+  <meta property="og:description" content="RemoNook is an independent, outline-first note-taking and flashcard application with nested notes, knowledge organization, and spaced repetition learning.">
   <meta property="og:url" content="https://remonook.com/">
   <meta property="og:image" content="https://remonook.com/brand/icon-512.png">
   <meta property="og:image:alt" content="RemoNook elephant app icon">
   <meta name="twitter:card" content="summary">
+  <meta name="twitter:site" content="@RemoNookhq">
   <meta name="twitter:title" content="RemoNook | Nested Notes & Flashcards">
-  <meta name="twitter:description" content="Organize ideas in nested notes, turn outlines into flashcards, and remember more with spaced repetition. RemoNook is a calm workspace for thinking and learning.">
+  <meta name="twitter:description" content="RemoNook is an independent, outline-first note-taking and flashcard application with nested notes, knowledge organization, and spaced repetition learning.">
   <meta name="twitter:image" content="https://remonook.com/brand/icon-512.png">
 
   <link rel="manifest" href="/manifest.webmanifest">
@@ -29,42 +30,48 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png">
 
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Organization",
-        "@id": "https://remonook.com/#organization",
-        "name": "RemoNook",
-        "url": "https://remonook.com/",
-        "logo": "https://remonook.com/brand/icon-512.png",
-        "sameAs": [
-          "https://www.instagram.com/remonook.hq/",
-          "https://x.com/RemoNookhq",
-          "https://www.youtube.com/@RemoNook"
-        ]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://remonook.com/#website",
-        "name": "RemoNook",
-        "url": "https://remonook.com/",
-        "description": "Organize ideas in nested notes, turn outlines into flashcards, and remember more with spaced repetition. RemoNook is a calm workspace for thinking and learning.",
-        "inLanguage": "en",
-        "publisher": {"@id": "https://remonook.com/#organization"}
-      },
-      {
-        "@type": "WebApplication",
-        "@id": "https://remonook.com/#app",
-        "name": "RemoNook",
-        "url": "https://remonook.com/",
-        "applicationCategory": "ProductivityApplication",
-        "operatingSystem": "Web",
-        "description": "Organize ideas in nested notes, turn outlines into flashcards, and remember more with spaced repetition. RemoNook is a calm workspace for thinking and learning.",
-        "publisher": {"@id": "https://remonook.com/#organization"}
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://remonook.com/#organization",
+      "name": "RemoNook",
+      "url": "https://remonook.com/",
+      "description": "RemoNook is an independent, outline-first note-taking and flashcard application with nested notes, knowledge organization, and spaced repetition learning.",
+      "logo": "https://remonook.com/brand/icon-512.png",
+      "sameAs": [
+        "https://x.com/RemoNookhq",
+        "https://www.youtube.com/@RemoNook",
+        "https://www.instagram.com/remonook.hq/"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://remonook.com/#website",
+      "name": "RemoNook",
+      "url": "https://remonook.com/",
+      "description": "RemoNook is an independent, outline-first note-taking and flashcard application with nested notes, knowledge organization, and spaced repetition learning.",
+      "inLanguage": "en",
+      "publisher": {
+        "@id": "https://remonook.com/#organization"
       }
-    ]
-  }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://remonook.com/#app",
+      "name": "RemoNook",
+      "url": "https://remonook.com/",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web",
+      "description": "RemoNook is an independent, outline-first note-taking and flashcard application with nested notes, knowledge organization, and spaced repetition learning.",
+      "image": "https://remonook.com/brand/icon-512.png",
+      "publisher": {
+        "@id": "https://remonook.com/#organization"
+      }
+    }
+  ]
+}
   </script>
   <script>
     (function () {
@@ -139,6 +146,7 @@
 </head>
 <body>
   <div id="root"></div>
+  <noscript><p class="public-noscript">JavaScript is needed to edit notes and study in RemoNook. You can read <a href="/about">About RemoNook</a> and our <a href="/guides">feature guides</a> without it.</p></noscript>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

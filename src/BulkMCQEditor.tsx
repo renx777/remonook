@@ -10,6 +10,7 @@ export function BulkMCQEditor({ doc, id, onClose, onSave }: { doc: Workspace; id
   return <dialog ref={ref} className="mcq-editor" aria-labelledby="bulk-mcq-title" onCancel={onClose}>
     <div className="dialog-head"><h2 id="bulk-mcq-title">Build an MCQ deck in bulk</h2><button className="icon-button" aria-label="Close bulk MCQ editor" onClick={onClose}><Icon name="close" size={18} /></button></div>
     <p className="mcq-helper">Each question needs four direct child options. Add <code>@Answer</code> to the correct option. All nested branches are included, even when collapsed. Markers are hidden during study; your notes stay unchanged.</p>
+    <a className="feature-guide-inline" href="/guides/mcqs#bulk" target="_blank" rel="noopener noreferrer">Bulk conversion walkthrough ↗</a>
     <p className="bulk-mcq-summary" role="status"><strong>{plan.ready.length} ready</strong><span>{plan.skipped.length} skipped · no answer will be guessed</span></p>
     <ul className="bulk-mcq-list">{items.slice(page * pageSize, (page + 1) * pageSize).map(item => <li key={item.id}><span>{item.text || "Untitled question"}</span><small>{item.reason}</small></li>)}</ul>
     {!items.length && <p>No four-option questions found. Add questions under this branch, with four child bullets each.</p>}

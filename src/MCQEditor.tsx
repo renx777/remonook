@@ -14,6 +14,7 @@ export function MCQEditor({ doc, id, onClose, onSave }: { doc: Workspace; id: st
   return <dialog ref={ref} className="mcq-editor" aria-labelledby="mcq-editor-title" onCancel={onClose}>
     <div className="dialog-head"><h2 id="mcq-editor-title">{config ? "Edit multiple choice" : "Turn into multiple choice"}</h2><button className="icon-button" aria-label="Close MCQ editor" onClick={onClose}><Icon name="close" size={18} /></button></div>
     <p className="mcq-editor-prompt">{node?.text}</p>
+    <a className="feature-guide-inline" href="/guides/mcqs" target="_blank" rel="noopener noreferrer">How to create and study MCQs ↗</a>
     {!eligible ? <p role="alert">Use this bullet as the question and add exactly four non-empty direct children as its options.</p> : <>
       <p className="mcq-helper">Choose the correct answer. Option order can be shuffled during study.</p>
       {taggedMcqAnswer(options).count === 1 && <p className="mcq-helper">The option marked @Answer has been selected automatically. The marker stays hidden during study.</p>}

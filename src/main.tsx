@@ -1382,6 +1382,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <span>Settings & backups</span>
             </button>
             <button onClick={() => setDialog("shortcuts")}><Icon name="help" /><span>Keyboard shortcuts</span></button>
+            <a className="feature-guide-link" href="/guides" target="_blank" rel="noopener noreferrer"><Icon name="learn"/><span>Guides & tutorials</span><Icon name="forward" size={12}/></a>
             <div className="storage-note">
               <span
                 className={failed.current ? "status-dot error-dot" : "status-dot"}
@@ -1877,6 +1878,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <button onClick={() => { setDialog("settings"); setViewMenu(false); }}><Icon name="settings" size={16}/><span>Settings & backups</span></button>
           {cloudUser && <button onClick={() => { setViewMenu(false); void accountAction(true); }}><Icon name="logout" size={16}/><span>Sign out</span></button>}
           <button onClick={() => { setDialog("shortcuts"); setViewMenu(false); }}><Icon name="help" size={16} /><span>Keyboard shortcuts</span></button>
+          <a className="feature-guide-link" href="/guides" target="_blank" rel="noopener noreferrer"><Icon name="learn" size={16}/><span>Guides & tutorials</span><Icon name="forward" size={12}/></a>
         </div>
       </OutlinePopover>}
       {dialog === "jump" && <Dialog title="Jump to" onClose={() => setDialog(null)}><JumpTo nodes={nodes} onChoose={navigateTo} /></Dialog>}

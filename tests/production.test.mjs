@@ -83,7 +83,7 @@ test("production bundle: interaction smoke test", async context => {
   assert.equal(document.querySelector('.landing-wordmark .landing-brand-blue'), null, 'Animated wordmark should use one neutral text color');
   assert.ok(document.querySelector('.landing-flow').textContent.includes('Capture'));
   assert.ok(document.querySelector('.landing-flow').textContent.includes('Remember'));
-  assert.match(document.querySelector('.landing-description').textContent, /flashcards/);
+  assert.match(document.querySelector('.landing-description').textContent, /flashcards?/);
   assert.equal(document.querySelector('.landing-preview').getAttribute('role'), 'region');
   for(const [domain,handle] of [['instagram.com','@RemoNook.hq'],['x.com','@RemoNookhq'],['youtube.com','@RemoNook']]){
     const anchor=[...document.querySelectorAll('.landing-footer-social a')].find(a=>new URL(a.href).hostname.includes(domain));
