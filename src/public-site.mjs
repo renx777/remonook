@@ -70,10 +70,10 @@ export const guides=[
  },
 ];
 
-guides.push({slug:'research',category:'NOTES',minutes:2,title:'Research an answer beside your notes',description:'Search from a question, keep a local draft, and add a reviewed answer to your outline.',sections:[
- {id:'open',title:'1. Open research',html:'<p>Open a bullet’s <strong>•••</strong> menu and choose <strong>Research answer…</strong>. Your question fills the search field. Editing this query leaves your note unchanged.</p>'},
- {id:'search',title:'2. Search and return',html:'<p>Choose <strong>Search Google ↗</strong>. Google opens in a new tab. Copy useful text, return to RemoNook, and paste it into <strong>Answer draft</strong>. Review and edit the answer in your own words. The clipboard button is optional; normal paste works too.</p>'},
- {id:'add',title:'3. Add your answer',html:'<p>Choose <strong>Add answer</strong> to append one child beneath the destination question. Line breaks are preserved. Existing answers and the question’s study type stay intact. Use normal Undo to remove the insertion.</p>'},
+guides.push({slug:'research',category:'NOTES',minutes:2,title:'Research an answer beside your notes',description:'Find search results inside RemoNook, choose useful text, and add an answer to your outline.',sections:[
+ {id:'open',title:'1. Open research',html:'<p>Open a bullet’s <strong>•••</strong> menu and choose <strong>Research answer…</strong>. Your question fills the search field and results load inside the panel. Editing this query leaves your note unchanged; choose Search to search again.</p>'},
+ {id:'search',title:'2. Choose a result',html:'<p>Read the fetched web excerpts and their source labels inside RemoNook. Choose <strong>Use as answer</strong> to place an excerpt in the answer field. You can also select part of a result’s text and choose <strong>Use selected text</strong>. Source links are available for checking the original page; opening them is optional.</p>'},
+ {id:'add',title:'3. Add your answer',html:'<p>Review or edit the selected text, then choose <strong>Add answer</strong> to append one child beneath the destination question. Line breaks are preserved. Existing answers and the question’s study type stay intact. Use normal Undo to remove the insertion.</p>'},
  {id:'drafts',title:'4. Resume later',html:'<p>Closing the panel keeps your draft on this device. Reopen the bullet menu and choose <strong>Resume research…</strong>, or find all drafts under <strong>Outline options → Research drafts</strong>. Drafts do not sync or travel in backups; added answers do. Discard draft removes an unfinished draft. Replacing your workspace starts a fresh set of drafts.</p>'}
 ]});
 export const publicPaths=['/','/about','/guides',...guides.map(g=>'/guides/'+g.slug)];
