@@ -36,7 +36,7 @@ test('dashboard widgets customize, save habits, survive timer suspension, captur
   await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('.outline-scroll'));await openDashboard();
   assert.equal(document.querySelectorAll('.dash-widget').length,5);
   assert.equal((await load()).web.dashboard,undefined,'Viewing default widgets does not dirty the workspace');
-  await click(textButton('.dash-clock-styles button','Analog'));
+  await click('[aria-label="Options for Clock"]');await click(textButton('.dash-widget-menu button','Customize'));await choose('[aria-label="Clock appearance"]','analog');await act(async()=>document.querySelector('.dash-settings-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
   assert.ok(document.querySelector('.dash-clock-face'));assert.equal((await stored()).web.dashboard.widgets['default-clock'].settings.style,'analog');
   await click('[aria-label="Options for Clock"]');
   assert.equal(document.activeElement.textContent,'Customize');
