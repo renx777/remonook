@@ -2,6 +2,8 @@ import {restoreDeviceState} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
 import {SaveIndicator} from './SaveIndicator';
+import {FlowNumber} from './FlowNumber';
+import {useEntranceMotion} from './useEntranceMotion';
 import {AuthGate,googleSignIn,googleSignOut,setAccountTransitionHandler,type User} from './CloudAccount';
 import {useCloudSync} from './useCloudSync';
 import './cloud.css';
@@ -77,6 +79,7 @@ import {WorkdaysCalendar} from './WorkdaysCalendar';
 import {workdays,validateWorkdays} from './workdays.mjs';
 import { decodeAnimation, insertEmoji } from './emoji.mjs';
 import { downloadCatalogEmoji, getCatalogEmoji, isCatalogEmoji, catalogAssetPaths } from './emoji-catalog.mjs';
+import {cachedEmojiPreview} from './emoji-preview-cache.mjs';
 import './emoji.css';
 import {
   CalendarView,
@@ -122,6 +125,7 @@ function Dialog({
     el.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     return () => { if (previous?.isConnected) previous.focus(); };
   }, []);
+  useEntranceMotion(ref, true, { kind: "dialog" });
   return (
     <dialog
       ref={ref}
@@ -560,7 +564,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       if (known) {
         if (catalogAssetPaths(known).some(path => !assetsRef.current.has(path))) {
           setWorking(true);
-          for (const [path, blob] of await downloadCatalogEmoji(known, controller.signal)) added.set(path, blob);
+          for (const [path, blob] of cachedEmojiPreview(known.token) || await downloadCatalogEmoji(known, controller.signal)) added.set(path, blob);
         }
         record = { token: known.token, fileName: known.fileName, label: known.label };
       } else if (!record && item.data) {
@@ -1354,7 +1358,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                 <Icon name={icon} />
                 <span>{label}</span>
                 {id === "notes" && (
-                  <span className="nav-count">{nodes.length}</span>
+                  <span className="nav-count"><FlowNumber value={nodes.length} /></span>
                 )}
               </button>
             ))}
@@ -1367,7 +1371,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="trash" />
               <span>Trash</span>
               {doc.tables.trash.length > 0 && (
-                <span className="nav-count">{doc.tables.trash.length}</span>
+                <span className="nav-count"><FlowNumber value={doc.tables.trash.length} /></span>
               )}
             </button>
             <button onClick={() => setDialog("settings")}>

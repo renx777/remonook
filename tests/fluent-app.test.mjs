@@ -17,7 +17,7 @@ dom.window.Range.prototype.getClientRects=()=>[];dom.window.Range.prototype.getB
 dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
 const wait=async check=>{for(let i=0;i<150;i++){if(check())return;await act(()=>new Promise(r=>setTimeout(r,20)));}throw Error('Timed out waiting for Fluent UI');};
 const click=async element=>{assert.ok(element);await act(async()=>element.click());};
-const filter=label=>[...document.querySelectorAll('.emoji-collection-filters button')].find(x=>x.textContent===label);
+const filter=label=>[...document.querySelectorAll('.emoji-collection-filters button, .inline-emoji-tabs [role="tab"]')].find(x=>x.textContent===label);
 const search=async value=>act(async()=>{const input=document.querySelector('[aria-label="Find an animated emoji"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new window.Event('input',{bubbles:true}));});
 const open=async()=>{await click(document.querySelector('[data-node-id="mixed"] .row-hover-more'));await click(document.querySelector('[data-category="1"]'));await click([...document.querySelectorAll('button')].find(x=>x.textContent.trim().endsWith('Insert animated emoji…')));await wait(()=>document.querySelector('.emoji-grid'));};
 test('both collections can coexist in a note; collection choice persists across full and inline pickers, and Fluent insertion reuses offline assets',async()=>{
@@ -37,7 +37,7 @@ test('both collections can coexist in a note; collection choice persists across 
   await click(document.querySelector('[data-node-id="mixed"] .text-button'));await wait(()=>document.querySelector('.tiptap'));
   const editor=document.querySelector('.tiptap').editor;
   await act(async()=>{editor.commands.focus('end');editor.commands.insertContent(' :grinning_face');});await wait(()=>document.querySelector('.inline-emoji-picker'));
-  assert.equal(filter('Google Noto').getAttribute('aria-pressed'),'true');await click(filter('Microsoft Fluent'));assert.equal(filter('Microsoft Fluent').getAttribute('aria-pressed'),'true');
+  assert.equal(filter('Google Noto').getAttribute('aria-selected'),'true');await click(filter('Microsoft Fluent'));assert.equal(filter('Microsoft Fluent').getAttribute('aria-selected'),'true');
   assert.ok(document.querySelector('.inline-emoji-picker [data-emoji-token=":fluent_1f600:"]'));
   globalThis.fetch=async()=>{throw Error('offline');};await act(async()=>document.querySelector('.tiptap').dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));
   await wait(()=>!document.querySelector('.inline-emoji-picker'));assert.match(editor.getText(),/:fluent_1f600:$/);assert.equal((editor.getText().match(/:fluent_1f600:/g)||[]).length,2);

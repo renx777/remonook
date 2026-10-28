@@ -108,7 +108,7 @@
 .wd-summary-copy strong {
   font-weight: 550;
 }
-.wd-summary span,
+.wd-summary-copy > span,
 .wd-summary small,
 .wd-hint,
 .wd-record-label,

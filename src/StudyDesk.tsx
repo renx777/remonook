@@ -11,6 +11,9 @@ import { Icon } from "./icons";
 import {StudyEmptyArtwork} from './StudyEmptyArtwork';
 import { StudyCardEditor } from './StudyCardEditor';
 import { useImmersiveStudy } from "./useImmersiveStudy";
+import { useStudyConfetti } from "./useStudyConfetti";
+import { useEntranceMotion } from "./useEntranceMotion";
+import { FlowNumber, NumberGroup } from "./FlowNumber";
 import { DeckArtwork, CoverDesigner, useCoverImage } from "./DeckCover";
 import { deckDesign, coverPresets, type DeckDesign } from "./deck-designs";
 import { ALL_MCQS, answerMcq, mcqAttempt, mcqDefinition, mcqRunResults, orderedMcqOptions } from "./mcq.mjs";
@@ -101,6 +104,14 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   const { rootRef, immersive, fullscreenNotice, enterImmersive, exitImmersive, lastNativeExit } = useImmersiveStudy(screen === "session"),
     cardScroll = useRef<HTMLDivElement>(null),
     cardMenu = useRef<HTMLDivElement>(null);
+  const celebrateCorrect = useStudyConfetti(rootRef, screen === "session", session ? session.tag || "legacy" : null, currentId || null, !!session && queue.length > 0 && session.cursor >= queue.length && session.reviewed > 0);
+  useEntranceMotion(rootRef, `${screen}:${activeFolder}:${session?.tag}:${session?.cursor}`, {
+    selector: screen === "session" ? ".study-question-layout, .study-finished" : ".study-heading, .study-stats, .study-decks, .study-topic-list",
+  });
+  useEntranceMotion(rootRef, `${session?.tag}:${session?.cursor}:${session?.revealed}`, {
+    selector: ".flashcard-answer", kind: "reveal", active: screen === "session" && !!session?.revealed && !currentMcq && !editingCard,
+  });
+  useEntranceMotion(cardMenu, cardMenuOpen, { selector: ".study-more-menu", kind: "popover", active: cardMenuOpen });
   useEffect(()=>{setCardMenuOpen(false);touchStart.current=null;setRevealedBullets(bulletRevealMode === 'all' ? 9999 : 1);},[currentId,screen,session?.cursor,session?.tag]);
   useEffect(()=>{if(!cardMenuOpen)return;const close=(event:PointerEvent)=>{if(!cardMenu.current?.contains(event.target as globalThis.Node))setCardMenuOpen(false);};window.addEventListener("pointerdown",close);cardMenu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();return()=>window.removeEventListener("pointerdown",close);},[cardMenuOpen]);
   const showLibrary = () => { exitImmersive(); setScreen("library"); };
@@ -164,10 +175,12 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     else if (session.mode === 'NORMAL') grade('GOOD');
     else navigate('next');
   };
-  const choose = (id: string) => {
+  const choose = (id: string, option: HTMLButtonElement) => {
     if (disabled || !session || !currentMcq?.valid || !card || !availableCard(card, Date.now()) || attempt || choiceLock.current) return;
     choiceLock.current = true;
-    onChange(answerMcq(doc, session, id));
+    const next = answerMcq(doc, session, id);
+    onChange(next);
+    if (next !== doc && id === currentMcq.config.correctOptionId) celebrateCorrect(option);
   };
   const continueMcq = () => { if (attempt) grade(attempt.correct ? "GOOD" : "AGAIN"); };
   const practiceMissed = () => {
@@ -244,7 +257,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
       }
       if (event.repeat) { if (event.key === " ") event.preventDefault(); return; }
       if (currentMcq) {
-        if (!attempt && ["1", "2", "3", "4"].includes(event.key)) { event.preventDefault(); const option = options[Number(event.key) - 1]; if (option) choose(option.id); }
+        if (!attempt && ["1", "2", "3", "4"].includes(event.key)) { event.preventDefault(); rootRef.current?.querySelectorAll<HTMLButtonElement>(".mcq-option")[Number(event.key) - 1]?.click(); }
         if (event.key === " " && !target.closest("button")) { event.preventDefault(); if (attempt) continueMcq(); }
         return;
       }
@@ -277,7 +290,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
       deckTitle = session.scope === ALL_MCQS ? "All MCQs" : session.scope ? idx.byId.get(session.scope)?.text || "Study session" : "All flashcards",
       title = session.topicId ? `${deckTitle} · ${idx.byId.get(session.topicId)?.text || 'Topic'}` : deckTitle;
     const results = mcqRunResults(doc, session);
-    const zoomControls = <div className="study-card-sizing" role="group" aria-label="Study card size"><span>Card size</span><button className="icon-button" aria-label="Zoom out study card" title="Smaller card" disabled={cardZoom <= 70} onClick={() => resizeCard(cardZoom - 10)}><Icon name="zoomOut" size={16} /></button><button className="study-zoom-reset" aria-label={`Reset study card zoom (${cardZoom}%)`} title="Reset to 100%" onClick={() => resizeCard(100)}>{cardZoom}%</button><button className="icon-button" aria-label="Zoom in study card" title="Larger card" disabled={cardZoom >= 150} onClick={() => resizeCard(cardZoom + 10)}><Icon name="zoomIn" size={16} /></button></div>;
+    const zoomControls = <div className="study-card-sizing" role="group" aria-label="Study card size"><span>Card size</span><button className="icon-button" aria-label="Zoom out study card" title="Smaller card" disabled={cardZoom <= 70} onClick={() => resizeCard(cardZoom - 10)}><Icon name="zoomOut" size={16} /></button><button className="study-zoom-reset" aria-label={`Reset study card zoom (${cardZoom}%)`} title="Reset to 100%" onClick={() => resizeCard(100)}><FlowNumber value={cardZoom} suffix="%" /></button><button className="icon-button" aria-label="Zoom in study card" title="Larger card" disabled={cardZoom >= 150} onClick={() => resizeCard(cardZoom + 10)}><Icon name="zoomIn" size={16} /></button></div>;
     return <section ref={rootRef} data-card-enlarged={cardZoom > 100} className={`study-session ${immersive ? "is-immersive" : ""} ${sessionDesign.backdrop ? "has-study-background" : ""}`} style={{ ...backdropStyle(sessionDesign, sessionImage), '--study-card-zoom': cardZoom / 100 } as CSSProperties} role={immersive ? "dialog" : undefined} aria-modal={immersive || undefined} aria-label={immersive ? "Immersive study" : "Study session"} tabIndex={-1}
       onPointerDownCapture={event=>{
         touchStart.current=null;
@@ -300,7 +313,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
       {disabled && <p className="fullscreen-notice" role="status">Study controls are paused. Return to Study Desk to check the save status.</p>}
       <div className="session-scroll" ref={cardScroll}><div className="session-content">
       <h1>{title}</h1>
-      <div className="study-progress-label"><span>{session.reviewed} reviewed</span><span>{Math.min(session.cursor + (done ? 0 : 1), queue.length)} / {queue.length}</span></div>
+      <div className="study-progress-label"><NumberGroup key={session.tag || 'legacy'}><span><FlowNumber value={session.reviewed} /> reviewed</span><span><FlowNumber value={Math.min(session.cursor + (done ? 0 : 1), queue.length)} /> / <FlowNumber value={queue.length} /></span></NumberGroup></div>
       <progress className="study-progress" value={session.cursor} max={Math.max(1, queue.length)} />
       {done ? <div className="study-finished"><div className="study-success"><Icon name="check" size={30} /></div><h2>{queue.length ? "Session complete" : "You’re caught up"}</h2><p>{queue.length ? `You reviewed ${session.reviewed} cards.` : session.mode === "SPACED" ? "No cards are due within your daily limits right now." : "There are no available cards in this selection."}</p>{results.answered > 0 && <div className="mcq-score"><strong>{results.correct} / {results.answered}</strong><span>MCQs correct on the first attempt</span>{results.missedIds.length > 0 && <button disabled={disabled} onClick={practiceMissed}>Practice {results.missedIds.length} missed questions</button>}</div>}<p>{session.mode === "NORMAL" ? "Cram practice leaves your review schedule unchanged." : "Your next reviews have been saved. Cards marked Again return after 10 minutes."}</p></div> : !valid ? <div className="study-finished"><h2>This card is no longer available</h2><p>{currentMcq?.error || "Its source may have changed, or the card may be suspended or hidden."}</p></div> : <>
         <div className="study-question-layout">
@@ -360,8 +373,8 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   return <section ref={rootRef} className={`study-desk ${deskDesign.backdrop ? "has-study-background" : ""}`} style={backdropStyle(deskDesign, deskImage)}>
     <div className="study-heading"><div><span className="eyebrow">LEARN FROM YOUR NOTES</span><h1>Study Desk</h1><p>Your outline, turned into something you remember.</p></div><Icon name="study" size={34} /></div>
     <div className="study-shelf-tools"><span>Your notebook shelf</span><div className="study-shelf-buttons"><button className="study-text-button" disabled={disabled} onClick={()=>setFolderEditor({})}><Icon name="folder" size={15}/>New folder</button><button className="study-text-button" disabled={disabled} onClick={() => setReactionEditor(true)}>Quiz reactions</button><button className="study-text-button" disabled={disabled} onClick={() => setCoverEditor({ id: "__desk__", title: "Study Desk" })}><Icon name="image" size={15} />Personalize space</button></div></div>
-    <div className="study-stats"><div><strong>{all.length}</strong><span>available cards</span></div><div><strong>{due.length}</strong><span>ready to review</span></div><div><strong>{todayCount}</strong><span>reviews today</span></div></div>
-    {session && session.cursor < queue.length && <div className="study-resume"><div><strong>Pick up where you left off</strong><p>{session.mode === "NORMAL" ? "Cram" : "Spaced repetition"} · {session.reviewed} reviewed · {queue.length - session.cursor} remaining</p></div><button className="study-primary" disabled={disabled} onClick={resume}>Resume</button></div>}
+    <div className="study-stats"><div><strong><FlowNumber value={all.length} /></strong><span>available cards</span></div><div><strong><FlowNumber value={due.length} /></strong><span>ready to review</span></div><div><strong><FlowNumber value={todayCount} /></strong><span>reviews today</span></div></div>
+    {session && session.cursor < queue.length && <div className="study-resume"><div><strong>Pick up where you left off</strong><p>{session.mode === "NORMAL" ? "Cram" : "Spaced repetition"} · <NumberGroup><FlowNumber value={session.reviewed} /> reviewed · <FlowNumber value={queue.length - session.cursor} /> remaining</NumberGroup></p></div><button className="study-primary" disabled={disabled} onClick={resume}>Resume</button></div>}
     <div className="study-controls"><div className="study-mode-switch" aria-label="Study mode">{[["SPACED", "Spaced repetition"], ["NORMAL", "Cram"]].map(([value, label]) => <button key={value} aria-pressed={mode === value} className={mode === value ? "is-active" : ""} onClick={() => setMode(value)}>{label}</button>)}</div><div className="study-filter"><Icon name="search" size={15} /><input aria-label="Find a deck" placeholder="Find a deck" value={filter} onChange={event => setFilter(event.target.value)} /></div></div>
     <p className="study-mode-description">{mode === "SPACED" ? "New and due cards, shuffled for recall. Your rating sets the next review." : "All available cards in the same order as your outline. No changes to your schedule."}</p>
     <label className="immersive-preference"><input type="checkbox" checked={preferImmersive} onChange={event => setPreferImmersive(event.target.checked)} /><span>Start in immersive mode<small>Fullscreen · only your flashcard and controls</small></span></label>
@@ -383,9 +396,9 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         {movable&&Object.values(doc.web.occlusions||{}).some((config:any)=>config.groupId===designId)&&<span className="mcq-deck-badge">IMAGE OCCLUSION</span>}
         {(designId === ALL_MCQS || doc.web.deckTypes?.[designId] === "MCQ") && <span className="mcq-deck-badge">MULTIPLE CHOICE</span>}
         <div className="study-deck-title"><div className="deck-glyph"><Icon name="study" size={22} /></div><div><h2>{deck.title}</h2><p>{deck.description}</p></div>{deck.rootId && deck.rootId !== ALL_MCQS && <button className="icon-button" title="Open deck source" aria-label={`Open ${deck.title} source`} onClick={() => onSource(deck.rootId!)}><Icon name="link" size={16} /></button>}</div>
-        <div className="study-deck-counts"><span>{cards.length} cards</span><span className="due-badge">{ready.length} due</span></div>
+        <div className="study-deck-counts"><NumberGroup><span><FlowNumber value={cards.length} /> cards</span><span className="due-badge"><FlowNumber value={ready.length} /> due</span></NumberGroup></div>
         {(designId === ALL_MCQS || doc.web.deckTypes?.[designId] === "MCQ") && !cards.length && <p className="mcq-notebook-empty">Add a question with four child options, then choose “Turn into MCQ…” or bulk-convert a branch with @Answer markers.</p>}
-        <div className="study-deck-actions"><button className="study-primary" disabled={disabled || !count} onClick={() => openDeck(deck.rootId)}>{mode === "NORMAL" ? "Start cram" : "Review due"}<span>{count}</span></button><button className="study-text-button" onClick={() => setSettings(settings === designId ? null : designId)}><Icon name="settings" size={14} />Limits</button></div>
+        <div className="study-deck-actions"><button className="study-primary" disabled={disabled || !count} onClick={() => openDeck(deck.rootId)}>{mode === "NORMAL" ? "Start cram" : "Review due"}<span><FlowNumber value={count} /></span></button><button className="study-text-button" onClick={() => setSettings(settings === designId ? null : designId)}><Icon name="settings" size={14} />Limits</button></div>
         {settings === designId && <div className="study-limits"><p>{deck.rootId && deck.rootId !== ALL_MCQS ? "Daily spaced-review limits" : "Shared daily limits for questions outside a deck"} · −1 means unlimited</p>{[["newCards", "New cards"], ["reviewCards", "Review cards"]].map(([key, label]) => <label key={key}>{label}<input type="number" aria-label={`${label} per day for ${deck.title}`} min={-1} max={100000} value={limit?.[key] ?? -1} disabled={disabled} onChange={event => {
           const value = Number(event.target.value);
           if (!Number.isInteger(value) || value < -1 || value > 100000) return;

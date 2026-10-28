@@ -1,0 +1,10 @@
+.flow-number {
+  display: inline-block;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  white-space: nowrap;
+  vertical-align: baseline;
+  --number-flow-mask-height: 0.12em;
+  --number-flow-mask-width: 0.12em;
+}

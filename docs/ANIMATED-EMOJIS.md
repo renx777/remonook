@@ -2,7 +2,7 @@
 
 ## Microsoft Fluent and combined collection picker
 
-Explore now offers **All**, **Google Noto**, and **Microsoft Fluent**. The default is All; the last filter is remembered on this browser and shared with the inline `:` picker. Existing note artwork never changes when the filter changes. My library continues to mix saved Google, Microsoft and custom items. Categories use the same labels across both artists, and Unicode-equivalent artwork shares search aliases (for example, Google's “Smile” and Microsoft's “Grinning face”). Inline results give both collections room instead of putting the entire Google catalog first.
+Explore now offers **All**, **Google Noto**, and **Microsoft Fluent**. The default is All; the last filter is remembered on this browser and shared with the inline `:` picker. Existing note artwork never changes when the filter changes. My library continues to mix saved Google, Microsoft and custom items. Categories use the same labels across both artists, and Unicode-equivalent artwork shares search aliases (for example, Google's “Smile” and Microsoft's “Grinning face”). The inline picker provides separate collection tabs and keeps the search when switching.
 
 The pinned Microsoft snapshot includes **814 supported animations** alongside Google's 881. Microsoft's repository contains 2,241 animation files: 1,402 exceed the existing 2 MB per-attachment limit, and 25 multi-person tone drawings lack a reliable standard Unicode sequence in the upstream metadata. These are excluded rather than offering choices that cannot be saved or assigning incorrect tokens. Refresh metadata, size records and license with `node scripts/sync-fluent-emojis.mjs`; it fetches Git trees, metadata and small Git LFS pointers, not the multi-GB artwork repository. Provenance, revisions, byte sizes and SHA-256 digests are recorded in `src/fluent-emoji-catalog.json`.
 
@@ -12,7 +12,7 @@ Saved animations use local blobs, follow motion settings and reduced motion, and
 
 The Google-only behavior below remains available through the Google Noto filter.
 
-While editing a bullet, type `:` to open the inline picker at the caret, then narrow the results with a name or tag (`:rocket`, `:head_nod`). It searches the full Noto collection, original Remo emojis and your imported library, with up to eight previews mounted at once. Use Up/Down to browse, Enter/Tab or a click to insert, and Escape to dismiss without leaving the editor. The typed query is replaced and the caret stays after the inserted token so you can continue writing. Saved assets work offline; first-use downloads show progress and preserve your query on failure. URLs, times, completed tokens, code marks and code/diagram blocks do not trigger suggestions. The picker follows the current theme and stays within the viewport.
+While editing a bullet, type `:` to open the inline picker at the caret, then narrow the results with a name or tag (`:rocket`, `:head_nod`). The selected tab searches Google Noto, Microsoft Fluent or My library, with a scrollable full-catalog grid and one selected animated preview. Use Up/Down to browse, Enter/Tab or a click to insert, and Escape to dismiss without leaving the editor. The typed query is replaced and the caret stays after the inserted token so you can continue writing. Saved assets work offline; first-use downloads show progress and preserve your query on failure. URLs, times, completed tokens, code marks and code/diagram blocks do not trigger suggestions. The picker follows the current theme and stays within the viewport.
 
 Open a bullet’s action menu → **Insert animated emoji…**. The default Noto tab includes all **881 animations in nine categories** from [Google’s animated emoji catalog](https://googlefonts.github.io/noto-emoji-animation/), including skin-tone and joined Unicode sequences. Search by name, tag, emoji or codepoint; filter by category and browse 48 results per page. Pagination limits mounted previews, not the available collection. **My library** shows previously inserted/imported items; **Remo** retains Smile, Heart, Sparkle and Done. Local `.json` / `.tgs` imports remain supported.
 
@@ -51,3 +51,18 @@ Automated checks cover built-in validation, JSON/TGS equivalence, input/expanded
 Noto-specific checks cover catalog completeness/uniqueness, all categories, real animated WebP and safe SVG fixtures, anonymous allow-listed downloads, response-size limits, offline re-insertion, cancellation, nonfatal download failures, saved-blob playback/static switching, offscreen/hidden-tab behavior, restored image MIME types, URL cleanup and full-backup attribution preservation. Browser acceptance additionally verifies loaded 512px WebP previews and inline playback from a local blob URL.
 
 Chrome acceptance verified all four picker SVGs, inline question/answer SVGs, and a changed SVG transform after one-shot playback. The test computer reports reduced motion enabled, so autoplay appropriately remained stopped. File-picker import was covered by DOM integration tests, not a live browser upload. [Picker preview](animated-emoji-picker.jpg).
+## Inline picker performance
+
+The `:` picker has separate Google Noto, Microsoft Fluent and My library tabs.
+It keeps the editor selection while searching or switching tabs. Arrow keys
+select results, Enter/Tab inserts, Escape closes, and Alt+Left/Right switches
+collections. Touch selects a preview; the Insert button commits it. Successful
+insertions become device-local recent suggestions, limited to 20 tokens.
+
+The eight-column browsing grid keeps the full catalog available; fixed-height row virtualization mounts only viewport rows plus a small overscan. Category icons and an editable panel search narrow choices without changing the captured note shortcode. One selected preview starts after
+150 ms; it cancels pending downloads on selection changes or closure, and stays
+static for reduced motion, disabled animation or a hidden page. Validated preview
+files live in a 16 MiB memory LRU; normal insertion can reuse them through the
+existing quota checks and durable asset/outbox path. Previewing never saves note
+content or workspace attachments. Search strings are indexed independently of
+editor transactions, and only visible results receive image elements.
