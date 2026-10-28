@@ -41,6 +41,8 @@ globalThis.cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
 HTMLElement.prototype.scrollTo = function ({ top = 0 }) {
   this.scrollTop = top;
 };
+// Layout-dependent widgets need a real container measurement; JSDOM reports 0.
+Object.defineProperty(HTMLElement.prototype,'clientWidth',{configurable:true,get(){return 1040;}});
 dom.window.HTMLDialogElement.prototype.showModal = undefined;
 const wait = async (check) => {
   for (let i = 0; i < 100; i++) {
@@ -63,7 +65,11 @@ test("production bundle: interaction smoke test", async context => {
     dom.window.close();
   });
   await act(async () => {
-    const main=(await readdir("dist/assets")).find(f=>f.startsWith("index-")&&f.endsWith(".js"));await import("../dist/assets/"+main);
+    const assets=await readdir("dist/assets");
+    // Modules are imported from disk and JSDOM does not load styles. Mark the
+    // local assets present so Vite does not attempt network preloads here.
+    for(const file of assets.filter(f=>/\.(css|js)$/.test(f))){const link=document.createElement('link');link.rel=file.endsWith('.css')?'stylesheet':'preload';link.href='/assets/'+file;document.head.append(link);}
+    const main=assets.find(f=>f.startsWith("index-")&&f.endsWith(".js"));await import("../dist/assets/"+main);
   });
   await wait(() => document.querySelector('.landing'));
   const hero = document.querySelector('.landing h1');
