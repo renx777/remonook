@@ -25,12 +25,13 @@ const server = createServer(async (req, res) => {
     const path = decodeURIComponent(
       new URL(req.url, "http://localhost").pathname,
     );
-    let file = resolve(root, "." + (path === "/" ? "/index.html" : path));
+    let file = resolve(root, "." + (path === "/" ? "/index.html" : path.replace(/\/$/,'')));
     if (!file.startsWith(root + sep)) {
       res.writeHead(403);
       res.end();
       return;
     }
+    if (path !== '/' && !extname(path)) file += '.html';
     if (!(await stat(file)).isFile()) {
       res.writeHead(404);
       res.end();

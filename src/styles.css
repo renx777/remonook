@@ -2062,3 +2062,8 @@ hr {
 .masked-text:hover, .masked-text:focus, .masked-text:focus-within { background: color-mix(in srgb, var(--muted) 10%, transparent); outline: none; }
 .masked-text:focus-visible { outline: 1px solid var(--muted); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .masked-text { transition: none; } }
+.feature-guide-link{display:flex;align-items:center;gap:10px;min-height:36px;padding:7px 10px;border-radius:6px;font-size:13px;text-decoration:none;color:var(--muted)}
+.feature-guide-link:hover{background:var(--hover);color:var(--text)}
+.feature-guide-link:focus-visible,.feature-guide-inline:focus-visible,.study-guide-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.feature-guide-link>span{flex:1}.feature-guide-inline,.study-guide-link{display:inline-flex;align-items:center;min-height:36px;font-size:12px;color:var(--accent);text-underline-offset:3px}
+.study-guide-divider{margin:0 9px;color:var(--muted);font-size:12px}

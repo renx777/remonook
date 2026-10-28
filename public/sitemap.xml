@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://remonook.com/</loc>
-  </url>
+  <url><loc>https://remonook.com/</loc></url>
+  <url><loc>https://remonook.com/about</loc></url>
+  <url><loc>https://remonook.com/guides</loc></url>
+  <url><loc>https://remonook.com/guides/getting-started</loc></url>
+  <url><loc>https://remonook.com/guides/study</loc></url>
+  <url><loc>https://remonook.com/guides/mcqs</loc></url>
+  <url><loc>https://remonook.com/guides/bulk-editing</loc></url>
+  <url><loc>https://remonook.com/guides/dashboard</loc></url>
+  <url><loc>https://remonook.com/guides/backups</loc></url>
 </urlset>
