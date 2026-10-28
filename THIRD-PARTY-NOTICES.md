@@ -1,5 +1,7 @@
 # Third-party notices
 
+Dashboard layouts use React Grid Layout 2.3.0, React Draggable 4.7.2, and React Resizable 3.2.0 (MIT). Their full notices are retained in `LICENSES/react-grid-layout-MIT.txt`, `LICENSES/react-draggable-MIT.txt`, and `LICENSES/react-resizable-MIT.txt`.
+
 Selected interface controls use Lucide React 1.61.0 (ISC, with upstream artwork notices retained in `LICENSES/lucide-react-LICENSE.txt`). Study Desk empty-state artwork uses Phosphor Icons React 2.1.10 (MIT; see `LICENSES/phosphor-icons-MIT.txt`). Both are bundled locally and imported selectively.
 
 Sketch annotations use Rough Notation 0.5.1 by Preet Shihn, under the MIT license. The library is bundled locally; see `LICENSES/rough-notation-MIT.txt` and https://github.com/rough-stuff/rough-notation.

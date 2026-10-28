@@ -32,6 +32,7 @@
     "motion": "^14.7.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-grid-layout": "2.3.0",
     "rough-notation": "0.5.1",
     "yjs": "13.6.33"
   },

@@ -4,6 +4,7 @@ import {validateStudyLibrary} from './study-library.mjs';
 import {validateOcclusions} from './occlusion.mjs';
 import {validateWorkdays,emptyWorkdays} from './workdays.mjs';
 import {validateCalendarEvents} from './calendar-events.mjs';
+import {validateDashboard} from './dashboard.mjs';
 import {cloudDocument} from './cloud-model.mjs';
 
 // Identity-based three-way merge. Never resolve simultaneous edits to the
@@ -115,6 +116,7 @@ function validateMerged(doc,conflicts){
     validateOcclusions(doc.web.occlusions);
     validateWorkdays(doc.web.workdays);
     validateCalendarEvents(doc.web.calendarEvents);
+    validateDashboard(doc.web.dashboard);
     const ids=new Set(nodes.map(n=>n.id)),media=new Set((doc.tables.media||[]).map(row=>row.id));
     for(const item of doc.tables.media||[])if(!ids.has(item.bulletId))throw Error('A media attachment refers to a removed node');
     for(const deck of doc.tables.decks||[])if(!ids.has(deck.rootId))throw Error('A deck refers to a removed node');
@@ -147,6 +149,10 @@ export function mergeCloudWorkspaces(base,local,remote){
  for(const name of ['occlusions','deckTypes','deckFolders','mcqs','deckDesigns','musicNodes','galleryNodes'])mapHandlers[name]=mergeMap;
  mapHandlers.noteTimes=mergeTimes;
  mapHandlers.workdays=mergeWorkdays;
+ mapHandlers.dashboard=(a,c,d,p,e)=>{
+  const recursive=(b,l,r,path,errors)=>mergeObject(b===absent?{}:b,l===absent?{}:l,r===absent?{}:r,path,errors,Object.fromEntries(keys(b,l,r).filter(key=>[prop(b,key),prop(l,key),prop(r,key)].every(value=>value===absent||plain(value))).map(key=>[key,recursive])));
+  return recursive(a,c,d,p,e);
+ };
  for(const name of ['calendarEvents','studyFolders'])mapHandlers[name]=(a,c,d,p,e)=>mergeKeyedRows(a===absent?[]:a,c===absent?[]:c,d===absent?[]:d,'id',p,e);
  const web=mergeObject(b.web,l.web,r.web,'web',conflicts,mapHandlers);
  const doc={...b,tables,columns,preferences,web};

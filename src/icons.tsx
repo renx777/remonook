@@ -4,6 +4,17 @@ import {Bold,Italic,Underline,Strikethrough,CodeXml,EyeOff,PencilLine,RemoveForm
 // theme color and decorative accessibility contract. Other icons stay unchanged.
 const lucideIcons:Record<string,LucideIcon>={bold:Bold,italic:Italic,underline:Underline,strike:Strikethrough,code:CodeXml,mask:EyeOff,sketch:PencilLine,clearFormat:RemoveFormatting,format:Type,insert:ImagePlus,connections:Waypoints,organize:ListTree,learn:GraduationCap,link:Link,backlinks:CornerDownLeft,mirror:PanelsLeftRight,indent:IndentIncrease,outdent:IndentDecrease,numbered:ListOrdered,quote:TextQuote,equation:Sigma,diagram:Workflow,table:Table2,categoryBack:ChevronLeft};
 const paths: Record<string, string> = {
+  dashboard: "M3 3h7v8H3zM14 3h7v5h-7zM3 15h7v6H3zM14 12h7v9h-7z",
+  clock: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M12 6v6l4 2",
+  timer: "M9 2h6M12 2v3M18 5l2-2M21 14a9 9 0 1 1-18 0 9 9 0 0 1 18 0M12 9v5l3 2",
+  sprout: "M12 22v-9M12 16C3 16 2 10 3 5c7 0 10 3 9 11M12 13c0-7 3-10 9-10 1 6-2 10-9 10",
+  leaf: "M20 3C9 1 2 7 4 14c2 8 14 8 16-11ZM3 21l12-12",
+  sunrise: "M3 17h18M5 21h14M7 17a5 5 0 1 1 10 0M12 2v3M3 8l2 2M21 8l-2 2M12 7V2m-3 3 3-3 3 3",
+  sliders: "M4 6h4m4 0h8M4 12h9m4 0h3M4 18h2m4 0h10M8 3v6M13 9v6M6 15v6",
+  refresh: "M3 10a9 9 0 1 1 2 8M3 4v6h6",
+  pencil: "m16 3 5 5M4 20l4-1L21 6a2 2 0 0 0-3-3L5 16l-1 4Z",
+  up: "m6 14 6-6 6 6",
+  down: "m6 10 6 6 6-6",
   bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   logout: "M9 4H4v16h5M13 8l4 4-4 4m-5-4h13",
   skipBack:"M5 5v14M19 5 7 12l12 7Z",
