@@ -295,3 +295,22 @@ test("Enter at end of an expanded branch still inserts its first child", () => {
   assert.equal(result.find(n => n.id === "new").parentId, "p");
   assert.deepEqual(rows(result).map(r => r.bullet.id), ["p", "new", "c"]);
 });
+
+test("uuid and safeRandomUUID generate RFC4122 v4 UUIDs even when crypto.randomUUID is not available", async () => {
+  const { uuid, safeRandomUUID } = await import("../src/domain.mjs");
+  const id1 = uuid();
+  assert.match(id1, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+
+  const origRandomUUID = globalThis.crypto.randomUUID;
+  try {
+    delete globalThis.crypto.randomUUID;
+    const id2 = safeRandomUUID();
+    assert.match(id2, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    let uuidReads = 0;
+    Object.defineProperty(globalThis.crypto, 'randomUUID', { configurable: true, get() { uuidReads++; return safeRandomUUID; } });
+    assert.match(uuid(), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    assert.ok(uuidReads < 5, 'An installed fallback must not recurse through itself');
+  } finally {
+    Object.defineProperty(globalThis.crypto, 'randomUUID', { configurable: true, writable: true, value: origRandomUUID });
+  }
+});

@@ -66,6 +66,76 @@
     ]
   }
   </script>
+  <script>
+    (function () {
+      if (typeof window !== "undefined") {
+        var c = window.crypto || window.msCrypto;
+        var safeRandomUUID = function () {
+          if (c && typeof c.getRandomValues === "function") {
+            var b = new Uint8Array(16);
+            c.getRandomValues(b);
+            b[6] = (b[6] & 0x0f) | 0x40;
+            b[8] = (b[8] & 0x3f) | 0x80;
+            var h = Array.from(b, function (x) {
+              return x.toString(16).padStart(2, "0");
+            }).join("");
+            return (
+              h.slice(0, 8) +
+              "-" +
+              h.slice(8, 12) +
+              "-" +
+              h.slice(12, 16) +
+              "-" +
+              h.slice(16, 20) +
+              "-" +
+              h.slice(20)
+            );
+          }
+          return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, function (ch) {
+            return (
+              Number(ch) ^
+              (Math.floor(Math.random() * 256) & (15 >> (Number(ch) / 4)))
+            ).toString(16);
+          });
+        };
+
+        if (!c) {
+          try {
+            c = {};
+            window.crypto = c;
+          } catch (e) {}
+        }
+
+        if (c && typeof c.randomUUID !== "function") {
+          try {
+            c.randomUUID = safeRandomUUID;
+          } catch (e) {
+            try {
+              Object.defineProperty(c, "randomUUID", {
+                value: safeRandomUUID,
+                configurable: true,
+                writable: true,
+              });
+            } catch (e2) {}
+          }
+        }
+
+        if (typeof Crypto !== "undefined" && Crypto.prototype && typeof Crypto.prototype.randomUUID !== "function") {
+          try {
+            Crypto.prototype.randomUUID = safeRandomUUID;
+          } catch (e) {
+            try {
+              Object.defineProperty(Crypto.prototype, "randomUUID", {
+                value: safeRandomUUID,
+                configurable: true,
+                writable: true,
+              });
+            } catch (e2) {}
+          }
+        }
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>

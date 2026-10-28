@@ -5,9 +5,22 @@ export function emojiQuery(text, caret) {
 }
 
 export function emojiSuggestions(items, query, limit = 8) {
+  return searchEmojiIndex(createEmojiSearchIndex(items), query, limit);
+}
+export function createEmojiSearchIndex(items) {
+  return items.map(item => {
+    const labels = [item.label || '', ...(item.searchLabels || [])].map(label => label.toLowerCase().replace(/[_-]/g, ' '));
+    return {item, labels, searchable: [...labels,item.token,item.fallback,...(item.tags || [])].join(' ').toLowerCase().replace(/[_-]/g,' ')};
+  });
+}
+/** @returns {any[]} */
+export function searchEmojiIndex(index, query, limit = 8, accept = _item => true) {
   const words = query.toLowerCase().replace(/[_-]/g, ' ').trim().split(/\s+/).filter(Boolean);
-  return items.map((item, order) => {
-    const labels = [item.label || '',...(item.searchLabels || [])].map(label=>label.toLowerCase()), searchable = [...labels, item.token, item.fallback, ...(item.tags || [])].join(' ').toLowerCase().replace(/[_-]/g, ' ');
-    return { item, order, score: labels.includes(words.join(' ')) ? 0 : labels.some(label=>label.startsWith(words.join(' '))) ? 1 : 2, matches: words.every(word => searchable.includes(word)) };
-  }).filter(result => result.matches).sort((a, b) => a.score - b.score || a.order - b.order).slice(0, limit).map(result => result.item);
+  const phrase=words.join(' '), buckets=[[],[],[]];
+  for(const entry of index){
+    if(!accept(entry.item)||!words.every(word=>entry.searchable.includes(word)))continue;
+    const score=entry.labels.includes(phrase)?0:entry.labels.some(label=>label.startsWith(phrase))?1:2;
+    if(buckets[score].length<limit)buckets[score].push(entry.item);
+  }
+  return buckets.flat().slice(0,limit);
 }

@@ -1,6 +1,66 @@
 import {roughPattern} from './rough-annotations.mjs';
+export function safeRandomUUID() {
+  if (typeof crypto !== 'undefined') {
+    if (typeof crypto.randomUUID === 'function' && crypto.randomUUID !== safeRandomUUID) {
+      try {
+        return crypto.randomUUID();
+      } catch {}
+    }
+    if (typeof crypto.getRandomValues === 'function') {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+  }
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+    (
+      Number(c) ^
+      (Math.floor(Math.random() * 256) & (15 >> (Number(c) / 4)))
+    ).toString(16)
+  );
+}
+
+if (typeof globalThis !== 'undefined') {
+  const g = globalThis;
+  if (!g.crypto) {
+    try {
+      g.crypto = {};
+    } catch {}
+  }
+  const c = g.crypto;
+  if (c && typeof c.randomUUID !== 'function') {
+    try {
+      c.randomUUID = safeRandomUUID;
+    } catch {
+      try {
+        Object.defineProperty(c, 'randomUUID', {
+          value: safeRandomUUID,
+          configurable: true,
+          writable: true,
+        });
+      } catch {}
+    }
+  }
+  if (typeof Crypto !== 'undefined' && Crypto.prototype && typeof Crypto.prototype.randomUUID !== 'function') {
+    try {
+      Crypto.prototype.randomUUID = safeRandomUUID;
+    } catch {
+      try {
+        Object.defineProperty(Crypto.prototype, 'randomUUID', {
+          value: safeRandomUUID,
+          configurable: true,
+          writable: true,
+        });
+      } catch {}
+    }
+  }
+}
+
 /** @returns {string} */
-export const uuid = () => crypto.randomUUID();
+export const uuid = () => safeRandomUUID();
 export const bullet = (id = uuid(), extra = {}) => ({
   id,
   parentId: null,

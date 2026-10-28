@@ -13,10 +13,12 @@
     "build:production": "node scripts/build-environment.mjs production"
   },
   "dependencies": {
+    "@number-flow/react": "^0.6.2",
     "@phosphor-icons/react": "2.1.10",
     "@tiptap/core": "^3.0.0",
     "@tiptap/pm": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
+    "canvas-confetti": "^1.9.4",
     "diff": "8.0.2",
     "firebase": "^13.1.0",
     "highlight.js": "^11.12.0",
@@ -27,12 +29,14 @@
     "lucide-react": "1.61.0",
     "marked": "^18.1.1",
     "mermaid": "^12.2.0",
+    "motion": "^14.7.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "rough-notation": "0.5.1",
     "yjs": "13.6.33"
   },
   "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "fake-indexeddb": "^6.0.0",

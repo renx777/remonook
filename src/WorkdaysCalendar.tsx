@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Workspace } from "./data";
 import { LibraryDialog } from "./StudyFolders";
 import { Icon } from "./icons";
+import { FlowNumber, NumberGroup } from "./FlowNumber";
 import { localDate, validEventDate } from "./calendar-events.mjs";
 import {
   LEAVE_TYPES,
@@ -165,22 +166,24 @@ export function WorkdaysCalendar({
       {w.enabled && validEventDate(date) && (
         <>
           <div className="wd-summary" aria-label="Monthly office goal">
-            <div className="wd-summary-copy">
-              <strong>
-                {!summary.eligible
-                  ? "No eligible workdays"
-                  : summary.met
-                    ? "Office goal met"
-                    : `${summary.completed} of ${summary.target} office days`}
-              </strong>
-              <span>
-                {summary.planned} planned
-                {summary.remaining
-                  ? ` · ${summary.remaining} still to plan`
-                  : summary.met
-                    ? ""
-                    : " · covered by plans"}
-              </span>
+            <div className="wd-summary-copy" key={date.slice(0, 7)}>
+              <NumberGroup>
+                <strong>
+                  {!summary.eligible
+                    ? "No eligible workdays"
+                    : summary.met
+                      ? "Office goal met"
+                      : <><FlowNumber value={summary.completed} /> of <FlowNumber value={summary.target} /> office days</>}
+                </strong>
+                <span>
+                  <FlowNumber value={summary.planned} /> planned
+                  {summary.remaining
+                    ? <> · <FlowNumber value={summary.remaining} /> still to plan</>
+                    : summary.met
+                      ? ""
+                      : " · covered by plans"}
+                </span>
+              </NumberGroup>
             </div>
             <div
               className="wd-goal-track"

@@ -1,6 +1,7 @@
 import {useEffect,useId,useRef,useState,type CSSProperties,type ReactNode} from 'react';
 import type {Workspace} from './data';
 import {Icon} from './icons';
+import {useEntranceMotion} from './useEntranceMotion';
 import {useCoverImage} from './DeckCover';
 import {folderLogos} from './folder-designs.mjs';
 export type FolderDraft={id?:string;name:string;color:string;logo:string;image:string;imagePosition:string};
@@ -19,6 +20,7 @@ export function FolderArtwork({color='blue',logo='none',image,imagePosition='cen
 export function LibraryDialog({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}) {
  const ref=useRef<HTMLDialogElement>(null);
  useEffect(()=>{const el=ref.current,previous=document.activeElement as HTMLElement;el?.showModal?.();if(el&&!el.open)el.setAttribute('open','');return()=>{el?.close?.();previous?.isConnected&&previous.focus();};},[]);
+ useEntranceMotion(ref, true, {kind:'dialog'});
  return <dialog ref={ref} className="study-library-dialog" aria-label={title} onCancel={e=>{e.preventDefault();onClose();}} onClick={e=>{if(e.target===ref.current)onClose();}}><header><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={onClose}><Icon name="close"/></button></header>{children}</dialog>;
 }
 export function FolderEditor({doc,id,assets,onChange,onSave,onClose,disabled}:{doc:Workspace;id?:string;assets:Map<string,Blob>;onChange:(doc:Workspace)=>void;onSave:(draft:FolderDraft,file?:File)=>Promise<void>;onClose:()=>void;disabled:boolean}) {
