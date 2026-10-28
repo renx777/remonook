@@ -16,9 +16,7 @@ including clocks for different time zones. At most 16 widgets are visible.
 
 ## Interaction and layout
 
-React Grid Layout 2.3 provides collision-aware dragging and resizing. Widgets are
-interactive by default; **Edit layout** enables dedicated drag grips and corner
-resize handles. Widget menus provide equivalent move earlier/later and size
+Dashboard uses a quiet editorial layout: small typography, fine dividers, neutral surfaces, and compact controls. React Grid Layout 2.3 provides collision-aware dragging and resizing on desktop and tablet. Widgets are interactive by default; **Edit layout** enables dedicated drag grips and corner resize handles there. On phones, widgets form a content-sized stack; use the grip to reorder and the menu to choose Compact or Expanded. Widget menus provide equivalent move earlier/later and size
 controls without requiring dragging. Removing a widget offers Undo and retains
 its data. Tidy layout repacks the current screen layout without removing data.
 Phone, tablet, and desktop layouts are stored independently. The phone default

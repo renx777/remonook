@@ -2,10 +2,10 @@ import {localDate,validEventDate} from './calendar-events.mjs';
 
 export const WIDGET_LIMIT=16;
 export const widgetCatalog=[
- {kind:'clock',title:'Clock',icon:'clock',description:'A little perspective on your day. Digital, analog, or split.',w:4,h:5},
+ {kind:'clock',title:'Clock',icon:'clock',description:'A little perspective on your day. Digital, analog, or split.',w:4,h:3},
  {kind:'focus',title:'Focus timer',icon:'timer',description:'Make space for deep work with focus sessions and restorative breaks.',w:4,h:5},
- {kind:'agenda',title:'Today',icon:'calendar',description:'Your note tasks and upcoming reminders, together at a glance.',w:4,h:5},
- {kind:'habits',title:'Habits',icon:'sprout',description:'Small steps, repeated. Track your habits through the week.',w:8,h:5},
+ {kind:'agenda',title:'Today',icon:'calendar',description:'Your note tasks and upcoming reminders, together at a glance.',w:4,h:7},
+ {kind:'habits',title:'Habits',icon:'sprout',description:'Small steps, repeated. Track your habits through the week.',w:8,h:7},
  {kind:'capture',title:'Quick capture',icon:'pencil',description:'Catch a thought before it goes. Send it straight to your notes.',w:4,h:5},
  {kind:'study',title:'Study snapshot',icon:'study',description:'See what is ready to review and keep your learning moving.',w:4,h:5},
 ];
