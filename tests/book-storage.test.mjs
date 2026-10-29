@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {empty,archive,parseArchive} from './.build/data.mjs';
 import {booksRoute,cleanupBooks,storageUsage} from '../cloud/books.mjs';
 import {route,readLimited} from '../cloud/worker.mjs';
 import {BOOK_LIMIT,STORAGE_LIMIT,registerBooks,validateReadingBooks,checkBook} from '../src/book-storage.mjs';
@@ -61,4 +62,10 @@ test('in-flight uploads cannot be submitted or deleted twice',async()=>{
  await assert.rejects(send(env,'/books/'+b.id,'PUT',bytes),e=>e.status===409);await assert.rejects(send(env,'/books/'+b.id,'DELETE'),e=>e.status===409);assert.equal((await storageUsage(env,'alice')).books,bytes.length);
  finish();assert.equal((await upload).status,200);
  }finally{sqlite.close();}
+});
+
+test('full backups retain reading metadata without embedding originals; Android export fails explicitly',async()=>{
+ const book={...details(),format:'pdf',createdAt:Date.now()},doc=registerBooks(empty(),[book]);doc.web.readingBooks[book.id].position=18;
+ const result=await parseArchive(await archive(doc,new Map()));assert.equal(result.doc.web.readingBooks[book.id].position,18);assert.equal(result.assets.size,0);
+ await assert.rejects(archive(doc,new Map(),true),/Reading book metadata/);
 });
