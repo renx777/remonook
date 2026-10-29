@@ -4,6 +4,15 @@ RemoNook supports Google and email/password through the same Firebase project
 and account-scoped workspace. Passwords are handled by Firebase Authentication;
 RemoNook does not store them in notes, IndexedDB, its sync API, or logs.
 
+## Sync backend
+
+Deploy the matching sync Worker before enabling email accounts. Its Firebase JWT
+verifier allows `google.com` and `password` providers, retaining signature,
+issuer, audience, expiry, and account UID checks. `/health` advertises these in
+`authProviders`; staging frontend deployment requires password support. Older
+Workers restricted to Google reject otherwise-valid email sessions with HTTP 401.
+No database migration is needed.
+
 ## Staging configuration
 
 In https://console.firebase.google.com/ select the staging project

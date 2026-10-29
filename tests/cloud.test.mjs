@@ -83,13 +83,25 @@ test('content addressed files enforce ownership, checksums and account quota',as
  await assert.rejects(route(req('PUT','/assets/'+hash,'test','full'),env,auth),e=>e.status===413);env.sqlite.close();
 });
 test('untrusted authentication tokens are rejected',async()=>{await assert.rejects(verifyUser('invalid.jwt.token','test-project'));});
-test('authentication verifies the configured Firebase project and rejects another project',async(t)=>{
+test('authentication accepts Google and email users, isolates their workspaces and rejects other providers/projects',async(t)=>{
  const {privateKey,publicKey}=await generateKeyPair('RS256');
  const jwk={...await exportJWK(publicKey),kid:'test-google-key',alg:'RS256',use:'sig'};
  t.mock.method(globalThis,'fetch',async(url)=>{assert.equal(String(url),'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');return Response.json({keys:[jwk]});});
- const token=await new SignJWT({auth_time:Math.floor(Date.now()/1000),firebase:{sign_in_provider:'google.com'}}).setProtectedHeader({alg:'RS256',kid:jwk.kid}).setSubject('staging-user').setIssuedAt().setExpirationTime('1h').setIssuer('https://securetoken.google.com/remonook-staging').setAudience('remonook-staging').sign(privateKey);
- assert.equal(await verifyUser(token,'remonook-staging'),'staging-user');
- await assert.rejects(verifyUser(token,'remo-978fb'),{code:'ERR_JWT_CLAIM_VALIDATION_FAILED'});
+ const sign=(provider,uid='staging-user',changes={})=>new SignJWT({auth_time:Math.floor(Date.now()/1000),firebase:{sign_in_provider:provider},...changes}).setProtectedHeader({alg:'RS256',kid:jwk.kid}).setSubject(uid).setIssuedAt().setExpirationTime('1h').setIssuer('https://securetoken.google.com/remonook-staging').setAudience('remonook-staging').sign(privateKey);
+ const google=await sign('google.com'),email=await sign('password','email-user',{email:'email@example.invalid',email_verified:false});
+ assert.equal(await verifyUser(google,'remonook-staging'),'staging-user');
+ assert.equal(await verifyUser(email,'remonook-staging'),'email-user','private notes are available before email verification');
+ await assert.rejects(verifyUser(email,'remo-978fb'),{code:'ERR_JWT_CLAIM_VALIDATION_FAILED'});
+ for(const provider of ['anonymous','custom','github.com',undefined])await assert.rejects(verifyUser(await sign(provider),'remonook-staging'),e=>e.status===401);
+ await assert.rejects(verifyUser(await sign('password','future',{auth_time:Math.floor(Date.now()/1000)+3600}),'remonook-staging'),e=>e.status===401);
+ const env={...setup(),FIREBASE_PROJECT_ID:'remonook-staging'};
+ try{
+  await route(req('PUT','/workspace',payload(0,'Email notes'),email),env);
+  await route(req('PUT','/workspace',payload(0,'Google notes'),google),env);
+  assert.equal((await (await route(req('GET','/workspace',undefined,email),env)).json()).doc.tables.bullets[0].text,'Email notes');
+  assert.equal((await (await route(req('GET','/workspace',undefined,google),env)).json()).doc.tables.bullets[0].text,'Google notes');
+  const health=await (await route(req('GET','/health'),env)).json();assert.deepEqual(health.authProviders,['google.com','password']);
+ }finally{env.sqlite.close();}
 });
 test('sync decisions protect changes on both devices',()=>{
  const d={revision:1,web:{deviceId:'one'},tables:{bullets:[]}};assert.equal(contentKey(d),contentKey({...d,revision:10,web:{deviceId:'two'}}));assert.equal(cloudDocument(d).revision,undefined);

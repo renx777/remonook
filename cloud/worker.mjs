@@ -18,7 +18,7 @@ export async function verifyUser(token, project) {
   if(!project)fail("Firebase project is not configured.",503);
   const {payload}=await jwtVerify(token,keys,{algorithms:['RS256'],issuer:`https://securetoken.google.com/${project}`,audience:project,requiredClaims:['sub','exp','iat','auth_time']});
   const now=Date.now()/1000;
-  if(!payload.sub||payload.sub.length>128||typeof payload.iat!=='number'||payload.iat>now||typeof payload.auth_time!=='number'||payload.auth_time>now||payload.firebase?.sign_in_provider!=='google.com')fail('Please sign in with Google.',401);
+  if(!payload.sub||payload.sub.length>128||typeof payload.iat!=='number'||payload.iat>now||typeof payload.auth_time!=='number'||payload.auth_time>now||!['google.com','password'].includes(payload.firebase?.sign_in_provider))fail('Please sign in with Google or email and password.',401);
   return payload.sub;
 }
 export function validatePayload(value) {
@@ -31,7 +31,7 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID)) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,authProviders:['google.com','password'],googleTasksConfigured:googleTasksConfigured(env)});
   const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
