@@ -28,5 +28,6 @@ export function searchMatcher(nodes,media=[],times={},now=Date.now()){
   if(field)return n.text.toLowerCase().includes(raw.toLowerCase());
   return n.text.toLowerCase().includes(value);
  };
- return (n,query)=>{let text=query.trim();if(!text)return true;if(dateRange(text,today))text=`date:"${text}"`;const tokens=text.match(/-?(?:[^\s"]*"[^"]*"|[^\s"]+)/g)||[];const groups=[[]];for(const t of tokens){if(t==='OR')groups.push([]);else if(t!=='AND')groups.at(-1).push(t);}return groups.some(group=>group.length>0&&group.every(t=>t[0]==='-'?!term(n,t.slice(1)):term(n,t)));};
+ let previous=null,groups=[];
+ return (n,query)=>{if(query!==previous){previous=query;let text=query.trim();if(!text){groups=[];return true;}if(dateRange(text,today))text=`date:"${text}"`;const tokens=text.match(/-?(?:[^\s"]*"[^"]*"|[^\s"]+)/g)||[];groups=[[]];for(const token of tokens){if(token==='OR')groups.push([]);else if(token!=='AND')groups.at(-1).push(token);}}return !query.trim()||groups.some(group=>group.length>0&&group.every(t=>t[0]==='-'?!term(n,t.slice(1)):term(n,t)));};
 }

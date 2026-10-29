@@ -1,15 +1,16 @@
 import {bullet,index,descendants,move} from './domain.mjs';
 export const contentFields=['text','formatting','kind','autoHighlight','listType','codeLanguage','taskState','dueDate','blockStyle','dividerStyle','dividerColor'];
 export function sourceId(nodes,id){return nodes.find(n=>n.id===id)?.mirrorSourceId||id;}
-export function noteLinks(text){return [...text.matchAll(/\[\[([^\]\n|]*)\|([^\]\n|]+)\]\]/g)].map(m=>({start:m.index,end:m.index+m[0].length,label:m[1],id:m[2],raw:m[0]}));}
+export function noteLinks(text){if(!text.includes('[['))return [];return [...text.matchAll(/\[\[([^\]\n|]*)\|([^\]\n|]+)\]\]/g)].map(m=>({start:m.index,end:m.index+m[0].length,label:m[1],id:m[2],raw:m[0]}));}
 export function internalLink(node){return `[[${(node.text||'Untitled').replace(/[\[\]|\n]/g,' ').slice(0,120)}|${node.id}]]`;}
 export function backlinks(nodes,id){const target=sourceId(nodes,id);return nodes.filter(n=>!n.mirrorSourceId&&noteLinks(n.text).some(l=>l.id===target));}
 export function mirrorLocations(nodes,id){const target=sourceId(nodes,id);return nodes.filter(n=>n.mirrorRootId===n.id&&n.mirrorSourceId===target);}
-export function displayText(text){return text.replace(/\[\[([^\]\n|]*)\|([^\]\n|]+)\]\]/g,(_,label)=>label||'Untitled');}
-export function notePath(nodes,id){const idx=index(nodes),parts=[];let n=idx.byId.get(id),seen=new Set();while(n&&!seen.has(n.id)){seen.add(n.id);parts.unshift(displayText(n.text)||'Untitled');n=idx.byId.get(n.parentId);}return parts.join(' › ');}
+export function displayText(text){if(!text.includes('[['))return text;return text.replace(/\[\[([^\]\n|]*)\|([^\]\n|]+)\]\]/g,(_,label)=>label||'Untitled');}
+export function notePath(nodes,id,idx=index(nodes)){const parts=[];let n=idx.byId.get(id),seen=new Set();while(n&&!seen.has(n.id)){seen.add(n.id);parts.unshift(displayText(n.text)||'Untitled');n=idx.byId.get(n.parentId);}return parts.join(' › ');}
 export function tagColor(tag){const key=tag.toLowerCase();if(['#imp','#important','#urgent'].includes(key))return '#e88c87';if(['#todo','#pending'].includes(key))return '#d8b666';if(['#done','#complete'].includes(key))return '#81bda1';const palette=['#83b8db','#b6a0d8','#d29aba','#8cbbac','#c9ad85'];let hash=0;for(const c of key)hash=(hash*31+c.charCodeAt(0))>>>0;return palette[hash%palette.length];}
 export const hasImportantTag=text=>/(?:^|\s)#(?:imp|important|urgent)(?![\p{L}\p{N}_-])/iu.test(text.replace(/\[\[([^\]\n|]*)\|([^\]\n|]+)\]\]/g,''));
 export function syncMirrors(previous,nodes){
+ if(!nodes.some(n=>n.mirrorSourceId)&&!previous.some(n=>n.mirrorSourceId))return nodes.slice();
  const prior=new Map(previous.map(n=>[n.id,n]));let result=nodes.slice(),idx=index(result);
  // Content edits made through any instance update the canonical bullet.
  for(const n of nodes){if(!n.mirrorSourceId||!idx.byId.has(n.mirrorSourceId))continue;const before=prior.get(n.id);if(!before)continue;const patch={};for(const field of contentFields)if(n[field]!==before[field])patch[field]=n[field];if(Object.keys(patch).length){result=result.map(s=>s.id===n.mirrorSourceId?{...s,...patch}:s);}}

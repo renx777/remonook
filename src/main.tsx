@@ -1,3 +1,5 @@
+import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
+import {useSidebarMotion} from './useSidebarMotion';
 import {ResearchPanel,useResearchDrafts} from './Research';
 import type {ResearchDraft} from './data';
 import {restoreDeviceState} from './cloud-model.mjs';
@@ -58,6 +60,7 @@ import {
   sample,
   empty,
   withNodes,
+  updateBulletContent,
   getAssets,
   archive,
   parseArchive,
@@ -216,6 +219,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     chain = useRef(Promise.resolve()),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null),
     dirty = useRef(false);
+  const sidebarMotion=useSidebarMotion(sidebarOpen);
   recoveryDraft = () => ({ doc: docRef.current, assets });
   useEffect(() => {
     (async () => {
@@ -254,6 +258,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const showError = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
   const toggleSidebar = () => {
+    sidebarMotion.capture();
     setSidebarOpen((prev) => {
       const next = !prev;
       try {
@@ -387,6 +392,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       showError(e);
       return false;
     }
+  };
+  const changeBulletContent=(id:string,value:{text:string;formatting:string})=>{
+    try{const current=docRef.current!,next=updateBulletContent(current,id,value);if(next!==current)commit(next,id);}catch(e){showError(e);}
   };
   const undo = (redo = false) => {
     const h = history.current,
@@ -1230,7 +1238,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       window.removeEventListener("beforeunload", before);
     };
   }, [status]);
-  useEffect(()=>{if(!doc)return;const ids=new Set(doc.tables.bullets.map(n=>n.id));for(const pane of views.panes)if(pane.scope&&!ids.has(pane.scope))views.update(pane.id,{scope:null,search:'',back:pane.back.filter(id=>id===null||ids.has(id)),forward:pane.forward.filter(id=>id===null||ids.has(id))});},[doc?.tables.bullets,views.panes]);
+  useEffect(()=>{if(!doc)return;const ids=snapshotIndex(doc.tables.bullets).byId;for(const pane of views.panes)if(pane.scope&&!ids.has(pane.scope))views.update(pane.id,{scope:null,search:'',back:pane.back.filter(id=>id===null||ids.has(id)),forward:pane.forward.filter(id=>id===null||ids.has(id))});},[doc?.tables.bullets,views.panes]);
   useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 3500);
@@ -1255,6 +1263,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         setDialog(value => value === "jump" ? null : "jump");
         return;
       }
+      if(!e.isComposing&&!dialog&&!menu&&(e.ctrlKey||e.metaKey)){
+        if(e.key.toLowerCase()==='s'){e.preventDefault();void flush();return;}
+        if(e.key==='\\'){e.preventDefault();toggleSidebar();return;}
+      }
       if (
         e.isComposing ||
         dialog ||
@@ -1264,14 +1276,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         e.target instanceof HTMLSelectElement
       )
         return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        void flush();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "\\") {
-        e.preventDefault();
-        toggleSidebar();
-      }
       if (!editing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         undo(e.shiftKey);
@@ -1290,11 +1294,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       </div>
     );
   const nodes = doc.tables.bullets as Node[],
-    idx = index(nodes),
+    idx = snapshotIndex(nodes),
     calendarDay = idx.byId.get(`journal-${calendarDate}`),
     calendarMonth = idx.byId.get(calendarDay?.parentId),
     calendarYear = idx.byId.get(calendarMonth?.parentId),
     calendarRoot = idx.byId.get(calendarYear?.parentId),
+    calendarReminders = tab==='calendar'?calendarEvents(doc):[],
     current = idx.byId.get(scope),
     ancestors: Node[] = [];
   let ancestor = current;
@@ -1359,6 +1364,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       <aside
         className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}
         aria-hidden={!sidebarOpen}
+        inert={!sidebarOpen}
       >
         <div className="sidebar-inner">
           <div className="sidebar-header">
@@ -1436,7 +1442,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
         </div>
       </aside>
-      <main>
+      <main ref={sidebarMotion.mainRef}>
         <header className="topbar">
           <button
             className={`icon-button sidebar-toggle-btn topbar-sidebar-toggle ${sidebarOpen ? "is-open" : "is-collapsed"}`}
@@ -1563,7 +1569,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className="note-pane" data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
               <PaneHeader pane={pane} nodes={nodes} multiple={views.panes.length>1} active={views.activePane===pane.id} onNavigate={id=>{views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);}} onHistory={forward=>{views.setActivePane(pane.id);views.history(pane.id,forward);setEditing(null);}} onSearch={q=>{views.setActivePane(pane.id);views.update(pane.id,{search:q});setEditing(null);}} onGlobal={all=>{views.setActivePane(pane.id);views.update(pane.id,{global:all});}} onClose={()=>{views.close(pane.id);setEditing(null);}} onCompleted={()=>views.update(pane.id,{completed:!(pane.completed??showCompleted)})}/>
             <OutlineView
-              nodes={pane.id==='main'?nodes:nodes.map(n=>pane.collapsed[n.id]===undefined?n:{...n,collapsed:pane.collapsed[n.id]})}
+              nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
               scope={pane.global&&pane.search?null:pane.scope}
               search={pane.search}
               showCompleted={pane.completed??showCompleted}
@@ -1588,12 +1594,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               }}
               onOpenPane={openPane}
               onToggle={id=>{if(pane.id==='main')mutate(ns=>ns.map(n=>n.id===id?{...n,collapsed:!n.collapsed}:n));else views.update(pane.id,{collapsed:{...pane.collapsed,[id]:!(pane.collapsed[id]??idx.byId.get(id)?.collapsed)}});}}
-              onChange={(id, value) =>
-                mutate(
-                  (ns) => ns.map((n) => (n.id === id ? { ...n, ...value } : n)),
-                  id,
-                )
-              }
+              onChange={changeBulletContent}
               onCommand={(action,id,start,end,selectedIds)=>{if(pane.id!=='main'&&['toggleCollapse','expandBranch','collapseBranch'].includes(action)){const ids=action==='toggleCollapse'?new Set([id]):descendants(nodes,id),collapsed={...pane.collapsed};for(const key of ids)collapsed[key]=action==='toggleCollapse'?!(collapsed[key]??idx.byId.get(key)?.collapsed):action==='collapseBranch';views.update(pane.id,{collapsed});return;}command(action,id,start,end,selectedIds);}}
               onOutlinePaste={pasteAsOutline}
               onReady={(e) => {
@@ -1634,8 +1635,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <CalendarView
             autoOpen={!workdays(doc).enabled}
             monthView={workdays(doc).enabled&&workdays(doc).view==='month'}
-            workdays={<WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(index(nodes).children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarEvents(doc),date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/>}
-            hasReminder={date=>eventsOnDate(calendarEvents(doc),date).length>0}
+            workdays={<WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(idx.children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarReminders,date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/>}
+            hasReminder={date=>eventsOnDate(calendarReminders,date).length>0}
             reminders={<CalendarReminders doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onOpenDate={date=>{setCalendarDate(date);setEditing(null);}}/>}
             nodes={nodes}
             selectedDate={calendarDate}
@@ -1660,12 +1661,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                 ),
               )
             }
-            onChange={(id, value) =>
-              mutate(
-                (ns) => ns.map((n) => (n.id === id ? { ...n, ...value } : n)),
-                id,
-              )
-            }
+            onChange={changeBulletContent}
             onCommand={command}
             onOutlinePaste={pasteAsOutline}
             onReady={(e) => {

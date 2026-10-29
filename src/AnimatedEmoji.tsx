@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AnimationItem } from 'lottie-web';
 import type { RecordData } from './data';
 import { decodeAnimation, emojiMatcher, emojiParts } from './emoji.mjs';
@@ -9,7 +9,11 @@ const cache = new WeakMap<Blob, Promise<any>>();
 const EmojiContext = createContext<{ emojis: Map<string, RecordData>; matcher: RegExp | null; assets: Map<string, Blob>; animate: boolean; onInsert?: (item: RecordData, id: string, start: number, end: number) => Promise<void> }>({ emojis: new Map(), matcher: null, assets: new Map(), animate: true });
 export const useEmojiLibrary = () => useContext(EmojiContext);
 export function EmojiProvider({ emojis, assets, animate, children, onInsert }: { emojis: RecordData[]; assets: Map<string, Blob>; animate: boolean; children: ReactNode; onInsert?: (item: RecordData, id: string, start: number, end: number) => Promise<void> }) {
-  const value = useMemo(() => ({ emojis: new Map(emojis.filter(e => e.token).map(e => [e.token, e])), matcher: emojiMatcher(emojis), assets, animate, onInsert }), [emojis, assets, animate, onInsert]);
+  const insertRef=useRef(onInsert);insertRef.current=onInsert;
+  const insert=useCallback(async(item:RecordData,id:string,start:number,end:number)=>{await insertRef.current?.(item,id,start,end);},[]);
+  const library=useMemo(()=>({emojis:new Map(emojis.filter(e=>e.token).map(e=>[e.token,e])),matcher:emojiMatcher(emojis)}),[emojis]);
+  const enabled=!!onInsert;
+  const value=useMemo(()=>({...library,assets,animate,onInsert:enabled?insert:undefined}),[library,assets,animate,enabled,insert]);
   return <EmojiContext.Provider value={value}>{children}</EmojiContext.Provider>;
 }
 type EmojiProps = { item: RecordData; blob?: Blob; data?: any; preview?: boolean; playRequest?: number; localAssetBase?: string };

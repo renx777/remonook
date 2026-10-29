@@ -15,6 +15,11 @@ const catalog=new Map(catalogEmojis.map(item=>[item.token,item]));
 const tabs=[['noto','Google Noto'],['fluent','Microsoft Fluent'],['library','My library']] as const;
 const recentKey='remo-inline-emoji-recents';
 const categories=[['all','All emojis',LayoutGrid],['recent','Recently used',Clock3],['Smileys and emotions','Smileys & emotion',Smile],['People','People',UserRound],['Animals and nature','Animals & nature',Leaf],['Food and drink','Food & drink',Coffee],['Travel and places','Travel & places',Car],['Activities and events','Activities',Volleyball],['Objects','Objects',Lightbulb],['Symbols','Symbols',Heart],['Flags','Flags',Flag]] as const;
+const searchLibraries=new WeakMap<Map<string,RecordData>,{items:RecordData[];index:ReturnType<typeof createEmojiSearchIndex>}>();
+const emptyItems:RecordData[]=[],emptyIndex=createEmojiSearchIndex([]);
+function searchLibrary(emojis:Map<string,RecordData>){
+ let value=searchLibraries.get(emojis);if(!value){const items=[...new Map([...catalogEmojis,...builtinEmojis,...emojis.values()].map(item=>[item.token,{...item,...catalog.get(item.token)}])).values()];value={items,index:createEmojiSearchIndex(items)};searchLibraries.set(emojis,value);}return value;
+}
 const rowHeight=40;
 function readRecent():string[]{try{const value=JSON.parse(window.localStorage.getItem(recentKey)||'[]');return Array.isArray(value)?value.filter(x=>typeof x==='string').slice(0,20):[];}catch{return [];}}
 function readLibraryTab(){try{return window.localStorage.getItem('remo-inline-emoji-library')==='true';}catch{return false;}}
@@ -30,8 +35,9 @@ export function InlineEmojiPicker({editor,nodeId,enabled,keyHandler}:{editor:Edi
  const searchText=searchOverride??query?.query??'';
  const [position,setPosition]=useState({left:8,top:8,height:390});
  const dismissed=useRef(''),lastQuery=useRef(''),pending=useRef(false),mounted=useRef(true),popup=useRef<HTMLDivElement>(null),touch=useRef(false);
- const items:RecordData[]=useMemo(()=>[...new Map([...catalogEmojis,...builtinEmojis,...emojis.values()].map(item=>[item.token,{...item,...catalog.get(item.token)}])).values()],[emojis]);
- const index=useMemo(()=>createEmojiSearchIndex(items),[items]);
+ // Ordinary editing never builds a catalogue that is not being displayed.
+ const library=useMemo(()=>query?searchLibrary(emojis):null,[emojis,!!query]);
+ const items=library?.items||emptyItems,index=library?.index||emptyIndex;
  const matches:RecordData[]=useMemo(()=>{
   if(!query)return [];
   const provider=(item:RecordData)=>selectedTab==='library'?(emojis.has(item.token)||emojiCollection(item)==='custom'):emojiCollection(item)===selectedTab;

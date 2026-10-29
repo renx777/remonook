@@ -1,3 +1,4 @@
+import {memo} from 'react';
 import hljs from 'highlight.js/lib/common';
 import { Extension } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
@@ -7,17 +8,19 @@ export const codeLanguages = ['plaintext', 'javascript', 'typescript', 'python',
 export function highlightCode(text: string, language: string) {
   return hljs.highlight(text, { language: hljs.getLanguage(language) ? language : 'plaintext', ignoreIllegals: true }).value;
 }
-export function CodeRead({ text, language }: { text: string; language: string }) {
+export const CodeRead=memo(function CodeRead({ text, language }: { text: string; language: string }) {
   // highlight.js escapes all source text before producing its own token spans.
   return <code className="syntax-code" dangerouslySetInnerHTML={{ __html: highlightCode(text, language) }} />;
-}
+});
 export function codeHighlight(getLanguage: () => string) {
   return Extension.create({
     name: 'remoSyntax',
     addProseMirrorPlugins() {
+      let previousDoc:unknown,previousLanguage='',cached=DecorationSet.empty;
       return [new Plugin({ props: { decorations(state) {
         const language = getLanguage();
         if (!language) return DecorationSet.empty;
+        if(previousDoc===state.doc&&previousLanguage===language)return cached;
         const text = state.doc.textBetween(0, state.doc.content.size, '\n', '\n');
         const container = document.createElement('div');
         container.innerHTML = highlightCode(text, language);
@@ -34,7 +37,7 @@ export function codeHighlight(getLanguage: () => string) {
           }
         };
         walk(container, []);
-        return DecorationSet.create(state.doc, decorations);
+        previousDoc=state.doc;previousLanguage=language;cached=DecorationSet.create(state.doc, decorations);return cached;
       } } })];
     },
   });
