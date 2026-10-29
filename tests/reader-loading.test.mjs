@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync,readdirSync} from 'node:fs';import vm from 'node:vm';import {PDF_VERSION} from '../src/pdf-version.mjs';
 test('reader workers and PDF parsing stay out of the initial offline download',()=>{
- const sw=readFileSync('dist/sw.js','utf8'),files=JSON.parse(sw.match(/FILES=(\[.*?\]);/s)[1]);assert.ok(!files.some(f=>/\/(PdfPage|PdfDocument|book-cover|pdf-|pdf\.|pdf-runtime|epub-worker)/.test(f)));assert.ok(readdirSync('dist/pdf/'+PDF_VERSION+'/cmaps').length>0);assert.ok(readdirSync('dist/pdf/'+PDF_VERSION+'/standard_fonts').length>0);assert.ok(readdirSync('dist/pdf/'+PDF_VERSION+'/wasm').length>0);
+ const sw=readFileSync('dist/sw.js','utf8'),files=JSON.parse(sw.match(/FILES=(\[.*?\]);/s)[1]);assert.ok(!files.some(f=>/\/(PdfPage|PdfDocument|book-cover|pdf-capture|pdf-|pdf\.|pdf-runtime|epub-worker)/.test(f)));assert.ok(readdirSync('dist/pdf/'+PDF_VERSION+'/cmaps').length>0);assert.ok(readdirSync('dist/pdf/'+PDF_VERSION+'/standard_fonts').length>0);assert.ok(readdirSync('dist/pdf/'+PDF_VERSION+'/wasm').length>0);
 });
 test('opened reader assets cache on use while private cross-origin books never enter the shared shell cache',async()=>{
  const listeners={},stored=new Map();let fetched=0;const origin='https://staging.remonook.com';

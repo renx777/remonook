@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {empty,archive,parseArchive} from './.build/data.mjs';
-import {registerBooks} from '../src/book-storage.mjs';import {captureReadingHighlight,markReading,readingPosition,readingDoneToday,changeReadingHighlight,validateReading} from '../src/reading.mjs';
+import {registerBooks} from '../src/book-storage.mjs';import {captureReadingImage,readingSources,parseReadingImageSource,captureReadingHighlight,markReading,readingPosition,readingDoneToday,changeReadingHighlight,validateReading} from '../src/reading.mjs';
 import {dashboard,saveDashboardTab,dashboardTabs,addWidget,visibleWidgets,reorderMobileWidget,mobileWidgets} from '../src/dashboard.mjs';
 import {seed,sharedState,openShared,applyIntent,project,Y} from '../src/sync-crdt.mjs';
 import {historyAfterSync} from '../src/cloud-model.mjs';
@@ -49,4 +49,24 @@ test('dashboard tabs isolate widgets, retain existing layouts, enforce limits an
 test('reselecting a saved passage changes its color or adds a comment without replacing edited note text',()=>{
  const one=captureReadingHighlight(base(),book,select,fingerprint);one.doc.tables.bullets.find(n=>n.id===one.bulletId).text='My edited summary';
  const two=captureReadingHighlight(one.doc,book,select,fingerprint,{color:'blue',comment:'A second thought'});assert.equal(Object.keys(two.doc.web.readingHighlights).length,1);assert.equal(two.doc.tables.bullets.filter(n=>n.parentId===two.doc.web.readingNoteRoots[hash]).length,1);assert.equal(two.doc.tables.bullets.find(n=>n.id===one.bulletId).text,'My edited summary');assert.equal(two.doc.tables.bullets.find(n=>n.text==='A second thought').parentId,one.bulletId);
+});
+
+test('PDF captures are ordinary image notes with a page source and reuse the book heading',async()=>{
+ const one=captureReadingHighlight(base(),book,select,fingerprint),id=crypto.randomUUID(),fileName=id+'.png';
+ const capture=captureReadingImage(one.doc,book,12,{id,fileName,mimeType:'image/png'}),root=capture.doc.web.readingNoteRoots[hash];
+ assert.equal(root,one.doc.web.readingNoteRoots[hash]);assert.equal(capture.doc.tables.bullets.filter(n=>!n.parentId).length,1);
+ assert.equal(capture.doc.tables.bullets.find(n=>n.id===capture.bulletId).parentId,root);
+ const media=capture.doc.tables.media.find(m=>m.id===id);assert.equal(media.bulletId,capture.bulletId);assert.equal(media.mimeType,'image/png');assert.equal(media.fileName,fileName);
+ assert.deepEqual(readingSources(capture.doc)[capture.bulletId],{hash,unit:12,id:'',label:'Page 13'});assert.equal(Object.keys(capture.doc.web.readingHighlights).length,1,'Screenshots are not fake text highlights');
+ const image=new Blob(['capture pixels'],{type:'image/png'}),saved=await parseArchive(await archive(capture.doc,new Map([['media/'+fileName,image]])));
+ assert.equal(await saved.assets.get('media/'+fileName).text(),'capture pixels');assert.equal(readingSources(saved.doc)[capture.bulletId].unit,12);
+ assert.throws(()=>captureReadingImage(capture.doc,book,0,{id,fileName,mimeType:'image/png'}),/already exists/);
+ assert.equal(parseReadingImageSource('javascript:alert(1)'),null);assert.equal(parseReadingImageSource('remonook:pdf/'+hash+'/10000'),null);
+});
+test('capturing after a book note branch is trashed allocates a fresh root without editing Trash',()=>{
+ const one=captureReadingHighlight(base(),book,select,fingerprint),oldRoot=one.doc.web.readingNoteRoots[hash];
+ const trashed={...one.doc,tables:{...one.doc.tables,bullets:[],trash:[{id:'trash',nodes:one.doc.tables.bullets}]}};
+ const id=crypto.randomUUID(),capture=captureReadingImage(trashed,book,0,{id,fileName:id+'.webp',mimeType:'image/webp'});
+ assert.notEqual(capture.doc.web.readingNoteRoots[hash],oldRoot);assert.equal(capture.doc.tables.trash[0].nodes[0].id,oldRoot);
+ assert.throws(()=>captureReadingImage(base(),book,-1,{id,fileName:id+'.png',mimeType:'image/png'}));
 });

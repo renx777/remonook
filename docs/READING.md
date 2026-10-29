@@ -42,6 +42,11 @@ boundaries in place in a future release; introduce a version and migrate source
 anchors if segmentation changes. Units do not depend on screen size, font size,
 or calendar date.
 
+Use the reader camera to drag a PDF area into book notes, or More → Save current
+page to notes for a whole-page image. Captures keep an in-app page reference and
+use ordinary image attachments, undo, sync and backups. See
+[PDF captures and roadmap](READER-CAPTURE-AND-ROADMAP.md).
+
 ## Notes, identity and persistence
 
 - `web.readingHighlights`: keyed annotations with immutable book hash, current
