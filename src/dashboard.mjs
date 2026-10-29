@@ -8,6 +8,7 @@ export const widgetCatalog=[
  {kind:'habits',title:'Habits',icon:'sprout',description:'Small steps, repeated. Track your habits through the week.',w:8,h:7},
  {kind:'capture',title:'Quick capture',icon:'pencil',description:'Catch a thought before it goes. Send it straight to your notes.',w:4,h:5},
  {kind:'googleTasks',title:'Google Tasks',icon:'check',description:'Your Google task lists, with room to plan and finish.',w:4,h:7},
+ {kind:'reading',title:'Daily reading',icon:'notes',description:'A page or passage each day. Keep your place and your best ideas.',w:6,h:5},
  {kind:'quotes',title:'Quotes',icon:'quote',description:'Words worth keeping. Explore the classics and your own #quote notes.',w:6,h:6},
  {kind:'study',title:'Study snapshot',icon:'study',description:'See what is ready to review and keep your learning moving.',w:4,h:5},
 ];
@@ -15,7 +16,7 @@ export const dashboardCols={lg:12,md:8,sm:4};
 const plain=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const safeId=id=>typeof id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(id)&&!['__proto__','constructor','prototype'].includes(id);
 const integer=(n,min,max)=>Number.isInteger(n)&&n>=min&&n<=max;
-const defaultSettings=kind=>kind==='clock'?{style:'digital',timezone:'local',hour12:false,seconds:true}:kind==='focus'?{focus:25,short:5,long:15}:kind==='quotes'?{source:'all'}:kind==='googleTasks'?{listId:''}:{};
+const defaultSettings=kind=>kind==='clock'?{style:'digital',timezone:'local',hour12:false,seconds:true}:kind==='focus'?{focus:25,short:5,long:15}:kind==='quotes'?{source:'all'}:kind==='googleTasks'?{listId:''}:kind==='reading'?{bookHash:''}:{};
 export function defaultDashboard(){
  const widgets={};
  for(const [order,kind] of ['clock','focus','agenda','habits','capture'].entries()){
@@ -25,11 +26,11 @@ export function defaultDashboard(){
  return {version:1,widgets,habits:{'habit-read':{id:'habit-read',title:'Read for 10 minutes',order:0,archived:false},'habit-break':{id:'habit-break',title:'Take a mindful break',order:1,archived:false}},checks:{},focusSessions:{}};
 }
 export function dashboard(doc){return doc.web.dashboard||defaultDashboard();}
-export function visibleWidgets(value){return Object.values(value.widgets).filter(w=>!w.removed).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id));}
+export function visibleWidgets(value,tabId){return Object.values(value.widgets).filter(w=>!w.removed&&!value.tabs?.[w.tabId||'today']?.removed&&(tabId===undefined||(w.tabId||'today')===tabId)).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id));}
 // Phone order is independent of desktop positions and evaluated against the latest document.
-export function mobileWidgets(value){return visibleWidgets(value).sort((a,b)=>(a.settings.mobileOrder??a.order)-(b.settings.mobileOrder??b.order)||a.id.localeCompare(b.id));}
-export function reorderMobileWidget(doc,id,target){return changeDashboard(doc,value=>{
- const ids=mobileWidgets(value).map(w=>w.id),from=ids.indexOf(id),to=ids.indexOf(target);if(from<0||to<0||from===to)return value;
+export function mobileWidgets(value,tabId){return visibleWidgets(value,tabId).sort((a,b)=>(a.settings.mobileOrder??a.order)-(b.settings.mobileOrder??b.order)||a.id.localeCompare(b.id));}
+export function reorderMobileWidget(doc,id,target,tabId){return changeDashboard(doc,value=>{
+ const ids=mobileWidgets(value,tabId).map(w=>w.id),from=ids.indexOf(id),to=ids.indexOf(target);if(from<0||to<0||from===to)return value;
  ids.splice(from,1);ids.splice(to,0,id);
  const widgets={...value.widgets};ids.forEach((key,order)=>{widgets[key]={...widgets[key],settings:{...widgets[key].settings,mobileOrder:order}};});
  return {...value,widgets};
@@ -42,12 +43,12 @@ export function updateWidget(doc,id,patch){return changeDashboard(doc,value=>{
  const widget=value.widgets[id];if(!widget)return value;
  return {...value,widgets:{...value.widgets,[id]:{...widget,...patch,id,kind:widget.kind}}};
 });}
-export function addWidget(doc,kind,uuid=()=>crypto.randomUUID()){
+export function addWidget(doc,kind,uuid=()=>crypto.randomUUID(),tabId='today'){
  const item=widgetCatalog.find(w=>w.kind===kind);if(!item)throw Error('Choose a widget from the library.');
  return changeDashboard(doc,value=>{
-  if(visibleWidgets(value).length>=WIDGET_LIMIT)throw Error('Your dashboard can hold up to 16 widgets.');
+  if(visibleWidgets(value,tabId).length>=WIDGET_LIMIT)throw Error('Your dashboard can hold up to 16 widgets per tab.');
   const id=uuid(),order=Math.max(-1,...Object.values(value.widgets).map(w=>w.order))+1;
-  return {...value,widgets:{...value.widgets,[id]:{id,kind,title:item.title,order,removed:false,settings:defaultSettings(kind)}}};
+  return {...value,widgets:{...value.widgets,[id]:{id,kind,title:item.title,order,removed:false,tabId,settings:defaultSettings(kind)}}};
  });
 }
 export function widgetLayout(widgets,bp){
@@ -118,9 +119,12 @@ export function finishTimer(doc,id,now=Date.now()){
 export function validateDashboard(value){
  if(value===undefined)return;
  if(!plain(value)||value.version!==1||!plain(value.widgets)||!plain(value.habits)||!plain(value.checks)||!plain(value.focusSessions))throw Error('Invalid dashboard data.');
+ if(value.tabs!==undefined){if(!plain(value.tabs)||Object.keys(value.tabs).length>100||Object.values(value.tabs).filter(t=>!t.removed).length<1||Object.values(value.tabs).filter(t=>!t.removed).length>8)throw Error('Invalid dashboard tabs.');for(const [id,t]of Object.entries(value.tabs))if(!safeId(id)||!plain(t)||t.id!==id||typeof t.title!=='string'||!t.title.trim()||t.title.length>40||typeof t.removed!=='boolean'||!Number.isFinite(t.order))throw Error('Invalid dashboard tab.');}
  if(Object.keys(value.widgets).length>500||Object.keys(value.habits).length>500||Object.keys(value.checks).length>100000||Object.keys(value.focusSessions).length>100000)throw Error('Dashboard data is too large.');
  for(const [id,w]of Object.entries(value.widgets)){
   if(!safeId(id)||!plain(w)||w.id!==id||!widgetCatalog.some(item=>item.kind===w.kind)||typeof w.title!=='string'||w.title.length>80||!Number.isFinite(w.order)||typeof w.removed!=='boolean'||!plain(w.settings))throw Error('Invalid dashboard widget.');
+  if(w.tabId!==undefined&&(!safeId(w.tabId)||value.tabs&&!value.tabs[w.tabId]||!value.tabs&&w.tabId!=='today'))throw Error('Invalid widget tab.');
+  if(w.kind==='reading'&&(typeof w.settings.bookHash!=='string'||w.settings.bookHash!==''&&!/^[a-f0-9]{64}$/.test(w.settings.bookHash)))throw Error('Invalid reading widget.');
   if(w.settings.mobileOrder!==undefined&&(!integer(w.settings.mobileOrder,0,499)))throw Error('Invalid phone widget order.');
   if(w.settings.mobileExpanded!==undefined&&typeof w.settings.mobileExpanded!=='boolean')throw Error('Invalid phone widget size.');
   if(w.kind==='clock'&&(!['digital','analog','split'].includes(w.settings.style)||typeof w.settings.timezone!=='string'||w.settings.timezone.length>100||typeof w.settings.hour12!=='boolean'||typeof w.settings.seconds!=='boolean'))throw Error('Invalid clock settings.');
@@ -135,3 +139,8 @@ export function validateDashboard(value){
  for(const [key,checked]of Object.entries(value.checks)){const at=key.lastIndexOf(':');if(!safeId(key.slice(0,at))||!validEventDate(key.slice(at+1))||typeof checked!=='boolean')throw Error('Invalid habit check-in.');}
  for(const [id,s]of Object.entries(value.focusSessions))if(!safeId(id)||!plain(s)||s.id!==id||!Number.isFinite(s.endedAt)||s.endedAt<0||!Number.isFinite(s.minutes)||s.minutes<=0||s.minutes>120)throw Error('Invalid focus session.');
 }
+
+export function dashboardTabs(value){return Object.values(value.tabs||{today:{id:'today',title:'Today',order:0,removed:false}}).filter(t=>!t.removed).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id));}
+export function saveDashboardTab(doc,id,patch){return changeDashboard(doc,value=>{const tabs=value.tabs||{today:{id:'today',title:'Today',order:0,removed:false}},old=tabs[id];if((!old||old.removed&&patch.removed===false)&&dashboardTabs(value).length>=8)throw Error('Use up to eight dashboard tabs.');if(patch.removed&&dashboardTabs(value).length<=1)throw Error('Keep at least one dashboard tab.');return {...value,tabs:{...tabs,[id]:{...(old||{id,title:'New tab',order:Math.max(0,...Object.values(tabs).map(t=>t.order))+1,removed:false}),...patch,id}}};});}
+
+export function moveDashboardTab(doc,id,direction){return changeDashboard(doc,value=>{const ordered=dashboardTabs(value),at=ordered.findIndex(t=>t.id===id),to=Math.max(0,Math.min(ordered.length-1,at+direction));if(at<0||at===to)return value;[ordered[at],ordered[to]]=[ordered[to],ordered[at]];return {...value,tabs:{...value.tabs,...Object.fromEntries(ordered.map((t,order)=>[t.id,{...t,order}]))}};});}

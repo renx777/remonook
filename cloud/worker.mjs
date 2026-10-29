@@ -1,3 +1,4 @@
+import {validateReading} from '../src/reading.mjs';
 import {booksRoute,cleanupBooks} from './books.mjs';
 import {STORAGE_LIMIT,validateReadingBooks} from '../src/book-storage.mjs';
 import {googleTasksPublic,googleTasksRoute,googleTasksConfigured,cleanupGoogleTasks} from './google-tasks.mjs';
@@ -25,7 +26,7 @@ export async function verifyUser(token, project) {
 }
 export function validatePayload(value) {
   if(!value||!Number.isSafeInteger(value.baseRevision)||value.baseRevision<0||!value.doc?.tables||!value.doc?.columns||!value.doc?.preferences||!value.doc?.web||!Array.isArray(value.doc.tables.bullets)||!Array.isArray(value.assets))fail('Invalid workspace.',400);
-  validateReadingBooks(value.doc.web.readingBooks);
+  validateReadingBooks(value.doc.web.readingBooks);validateReading(value.doc.web);
   if(value.assets.length>2000)fail('Too many attachments.',413);
   let total=0;const paths=new Set();for(const a of value.assets){if(typeof a.path!=='string'||!a.path||a.path.length>500||paths.has(a.path)||!/^[a-f0-9]{64}$/.test(a.hash)||!Number.isSafeInteger(a.size)||a.size<0||a.size>FILE_LIMIT||typeof a.type!=='string'||a.type.length>150)fail('Invalid attachment.',400);paths.add(a.path);total+=a.size;}
   if(total>ACCOUNT_LIMIT)fail('Attachments exceed 20 MiB.',413);
@@ -34,7 +35,7 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID)) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,authProviders:['google.com','password'],bookStorage:1,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,googleTasksConfigured:googleTasksConfigured(env)});
   const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
