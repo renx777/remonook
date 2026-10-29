@@ -1,0 +1,20 @@
+[
+  {"id":"thoreau-detail","text":"Our life is frittered away by detail.","author":"Henry David Thoreau","work":"Walden","url":"https://www.gutenberg.org/ebooks/205"},
+  {"id":"thoreau-truth","text":"Rather than love, than money, than fame, give me truth.","author":"Henry David Thoreau","work":"Walden","url":"https://www.gutenberg.org/ebooks/205"},
+  {"id":"thoreau-dreams","text":"I learned this, at least, by my experiment; that if one advances confidently in the direction of his dreams, and endeavors to live the life which he has imagined, he will meet with a success unexpected in common hours.","author":"Henry David Thoreau","work":"Walden","url":"https://www.gutenberg.org/ebooks/205"},
+  {"id":"emerson-enthusiasm","text":"Nothing great was ever achieved without enthusiasm.","author":"Ralph Waldo Emerson","work":"Essays","url":"https://www.gutenberg.org/ebooks/16643"},
+  {"id":"emerson-peace","text":"Nothing can bring you peace but yourself.","author":"Ralph Waldo Emerson","work":"Essays","url":"https://www.gutenberg.org/ebooks/16643"},
+  {"id":"emerson-friend","text":"The only way to have a friend is to be one.","author":"Ralph Waldo Emerson","work":"Essays","url":"https://www.gutenberg.org/ebooks/16643"},
+  {"id":"emerson-trust","text":"Trust thyself: every heart vibrates to that iron string.","author":"Ralph Waldo Emerson","work":"Essays","url":"https://www.gutenberg.org/ebooks/16643"},
+  {"id":"austen-tenderness","text":"There is no charm equal to tenderness of heart.","author":"Jane Austen","work":"Emma","url":"https://www.gutenberg.org/ebooks/158"},
+  {"id":"austen-silly","text":"Silly things do cease to be silly if they are done by sensible people in an impudent way.","author":"Jane Austen","work":"Emma","url":"https://www.gutenberg.org/ebooks/158"},
+  {"id":"alcott-storms","text":"I’m not afraid of storms, for I’m learning how to sail my ship.","author":"Louisa May Alcott","work":"Little Women","url":"https://www.gutenberg.org/ebooks/514"},
+  {"id":"epictetus-views","text":"Men are disturbed not by things, but by the views which they take of things.","author":"Epictetus","work":"The Enchiridion · translated by Thomas Wentworth Higginson","url":"https://www.gutenberg.org/ebooks/45109"},
+  {"id":"epictetus-events","text":"Demand not that events should happen as you wish; but wish them to happen as they do happen, and you will go on well.","author":"Epictetus","work":"The Enchiridion · translated by Thomas Wentworth Higginson","url":"https://www.gutenberg.org/ebooks/45109"},
+  {"id":"epictetus-handles","text":"Everything has two handles: one by which it may be borne, another by which it cannot.","author":"Epictetus","work":"The Enchiridion · translated by Thomas Wentworth Higginson","url":"https://www.gutenberg.org/ebooks/45109"},
+  {"id":"shakespeare-wit","text":"Brevity is the soul of wit.","author":"William Shakespeare","work":"Hamlet","url":"https://www.gutenberg.org/ebooks/1524"},
+  {"id":"shakespeare-thinking","text":"There is nothing either good or bad but thinking makes it so.","author":"William Shakespeare","work":"Hamlet","url":"https://www.gutenberg.org/ebooks/1524"},
+  {"id":"bacon-reading","text":"Reading maketh a full man; conference a ready man; and writing an exact man.","author":"Francis Bacon","work":"Of Studies · Essays","url":"https://www.gutenberg.org/ebooks/575"},
+  {"id":"bacon-books","text":"Some books are to be tasted, others to be swallowed, and some few to be chewed and digested.","author":"Francis Bacon","work":"Of Studies · Essays","url":"https://www.gutenberg.org/ebooks/575"},
+  {"id":"bacon-consider","text":"Read not to contradict and confute; nor to believe and take for granted; nor to find talk and discourse; but to weigh and consider.","author":"Francis Bacon","work":"Of Studies · Essays","url":"https://www.gutenberg.org/ebooks/575"}
+]
