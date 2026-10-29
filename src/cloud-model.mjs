@@ -18,7 +18,7 @@ export const contentKey=doc=>JSON.stringify(canonical(cloudDocument(doc)));
 // Keep snapshot undo only for an unchanged view; genuine remote edits still
 // invalidate snapshots so undo cannot overwrite another device's changes.
 export function historyAfterSync(history,local,remote){
- const key=doc=>{const shared=canonical(cloudDocument(doc));for(const rows of Object.values(shared.tables))if(Array.isArray(rows))rows.sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));return JSON.stringify(shared);};
+ const key=doc=>{const shared=canonical(cloudDocument(doc));for(const [name,rows]of Object.entries(shared.tables))if(Array.isArray(rows))shared.tables[name]=rows.map(row=>JSON.stringify(row)).sort();return JSON.stringify(shared);};
  return key(local)===key(remote)?history:{undo:[],redo:[]};
 }
 // Historical keys contain the complete acknowledged document, not a hash.
