@@ -18,7 +18,8 @@
   "vars": {
     "FIREBASE_PROJECT_ID": "remonook-staging",
     "ALLOWED_ORIGINS": "https://staging.remonook.com",
-    "GOOGLE_TASKS_REDIRECT_URI": "https://remo-sync-staging.remo-978fb.workers.dev/integrations/google-tasks/callback"
+    "GOOGLE_TASKS_REDIRECT_URI": "https://remo-sync-staging.remo-978fb.workers.dev/integrations/google-tasks/callback",
+    "BOOK_UPLOADS_ENABLED": "true"
   },
   "d1_databases": [
     {
@@ -35,7 +36,7 @@
   ],
   "triggers": {
     "crons": [
-      "17 3 * * *"
+      "17 * * * *"
     ]
   }
 }

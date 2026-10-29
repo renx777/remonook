@@ -96,3 +96,10 @@ account isolation, offline reload, response loss, edits during requests, IME
 adoption deferral, attachment uploads and legacy write protection. A real Tiptap
 application test verifies that a focused editor receives remote text, preserves its
 caret and continues syncing subsequent typing.
+
+## Reading originals
+
+Books use a separate lazy file transfer path with a 25 MiB/file limit and 100 MiB
+combined account quota. Existing attachment limits remain 2 MiB/file and 20 MiB
+for the attachment category. See [BOOK-STORAGE.md](BOOK-STORAGE.md). Book metadata
+uses the normal CRDT workspace; binary files are never included in note sync.
