@@ -25,7 +25,7 @@ async function boundedJson(response){
  const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
  try{return JSON.parse(new TextDecoder().decode(bytes));}catch{fail('Google returned an invalid response.',502);}
 }
-async function form(fetcher,url,body){return fetcher(url,{method:'POST',body:new URLSearchParams(body),signal:AbortSignal.timeout(15000),redirect:'error'});}
+async function form(fetcher,url,body){return fetcher(url,{method:'POST',body:new URLSearchParams(body),signal:AbortSignal.timeout(15000),redirect:'manual'});}
 const rowFor=(env,uid)=>env.DB.prepare('SELECT * FROM google_tasks_connections WHERE uid=?').bind(uid).first();
 async function assertVersion(env,uid,version){const current=await rowFor(env,uid);if(!current||current.version!==version||current.status==='disconnected')fail('The Google Tasks connection changed. Refresh to continue.',409,'connection_changed');}
 async function credentials(env,uid,row,fetcher,force=false){
@@ -150,7 +150,7 @@ export async function googleTasksRoute(request,env,uid,{fetcher=fetch,readLimite
   let response;
   for(let attempt=0;attempt<2;attempt++){
    uncertainCreate=method==='POST';
-   try{response=await fetcher(target,{method,headers:{Authorization:'Bearer '+token.access_token,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),signal:AbortSignal.timeout(15000),redirect:'error'});}catch{fail(method==='POST'?'This task may already have been added. Refresh the list before trying again.':'Google Tasks could not be reached. Try again.',503,method==='POST'?'ambiguous':'network');}
+   try{response=await fetcher(target,{method,headers:{Authorization:'Bearer '+token.access_token,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),signal:AbortSignal.timeout(15000),redirect:'manual'});}catch{fail(method==='POST'?'This task may already have been added. Refresh the list before trying again.':'Google Tasks could not be reached. Try again.',503,method==='POST'?'ambiguous':'network');}
    if(response.status!==401||attempt)break;
    uncertainCreate=false;await response.body?.cancel();await assertVersion(env,uid,row.version);
    token=await credentials(env,uid,await rowFor(env,uid),fetcher,true);
