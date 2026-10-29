@@ -20,7 +20,9 @@ export function validateReadingBooks(books){
 export function registerBooks(doc,books){
  const next={...doc.web.readingBooks};let changed=false;
  for(const book of books){const existing=next[book.id];if(existing)continue;
-  next[book.id]={id:book.id,name:book.name,title:book.name.replace(/\.(pdf|epub)$/i,''),format:book.format,size:book.size,hash:book.hash,createdAt:book.createdAt,position:0,deleted:false};changed=true;
+  const previous=Object.values(next).find(b=>!b.deleted&&b.hash===book.hash);
+  if(previous)next[previous.id]={...previous,deleted:true};
+  next[book.id]={id:book.id,name:book.name,title:previous?.title||book.name.replace(/\.(pdf|epub)$/i,''),format:book.format,size:book.size,hash:book.hash,createdAt:book.createdAt,position:previous?.position||0,deleted:false};changed=true;
  }
  if(!changed)return doc;validateReadingBooks(next);return {...doc,web:{...doc.web,readingBooks:next}};
 }
