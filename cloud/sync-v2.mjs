@@ -1,3 +1,5 @@
+import {validateDashboard} from '../src/dashboard.mjs';
+import {validateReading} from '../src/reading.mjs';
 import {validateReadingBooks} from '../src/book-storage.mjs';
 import {Y,pack,unpack,rowKey,openShared,sharedState,seed,project,normalizeTree,applyIntent,emptyShared} from '../src/sync-crdt.mjs';
 import {validateMirrors} from '../src/relations.mjs';
@@ -37,7 +39,7 @@ function snapshot(y){
  // Invalid mirror references can arise when a source is deleted concurrently.
  // Detaching keeps the note text; the journal retains the original link.
  try{validateMirrors(value.doc.tables.bullets);}catch{for(const n of value.doc.tables.bullets){delete n.mirrorSourceId;delete n.mirrorRootId;}}
- validateReadingBooks(value.doc.web.readingBooks);validateWorkdays(value.doc.web.workdays);validateCalendarEvents(value.doc.web.calendarEvents);validateStudyLibrary(value.doc.web);validateOcclusions(value.doc.web.occlusions);
+ validateReadingBooks(value.doc.web.readingBooks);validateReading(value.doc.web);validateDashboard(value.doc.web.dashboard);validateWorkdays(value.doc.web.workdays);validateCalendarEvents(value.doc.web.calendarEvents);validateStudyLibrary(value.doc.web);validateOcclusions(value.doc.web.occlusions);
  applyIntent(y,before,value.doc,value.assets,value.assets);
  return value;
 }

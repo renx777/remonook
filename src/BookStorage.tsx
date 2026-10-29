@@ -9,7 +9,7 @@ import './book-storage.css';
 type Book={id:string;name:string;format:string;size:number;hash:string;createdAt:number;title?:string;deleted?:boolean;position?:number};
 type Usage={attachments:number;books:number;total:number;limit:number;uploadsEnabled:boolean};
 const mib=(bytes:number)=>(bytes/1024/1024).toFixed(1)+' MiB';
-export function BookStorage({user,doc,disabled,onChange,onSignIn}:{user:User|null;doc:Workspace;disabled:boolean;onChange:(update:(doc:Workspace)=>Workspace)=>void;onSignIn:()=>Promise<void>}){
+export function BookStorage({user,doc,disabled,onChange,onSignIn,onRead}:{user:User|null;doc:Workspace;disabled:boolean;onChange:(update:(doc:Workspace)=>Workspace)=>void;onSignIn:()=>Promise<void>;onRead?:(hash:string)=>void}){
  const [usage,setUsage]=useState<Usage|null>(null),[server,setServer]=useState<Book[]>([]),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[online,setOnline]=useState(navigator.onLine);
  const lock=useRef(false),alive=useRef(true),requests=useRef(new Set<AbortController>()),change=useRef(onChange);change.current=onChange;
  const local=Object.values(doc.web.readingBooks||{}) as Book[],books=local.filter(b=>!b.deleted);
@@ -57,7 +57,7 @@ export function BookStorage({user,doc,disabled,onChange,onSignIn}:{user:User|nul
   {!online&&<p role="status">You’re offline. Previously cached books are still available on this device.</p>}
   <label className="book-upload">Add a PDF or EPUB<input aria-label="Choose a PDF or EPUB book" type="file" accept=".pdf,.epub,application/pdf,application/epub+zip" disabled={disabled||!!busy||!online||!usage?.uploadsEnabled} onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';if(file)void upload(file);}}/></label>
   <p className="book-storage-note">Books download when you open them and cache on this device. Workspace backups preserve reading metadata; download book originals separately here.</p>
-  {books.length>0?<ul className="book-library">{books.map(book=><li key={book.id}><div><strong>{book.title||book.name}</strong><small>{book.format.toUpperCase()} · {mib(book.size)}{online&&!server.some(b=>b.id===book.id)?' · Original unavailable':''}</small></div><div><button className="action" disabled={disabled||!!busy} onClick={()=>void getFile(book)}>Download</button><button className="action" disabled={disabled||!!busy||!online} onClick={()=>remove(book)}>Delete</button></div></li>)}</ul>:<p className="book-storage-note">Your reading library is empty. Add a book to keep its original ready for the upcoming reader.</p>}
+  {books.length>0?<ul className="book-library">{books.map(book=><li key={book.id}><div><strong>{book.title||book.name}</strong><small>{book.format.toUpperCase()} · {mib(book.size)}{online&&!server.some(b=>b.id===book.id)?' · Original unavailable':''}</small></div><div>{onRead&&<button className="action" disabled={!!busy} onClick={()=>onRead(book.hash)}>Read</button>}<button className="action" disabled={disabled||!!busy} onClick={()=>void getFile(book)}>Download</button><button className="action" disabled={disabled||!!busy||!online} onClick={()=>remove(book)}>Delete</button></div></li>)}</ul>:<p className="book-storage-note">Your reading library is empty. Add a book and make a little space to read.</p>}
   {busy&&<p role="status">{busy}</p>}{error&&<p className="cloud-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
  </section>;
 }

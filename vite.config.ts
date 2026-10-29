@@ -17,6 +17,7 @@ export default defineConfig(({mode})=>{
           editor: ["@tiptap/core", "@tiptap/starter-kit", "@tiptap/pm/model"],
           react: ["react", "react-dom"],
           backup: ["jszip"],
+          pdf: ["pdfjs-dist"],
         },
       },
     },

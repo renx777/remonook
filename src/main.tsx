@@ -1,3 +1,5 @@
+import {ReadingSources,ReaderBoundary,ReaderStartup} from './ReadingSources';
+import {validateReading} from './reading.mjs';
 import {BookStorage} from './BookStorage';
 import {GoogleTasksProvider,GoogleTasksConnection} from './GoogleTasks';
 import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
@@ -103,6 +105,7 @@ import "./outline-chrome.css";
 import "./study.css";
 import "./mcq.css";
 import "./mobile.css";
+const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
 const Dashboard = React.lazy(()=>import('./Dashboard').then(module=>({default:module.Dashboard})));
 let recoveryDraft: () => { doc: Workspace | null; assets: Map<string, Blob> } = () => ({ doc: null, assets: new Map() });
 async function downloadRecovery() {
@@ -158,6 +161,11 @@ function Dialog({
   );
 }
 export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
+  const [readerTarget,setReaderTarget]=useState<{hash:string;unit?:number;id?:string}|null>(null);
+  const readerOrigin=useRef<HTMLElement|null>(null);
+  const closeReader=React.useCallback(()=>{setReaderTarget(null);requestAnimationFrame(()=>{const element=readerOrigin.current?.isConnected?readerOrigin.current:document.querySelector<HTMLElement>('.topbar button');element?.focus();});},[]);
+  const readerOpenHandler=useRef<(hash:string,unit?:number,id?:string)=>void>(()=>{});
+  const openReader=React.useCallback((hash:string,unit?:number,id?:string)=>readerOpenHandler.current(hash,unit,id),[]);
   const research=useResearchDrafts(storageAccountKey());
   const [researchTarget,setResearchTarget]=useState<string|null>(null);
   const researchBusy=useRef(false),researchOrigin=useRef<HTMLElement|null>(null);
@@ -1290,6 +1298,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [editing, dialog, menu, doc, views.panes, views.activePane]);
+  readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
+  const readingSourceMap=React.useMemo(()=>Object.fromEntries(Object.values(doc?.web.readingHighlights||{}).map((h:any)=>[h.bulletId,{hash:h.bookHash,unit:h.unit,id:h.id,label:(h.format==='pdf'?'Page ':'Passage ')+(h.unit+1)}])),[doc?.web.readingHighlights]);
+  const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader}),[readingSourceMap,openReader]);
   if (!doc)
     return (
       <div className="startup">
@@ -1360,7 +1371,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     focus(id, prefix.length);
   };
   return (
-    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}>
+    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}>
     <ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
@@ -1631,7 +1642,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {selected&&<SelectionFormatting editor={activeEditor} disabled={disabled||unsupportedFormatting(selected)} blockStyle={selected.blockStyle||'paragraph'} onBlock={type=>command('block:'+type,selected.id,0,0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style=>command('dividerStyle:'+style,selected.id,0,0)} onDividerColor={color=>command('dividerColor:'+color,selected.id,0,0)}/>}
           </>
         ) : tab === "dashboard" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading dashboard…</section>}><Dashboard doc={doc} disabled={disabled} onChange={update=>commit(update(docRef.current!),undefined,false)} onCapture={text=>{
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading dashboard…</section>}><Dashboard doc={doc} disabled={disabled} onRead={openReader} onLibrary={()=>{setSettingsPanel('storage');setDialog('settings');}} onChange={update=>commit(update(docRef.current!),undefined,false)} onCapture={text=>{
             if(disabled||failed.current)throw Error('Resolve the saving error before adding a note.');
             const current=docRef.current!,id=crypto.randomUUID(),position=current.tables.bullets.filter(node=>!node.parentId).reduce((max,node)=>Math.max(max,node.position+1),0);
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
@@ -1934,6 +1945,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <a className="feature-guide-link" href="/guides" target="_blank" rel="noopener noreferrer"><Icon name="learn" size={16}/><span>Guides & tutorials</span><Icon name="forward" size={12}/></a>
         </div>
       </OutlinePopover>}
+      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onNote={id=>navigateTo(id)} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <Dialog title="Jump to" onClose={() => setDialog(null)}><JumpTo nodes={nodes} onChoose={navigateTo} /></Dialog>}
       {dialog === "shortcuts" && <Dialog title="Keyboard shortcuts" onClose={() => setDialog(null)}><div className="shortcut-list">{[
         ["Paste outline", "Ctrl + V · text, Markdown, OPML or formatted text"], ["Mask selected text", "Ctrl + Shift + M"], ["Command menu", "/ at start or after a space"], ["New pane", "Alt + R"], ["Open bullet in pane", "Alt + click bullet"], ["Link to a bullet", "[[ then search"], ["Mirror a bullet", "(( then search"], ["Code block", "Ctrl + Alt + C"], ["Numbered / bulleted list", "Ctrl + Shift + 7 / 8"], ["MCQ editor", "Ctrl + Alt + M"], ["Task", "Ctrl + Alt + T"], ["Plain bullet", "Ctrl + Alt + 0"], ["Exit code block", "Ctrl + Enter"], ["New bullet", "Enter"], ["New line", "Shift + Enter"], ["Animated emoji picker", ": then a name"], ["Indent / outdent", "Tab / Shift + Tab"], ["Complete / uncomplete", "Ctrl + Enter"], ["Expand / collapse", "Ctrl + Space"], ["Move branch up / down", "Ctrl + Shift + ↑ / ↓"], ["Zoom in / out", "Alt + → / ←"], ["Jump to a note", "Ctrl + K"], ["Toggle sidebar", "Ctrl + \\"], ["Undo / redo", "Ctrl + Z / Shift + Ctrl + Z"], ["Finish editing", "Escape"],
@@ -2008,7 +2020,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <section className="upload-storage-status"><h3>Attachment storage</h3><p className="dialog-muted">{(attachmentBytes(assets)/1024/1024).toFixed(1)} MB / 20 MB used · 2 MB per file</p><progress aria-label="Attachment storage used" max={MAX_ATTACHMENT_BYTES} value={Math.min(attachmentBytes(assets),MAX_ATTACHMENT_BYTES)}/><p className="dialog-muted">Note attachments in this workspace. Books have separate on-demand storage in Settings → Storage. Embedded links use no space.</p></section>
           </section>}
           {settingsPanel==="connections"&&<GoogleTasksConnection/>}
-          {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
+          {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
           {settingsPanel==="backups" && <section aria-label="Backups"><div className="settings-section-heading"><h3>Your notes. Your copy.</h3><p>A full backup includes notes, media, decks and study progress.</p></div><div className="settings-backup-actions">
           <button
             className="wide action"
@@ -2267,7 +2279,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     </div>
     </EmojiProvider>
     </ConnectionContext.Provider>
-    </SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></GoogleTasksProvider>
+    </SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></ReadingSources.Provider></GoogleTasksProvider>
   );
 }
 export const appRoot = createRoot(document.getElementById("root")!);

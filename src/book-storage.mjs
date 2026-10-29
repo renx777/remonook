@@ -14,6 +14,7 @@ export function validateReadingBooks(books){
  if(books===undefined)return;
  if(!books||typeof books!=='object'||Array.isArray(books)||Object.keys(books).length>1000)throw Error('Invalid reading library.');
  for(const [id,b]of Object.entries(books)){
+  if(b?.totalUnits!==undefined&&(!Number.isInteger(b.totalUnits)||b.totalUnits<1||b.totalUnits>10000))throw Error('Invalid book length.');
   if(!bookId(id)||!b||b.id!==id||!BOOK_TYPES[b.format]||typeof b.title!=='string'||b.title.length>240||typeof b.name!=='string'||b.name.length>240||!Number.isSafeInteger(b.size)||b.size<1||b.size>BOOK_LIMIT||!/^[a-f0-9]{64}$/.test(b.hash)||typeof b.deleted!=='boolean'||!Number.isSafeInteger(b.position)||b.position<0||b.position>10000000||!Number.isFinite(b.createdAt)||b.createdAt<0)throw Error('Invalid reading book.');
  }
 }

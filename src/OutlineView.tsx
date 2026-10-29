@@ -1,3 +1,4 @@
+import {ReadingCitation} from './ReadingSources';
 import {snapshotIndex} from './outline-snapshot.mjs';
 import {branchMedia,musicItems} from './music.mjs';
 import {useMusic} from './Music';
@@ -879,6 +880,7 @@ export function OutlineView(p: Props) {
                     )}
                   </div>
                 )}
+                <ReadingCitation id={n.mirrorSourceId||n.id}/>
                 {!n.collapsed&&<MediaContent onEdit={p.disabled?undefined:()=>p.onEdit(n.id)} nodeId={n.mirrorSourceId||n.id} text={n.text} media={mediaByNode.get(n.mirrorSourceId||n.id) || []} assets={p.assets} onResize={p.disabled ? undefined : p.onResizeMedia} onOcclude={p.disabled ? undefined : p.onOccludeMedia} onRemove={p.disabled ? undefined : p.onRemoveMedia} />}
                 {n.codeLanguage && (
                   <span className="code-label">{n.codeLanguage}</span>

@@ -1,3 +1,4 @@
+import {validateReading} from './reading.mjs';
 import {validateReadingBooks} from './book-storage.mjs';
 import {project,openShared} from './sync-crdt.mjs';
 import {cloudDocument} from './cloud-model.mjs';
@@ -155,6 +156,7 @@ export function androidBlockers(doc: Workspace) {
   if(doc.tables.bullets.some(node=>node.mirrorSourceId))reasons.push("Mirrors require a full web backup");
   if(doc.web.calendarEvents?.length)reasons.push('Calendar reminders require a full web backup');
   if(doc.web.workdays)reasons.push('Workdays require a full web backup');
+  if(doc.web.readingHighlights)reasons.push('Book highlight sources require a full web backup');
   if(doc.web.readingBooks)reasons.push('Reading book metadata requires a full web backup');
   if(doc.web.dashboard)reasons.push('Dashboard widgets and habits require a full web backup');
   if(doc.web.studyFolders?.length||Object.keys(doc.web.deckFolders||{}).length||doc.web.studyExcludedCards?.length)reasons.push("Study folders and removed study cards require a full web backup");
@@ -226,7 +228,7 @@ export async function load(name?: string): Promise<Workspace | null> {
     );
     for (const r of all) tables[r.table].push(r.value);
     validateWorkdays(m.web?.workdays);
-    validateDashboard(m.web?.dashboard);validateReadingBooks(m.web?.readingBooks);
+    validateDashboard(m.web?.dashboard);validateReadingBooks(m.web?.readingBooks);validateReading(m.web||{});
     return { ...m, tables };
   } finally {
     db.close();
@@ -251,7 +253,7 @@ export async function save(
   adoptSyncState?: string,
 ): Promise<Workspace> {
   validateWorkdays(after.web.workdays);
-  validateDashboard(after.web.dashboard);validateReadingBooks(after.web.readingBooks);
+  validateDashboard(after.web.dashboard);validateReadingBooks(after.web.readingBooks);validateReading(after.web);
   const db = await openDb();
   try {
     const tx = db.transaction(
@@ -698,7 +700,7 @@ export async function parseArchive(
   validateOcclusions(doc.web.occlusions);
   validateStudyLibrary(doc.web);
   validateCalendarEvents(doc.web.calendarEvents);
-  validateDashboard(doc.web.dashboard);validateReadingBooks(doc.web.readingBooks);
+  validateDashboard(doc.web.dashboard);validateReadingBooks(doc.web.readingBooks);validateReading(doc.web);
   validateWorkdays(doc.web.workdays);
   for(const item of doc.tables.media)if(item.displayWidth!=null&&(!Number.isFinite(item.displayWidth)||item.displayWidth<15||item.displayWidth>100))throw Error("Invalid image display width");
   const warnings = androidBlockers(doc);

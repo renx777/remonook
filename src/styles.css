@@ -2042,3 +2042,4 @@ hr {
 .study-guide-divider{margin:0 9px;color:var(--muted);font-size:12px}
 
 @media(max-width:760px){.app>main{margin-left:0}}
+.reader-startup{max-width:390px;width:calc(100vw - 32px);font-size:14px;line-height:1.7}.reading-citation{display:inline-flex;background:transparent;border:0;padding:2px 4px;font-size:10px;min-height:24px;color:var(--muted)}

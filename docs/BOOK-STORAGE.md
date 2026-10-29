@@ -1,7 +1,8 @@
 # Book storage
 
-Settings → Storage imports private PDF/EPUB originals. This release implements
-storage for the upcoming reader; dashboard tabs and daily reading are separate.
+Settings → Storage imports private PDF/EPUB originals. Open a book with Read,
+or add a Daily reading widget to a dashboard tab. See [Reading](READING.md) for
+the reader, highlights, source notes and daily progress.
 Books download only when requested and cache in an account-scoped IndexedDB
 separate from note attachments. No book binary enters Yjs, the durable note
 outbox, or the normal attachment download loop. Device-only accounts must sign
