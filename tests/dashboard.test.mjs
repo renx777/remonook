@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import {empty,save,load,archive,parseArchive,androidBlockers} from './.build/data.mjs';
-import {defaultDashboard,dashboard,changeDashboard,visibleWidgets,addWidget,updateWidget,widgetLayout,packWidgets,saveDashboardLayout,addHabit,toggleHabit,habitStreak,shiftDay,timerRemaining,finishTimer,validateDashboard} from '../src/dashboard.mjs';
+import {defaultDashboard,dashboard,mobileWidgets,reorderMobileWidget,changeDashboard,visibleWidgets,addWidget,updateWidget,widgetLayout,packWidgets,saveDashboardLayout,addHabit,toggleHabit,habitStreak,shiftDay,timerRemaining,finishTimer,validateDashboard} from '../src/dashboard.mjs';
 import {localDate} from '../src/calendar-events.mjs';
 import {Y,seed,sharedState,openShared,applyIntent,project,pack,unpack} from '../src/sync-crdt.mjs';
 import {mergeCloudWorkspaces} from '../src/cloud-merge.mjs';
@@ -82,4 +82,15 @@ test('concurrent widget settings, different habit days and removals converge thr
  assert.deepEqual(project(one).doc,project(openShared(merged)).doc);
  for(const d of [s,left,right,one])d.destroy();
  const legacy=mergeCloudWorkspaces(base,a,b);assert.equal(legacy.ok,true);assert.equal(legacy.doc.web.dashboard.widgets['default-clock'].title,'Home time');
+});
+
+test('phone reordering stays independent, handles stale targets and preserves desktop layouts and settings',()=>{
+ let doc=workspace();doc=saveDashboardLayout(doc,'lg',widgetLayout(visibleWidgets(dashboard(doc)),'lg'));
+ const before=structuredClone(dashboard(doc)),from='default-clock',target='default-focus';
+ doc=reorderMobileWidget(doc,from,target);
+ const after=dashboard(doc);assert.equal(mobileWidgets(after)[0].id,target);assert.equal(mobileWidgets(after)[1].id,from);
+ for(const [id,w] of Object.entries(before.widgets)){assert.deepEqual(after.widgets[id].layouts,w.layouts);assert.equal(after.widgets[id].order,w.order);}
+ assert.deepEqual(dashboard(reorderMobileWidget(doc,from,'deleted-widget')),after);
+ assert.equal(after.widgets[from].settings.timezone,before.widgets[from].settings.timezone);
+ const invalid=structuredClone(after);invalid.widgets[from].settings.mobileOrder=NaN;assert.throws(()=>validateDashboard(invalid),/phone widget order/);
 });

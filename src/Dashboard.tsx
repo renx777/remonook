@@ -1,5 +1,7 @@
+import {DashboardMenu} from './DashboardMenu';
+import {DashboardBoard,DashboardDragHandle} from './DashboardBoard';
 import {useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
-import GridLayout,{useContainerWidth,type Layout} from 'react-grid-layout';
+import {useContainerWidth,type Layout} from 'react-grid-layout';
 import {Icon} from './icons';
 import {LibraryDialog} from './StudyFolders';
 import type {Workspace} from './data';
@@ -7,7 +9,7 @@ import {accountLocalKey} from './data';
 import {localDate,calendarEvents,upcomingEvents,reminderWhen} from './calendar-events.mjs';
 import {createStudyContext,dueCards} from './study.mjs';
 import {ALL_MCQS} from './mcq.mjs';
-import {dashboard as readDashboard,visibleWidgets,widgetCatalog,WIDGET_LIMIT,dashboardCols,widgetLayout,packWidgets,changeDashboard,updateWidget,addWidget,saveDashboardLayout,shiftDay,habitStreak,toggleHabit,addHabit,timerDuration,timerRemaining,finishTimer} from './dashboard.mjs';
+import {dashboard as readDashboard,visibleWidgets,mobileWidgets as phoneWidgets,reorderMobileWidget,widgetCatalog,WIDGET_LIMIT,dashboardCols,widgetLayout,packWidgets,changeDashboard,updateWidget,addWidget,saveDashboardLayout,shiftDay,habitStreak,toggleHabit,addHabit,timerDuration,timerRemaining,finishTimer} from './dashboard.mjs';
 import './dashboard.css';
 
 type Box={x:number;y:number;w:number;h:number};
@@ -22,19 +24,23 @@ const clockStyles=[['digital','Digital'],['analog','Analog'],['split','Split']];
 const pad=(n:number)=>String(n).padStart(2,'0');
 const formatTime=(seconds:number)=>`${pad(Math.floor(seconds/60))}:${pad(seconds%60)}`;
 
-function useNow(){
+// Align updates with clock boundaries and stop repainting hidden tabs.
+function useNow(cadence=60000){
  const [now,setNow]=useState(Date.now);
- useEffect(()=>{const tick=()=>setNow(Date.now()),timer=setInterval(tick,1000);window.addEventListener('focus',tick);document.addEventListener('visibilitychange',tick);return()=>{clearInterval(timer);window.removeEventListener('focus',tick);document.removeEventListener('visibilitychange',tick);};},[]);
+ useEffect(()=>{let timer:ReturnType<typeof setTimeout>;const tick=()=>{clearTimeout(timer);setNow(Date.now());if(document.visibilityState!=='hidden')timer=setTimeout(tick,Math.max(50,cadence-Date.now()%cadence));};tick();window.addEventListener('focus',tick);document.addEventListener('visibilitychange',tick);return()=>{clearTimeout(timer);window.removeEventListener('focus',tick);document.removeEventListener('visibilitychange',tick);};},[cadence]);
  return now;
 }
 
-function ClockWidget({widget,now,disabled,onStyle}:{widget:Widget;now:number;disabled:boolean;onStyle:(style:string)=>void}){
- const settings=widget.settings,options=settings.timezone==='local'?{}:{timeZone:settings.timezone};
- const parts=new Intl.DateTimeFormat('en-GB',{...options,hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now);
+function ClockWidget({widget}:{widget:Widget}){
+ const now=useNow(widget.settings.seconds?1000:60000);
+ const settings=widget.settings,zone=settings.timezone==='local'?Intl.DateTimeFormat().resolvedOptions().timeZone:settings.timezone;
+ const options=useMemo(()=>({timeZone:zone}),[zone]);
+ const formatter=useMemo(()=>new Intl.DateTimeFormat('en-GB',{...options,hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}),[options]);
+ const dateFormatter=useMemo(()=>new Intl.DateTimeFormat(undefined,{...options,weekday:'long',month:'short',day:'numeric'}),[options]);
+ const parts=formatter.formatToParts(now);
  const part=(key:string)=>Number(parts.find(item=>item.type===key)?.value||0),hours=part('hour'),minutes=part('minute'),seconds=part('second');
  const displayHour=settings.hour12?(hours%12||12):hours;
- const date=new Intl.DateTimeFormat(undefined,{...options,weekday:'long',month:'short',day:'numeric'}).format(now);
- const zone=settings.timezone==='local'?Intl.DateTimeFormat().resolvedOptions().timeZone:settings.timezone;
+ const date=dateFormatter.format(now);
  return <div className={`dash-clock dash-clock-${settings.style}`}>
   <div className="dash-clock-zone"><span className="dash-live-dot"/> {zone.replaceAll('_',' ').split('/').at(-1)}</div>
   {settings.style==='analog'?<svg className="dash-clock-face" viewBox="0 0 160 160" role="img" aria-label={`${hours}:${pad(minutes)}`}>
@@ -51,7 +57,8 @@ function ClockWidget({widget,now,disabled,onStyle}:{widget:Widget;now:number;dis
  </div>;
 }
 
-function FocusWidget({widget,now,disabled,sessions,onUpdate,onFinish}:{widget:Widget;now:number;disabled:boolean;sessions:DashboardData['focusSessions'];onUpdate:(timer:Timer)=>void;onFinish:()=>void}){
+function FocusWidget({widget,disabled,sessions,onUpdate,onFinish}:{widget:Widget;disabled:boolean;sessions:DashboardData['focusSessions'];onUpdate:(timer:Timer)=>void;onFinish:()=>void}){
+ const now=useNow(widget.timer?.running?1000:60000);
  const mode=widget.timer?.mode||'focus',remaining=timerRemaining(widget,now),running=!!widget.timer?.running,duration=widget.timer?.duration||timerDuration(widget,mode),complete=remaining===0;
  const finish=useRef(onFinish);finish.current=onFinish;
  useEffect(()=>{if(!disabled&&running&&remaining===0)finish.current();},[running,remaining,disabled]);
@@ -61,7 +68,7 @@ function FocusWidget({widget,now,disabled,sessions,onUpdate,onFinish}:{widget:Wi
   const seconds=remaining||timerDuration(widget,mode);
   onUpdate({mode,running:true,endsAt:now+seconds*1000,remaining:seconds,duration:widget.timer?.duration||seconds,cycle:complete||!widget.timer?crypto.randomUUID():widget.timer.cycle});
  };
- const today=localDate(new Date(now)),count=Object.values(sessions).filter(session=>localDate(new Date(session.endedAt))===today).length;
+ const today=localDate(new Date(now)),count=useMemo(()=>Object.values(sessions).filter(session=>localDate(new Date(session.endedAt))===today).length,[sessions,today]);
  return <div className="dash-focus">
   <div className="dash-segments" aria-label="Focus timer mode">{[['focus','Focus'],['short','Short break'],['long','Long break']].map(([id,label])=><button key={id} aria-pressed={mode===id} disabled={disabled} onClick={()=>changeMode(id)}>{label}</button>)}</div>
   <div className={`dash-timer-ring ${running?'is-running':''}`} style={{'--timer-progress':`${Math.min(100,(1-remaining/duration)*100)}%`} as CSSProperties}>
@@ -73,25 +80,28 @@ function FocusWidget({widget,now,disabled,sessions,onUpdate,onFinish}:{widget:Wi
  </div>;
 }
 
-function HabitsWidget({value,today,disabled,onChange,expanded=false}:{value:DashboardData;today:string;disabled:boolean;onChange:Change;expanded?:boolean}){
- const [name,setName]=useState(''),[editing,setEditing]=useState<string|null>(null),[rename,setRename]=useState('');
- const habits=Object.values(value.habits).filter(h=>!h.archived).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id)),days=Array.from({length:7},(_,i)=>shiftDay(today,i-6));
- const completed=habits.filter(h=>value.checks[h.id+':'+today]).length;
+function HabitsWidget({value,today,disabled,onChange,expanded=false,mobile=false}:{value:DashboardData;today:string;disabled:boolean;onChange:Change;expanded?:boolean;mobile?:boolean}){
+ const [name,setName]=useState(''),[editing,setEditing]=useState<string|null>(null),[rename,setRename]=useState(''),[showAll,setShowAll]=useState(false),[day,setDay]=useState(today);
+ useEffect(()=>setDay(today),[today]);
+ const habits=Object.values(value.habits).filter(h=>!h.archived).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id)),days=Array.from({length:7},(_,i)=>shiftDay(today,i-6)),selectedDay=mobile&&expanded?day:today;
+ const completed=habits.filter(h=>value.checks[h.id+':'+selectedDay]).length;
+ const edit=(habit:Habit)=>{setEditing(habit.id);setRename(habit.title);};
+ const archive=(id:string)=>onChange(doc=>changeDashboard(doc,(d:DashboardData)=>({...d,habits:{...d.habits,[id]:{...d.habits[id],archived:true}}})));
  return <div className="dash-habits">
-  <div className="dash-habit-summary"><div><strong>{completed}<span> / {habits.length}</span></strong><small>habits nurtured today</small></div><span className="dash-habit-motto"><Icon name="sprout" size={19}/>Little by little.</span></div>
-  {!expanded&&<div className="dash-habit-today">{habits.slice(0,4).map(h=><div className="dash-habit-today-row" key={h.id}><button className="dash-habit-name" disabled={disabled} onClick={()=>{setEditing(h.id);setRename(h.title)}}>{h.title}<small>{habitStreak(value,h.id,today)} day streak</small></button><button className={`dash-habit-check ${value.checks[h.id+':'+today]?'is-checked':''}`} aria-label={`${h.title} on ${today}`} aria-pressed={!!value.checks[h.id+':'+today]} disabled={disabled} onClick={()=>onChange(doc=>toggleHabit(doc,h.id,today))}>{value.checks[h.id+':'+today]?<Icon name="check" size={14}/>:null}</button></div>)}{habits.length>4&&<span className="dash-more-count">+{habits.length-4} more habits</span>}</div>}
-  {expanded&&<div className="dash-habit-table-scroll"><div className="dash-habit-table" role="group" aria-label="Weekly habits">
-   <div className="dash-habit-table-head"><span>This week</span>{days.map(day=><span key={day} className={day===today?'is-today':''}><small>{new Date(day+'T12:00:00').toLocaleDateString(undefined,{weekday:'narrow'})}</small>{Number(day.slice(-2))}</span>)}<span/></div>
+  <div className="dash-habit-summary"><div><strong>{completed}<span> / {habits.length}</span></strong><small>{selectedDay===today?'habits today':'habits completed'}</small></div></div>
+  {mobile&&expanded&&<div className="dash-habit-days" role="group" aria-label="Habit history day">{days.map(date=><button key={date} aria-pressed={date===selectedDay} aria-label={`View habits on ${date}`} onClick={()=>setDay(date)}><small>{date===today?'Today':new Date(date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short'})}</small><span>{Number(date.slice(-2))}</span></button>)}</div>}
+  {mobile?<><div className="dash-habit-today">{habits.slice(0,expanded||showAll?32:4).map(h=><div className="dash-habit-today-row" key={h.id}><button className="dash-habit-name" disabled={disabled} onClick={()=>edit(h)}>{h.title}<small>{habitStreak(value,h.id,today)>0?`${habitStreak(value,h.id,today)} day streak`:'A fresh start'}</small></button><button className={`dash-habit-check ${value.checks[h.id+':'+selectedDay]?'is-checked':''}`} aria-label={`${h.title} on ${selectedDay}`} aria-pressed={!!value.checks[h.id+':'+selectedDay]} disabled={disabled} onClick={()=>onChange(doc=>toggleHabit(doc,h.id,selectedDay))}>{value.checks[h.id+':'+selectedDay]?<Icon name="check" size={14}/>:null}</button></div>)}</div>{!expanded&&habits.length>4&&<button className="dash-expand" aria-expanded={showAll} onClick={()=>setShowAll(!showAll)}>{showAll?'Show fewer habits':`Show all ${habits.length} habits`}</button>}</>:<div className="dash-habit-table-scroll"><div className="dash-habit-table" role="group" aria-label="Weekly habits">
+   <div className="dash-habit-table-head"><span>This week</span>{days.map(date=><span key={date} className={date===today?'is-today':''}><small>{new Date(date+'T12:00:00').toLocaleDateString(undefined,{weekday:'narrow'})}</small>{Number(date.slice(-2))}</span>)}<span/></div>
    {habits.map(habit=><div className="dash-habit-row" key={habit.id}>
-    <button className="dash-habit-name" disabled={disabled} title="Edit habit" onClick={()=>{setEditing(habit.id);setRename(habit.title);}}><span>{habit.title}</span><small>{habitStreak(value,habit.id,today)>0?`${habitStreak(value,habit.id,today)} day streak`:'A fresh start'}</small></button>
-    {days.map(day=><button key={day} className={`dash-habit-check ${value.checks[habit.id+':'+day]?'is-checked':''}`} aria-label={`${habit.title} on ${day}`} aria-pressed={!!value.checks[habit.id+':'+day]} disabled={disabled} onClick={()=>onChange(doc=>toggleHabit(doc,habit.id,day))}>{value.checks[habit.id+':'+day]?<Icon name="check" size={14}/>:<span/>}</button>)}
-    <button className="dash-habit-remove" disabled={disabled} aria-label={`Archive ${habit.title}`} title="Archive habit" onClick={()=>onChange(doc=>changeDashboard(doc,(d:DashboardData)=>({...d,habits:{...d.habits,[habit.id]:{...d.habits[habit.id],archived:true}}})))}><Icon name="close" size={12}/></button>
+    <button className="dash-habit-name" disabled={disabled} title="Edit habit" onClick={()=>edit(habit)}><span>{habit.title}</span><small>{habitStreak(value,habit.id,today)>0?`${habitStreak(value,habit.id,today)} day streak`:'A fresh start'}</small></button>
+    {days.map(date=><button key={date} className={`dash-habit-check ${value.checks[habit.id+':'+date]?'is-checked':''}`} aria-label={`${habit.title} on ${date}`} aria-pressed={!!value.checks[habit.id+':'+date]} disabled={disabled} onClick={()=>onChange(doc=>toggleHabit(doc,habit.id,date))}>{value.checks[habit.id+':'+date]?<Icon name="check" size={14}/>:<span/>}</button>)}
+    <button className="dash-habit-remove" disabled={disabled} aria-label={`Archive ${habit.title}`} title="Archive habit" onClick={()=>archive(habit.id)}><Icon name="close" size={12}/></button>
    </div>)}
   </div></div>}
   {!habits.length&&<p className="dash-empty-inline">Start with one small habit you want to make time for.</p>}
   <form className="dash-habit-add" onSubmit={event=>{event.preventDefault();if(!name.trim()||disabled)return;onChange(doc=>addHabit(doc,name));setName('');}}><Icon name="plus" size={15}/><input aria-label="New habit" maxLength={80} disabled={disabled||habits.length>=32} placeholder="Add a small habit…" value={name} onChange={e=>setName(e.target.value)}/><button className="dash-text-button" disabled={disabled||!name.trim()||habits.length>=32}>Add</button></form>
   {Object.values(value.habits).some(h=>h.archived)&&<details className="dash-archived-habits"><summary>Archived habits ({Object.values(value.habits).filter(h=>h.archived).length})</summary>{Object.values(value.habits).filter(h=>h.archived).map(h=><div key={h.id}><span>{h.title}</span><button className="dash-text-button" disabled={disabled||habits.length>=32} onClick={()=>onChange(doc=>changeDashboard(doc,(d:DashboardData)=>({...d,habits:{...d.habits,[h.id]:{...d.habits[h.id],archived:false}}})))}>Restore</button></div>)}</details>}
-  {editing&&<LibraryDialog title="Edit habit" onClose={()=>setEditing(null)}><form className="dash-settings-form" onSubmit={event=>{event.preventDefault();if(disabled||!rename.trim())return;onChange(doc=>changeDashboard(doc,(d:DashboardData)=>({...d,habits:{...d.habits,[editing]:{...d.habits[editing],title:rename.trim()}}})));setEditing(null);}}><label>Habit name<input autoFocus maxLength={80} value={rename} onChange={e=>setRename(e.target.value)}/></label><footer><button type="button" onClick={()=>setEditing(null)}>Cancel</button><button className="dash-primary" disabled={disabled||!rename.trim()}>Save habit</button></footer></form></LibraryDialog>}
+  {editing&&<LibraryDialog title="Edit habit" onClose={()=>setEditing(null)}><form className="dash-settings-form" onSubmit={event=>{event.preventDefault();if(disabled||!rename.trim())return;onChange(doc=>changeDashboard(doc,(d:DashboardData)=>({...d,habits:{...d.habits,[editing]:{...d.habits[editing],title:rename.trim()}}})));setEditing(null);}}><label>Habit name<input autoFocus maxLength={80} value={rename} onChange={e=>setRename(e.target.value)}/></label><footer><button type="button" className="dash-archive-action" disabled={disabled} onClick={()=>{archive(editing);setEditing(null);}}>Archive habit</button><button type="button" onClick={()=>setEditing(null)}>Cancel</button><button className="dash-primary" disabled={disabled||!rename.trim()}>Save habit</button></footer></form></LibraryDialog>}
  </div>;
 }
 
@@ -109,10 +119,10 @@ function CaptureWidget({widget,disabled,onCapture,onNote}:{widget:Widget;disable
 function AgendaWidget({doc,today,disabled,onNote,onTask,onCalendar}:{doc:Workspace;today:string;disabled:boolean;onNote:Props['onNote'];onTask:Props['onTask'];onCalendar:Props['onCalendar']}){
  const [section,setSection]=useState('tasks'),[expanded,setExpanded]=useState(false);
  const tasks=doc.tables.bullets.filter(node=>node.taskState==='TODO'&&!node.mirrorSourceId).sort((a,b)=>(a.dueDate||'9999').localeCompare(b.dueDate||'9999')||a.position-b.position);
- const events=upcomingEvents(calendarEvents(doc),today).slice(0,expanded?6:3);
- return <div className="dash-agenda"><div className="dash-agenda-tabs">{[['tasks','Tasks',tasks.length],['reminders','Reminders',events.length]].map(([id,label,count])=><button key={id} className={section===id?'is-active':''} aria-pressed={section===id} onClick={()=>setSection(String(id))}>{label}<span>{count}</span></button>)}</div>
-  <div className="dash-agenda-items">{section==='tasks'?tasks.length?tasks.slice(0,expanded?8:3).map(task=><div className="dash-agenda-row" key={task.id}><button className="dash-task-check" aria-label={`Complete dashboard task ${task.text}`} disabled={disabled} onClick={()=>onTask(task.id)}><Icon name="check" size={12}/></button><button className="dash-agenda-link" onClick={()=>onNote(task.id)}><strong>{task.text||'Untitled task'}</strong>{task.dueDate&&<small className={task.dueDate<today?'is-overdue':''}>{task.dueDate===today?'Today':new Date(task.dueDate+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}</small>}</button></div>):<div className="dash-widget-empty"><Icon name="sunrise" size={29}/><strong>A little breathing room.</strong><p>Tasks from your notes will appear here.</p></div>:events.length?events.map(event=><button className="dash-reminder-row" key={event.key} onClick={()=>onCalendar(event.occurrenceDate)}><span className="dash-reminder-date">{new Date(event.occurrenceDate+'T12:00:00').toLocaleDateString(undefined,{month:'short'})}<strong>{Number(event.occurrenceDate.slice(-2))}</strong></span><span><strong>{event.title}</strong><small>{reminderWhen(event)}</small></span><Icon name="forward" size={13}/></button>):<div className="dash-widget-empty"><Icon name="calendar" size={27}/><strong>Nothing on the horizon.</strong><p>Add a reminder in Calendar for the things that matter.</p></div>}</div>
-  {((section==='tasks'&&tasks.length>3)||(section==='reminders'&&events.length>3))&&<button className="dash-expand" onClick={()=>setExpanded(!expanded)}>{expanded?'Show less':'Show more'}</button>}<button className="dash-widget-footer-link" onClick={()=>section==='tasks'?onNote(''):onCalendar(today)}>{section==='tasks'?'Open notes':'Open calendar'}<Icon name="forward" size={13}/></button>
+ const events=upcomingEvents(calendarEvents(doc),today);
+ return <div className="dash-agenda"><div className="dash-agenda-tabs">{[['tasks','Tasks',tasks.length],['reminders','Reminders',events.length]].map(([id,label,count])=><button key={id} className={section===id?'is-active':''} aria-pressed={section===id} onClick={()=>{setSection(String(id));setExpanded(false);}}>{label}<span>{count}</span></button>)}</div>
+  <div className="dash-agenda-items">{section==='tasks'?tasks.length?tasks.slice(0,expanded?tasks.length:3).map(task=><div className="dash-agenda-row" key={task.id}><button className="dash-task-check" aria-label={`Complete dashboard task ${task.text}`} disabled={disabled} onClick={()=>onTask(task.id)}><Icon name="check" size={12}/></button><button className="dash-agenda-link" onClick={()=>onNote(task.id)}><strong>{task.text||'Untitled task'}</strong>{task.dueDate&&<small className={task.dueDate<today?'is-overdue':''}>{task.dueDate<today?'Overdue · ':''}{task.dueDate===today?'Today':new Date(task.dueDate+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}</small>}</button></div>):<div className="dash-widget-empty"><Icon name="sunrise" size={29}/><strong>A little breathing room.</strong><p>Tasks from your notes will appear here.</p></div>:events.length?events.slice(0,expanded?events.length:3).map(event=><button className="dash-reminder-row" key={event.key} onClick={()=>onCalendar(event.occurrenceDate)}><span className="dash-reminder-date">{new Date(event.occurrenceDate+'T12:00:00').toLocaleDateString(undefined,{month:'short'})}<strong>{Number(event.occurrenceDate.slice(-2))}</strong></span><span><strong>{event.title}</strong><small>{reminderWhen(event)}</small></span><Icon name="forward" size={13}/></button>):<div className="dash-widget-empty"><Icon name="calendar" size={27}/><strong>Nothing on the horizon.</strong><p>Add a reminder in Calendar for the things that matter.</p></div>}</div>
+  {((section==='tasks'&&tasks.length>3)||(section==='reminders'&&events.length>3))&&<button className="dash-expand" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>{expanded?'Show less':'Show more'}</button>}<button className="dash-widget-footer-link" onClick={()=>section==='tasks'?onNote(''):onCalendar(today)}>{section==='tasks'?'Open notes':'Open calendar'}<Icon name="forward" size={13}/></button>
  </div>;
 }
 
@@ -134,22 +144,18 @@ function WidgetSettings({widget,disabled,onSave,onClose}:{widget:Widget;disabled
  </form></LibraryDialog>;
 }
 
-function ResponsiveBoard({mobile,children,...props}:{mobile:boolean;children:React.ReactNode;[key:string]:any}){const DesktopGrid=GridLayout as any;return mobile?<div className="dash-mobile-stack">{children}</div>:<DesktopGrid {...props}>{children}</DesktopGrid>}
-
 export function Dashboard({doc,disabled,onChange,onCapture,onNote,onStudy,onCalendar,onTask}:Props){
  const value=readDashboard(doc) as DashboardData,widgets=visibleWidgets(value) as Widget[],now=useNow(),today=localDate(new Date(now));
- const [draggedId,setDraggedId]=useState<string|null>(null),[dropId,setDropId]=useState<string|null>(null);
  const [editing,setEditing]=useState(false),[library,setLibrary]=useState(false),[settingsId,setSettingsId]=useState<string|null>(null),[menu,setMenu]=useState<string|null>(null),[removed,setRemoved]=useState<string|null>(null),[announcement,setAnnouncement]=useState(''),[error,setError]=useState('');
- const menuRef=useRef<HTMLDivElement>(null),dragStart=useRef<string|null>(null);
+ const menuRef=useRef<HTMLDivElement>(null),menuAnchor=useRef<HTMLButtonElement|null>(null);
  const {width,containerRef,mounted}=useContainerWidth({initialWidth:1040,debounceTimeout:60});
- const bp=width>=1000?'lg':width>=650?'md':'sm',mobile=bp==='sm',mobileWidgets=[...widgets].sort((a,b)=>(a.settings.mobileOrder??a.order)-(b.settings.mobileOrder??b.order)),displayWidgets=mobile?mobileWidgets:widgets,layout=useMemo(()=>widgetLayout(widgets,bp),[value.widgets,bp]) as Layout;
+ const bp=width>=1000?'lg':width>=650?'md':'sm',mobile=bp==='sm',mobileWidgets=phoneWidgets(value) as Widget[],displayWidgets=mobile?mobileWidgets:widgets,layout=useMemo(()=>widgetLayout(widgets,bp),[value.widgets,bp]) as Layout;
  const settingsWidget=settingsId?value.widgets[settingsId]:null;
  const change:Change=update=>{if(disabled)return;try{onChange(update);setError('');}catch(e){setError((e as Error).message);}};
- useEffect(()=>{if(!menu)return;const outside=(event:PointerEvent)=>{if(!(event.target as Element)?.closest('.dash-widget-options'))setMenu(null);};const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setMenu(null);};window.addEventListener('pointerdown',outside);window.addEventListener('keydown',escape);return()=>{window.removeEventListener('pointerdown',outside);window.removeEventListener('keydown',escape);};},[menu]);
+ useEffect(()=>{if(!menu)return;const outside=(event:PointerEvent)=>{if(!menuRef.current?.contains(event.target as Node)&&!(event.target as Element)?.closest('.dash-widget-options'))setMenu(null);};const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setMenu(null);};window.addEventListener('pointerdown',outside);window.addEventListener('keydown',escape);return()=>{window.removeEventListener('pointerdown',outside);window.removeEventListener('keydown',escape);};},[menu]);
  useEffect(()=>{if(menu)menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();},[menu]);
- useEffect(()=>{if(!mobile||!editing)return;const up=(event:PointerEvent)=>{const from=dragStart.current;dragStart.current=null;setDraggedId(null);setDropId(null);if(!from)return;const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-widget-id]')?.getAttribute('data-widget-id');if(target)moveMobile(from,mobileWidgets.findIndex(w=>w.id===target));};const move=(event:PointerEvent)=>{if(!dragStart.current)return;setDropId(document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-widget-id]')?.getAttribute('data-widget-id')||null);};const cancel=()=>{dragStart.current=null;setDraggedId(null);setDropId(null);};window.addEventListener('pointerup',up);window.addEventListener('pointermove',move);window.addEventListener('pointercancel',cancel);return()=>{window.removeEventListener('pointerup',up);window.removeEventListener('pointermove',move);window.removeEventListener('pointercancel',cancel);};},[mobile,editing,mobileWidgets.map(w=>w.id).join(',')]);
  const saveLayout=(next:Layout)=>{change(doc=>saveDashboardLayout(doc,bp,next));setAnnouncement('Dashboard layout updated.');};
- const moveMobile=(id:string,to:number)=>{const ids=mobileWidgets.map(w=>w.id),from=ids.indexOf(id);if(from<0||from===to)return;ids.splice(from,1);ids.splice(Math.max(0,Math.min(to,ids.length)),0,id);change(doc=>changeDashboard(doc,(d:DashboardData)=>({...d,widgets:Object.fromEntries(Object.entries(d.widgets).map(([key,w])=>[key,ids.includes(key)?{...w,settings:{...w.settings,mobileOrder:ids.indexOf(key)}}:w]))})));setAnnouncement('Widget moved.');};
+ const moveMobile=(id:string,to:number)=>{const target=mobileWidgets[Math.max(0,Math.min(to,mobileWidgets.length-1))];if(!target||target.id===id)return;change(doc=>reorderMobileWidget(doc,id,target.id));setAnnouncement('Widget moved.');};
  const rearrange=(widget:Widget,direction:number)=>{if(mobile){moveMobile(widget.id,mobileWidgets.findIndex(w=>w.id===widget.id)+direction);setMenu(null);return;}
   const ids=[...layout].sort((a,b)=>a.y-b.y||a.x-b.x).map(item=>item.i),at=ids.indexOf(widget.id),next=Math.max(0,Math.min(ids.length-1,at+direction));
   if(at===next)return;ids.splice(at,1);ids.splice(next,0,widget.id);
@@ -160,37 +166,35 @@ export function Dashboard({doc,disabled,onChange,onCapture,onNote,onStudy,onCale
   const ordered=[...layout].sort((a,b)=>a.y-b.y||a.x-b.x).map(item=>value.widgets[item.i]);
   saveLayout(packWidgets(ordered,bp,Object.fromEntries(layout.map(current=>[current.i,current.i===item.i?{w,h}:{w:current.w,h:current.h}]))));setMenu(null);
  };
- const greet=new Date(now).getHours()<12?'Good morning':new Date(now).getHours()<18?'Good afternoon':'Good evening';
- const visibleHabits=Object.values(value.habits).filter(h=>!h.archived),doneHabits=visibleHabits.filter(h=>value.checks[h.id+':'+today]).length;
- const sessionCount=Object.values(value.focusSessions).filter(s=>localDate(new Date(s.endedAt))===today).length;
  return <section className={`dashboard ${editing?'is-editing':''}`} aria-label="Dashboard">
   <div className="dash-page-heading"><div><span className="dash-eyebrow"><Icon name="sunrise" size={15}/>{new Date(now).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}</span><h1>Dashboard</h1></div><div className="dash-page-actions"><button className={`dash-quiet ${editing?'is-active':''}`} aria-pressed={editing} disabled={disabled} onClick={()=>{setEditing(!editing);setMenu(null);}}><Icon name={editing?'check':'sliders'} size={16}/>{editing?'Done editing':'Edit layout'}</button><button className="dash-primary" disabled={disabled||widgets.length>=WIDGET_LIMIT} onClick={()=>setLibrary(true)}><Icon name="plus" size={17}/>Add widget</button></div></div>
 
-  {editing&&<div className="dash-edit-help"><Icon name="grip" size={16}/><span>Drag a grip to reorder. Use the menu for size and keyboard controls.</span><button className="dash-text-button" disabled={disabled} onClick={()=>{saveLayout(packWidgets(widgets,bp));setAnnouncement('Widgets arranged neatly.');}}>Tidy layout</button></div>}
+  {editing&&<div className="dash-edit-help"><Icon name="grip" size={16}/><span>Drag a grip to reorder. Use the menu for size and keyboard controls.</span>{!mobile&&<button className="dash-text-button" disabled={disabled} onClick={()=>{saveLayout(packWidgets(widgets,bp));setAnnouncement('Widgets arranged neatly.');}}>Tidy layout</button>}</div>}
   {error&&<p role="alert" className="dash-error">{error}</p>}
   {removed&&<div className="dash-undo" role="status">Widget removed.<button className="dash-text-button" disabled={disabled} onClick={()=>{change(doc=>updateWidget(doc,removed,{removed:false}));setRemoved(null);}}>Undo</button><button className="dash-quiet" aria-label="Dismiss widget removal" onClick={()=>setRemoved(null)}><Icon name="close" size={13}/></button></div>}
   <div ref={containerRef} className="dash-grid-container">
-   {!widgets.length?<div className="dash-empty-board"><span><Icon name="dashboard" size={32}/></span><h2>A space that feels like you.</h2><p>Add a clock, a small habit, or a place to focus.<br/>Make this corner of RemoNook your own.</p><button className="dash-primary" disabled={disabled} onClick={()=>setLibrary(true)}><Icon name="plus" size={16}/>Choose your first widget</button></div>:width>0&&(mounted||typeof ResizeObserver==='undefined')&&<ResponsiveBoard mobile={mobile} width={Math.max(width,1)} layout={layout} gridConfig={{cols:dashboardCols[bp],rowHeight:32,margin:[12,12],containerPadding:[0,0]}} dragConfig={{enabled:editing&&!disabled,handle:'.dash-widget-drag',bounded:true,threshold:6}} resizeConfig={{enabled:editing&&!disabled,handles:['se']}} onDragStop={(next:Layout)=>saveLayout(next)} onResizeStop={(next:Layout)=>saveLayout(next)}>
-    {displayWidgets.map(widget=><div key={widget.id} className={`dash-grid-item ${mobile&&widget.settings.mobileExpanded?'is-expanded':''} ${draggedId===widget.id?'is-dragging':''} ${dropId===widget.id&&draggedId!==widget.id?'is-drop-target':''}`} data-widget-id={widget.id} data-widget-kind={widget.kind}>
+   {!widgets.length?<div className="dash-empty-board"><span><Icon name="dashboard" size={32}/></span><h2>A space that feels like you.</h2><p>Add a clock, a small habit, or a place to focus.<br/>Make this corner of RemoNook your own.</p><button className="dash-primary" disabled={disabled} onClick={()=>setLibrary(true)}><Icon name="plus" size={16}/>Choose your first widget</button></div>:width>0&&(mounted||typeof ResizeObserver==='undefined')&&<DashboardBoard mobile={mobile} editing={editing&&!disabled} items={mobileWidgets.map(w=>w.id)} labels={Object.fromEntries(widgets.map(w=>[w.id,w.title]))} onReorder={(id,target)=>{change(doc=>reorderMobileWidget(doc,id,target));setAnnouncement('Widget moved.');}} width={Math.max(width,1)} layout={layout} gridConfig={{cols:dashboardCols[bp],rowHeight:32,margin:[12,12],containerPadding:[0,0]}} dragConfig={{enabled:editing&&!disabled,handle:'.dash-widget-drag',bounded:true,threshold:6}} resizeConfig={{enabled:editing&&!disabled,handles:['se']}} onDragStop={(next:Layout)=>saveLayout(next)} onResizeStop={(next:Layout)=>saveLayout(next)}>
+    {displayWidgets.map(widget=><div key={widget.id} className={`dash-grid-item ${mobile&&widget.settings.mobileExpanded?'is-expanded':''}`} data-widget-id={widget.id} data-widget-kind={widget.kind}>
      <article className={`dash-widget dash-widget-${widget.kind}`} aria-label={`${widget.title} widget`}>
-      <header className="dash-widget-header"><div>{editing&&<button className="dash-widget-drag" onPointerDown={mobile?()=>{dragStart.current=widget.id;setDraggedId(widget.id)}:undefined} aria-label={`Drag ${widget.title} widget`} title="Drag to move · use the menu to move with buttons" disabled={disabled}><Icon name="grip" size={15}/></button>}<Icon name={catalog(widget.kind).icon} size={16}/><h2>{widget.title}</h2></div><div className="dash-widget-options"><button className="dash-widget-more" aria-label={`Options for ${widget.title}`} aria-haspopup="menu" aria-expanded={menu===widget.id} onClick={()=>setMenu(menu===widget.id?null:widget.id)}><Icon name="more" size={18}/></button>
-       {menu===widget.id&&<div ref={menuRef} className="dash-widget-menu" role="menu" aria-label={`${widget.title} options`} onKeyDown={event=>{
+      <header className="dash-widget-header"><div>{editing&&<DashboardDragHandle title={widget.title} disabled={disabled}/>}<Icon name={catalog(widget.kind).icon} size={16}/><h2>{widget.title}</h2></div><div className="dash-widget-options"><button className="dash-widget-more" aria-label={`Options for ${widget.title}`} aria-haspopup="menu" aria-expanded={menu===widget.id} onClick={event=>{menuAnchor.current=event.currentTarget;setMenu(menu===widget.id?null:widget.id);}}><Icon name="more" size={18}/></button>
+       {menu===widget.id&&<DashboardMenu anchor={menuAnchor.current} menuRef={menuRef}><div className="dash-widget-menu" role="menu" aria-label={`${widget.title} options`} onKeyDown={event=>{
         const items=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')],at=items.indexOf(document.activeElement as HTMLButtonElement);
         if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();items[event.key==='Home'?0:event.key==='End'?items.length-1:(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();}
-        if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setMenu(null);event.currentTarget.parentElement?.querySelector<HTMLButtonElement>('.dash-widget-more')?.focus();}
-       }}><button role="menuitem" disabled={disabled} onClick={()=>{setSettingsId(widget.id);setMenu(null);}}><Icon name="sliders" size={14}/>Customize</button><div className="dash-menu-divider"/><button role="menuitem" disabled={disabled||layout.length<2} onClick={()=>rearrange(widget,-1)}><Icon name="up" size={14}/>Move earlier</button><button role="menuitem" disabled={disabled||layout.length<2} onClick={()=>rearrange(widget,1)}><Icon name="down" size={14}/>Move later</button><span className="dash-menu-label">Widget size</span><div className="dash-size-buttons">{(mobile?['small','large']:['small','medium','large']).map(size=><button key={size} role="menuitem" disabled={disabled} onClick={()=>resize(widget,size)}>{mobile?(size==='small'?'Compact':'Expanded'):size}</button>)}</div><div className="dash-menu-divider"/><button className="dash-remove-widget" role="menuitem" disabled={disabled} onClick={()=>{change(doc=>updateWidget(doc,widget.id,{removed:true}));setRemoved(widget.id);setMenu(null);}}><Icon name="trash" size={14}/>Remove widget</button></div>}
+        if(event.key==='Tab'){setMenu(null);menuAnchor.current?.focus();return;}
+        if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setMenu(null);menuAnchor.current?.focus();}
+       }}><button role="menuitem" disabled={disabled} onClick={()=>{setSettingsId(widget.id);setMenu(null);}}><Icon name="sliders" size={14}/>Customize</button><div className="dash-menu-divider"/><button role="menuitem" disabled={disabled||(mobile?mobileWidgets[0]?.id===widget.id:layout.length<2)} onClick={()=>rearrange(widget,-1)}><Icon name="up" size={14}/>Move earlier</button><button role="menuitem" disabled={disabled||(mobile?mobileWidgets.at(-1)?.id===widget.id:layout.length<2)} onClick={()=>rearrange(widget,1)}><Icon name="down" size={14}/>Move later</button>{(!mobile||['habits','study'].includes(widget.kind))&&<span className="dash-menu-label">Widget size</span>}<div className="dash-size-buttons">{(mobile?(['habits','study'].includes(widget.kind)?['small','large']:[]):['small','medium','large']).map(size=><button key={size} role="menuitem" disabled={disabled} onClick={()=>resize(widget,size)}>{mobile?(size==='small'?'Compact':'Expanded'):size}</button>)}</div><div className="dash-menu-divider"/><button className="dash-remove-widget" role="menuitem" disabled={disabled} onClick={()=>{change(doc=>updateWidget(doc,widget.id,{removed:true}));setRemoved(widget.id);setMenu(null);}}><Icon name="trash" size={14}/>Remove widget</button></div></DashboardMenu>}
       </div></header>
       <div className="dash-widget-body">
-       {widget.kind==='clock'&&<ClockWidget widget={widget} now={now} disabled={disabled} onStyle={style=>change(doc=>{const w=readDashboard(doc).widgets[widget.id];return updateWidget(doc,widget.id,{settings:{...w.settings,style}});})}/>}
-       {widget.kind==='focus'&&<FocusWidget widget={widget} now={now} disabled={disabled} sessions={value.focusSessions} onUpdate={timer=>change(doc=>updateWidget(doc,widget.id,{timer}))} onFinish={()=>change(doc=>finishTimer(doc,widget.id))}/>}
-       {widget.kind==='habits'&&<HabitsWidget expanded={!mobile||!!widget.settings.mobileExpanded} value={value} today={today} disabled={disabled} onChange={change}/>}
+       {widget.kind==='clock'&&<ClockWidget widget={widget}/>}
+       {widget.kind==='focus'&&<FocusWidget widget={widget} disabled={disabled} sessions={value.focusSessions} onUpdate={timer=>change(doc=>updateWidget(doc,widget.id,{timer}))} onFinish={()=>change(doc=>finishTimer(doc,widget.id))}/>}
+       {widget.kind==='habits'&&<HabitsWidget mobile={mobile} expanded={!mobile||!!widget.settings.mobileExpanded} value={value} today={today} disabled={disabled} onChange={change}/>}
        {widget.kind==='capture'&&<CaptureWidget widget={widget} disabled={disabled} onCapture={onCapture} onNote={onNote}/>}
        {widget.kind==='agenda'&&<AgendaWidget doc={doc} today={today} disabled={disabled} onNote={onNote} onTask={onTask} onCalendar={onCalendar}/>}
        {widget.kind==='study'&&<StudyWidget expanded={!mobile||!!widget.settings.mobileExpanded} doc={doc} now={now} onStudy={onStudy}/>}
       </div>
      </article>
     </div>)}
-   </ResponsiveBoard>}
+   </DashboardBoard>}
   </div>
 
   <span className="dash-sr-only" role="status">{announcement}</span>

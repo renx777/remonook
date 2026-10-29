@@ -15,9 +15,10 @@ const realInterval=globalThis.setInterval;globalThis.setInterval=(fn,delay,...ar
 globalThis.requestAnimationFrame=window.requestAnimationFrame.bind(window);globalThis.cancelAnimationFrame=window.cancelAnimationFrame.bind(window);
 window.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});
 HTMLElement.prototype.scrollTo=function({top=0}){this.scrollTop=top;};
-Object.defineProperty(HTMLElement.prototype,'offsetWidth',{get(){return 1040;}});
-Object.defineProperty(HTMLElement.prototype,'clientWidth',{get(){return 1040;}});
-HTMLElement.prototype.getBoundingClientRect=function(){return {x:0,y:0,top:0,left:0,right:1040,bottom:800,width:1040,height:800,toJSON(){}};};
+let containerWidth=1040;
+Object.defineProperty(HTMLElement.prototype,'offsetWidth',{get(){return containerWidth;}});
+Object.defineProperty(HTMLElement.prototype,'clientWidth',{get(){return containerWidth;}});
+HTMLElement.prototype.getBoundingClientRect=function(){return {x:0,y:0,top:0,left:0,right:containerWidth,bottom:800,width:containerWidth,height:800,toJSON(){}};};
 window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
 window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
 const wait=async check=>{for(let i=0;i<150;i++){if(check())return;await act(async()=>new Promise(resolve=>setTimeout(resolve,20)));}throw Error('Timed out waiting for dashboard');};
@@ -30,11 +31,18 @@ const openDashboard=async()=>{await click(textButton('.sidebar nav button','Dash
 
 test('dashboard widgets customize, save habits, survive timer suspension, capture notes and reorganize without changing source notes',async()=>{
  let doc=withNodes(empty(),[bullet('task',{text:'Prepare for the workshop',taskState:'TODO'}),bullet('question',{text:'A question',kind:'QUESTION',position:1}),bullet('answer',{text:'An answer',parentId:'question'})]);
+ for(let i=0;i<5;i++)doc=saveCalendarEvent(doc,{title:'Additional reminder '+i,kind:'target',date:localDate(),repeat:'none',leadDays:7,time:'',notes:''});
  doc=saveCalendarEvent(doc,{title:'Workshop',kind:'appointment',date:localDate(),repeat:'none',leadDays:7,time:'',notes:''});
  await save(null,doc,'dashboard fixture');let app;const realNow=Date.now;
  try{
   await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('.outline-scroll'));await openDashboard();
   assert.equal(document.querySelectorAll('.dash-widget').length,5);
+  await click([...document.querySelectorAll('.dash-agenda-tabs button')].find(b=>b.textContent.startsWith('Reminders')));
+  assert.equal(document.querySelectorAll('.dash-reminder-row').length,3);
+  assert.match(document.querySelector('.dash-agenda-tabs').textContent,/Reminders6/,'counts include reminders outside the compact preview');
+  await click(textButton('.dash-agenda .dash-expand','Show more'));assert.equal(document.querySelectorAll('.dash-reminder-row').length,6);
+  await click(textButton('.dash-agenda .dash-expand','Show less'));assert.equal(document.querySelectorAll('.dash-reminder-row').length,3);
+  await click([...document.querySelectorAll('.dash-agenda-tabs button')].find(b=>b.textContent.startsWith('Tasks')));
   assert.equal((await load()).web.dashboard,undefined,'Viewing default widgets does not dirty the workspace');
   await click('[aria-label="Options for Clock"]');await click(textButton('.dash-widget-menu button','Customize'));await choose('[aria-label="Clock appearance"]','analog');await act(async()=>document.querySelector('.dash-settings-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
   assert.ok(document.querySelector('.dash-clock-face'));assert.equal((await stored()).web.dashboard.widgets['default-clock'].settings.style,'analog');
@@ -72,12 +80,30 @@ test('dashboard widgets customize, save habits, survive timer suspension, captur
   await click('[aria-label="Options for World clock"]');await click(textButton('.dash-size-buttons button','large'));
   state=await stored();assert.ok(Object.values(state.web.dashboard.widgets['default-clock'].layouts).some(l=>l.h===7));
   await click('[aria-label="Options for Quick capture"]');await click(textButton('.dash-widget-menu button','Remove widget'));
-  assert.equal(document.querySelectorAll('.dash-widget').length,5);await click(textButton('.dash-undo button','Undo'));assert.equal(document.querySelectorAll('.dash-widget').length,6);
+  assert.equal(document.querySelectorAll('.dash-widget').length,5);
+  await click([...document.querySelectorAll('.dash-agenda-tabs button')].find(b=>b.textContent.startsWith('Reminders')));
+  assert.equal(document.querySelectorAll('.dash-reminder-row').length,3);
+  assert.match(document.querySelector('.dash-agenda-tabs').textContent,/Reminders6/,'counts include reminders outside the compact preview');
+  await click(textButton('.dash-agenda .dash-expand','Show more'));assert.equal(document.querySelectorAll('.dash-reminder-row').length,6);
+  await click(textButton('.dash-agenda .dash-expand','Show less'));assert.equal(document.querySelectorAll('.dash-reminder-row').length,3);
+  await click([...document.querySelectorAll('.dash-agenda-tabs button')].find(b=>b.textContent.startsWith('Tasks')));await click(textButton('.dash-undo button','Undo'));assert.equal(document.querySelectorAll('.dash-widget').length,6);
   await click('[aria-label="Complete dashboard task Prepare for the workshop"]');
   state=await stored();assert.equal(state.tables.bullets.find(n=>n.id==='task').taskState,'DONE');
   assert.equal(state.tables.bullets.find(n=>n.id==='question').text,'A question');
   assert.equal(state.tables.bullets.find(n=>n.id==='answer').text,'An answer');
-  assert.equal(state.web.calendarEvents[0].title,'Workshop');
+  assert.ok(state.web.calendarEvents.some(event=>event.title==='Workshop'));
   await click(textButton('.dash-page-actions button','Edit layout'));assert.ok(document.querySelector('.dash-widget-drag'));await click(textButton('.dash-page-actions button','Done editing'));assert.equal(document.querySelector('.dash-widget-drag'),null);
+  containerWidth=360;await click([...document.querySelectorAll('.sidebar nav button')].find(button=>button.textContent.trim().startsWith('Notes')));await openDashboard();await wait(()=>document.querySelector('.dash-mobile-stack'));
+  for(const name of ['Walk outside','Stretch','Drink water']){await input('[aria-label="New habit"]',name);await act(async()=>document.querySelector('.dash-habit-add').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));}
+  assert.equal(document.querySelectorAll('.dash-habit-today-row').length,4);
+  await click(textButton('.dash-habits button','Show all 6 habits'));assert.equal(document.querySelectorAll('.dash-habit-today-row').length,6);
+  await click('[aria-label="Options for Habits"]');await click(textButton('.dash-size-buttons button','Expanded'));
+  assert.equal(document.querySelectorAll('.dash-habit-days button').length,7);
+  const history=[...document.querySelectorAll('.dash-habit-days button')].at(-2),day=history.getAttribute('aria-label').split(' on ')[1];await click(history);
+  await click(`[aria-label="Read for 10 minutes on ${day}"]`);assert.equal((await stored()).web.dashboard.checks['habit-read:'+day],true);
+  await click(document.querySelector('.dash-habit-name'));await click(textButton('.dash-settings-form button','Archive habit'));
+  assert.equal((await stored()).web.dashboard.habits['habit-read'].archived,true);
+  await click('[aria-label="Options for World clock"]');assert.equal(document.querySelector('.dash-size-buttons button'),null,'content-sized clock has no ineffective phone size presets');await click(textButton('.dash-widget-menu button','Move later'));
+  assert.ok(Object.values((await stored()).web.dashboard.widgets).some(w=>w.settings.mobileOrder!==undefined));
  }finally{globalThis.setInterval=realInterval;Date.now=realNow;if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
 });
