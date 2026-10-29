@@ -1,3 +1,4 @@
+import {googleTasksPublic,googleTasksRoute,googleTasksConfigured,cleanupGoogleTasks} from './google-tasks.mjs';
 import {syncV2} from './sync-v2.mjs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 // This cache contains only Google's public verification keys, never user data.
@@ -30,9 +31,11 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID)) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,googleTasksConfigured:googleTasksConfigured(env)});
+  const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
+  if(url.pathname.startsWith('/integrations/google-tasks/'))return googleTasksRoute(request,env,uid,{readLimited});
   if(url.pathname==='/sync/v2')return syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT});
   if(url.pathname==='/workspace'){
     if(request.method==='GET'){
@@ -75,6 +78,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   fail('Not found.',404);
 }
 export default {
+  async scheduled(controller,env){await cleanupGoogleTasks(env);},
   async fetch(request,env){
     const project=env.FIREBASE_PROJECT_ID,allowed=(env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);
     if(!project||project.startsWith('REPLACE_')||!allowed.length)return json({error:'Environment is not configured.'},503);

@@ -79,3 +79,11 @@ Initial release target: **staging only**. Production is published separately.
 ## Usability review
 
 See [DASHBOARD-REVIEW.md](DASHBOARD-REVIEW.md) for findings, library research, and verification. Phone Habits exposes all active habits, supports past check-ins through a seven-day picker in Expanded view, and offers archive/restore from the habit editor. Today counts all reminders before applying a three-item preview and can expand the full list. Clock and running timers update locally on second boundaries; the rest of Dashboard updates on minute boundaries. Hidden tabs suspend ticking and reconcile on return.
+
+## Google Tasks
+
+Choose **Add widget → Google Tasks**, then authorize access separately from your
+RemoNook sign-in. The connected account label, list selector, task checkboxes,
+completed section, and task-entry form are kept compact. Settings → Connections
+manages account replacement and disconnect. Setup, credentials, security and
+staging acceptance are documented in [GOOGLE-TASKS.md](GOOGLE-TASKS.md).

@@ -1,3 +1,4 @@
+import {GoogleTasksProvider,GoogleTasksConnection} from './GoogleTasks';
 import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
 import {useSidebarMotion} from './useSidebarMotion';
 import {ResearchPanel,useResearchDrafts} from './Research';
@@ -1358,7 +1359,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     focus(id, prefix.length);
   };
   return (
-    <MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}>
+    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}>
     <ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
@@ -1940,7 +1941,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <Dialog title="Settings" className="settings-dialog" onClose={() => setDialog(null)}>
           <p className="settings-subtitle">Make a little space for yourself.</p>
           <nav className="settings-navigation" aria-label="Settings sections">
-            {[["appearance","Appearance","settings"],["account","Account","people"],["backups","Backups","folder"]].map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>setSettingsPanel(id)}><Icon name={icon} size={15}/>{label}</button>)}
+            {[["appearance","Appearance","settings"],["account","Account","people"],["connections","Connections","connections"],["backups","Backups","folder"]].map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>setSettingsPanel(id)}><Icon name={icon} size={15}/>{label}</button>)}
           </nav>
           <div className="settings-content" key={settingsPanel}>
           {settingsPanel==="appearance" && <section aria-label="Appearance"><div className="settings-section-heading"><h3>Feel at home.</h3><p>Choose how your workspace looks and reads.</p></div>
@@ -2005,6 +2006,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </section>
           <section className="upload-storage-status"><h3>Attachment storage</h3><p className="dialog-muted">{(attachmentBytes(assets)/1024/1024).toFixed(1)} MB / 20 MB used · 2 MB per file</p><progress aria-label="Attachment storage used" max={MAX_ATTACHMENT_BYTES} value={Math.min(attachmentBytes(assets),MAX_ATTACHMENT_BYTES)}/><p className="dialog-muted">Images and files stored in this workspace. Embedded links use no space.</p></section>
           </section>}
+          {settingsPanel==="connections"&&<GoogleTasksConnection/>}
           {settingsPanel==="backups" && <section aria-label="Backups"><div className="settings-section-heading"><h3>Your notes. Your copy.</h3><p>A full backup includes notes, media, decks and study progress.</p></div><div className="settings-backup-actions">
           <button
             className="wide action"
@@ -2263,7 +2265,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     </div>
     </EmojiProvider>
     </ConnectionContext.Provider>
-    </SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider>
+    </SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></GoogleTasksProvider>
   );
 }
 export const appRoot = createRoot(document.getElementById("root")!);

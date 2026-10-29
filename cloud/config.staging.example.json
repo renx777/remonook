@@ -8,11 +8,17 @@
   "workers_dev": true,
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 0.1
+    "head_sampling_rate": 0.1,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    }
   },
   "vars": {
     "FIREBASE_PROJECT_ID": "remonook-staging",
-    "ALLOWED_ORIGINS": "https://staging.remonook.com"
+    "ALLOWED_ORIGINS": "https://staging.remonook.com",
+    "GOOGLE_TASKS_REDIRECT_URI": "https://remo-sync-staging.remo-978fb.workers.dev/integrations/google-tasks/callback"
   },
   "d1_databases": [
     {
@@ -26,5 +32,10 @@
       "binding": "FILES",
       "bucket_name": "remo-attachments-staging"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "17 3 * * *"
+    ]
+  }
 }

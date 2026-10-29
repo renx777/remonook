@@ -1,3 +1,4 @@
+import {GoogleTasksWidget} from './GoogleTasksWidget';
 import {QuotesWidget} from './QuotesWidget';
 import {DashboardMenu} from './DashboardMenu';
 import {DashboardBoard,DashboardDragHandle} from './DashboardBoard';
@@ -192,6 +193,7 @@ export function Dashboard({doc,disabled,onChange,onCapture,onNote,onStudy,onCale
        {widget.kind==='habits'&&<HabitsWidget mobile={mobile} expanded={!mobile||!!widget.settings.mobileExpanded} value={value} today={today} disabled={disabled} onChange={change}/>}
        {widget.kind==='capture'&&<CaptureWidget widget={widget} disabled={disabled} onCapture={onCapture} onNote={onNote}/>}
        {widget.kind==='agenda'&&<AgendaWidget doc={doc} today={today} disabled={disabled} onNote={onNote} onTask={onTask} onCalendar={onCalendar}/>}
+       {widget.kind==='googleTasks'&&<GoogleTasksWidget disabled={disabled} listId={widget.settings.listId||''} onList={listId=>change(doc=>{const current=readDashboard(doc).widgets[widget.id];return updateWidget(doc,widget.id,{settings:{...current.settings,listId}});})}/>}
        {widget.kind==='quotes'&&<QuotesWidget nodes={doc.tables.bullets as NoteNode[]} source={widget.settings.source} onNote={onNote}/>}
        {widget.kind==='study'&&<StudyWidget expanded={!mobile||!!widget.settings.mobileExpanded} doc={doc} now={now} onStudy={onStudy}/>}
       </div>

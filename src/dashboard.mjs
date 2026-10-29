@@ -7,6 +7,7 @@ export const widgetCatalog=[
  {kind:'agenda',title:'Today',icon:'calendar',description:'Your note tasks and upcoming reminders, together at a glance.',w:4,h:7},
  {kind:'habits',title:'Habits',icon:'sprout',description:'Small steps, repeated. Track your habits through the week.',w:8,h:7},
  {kind:'capture',title:'Quick capture',icon:'pencil',description:'Catch a thought before it goes. Send it straight to your notes.',w:4,h:5},
+ {kind:'googleTasks',title:'Google Tasks',icon:'check',description:'Your Google task lists, with room to plan and finish.',w:4,h:7},
  {kind:'quotes',title:'Quotes',icon:'quote',description:'Words worth keeping. Explore the classics and your own #quote notes.',w:6,h:6},
  {kind:'study',title:'Study snapshot',icon:'study',description:'See what is ready to review and keep your learning moving.',w:4,h:5},
 ];
@@ -14,7 +15,7 @@ export const dashboardCols={lg:12,md:8,sm:4};
 const plain=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const safeId=id=>typeof id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(id)&&!['__proto__','constructor','prototype'].includes(id);
 const integer=(n,min,max)=>Number.isInteger(n)&&n>=min&&n<=max;
-const defaultSettings=kind=>kind==='clock'?{style:'digital',timezone:'local',hour12:false,seconds:true}:kind==='focus'?{focus:25,short:5,long:15}:kind==='quotes'?{source:'all'}:{};
+const defaultSettings=kind=>kind==='clock'?{style:'digital',timezone:'local',hour12:false,seconds:true}:kind==='focus'?{focus:25,short:5,long:15}:kind==='quotes'?{source:'all'}:kind==='googleTasks'?{listId:''}:{};
 export function defaultDashboard(){
  const widgets={};
  for(const [order,kind] of ['clock','focus','agenda','habits','capture'].entries()){
@@ -124,6 +125,7 @@ export function validateDashboard(value){
   if(w.settings.mobileExpanded!==undefined&&typeof w.settings.mobileExpanded!=='boolean')throw Error('Invalid phone widget size.');
   if(w.kind==='clock'&&(!['digital','analog','split'].includes(w.settings.style)||typeof w.settings.timezone!=='string'||w.settings.timezone.length>100||typeof w.settings.hour12!=='boolean'||typeof w.settings.seconds!=='boolean'))throw Error('Invalid clock settings.');
   if(w.kind==='clock'&&w.settings.timezone!=='local'){try{new Intl.DateTimeFormat('en',{timeZone:w.settings.timezone});}catch{throw Error('Invalid clock time zone.');}}
+  if(w.kind==='googleTasks'&&(typeof w.settings.listId!=='string'||w.settings.listId.length>1024))throw Error('Invalid Google task list.');
   if(w.kind==='quotes'&&!['all','notes','library'].includes(w.settings.source))throw Error('Invalid quote source.');
   if(w.kind==='focus'&&(!integer(w.settings.focus,1,120)||!integer(w.settings.short,1,60)||!integer(w.settings.long,1,60)))throw Error('Invalid focus timer settings.');
   for(const [bp,l]of Object.entries(w.layouts||{}))if(!dashboardCols[bp]||!plain(l)||!integer(l.x,0,dashboardCols[bp]-1)||!integer(l.y,0,10000)||!integer(l.w,3,dashboardCols[bp])||!integer(l.h,3,10)||l.x+l.w>dashboardCols[bp])throw Error('Invalid widget layout.');
