@@ -1,8 +1,10 @@
 import {memo,useEffect,useRef,useState} from 'react';
 import type {TextLayer,PDFDocumentProxy,PDFPageProxy,RenderTask} from 'pdfjs-dist';
 import './pdf-text-layer.css';
-export const PdfPage=memo(function PdfPage({pdf,unit,zoom,containerRef,onReady,onLoading,onError,overlay}:{pdf:PDFDocumentProxy;unit:number;zoom:number;containerRef:(el:HTMLDivElement|null)=>void;onReady:()=>void;onLoading:()=>void;onError:(message:string)=>void;overlay:React.ReactNode}){
- const root=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),layer=useRef<HTMLDivElement>(null),pending=useRef<Promise<void>>(Promise.resolve()),[width,setWidth]=useState(0),[hasText,setHasText]=useState(true);
+import type {PdfSearchHit} from './pdf-navigation';
+import {searchRectangles} from './pdf-search-rects';
+export const PdfPage=memo(function PdfPage({pdf,unit,zoom,containerRef,onReady,onLoading,onError,overlay,searchHit}:{searchHit?:PdfSearchHit|null;pdf:PDFDocumentProxy;unit:number;zoom:number;containerRef:(el:HTMLDivElement|null)=>void;onReady:()=>void;onLoading:()=>void;onError:(message:string)=>void;overlay:React.ReactNode}){
+ const root=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),layer=useRef<HTMLDivElement>(null),pending=useRef<Promise<void>>(Promise.resolve()),[width,setWidth]=useState(0),[hasText,setHasText]=useState(true),[epoch,setEpoch]=useState(0),[searchRects,setSearchRects]=useState<{x:number;y:number;w:number;h:number}[]>([]);
  useEffect(()=>{const element=root.current;if(!element)return;const measure=()=>setWidth(Math.round(element.clientWidth));measure();const observer=new ResizeObserver(measure);observer.observe(element);return()=>observer.disconnect();},[]);
  useEffect(()=>{
   if(!width)return;onLoading();let active=true,task:RenderTask|undefined,textLayer:TextLayer|undefined,page:PDFPageProxy|undefined;
@@ -16,11 +18,13 @@ export const PdfPage=memo(function PdfPage({pdf,unit,zoom,containerRef,onReady,o
    task=page.render({canvas:el,viewport,transform:ratio===1?undefined:[ratio,0,0,ratio,0,0],background:'#ffffff'});await task.promise;
    if(!active||canvas.current!==el||layer.current!==text)return;const content=await page.getTextContent();if(!active||layer.current!==text)return;
    textLayer=new TextLayer({textContentSource:content,container:text,viewport});const scale=viewport.scale*viewport.userUnit,raw=viewport.rawDims as {pageWidth:number;pageHeight:number},w=raw.pageWidth*scale,h=raw.pageHeight*scale;text.style.width=w+'px';text.style.height=h+'px';text.style.transform=viewport.rotation===90?`matrix(0,1,-1,0,${h},0)`:viewport.rotation===180?`matrix(-1,0,0,-1,${w},${h})`:viewport.rotation===270?`matrix(0,-1,1,0,0,${w})`:'none';await textLayer.render();
-   if(active&&layer.current===text){setHasText(content.items.some(item=>'str' in item&&!!item.str.trim()));onReady();}
+   if(active&&layer.current===text){setEpoch(value=>value+1);setHasText(content.items.some(item=>'str' in item&&!!item.str.trim()));onReady();}
   };
   // Cancellation is asynchronous. Wait before reusing this canvas at a new size.
   const work=pending.current.catch(()=>{}).then(run).catch(error=>{if(active&&canvas.current&&error.name!=='RenderingCancelledException')onError('This PDF page could not be rendered.');});pending.current=work;
   return()=>{active=false;task?.cancel();textLayer?.cancel();void work.then(()=>page?.cleanup());};
  },[pdf,unit,width,zoom]);
- return <div ref={root} className="reader-pdf-width"><div className="reader-pdf-page" data-reader-unit={unit} ref={containerRef}><canvas ref={canvas}/><div className="textLayer reader-selectable" ref={layer}/>{overlay}{!hasText&&<span className="reader-page-label">No selectable text on this page</span>}</div></div>;
+ useEffect(()=>{const text=layer.current,page=text?.parentElement;if(!searchHit||searchHit.unit!==unit||!text||!page){setSearchRects([]);return;}setSearchRects(searchRectangles(text,page,searchHit.start,searchHit.end));},[searchHit,epoch,unit]);
+ useEffect(()=>{if(searchRects.length)root.current?.querySelector('.reader-search-mark')?.scrollIntoView({block:'nearest'});},[searchRects]);
+ return <div ref={root} className="reader-pdf-width"><div className="reader-pdf-page" data-reader-unit={unit} ref={containerRef}><canvas ref={canvas}/><div className="textLayer reader-selectable" ref={layer}/><div className="reader-search-overlay" aria-hidden="true">{searchRects.map((rect,i)=><span key={i} className="reader-search-mark" style={{left:rect.x*100+'%',top:rect.y*100+'%',width:rect.w*100+'%',height:rect.h*100+'%'}}/>)}</div>{overlay}{!hasText&&<span className="reader-page-label">No selectable text on this page</span>}</div></div>;
 });

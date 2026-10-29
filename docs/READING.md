@@ -47,6 +47,11 @@ page to notes for a whole-page image. Captures keep an in-app page reference and
 use ordinary image attachments, undo, sync and backups. See
 [PDF captures and roadmap](READER-CAPTURE-AND-ROADMAP.md).
 
+PDF search and embedded chapter contents are available from the search icon
+(Ctrl/Command F). The Book notes button opens an editable pane alongside the PDF
+with the same notes, captures, automatic saves and undo history. See
+[Search and editable notes](READER-SEARCH-AND-NOTES.md).
+
 ## Notes, identity and persistence
 
 - `web.readingHighlights`: keyed annotations with immutable book hash, current

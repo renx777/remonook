@@ -11,7 +11,11 @@ export function markReading(doc,hash,unit,day){
  const progress={...old,units:{...old.units,[unit]:day}},next={...doc,web:{...doc.web,readingProgress:{...doc.web.readingProgress,[hash]:progress}}};
  return {...next,web:{...next.web,readingBooks:{...next.web.readingBooks,[book.id]:{...book,position:readingPosition(next,book)}}}};
 }
-const allNoteIds=doc=>new Set([...doc.tables.bullets.map(n=>n.id),...(doc.tables.trash||[]).flatMap(t=>(t.nodes||[]).map(n=>n.id))]);
+const allNoteIds=doc=>{
+ const ids=new Set(doc.tables.bullets.map(n=>n.id));
+ for(const entry of doc.tables.trash||[]){let nodes=entry.nodes;try{if(!Array.isArray(nodes)&&typeof entry.payload==='string')nodes=JSON.parse(entry.payload).nodes;}catch{/* Invalid legacy payloads are handled by the ordinary restore path. */}if(Array.isArray(nodes))for(const node of nodes)if(typeof node?.id==='string')ids.add(node.id);}
+ return ids;
+};
 const available=(base,used)=>{let id=base,i=0;while(used.has(id))id=base+'-'+(++i);return id;};
 const position=(nodes,parentId)=>Math.max(-1,...nodes.filter(n=>n.parentId===parentId).map(n=>n.position))+1;
 function readingNoteRoot(doc,book){
@@ -20,6 +24,12 @@ function readingNoteRoot(doc,book){
  if(!nodes.some(n=>n.id===rootId)){nodes.push(bullet(rootId,{text:book.title,parentId:null,position:position(nodes,null)}));used.add(rootId);}
  else{const at=nodes.findIndex(n=>n.id===rootId);nodes[at]={...nodes[at],collapsed:false};}
  return {nodes,used,rootId};
+}
+export function addReadingNote(doc,book,id){
+ if(!book||!readingBook(doc,book.hash))throw Error('This book is unavailable.');
+ const {nodes,used,rootId}=readingNoteRoot(doc,book);if(used.has(id))throw Error('This note already exists.');
+ nodes.push(bullet(id,{parentId:rootId,position:position(nodes,rootId)}));
+ return {...doc,tables:{...doc.tables,bullets:nodes},web:{...doc.web,readingNoteRoots:{...doc.web.readingNoteRoots,[book.hash]:rootId}}};
 }
 export function captureReadingHighlight(doc,book,selection,fingerprint,{color='yellow',comment=''}={}){
  if(!readingBook(doc,book.hash)||!colors.includes(color)||!/^[a-f0-9]{64}$/.test(fingerprint))throw Error('This book is unavailable.');

@@ -1,5 +1,5 @@
 import {ReadingSources,ReaderBoundary,ReaderStartup} from './ReadingSources';
-import {captureReadingImage,readingBook,readingSources,validateReading} from './reading.mjs';
+import {addReadingNote,captureReadingImage,readingBook,readingSources,validateReading} from './reading.mjs';
 import {BookStorage} from './BookStorage';
 import {GoogleTasksProvider,GoogleTasksConnection} from './GoogleTasks';
 import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
@@ -105,6 +105,7 @@ import "./outline-chrome.css";
 import "./study.css";
 import "./mcq.css";
 import "./mobile.css";
+const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
 const Bookshelf = React.lazy(()=>import('./Bookshelf').then(module=>({default:module.Bookshelf})));
 const Dashboard = React.lazy(()=>import('./Dashboard').then(module=>({default:module.Dashboard})));
@@ -1950,7 +1951,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <a className="feature-guide-link" href="/guides" target="_blank" rel="noopener noreferrer"><Icon name="learn" size={16}/><span>Guides & tutorials</span><Icon name="forward" size={12}/></a>
         </div>
       </OutlinePopover>}
-      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onNote={id=>navigateTo(id)} onScreenshot={async(unit,blob)=>{
+      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onNote={id=>navigateTo(id)} renderNotes={()=> <React.Suspense fallback={<p role="status">Loading book notes…</p>}><ReaderBookNotes doc={doc} hash={readerTarget.hash} assets={assets} disabled={disabled||failed.current} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onFullNotes={id=>{closeReader();navigateTo(id);}} onAdd={()=>{if(failed.current)throw Error('Saving is paused. Open Account settings to retry.');const current=docRef.current!,book=readingBook(current,readerTarget.hash),id=crypto.randomUUID();const next=addReadingNote(current,book,id);commit(withNodes(next,next.tables.bullets as Node[]));return id;}}/></React.Suspense>} onScreenshot={async(unit,blob)=>{
         if(authenticatedUid()!==cloudUser?.uid)throw Error('Your account changed. Open the book again to capture a page.');
         if(failed.current||working||!readerTarget)throw Error('Wait for saving to finish, then try again.');
         const current=docRef.current!,book=readingBook(current,readerTarget.hash);if(!book)throw Error('The original book is no longer available.');
