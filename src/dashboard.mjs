@@ -2,7 +2,7 @@ import {localDate,validEventDate} from './calendar-events.mjs';
 
 export const WIDGET_LIMIT=16;
 export const widgetCatalog=[
- {kind:'clock',title:'Clock',icon:'clock',description:'A little perspective on your day. Digital, analog, or split.',w:4,h:3},
+ {kind:'clock',title:'Clock',icon:'clock',description:'A little perspective on your day. Digital, analog, or split.',w:4,h:4},
  {kind:'focus',title:'Focus timer',icon:'timer',description:'Make space for deep work with focus sessions and restorative breaks.',w:4,h:5},
  {kind:'agenda',title:'Today',icon:'calendar',description:'Your note tasks and upcoming reminders, together at a glance.',w:4,h:7},
  {kind:'habits',title:'Habits',icon:'sprout',description:'Small steps, repeated. Track your habits through the week.',w:8,h:7},
@@ -24,6 +24,14 @@ export function defaultDashboard(){
 }
 export function dashboard(doc){return doc.web.dashboard||defaultDashboard();}
 export function visibleWidgets(value){return Object.values(value.widgets).filter(w=>!w.removed).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id));}
+// Phone order is independent of desktop positions and evaluated against the latest document.
+export function mobileWidgets(value){return visibleWidgets(value).sort((a,b)=>(a.settings.mobileOrder??a.order)-(b.settings.mobileOrder??b.order)||a.id.localeCompare(b.id));}
+export function reorderMobileWidget(doc,id,target){return changeDashboard(doc,value=>{
+ const ids=mobileWidgets(value).map(w=>w.id),from=ids.indexOf(id),to=ids.indexOf(target);if(from<0||to<0||from===to)return value;
+ ids.splice(from,1);ids.splice(to,0,id);
+ const widgets={...value.widgets};ids.forEach((key,order)=>{widgets[key]={...widgets[key],settings:{...widgets[key].settings,mobileOrder:order}};});
+ return {...value,widgets};
+});}
 export function changeDashboard(doc,change){
  const value=change(dashboard(doc));validateDashboard(value);
  return {...doc,web:{...doc.web,dashboard:value}};
@@ -111,6 +119,8 @@ export function validateDashboard(value){
  if(Object.keys(value.widgets).length>500||Object.keys(value.habits).length>500||Object.keys(value.checks).length>100000||Object.keys(value.focusSessions).length>100000)throw Error('Dashboard data is too large.');
  for(const [id,w]of Object.entries(value.widgets)){
   if(!safeId(id)||!plain(w)||w.id!==id||!widgetCatalog.some(item=>item.kind===w.kind)||typeof w.title!=='string'||w.title.length>80||!Number.isFinite(w.order)||typeof w.removed!=='boolean'||!plain(w.settings))throw Error('Invalid dashboard widget.');
+  if(w.settings.mobileOrder!==undefined&&(!integer(w.settings.mobileOrder,0,499)))throw Error('Invalid phone widget order.');
+  if(w.settings.mobileExpanded!==undefined&&typeof w.settings.mobileExpanded!=='boolean')throw Error('Invalid phone widget size.');
   if(w.kind==='clock'&&(!['digital','analog','split'].includes(w.settings.style)||typeof w.settings.timezone!=='string'||w.settings.timezone.length>100||typeof w.settings.hour12!=='boolean'||typeof w.settings.seconds!=='boolean'))throw Error('Invalid clock settings.');
   if(w.kind==='clock'&&w.settings.timezone!=='local'){try{new Intl.DateTimeFormat('en',{timeZone:w.settings.timezone});}catch{throw Error('Invalid clock time zone.');}}
   if(w.kind==='focus'&&(!integer(w.settings.focus,1,120)||!integer(w.settings.short,1,60)||!integer(w.settings.long,1,60)))throw Error('Invalid focus timer settings.');

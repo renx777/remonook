@@ -16,7 +16,7 @@ including clocks for different time zones. At most 16 widgets are visible.
 
 ## Interaction and layout
 
-Dashboard uses a quiet editorial layout: small typography, fine dividers, neutral surfaces, and compact controls. React Grid Layout 2.3 provides collision-aware dragging and resizing on desktop and tablet. Widgets are interactive by default; **Edit layout** enables dedicated drag grips and corner resize handles there. On phones, widgets form a content-sized stack; use the grip to reorder and the menu to choose Compact or Expanded. Widget menus provide equivalent move earlier/later and size
+Dashboard uses a quiet editorial layout: small typography, fine dividers, neutral surfaces, and compact controls. React Grid Layout 2.3 provides collision-aware dragging and resizing on desktop and tablet. Widgets are interactive by default; **Edit layout** enables dedicated drag grips and corner resize handles there. On phones, widgets form a content-sized stack; use the grip to reorder with touch or keyboard. The dnd-kit sortable stack supports edge auto-scroll, cancellation, focus restoration, and spoken position announcements. Habits and Study offer Compact or Expanded content presets. Floating UI anchors widget menus outside the transformed grid and keeps them in the viewport. Menus provide equivalent move earlier/later and size
 controls without requiring dragging. Removing a widget offers Undo and retains
 its data. Tidy layout repacks the current screen layout without removing data.
 Phone, tablet, and desktop layouts are stored independently. The phone default
@@ -48,3 +48,7 @@ removal, habit history, timer deadlines and idempotent completion, full backup,
 concurrent CRDT edits, and end-to-end app interactions.
 
 Initial release target: **staging only**. Production is published separately.
+
+## Usability review
+
+See [DASHBOARD-REVIEW.md](DASHBOARD-REVIEW.md) for findings, library research, and verification. Phone Habits exposes all active habits, supports past check-ins through a seven-day picker in Expanded view, and offers archive/restore from the habit editor. Today counts all reminders before applying a three-item preview and can expand the full list. Clock and running timers update locally on second boundaries; the rest of Dashboard updates on minute boundaries. Hidden tabs suspend ticking and reconcile on return.
