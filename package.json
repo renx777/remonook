@@ -19,6 +19,7 @@
     "@floating-ui/react-dom": "2.1.9",
     "@number-flow/react": "^0.6.2",
     "@phosphor-icons/react": "2.1.10",
+    "@tanstack/react-virtual": "3.14.24",
     "@tiptap/core": "^3.0.0",
     "@tiptap/pm": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",

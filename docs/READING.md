@@ -7,23 +7,25 @@ EPUB parsing runs in a separate worker using pinned fast-xml-parser and JSZip.
 
 ## Reading experience
 
-The focused reader fills the viewport without an inset modal card. Native dialog
-semantics retain keyboard isolation and focus restoration. A quiet title bar, one
-active page/passage, previous/next and a jump field, display-size controls, and
-Mark as read provide the reading workspace. Desktop
-has an optional highlights sidebar; on phones it becomes a sheet. Selection uses
-native text selection, with a compact color bar reserved above the document.
-Comments expand only on request; typing stays local until the highlight is
-committed. Controls never float over the PDF. Selection is captured after dragging
-ends and cleared on navigation, deselection and PDF rerendering. Escape dismisses the
-selection, then the highlights panel, then the reader. Focus returns on close.
+The reader uses a single 48-pixel toolbar and fills the viewport. PDF pages scroll
+continuously with a measured virtual window; the toolbar follows the visible page.
+Actual size, fit width and fit page are explicit sizing modes. Zoom and resizing
+retain the current page. Only nearby canvases/text layers are mounted, with a
+four-million-pixel canvas budget per page and worker/render cleanup on close.
 
-PDF rendering is limited to the current page, capped at four million canvas
-pixels and at most 2x device pixel ratio. Render tasks cancel on navigation;
-page resources clean up and document workers terminate on close. The text layer
-is independent of annotation overlays, so adding a highlight does not rasterize
-the page again. Image-only PDFs can be read but require OCR for selection; OCR
-is not provided. Password-locked PDFs need an unlocked copy.
+Selection uses native text selection. Use the toolbar highlighter after selecting
+text. Colors, comments and the highlights panel open only on request. Comments
+sit beside the document. Navigation clears stale selections, while normalized
+rectangles retain their meaning across page sizing changes. Focus returns when
+the reader closes. Scanned pages explain when selectable text is unavailable;
+OCR and password entry are not provided.
+
+Bookshelf in the main navigation displays existing PDF and EPUB uploads as a
+searchable, filterable cover gallery with reading progress and direct reading
+access. It uses the same private library and upload/download/delete operations as
+Settings → Storage. The Daily Reading widget links to Bookshelf too. See
+[Bookshelf and reader design](BOOKSHELF-AND-READER.md) for the design review,
+library decision and account-local cover policy.
 
 EPUB v1 is a text reading mode. It follows OPF spine order, preserves readable
 paragraph order and entities, and excludes scripts, styles, executable elements

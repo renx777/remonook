@@ -106,6 +106,7 @@ import "./study.css";
 import "./mcq.css";
 import "./mobile.css";
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
+const Bookshelf = React.lazy(()=>import('./Bookshelf').then(module=>({default:module.Bookshelf})));
 const Dashboard = React.lazy(()=>import('./Dashboard').then(module=>({default:module.Dashboard})));
 let recoveryDraft: () => { doc: Workspace | null; assets: Map<string, Blob> } = () => ({ doc: null, assets: new Map() });
 async function downloadRecovery() {
@@ -1413,6 +1414,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               ["notes", "Notes", "notes"],
               ["calendar", "Calendar", "calendar"],
               ["study", "Study Desk", "study"],
+              ["bookshelf", "Bookshelf", "study"],
             ].map(([id, label, icon]) => (
               <button
                 key={id}
@@ -1471,7 +1473,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </button>
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           <div className="breadcrumbs">
-            {tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "calendar" ? (
+            {tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "calendar" ? (
               <>
                 <button onClick={() => navigateTo(calendarRoot?.id || null)}>
                   <Icon name="calendar" size={14} />
@@ -1642,11 +1644,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {selected&&<SelectionFormatting editor={activeEditor} disabled={disabled||unsupportedFormatting(selected)} blockStyle={selected.blockStyle||'paragraph'} onBlock={type=>command('block:'+type,selected.id,0,0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style=>command('dividerStyle:'+style,selected.id,0,0)} onDividerColor={color=>command('dividerColor:'+color,selected.id,0,0)}/>}
           </>
         ) : tab === "dashboard" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading dashboard…</section>}><Dashboard doc={doc} disabled={disabled} onRead={openReader} onLibrary={()=>{setSettingsPanel('storage');setDialog('settings');}} onChange={update=>commit(update(docRef.current!),undefined,false)} onCapture={text=>{
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading dashboard…</section>}><Dashboard doc={doc} disabled={disabled} onRead={openReader} onLibrary={()=>{setTab('bookshelf');setEditing(null);}} onChange={update=>commit(update(docRef.current!),undefined,false)} onCapture={text=>{
             if(disabled||failed.current)throw Error('Resolve the saving error before adding a note.');
             const current=docRef.current!,id=crypto.randomUUID(),position=current.tables.bullets.filter(node=>!node.parentId).reduce((max,node)=>Math.max(max,node.position+1),0);
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
+        ) : tab === "bookshelf" ? (
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : (
@@ -1721,13 +1725,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style => command('dividerStyle:' + style, selected.id, 0, 0)} onDividerColor={color => command('dividerColor:' + color, selected.id, 0, 0)} />}
           </>
         )}
-        {selected && tab!=="study" && tab!=="dashboard" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
+        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
         <nav className="mobile-nav" aria-label="Mobile navigation">
           {[
             ["dashboard", "Dashboard", "dashboard"],
             ["notes", "Notes", "notes"],
             ["calendar", "Calendar", "calendar"],
             ["study", "Study Desk", "study"],
+              ["bookshelf", "Bookshelf", "study"],
           ].map(([id, label, icon]) => (
             <button
               key={id}

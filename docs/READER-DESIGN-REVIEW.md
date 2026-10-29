@@ -1,5 +1,9 @@
 # Reader design review
 
+Historical first pass. The follow-up [Bookshelf and reader design](BOOKSHELF-AND-READER.md)
+replaces the reserved annotation bar and footer with one compact toolbar and
+continuous, virtualized PDF pages.
+
 ## Problems found
 
 - The inset, rounded modal frame wastes reading space, especially on large PDFs.

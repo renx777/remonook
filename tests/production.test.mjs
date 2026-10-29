@@ -197,6 +197,8 @@ test("production bundle: interaction smoke test", async context => {
     assert.ok(document.querySelector("main"));
     assert.equal(document.querySelector(".recovery-screen"), null);
   }
+  // Navigation can grow; explicitly open the view whose behavior is asserted.
+  await click([...document.querySelectorAll('.sidebar nav button')].find(button => button.textContent === 'Study Desk'));
   const allMcqs = [...document.querySelectorAll('.study-deck')].find(deck => deck.querySelector('h2')?.textContent === 'All MCQs');
   assert.ok(allMcqs, 'The permanent All MCQs collection ships in production');
   await click([...allMcqs.querySelectorAll('button')].find(button => button.textContent === 'Limits'));

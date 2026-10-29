@@ -15,7 +15,7 @@
  .topbar-search:focus-within{position:absolute;left:8px;right:8px;width:auto;background:var(--bg);z-index:7;border:1px solid var(--line);padding:8px 10px}
  .topbar-search:focus-within input{width:100%;opacity:1}
  .mobile-nav{display:flex;justify-content:space-around;border-top:1px solid var(--line);padding:3px 8px max(4px,env(safe-area-inset-bottom));background:var(--bg);flex-shrink:0}
- .mobile-nav button{flex-direction:column;gap:3px;font-size:10px;background:transparent;min-width:76px;padding:8px}
+ .mobile-nav button{flex:1;flex-direction:column;gap:3px;font-size:10px;background:transparent;min-width:0;padding:8px 2px}
  .outline-scroll{margin:10px 4px 0;scroll-padding-bottom:110px}
  .notes-panes,.note-pane{min-width:0}
  .app[data-editing=true] .outline-scroll{padding-bottom:100px}
