@@ -358,6 +358,8 @@ function MountedBulletEditor({
     editor = useRef<Editor | null>(null),
     callbacks = useRef({ onChange, onCommand, onOutlinePaste, onImages, onReady, node });
   callbacks.current = { onChange, onCommand, onOutlinePaste, onImages, onReady, node };
+  const serialized=useRef<{doc:Editor['state']['doc'];value:ReturnType<typeof fromEditor>}|null>(null);
+  const content=(current:Editor)=>{if(serialized.current?.doc===current.state.doc)return serialized.current.value;const value=fromEditor(current.getJSON());serialized.current={doc:current.state.doc,value};return value;};
   const connectionKeys = useRef<((event:KeyboardEvent)=>boolean)|null>(null);
   const [emojiEditor, setEmojiEditor] = useState<Editor | null>(null), slashKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null), emojiKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null);
   useEffect(() => {
@@ -506,7 +508,7 @@ function MountedBulletEditor({
         },
       },
       onUpdate: ({ editor }) =>
-        callbacks.current.onChange(node.id, fromEditor(editor.getJSON())),
+        callbacks.current.onChange(node.id, content(editor)),
       onSelectionUpdate: ({ editor: current }) => callbacks.current.onReady(current),
     });
     editor.current = e;
@@ -530,7 +532,7 @@ function MountedBulletEditor({
   useEffect(() => {
     const e = editor.current;
     if (!e) return;
-    const current = fromEditor(e.getJSON());
+    const current = content(e);
     if (current.text !== node.text || current.formatting !== node.formatting) {
       const pos = e.state.selection.from;
       e.commands.setContent(toEditor(node), { emitUpdate: false });

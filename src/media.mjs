@@ -46,6 +46,7 @@ export function mediaLink(value) {
 }
 /** @returns {MediaLink[]} */
 export function mediaLinks(text) {
+  if(!text.includes("http"))return [];
   const explicit = [...text.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s]+)\)/g)].map(m=>{const item=mediaLink(m[1]);return item?.kind==='link'?{...item,kind:'image',title:'Linked image'}:item;});
   const urls = text.replace(/!\[[^\]]*\]\((https?:\/\/[^\s]+)\)/g,'').match(/https?:\/\/[^\s<>"']+/g) || [], seen = new Set();
   return [...explicit,...urls.map(value => mediaLink(value.replace(/[),.;!?]+$/, "")))].filter(item => {

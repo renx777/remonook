@@ -551,7 +551,7 @@ export function refreshCards(nodes, decks, media, cards, now) {
   for (const c of derived) {
     const prior = old.get(c.id),
       next = prior
-        ? { ...prior, question: c.question, answer: c.answer, state: "ACTIVE" }
+        ? prior.question===c.question&&prior.answer===c.answer&&prior.state==="ACTIVE"?prior:{ ...prior, question: c.question, answer: c.answer, state: "ACTIVE" }
         : {
             ...c,
             conceptId: c.id,

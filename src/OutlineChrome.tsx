@@ -1,3 +1,4 @@
+import {snapshotIndex} from './outline-snapshot.mjs';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Node } from "./data";
@@ -92,11 +93,14 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, disabled,
   onAdd: (parent: string | null) => void;
 }) {
   const [expanded, setExpanded] = useState(new Set<string>()),
-    idx = useMemo(() => index(nodes), [nodes]),
+    idx = useMemo(() => snapshotIndex(nodes), [nodes]),
     viewportRef = useRef<HTMLDivElement>(null), treeRef = useRef<HTMLDivElement>(null), lastScrolled = useRef<string | null>(null),
-    [viewport, setViewport] = useState({ top: 0, height: 600 }),
-    visible: { node: Node; depth: number }[] = [],
-    stack = (idx.children.get(null) || []).filter((n: Node) => !n.id.startsWith("journal-")).slice().reverse().map((node: Node) => ({ node, depth: 0 }));
+    [viewport, setViewport] = useState({ top: 0, height: 600 });
+  const visible=useMemo(()=>{
+    const rows:{node:Node;depth:number}[]=[],stack=(idx.children.get(null)||[]).filter((n:Node)=>!n.id.startsWith('journal-')).slice().reverse().map((node:Node)=>({node,depth:0}));
+    while(stack.length){const row=stack.pop()!;rows.push(row);if(expanded.has(row.node.id)){const children=idx.children.get(row.node.id)||[];for(let i=children.length-1;i>=0;i--)stack.push({node:children[i],depth:row.depth+1});}}
+    return rows;
+  },[idx,expanded]);
   useEffect(() => {
     if (!scope) return;
     const parents: string[] = [];
@@ -107,15 +111,6 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, disabled,
     }
     setExpanded(previous => new Set([...previous, ...parents]));
   }, [scope]);
-  while (stack.length) {
-    const row = stack.pop()!;
-    visible.push(row);
-    if (expanded.has(row.node.id)) {
-      const children = idx.children.get(row.node.id) || [];
-      for (let i = children.length - 1; i >= 0; i--)
-        stack.push({ node: children[i], depth: row.depth + 1 });
-    }
-  }
   const measureViewport = () => {
     const el = viewportRef.current, tree = treeRef.current;
     if (!el || !tree) return;
@@ -167,7 +162,7 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, disabled,
 
 export function JumpTo({ nodes, onChoose }: { nodes: Node[]; onChoose: (id: string) => void }) {
   const [query, setQuery] = useState(""), [active, setActive] = useState(0),
-    idx = index(nodes),
+    idx = snapshotIndex(nodes),
     matches = nodes.filter(node => node.text.trim() && node.text.toLowerCase().includes(query.toLowerCase())).slice(0, 40);
   useEffect(() => { document.querySelector<HTMLInputElement>(".jump-search")?.focus(); }, []);
   useEffect(() => { document.querySelector<HTMLElement>('.jump-results [aria-selected="true"]')?.scrollIntoView?.({ block: "nearest" }); }, [active]);

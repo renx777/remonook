@@ -1,3 +1,4 @@
+import {snapshotIndex} from './outline-snapshot.mjs';
 import {branchMedia,musicItems} from './music.mjs';
 import {useMusic} from './Music';
 import {GalleryContext} from './Gallery';
@@ -53,10 +54,10 @@ export function OutlineView(p: Props) {
   const {times}=useContext(SearchContext);
   const music=useMusic(),galleryContext=useContext(GalleryContext);
   const badges=useMemo(()=>branchMedia(p.nodes,p.media),[p.nodes,p.media]);
-  const matches=useMemo(()=>searchMatcher(p.nodes,p.media,times),[p.nodes,p.media,times,p.search]);
+  const matches=useMemo(()=>p.search.trim()?searchMatcher(p.nodes,p.media,times):()=>true,[p.nodes,p.media,times,p.search]);
   const readingSize = p.readingSize || 16,
     rowHeight = readingSize * 1.5 + 4;
-  const idx = useMemo(() => index(p.nodes), [p.nodes]),
+  const idx = useMemo(() => snapshotIndex(p.nodes), [p.nodes]),
     ordinals = useMemo(() => {
       const numbers = new Map<string, number>();
       for (const siblings of idx.children.values()) {
@@ -95,6 +96,7 @@ export function OutlineView(p: Props) {
     [view, setView] = useState({ top: 0, height: 600, width: 800 }),
     [measure, setMeasure] = useState(0),
     heights = useRef(new Map<string, number>()),
+    estimates = useRef(new WeakMap<Node,{available:number;size:number;attached:boolean;height:number}>()),
     bounds = useRef(new Map<string, HTMLElement>()),
     [drag, setDrag] = useState<{
       id: string;
@@ -153,22 +155,19 @@ export function OutlineView(p: Props) {
   const layout = useMemo(() => {
     let top = p.hideTitle ? 0 : 44;
     return rs.map((r: any, i: number) => {
-      const available = Math.max(
-          120,
-          view.width - 100 - depthIndent(r.depth, view.width),
-        ),
-        lines = r.bullet.text
-          .split("\n")
-          .reduce(
-            (sum: number, s: string) =>
-              sum + Math.max(1, Math.ceil((s.length * readingSize * 0.5) / available)),
-            0,
-          ),
-        hasMedia = mediaByNode.has(r.bullet.id) || mediaLinks(r.bullet.text).some(item => item?.kind !== "link");
-      const height =
-          heights.current.get(r.bullet.id) ??
-          Math.max(rowHeight, lines * readingSize * 1.5 + 4 + (hasMedia ? 180 : 0)),
-        nextRow = rs[i + 1],
+      const available=Math.max(120,view.width-100-depthIndent(r.depth,view.width));
+      let height=heights.current.get(r.bullet.id);
+      if(height===undefined){
+        const cached=estimates.current.get(r.bullet),attached=mediaByNode.has(r.bullet.id);
+        if(cached&&cached.available===available&&cached.size===readingSize&&cached.attached===attached)height=cached.height;
+        else{
+          const lines=r.bullet.text.split('\n').reduce((sum:number,line:string)=>sum+Math.max(1,Math.ceil(line.length*readingSize*.5/available)),0);
+          const hasMedia=attached||mediaLinks(r.bullet.text).some(item=>item?.kind!=='link');
+          height=Math.max(rowHeight,lines*readingSize*1.5+4+(hasMedia?180:0));
+          estimates.current.set(r.bullet,{available,size:readingSize,attached,height});
+        }
+      }
+      const nextRow = rs[i + 1],
         item = {
           ...r,
           rowIndex: i,
@@ -252,7 +251,7 @@ export function OutlineView(p: Props) {
     container?.addEventListener('load', mediaLoaded, true);
     container?.addEventListener('error', mediaLoaded, true);
     return () => { obs?.disconnect(); cancelAnimationFrame(settledFrame); container?.removeEventListener('load', mediaLoaded, true); container?.removeEventListener('error', mediaLoaded, true); };
-  }, [visible.map((r: any) => r.bullet.id).join("|"), p.nodes, p.media, p.assets, p.editing, view.width, readingSize]);
+  }, [visible.map((r: any) => r.bullet.id).join("|"), typeof ResizeObserver==='undefined'?p.nodes:null, p.media, p.assets, p.editing, view.width, readingSize]);
   useEffect(() => {
     const el = scroller.current,
       r = layout.find((r: any) => r.bullet.id === p.editing);
