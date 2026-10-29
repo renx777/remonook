@@ -126,3 +126,8 @@ Microsoft Fluent Emoji Animated and Fluent Emoji artwork is used under the MIT l
 | lib0 | 0.2.119 | MIT |
 | isomorphic.js | 0.2.5 | MIT |
 | diff | 8.0.2 | BSD-3-Clause |
+
+- **@tanstack/react-virtual 3.14.24** and its **@tanstack/virtual-core 3.19.9** dependency:
+  MIT License, Copyright (c) 2021-present Tanner Linsley. See
+  `LICENSES/tanstack-react-virtual-MIT.txt` and `LICENSES/tanstack-virtual-core-MIT.txt`.
+  https://github.com/TanStack/virtual
