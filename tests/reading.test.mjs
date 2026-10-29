@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {empty,archive,parseArchive} from './.build/data.mjs';
-import {registerBooks} from '../src/book-storage.mjs';import {captureReadingImage,readingSources,parseReadingImageSource,captureReadingHighlight,markReading,readingPosition,readingDoneToday,changeReadingHighlight,validateReading} from '../src/reading.mjs';
+import {registerBooks} from '../src/book-storage.mjs';import {addReadingNote,captureReadingImage,readingSources,parseReadingImageSource,captureReadingHighlight,markReading,readingPosition,readingDoneToday,changeReadingHighlight,validateReading} from '../src/reading.mjs';
 import {dashboard,saveDashboardTab,dashboardTabs,addWidget,visibleWidgets,reorderMobileWidget,mobileWidgets} from '../src/dashboard.mjs';
 import {seed,sharedState,openShared,applyIntent,project,Y} from '../src/sync-crdt.mjs';
 import {historyAfterSync} from '../src/cloud-model.mjs';
@@ -69,4 +69,9 @@ test('capturing after a book note branch is trashed allocates a fresh root witho
  const id=crypto.randomUUID(),capture=captureReadingImage(trashed,book,0,{id,fileName:id+'.webp',mimeType:'image/webp'});
  assert.notEqual(capture.doc.web.readingNoteRoots[hash],oldRoot);assert.equal(capture.doc.tables.trash[0].nodes[0].id,oldRoot);
  assert.throws(()=>captureReadingImage(base(),book,-1,{id,fileName:id+'.png',mimeType:'image/png'}));
+});
+
+test('book notes can be added before any highlight and reuse edited book headings',()=>{
+ const id=crypto.randomUUID(),one=addReadingNote(base(),book,id),root=one.web.readingNoteRoots[hash];assert.equal(one.tables.bullets.find(n=>n.id===id).parentId,root);one.tables.bullets.find(n=>n.id===root).text='My own book notes';
+ const next=addReadingNote(one,book,crypto.randomUUID());assert.equal(next.tables.bullets.filter(n=>!n.parentId).length,1);assert.equal(next.tables.bullets.find(n=>n.id===root).text,'My own book notes');assert.equal(Object.keys(next.web.readingHighlights||{}).length,0);
 });

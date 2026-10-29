@@ -21,6 +21,12 @@ function readingNoteRoot(doc,book){
  else{const at=nodes.findIndex(n=>n.id===rootId);nodes[at]={...nodes[at],collapsed:false};}
  return {nodes,used,rootId};
 }
+export function addReadingNote(doc,book,id){
+ if(!book||!readingBook(doc,book.hash))throw Error('This book is unavailable.');
+ const {nodes,used,rootId}=readingNoteRoot(doc,book);if(used.has(id))throw Error('This note already exists.');
+ nodes.push(bullet(id,{parentId:rootId,position:position(nodes,rootId)}));
+ return {...doc,tables:{...doc.tables,bullets:nodes},web:{...doc.web,readingNoteRoots:{...doc.web.readingNoteRoots,[book.hash]:rootId}}};
+}
 export function captureReadingHighlight(doc,book,selection,fingerprint,{color='yellow',comment=''}={}){
  if(!readingBook(doc,book.hash)||!colors.includes(color)||!/^[a-f0-9]{64}$/.test(fingerprint))throw Error('This book is unavailable.');
  const {unit,start,end,quote,rects=[]}=selection;
