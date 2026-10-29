@@ -14,6 +14,33 @@ The widget library also offers Study snapshot: due flashcards and MCQs kept
 separate, and an overview of real review activity. Multiple instances are allowed,
 including clocks for different time zones. At most 16 widgets are visible.
 
+**Quotes** is available through **Add widget → Quotes**. The restrained reading
+card uses serif text, a fine warm rule, and a small attribution. It draws randomly
+from 18 bundled excerpts from public-domain works and bullets tagged `#quote`.
+Library entries link to the source work; personal entries link to the original
+note. The library works offline and makes no network requests to choose a quote.
+
+Use **Another quote** to choose a different entry. The selection stays put during
+clock ticks and unrelated dashboard updates; reopening Dashboard chooses anew.
+**Customize → Quote source** selects the library, tagged notes, or both. The
+preference uses normal workspace saving, sync, and backups. Existing layouts are
+preserved: the new widget is opt-in through the library.
+
+Tag a bullet anywhere in the outline, including a question or nested note:
+
+```text
+Stay curious. Keep learning. #quote
+— Optional attribution
+```
+
+The attribution is an optional new line in the same bullet (Shift+Enter in the
+editor). The tag stays in the source note but is hidden on the card. Matching is
+case-insensitive and excludes partial tags, code, and internal link labels.
+Mirrors do not duplicate their original. Removing the tag or deleting the note
+removes it from the collection; the widget selects another available entry.
+Long text remains readable with scrolling in constrained sizes. Phone cards fit
+their content, with a bounded reading area for unusually long notes.
+
 ## Interaction and layout
 
 Dashboard uses a quiet editorial layout: small typography, fine dividers, neutral surfaces, and compact controls. React Grid Layout 2.3 provides collision-aware dragging and resizing on desktop and tablet. Widgets are interactive by default; **Edit layout** enables dedicated drag grips and corner resize handles there. On phones, widgets form a content-sized stack; use the grip to reorder with touch or keyboard. The dnd-kit sortable stack supports edge auto-scroll, cancellation, focus restoration, and spoken position announcements. Habits and Study offer Compact or Expanded content presets. Floating UI anchors widget menus outside the transformed grid and keeps them in the viewport. Menus provide equivalent move earlier/later and size

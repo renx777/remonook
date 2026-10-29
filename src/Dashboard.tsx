@@ -1,10 +1,11 @@
+import {QuotesWidget} from './QuotesWidget';
 import {DashboardMenu} from './DashboardMenu';
 import {DashboardBoard,DashboardDragHandle} from './DashboardBoard';
 import {useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {useContainerWidth,type Layout} from 'react-grid-layout';
 import {Icon} from './icons';
 import {LibraryDialog} from './StudyFolders';
-import type {Workspace} from './data';
+import type {Node as NoteNode,Workspace} from './data';
 import {accountLocalKey} from './data';
 import {localDate,calendarEvents,upcomingEvents,reminderWhen} from './calendar-events.mjs';
 import {createStudyContext,dueCards} from './study.mjs';
@@ -140,6 +141,7 @@ function WidgetSettings({widget,disabled,onSave,onClose}:{widget:Widget;disabled
   <label>Widget name<input autoFocus aria-label="Widget name" maxLength={80} disabled={disabled} value={title} onChange={e=>setTitle(e.target.value)}/></label>
   {widget.kind==='clock'&&<><label>Clock style<select aria-label="Clock appearance" value={settings.style} onChange={e=>setSettings({...settings,style:e.target.value})}>{clockStyles.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label><label>Time zone<select aria-label="Clock time zone" value={settings.timezone} onChange={e=>setSettings({...settings,timezone:e.target.value})}>{zones.map(zone=><option key={zone} value={zone}>{zone==='local'?'Device time zone':zone.replaceAll('_',' ')}</option>)}</select></label><label className="dash-setting-check"><input type="checkbox" checked={settings.hour12} onChange={e=>setSettings({...settings,hour12:e.target.checked})}/>12-hour time</label><label className="dash-setting-check"><input type="checkbox" checked={settings.seconds} onChange={e=>setSettings({...settings,seconds:e.target.checked})}/>Show seconds</label></>}
   {widget.kind==='focus'&&<><p>Set a rhythm that works for you. Changing durations resets this timer.</p>{[['focus','Focus',120],['short','Short break',60],['long','Long break',60]].map(([id,label,max])=><label key={id}>{label} · minutes<input type="number" aria-label={`${label} minutes`} min={1} max={max} required value={settings[id]} onChange={e=>setSettings({...settings,[id]:Number(e.target.value)})}/></label>)}</>}
+  {widget.kind==='quotes'&&<><label>Quote source<select aria-label="Quote source" value={settings.source} onChange={e=>setSettings({...settings,source:e.target.value})}><option value="all">Library &amp; my notes</option><option value="notes">My tagged notes</option><option value="library">Quote library</option></select></label><p>Tag a bullet <code>#quote</code> to add it. For an attribution, add a new line in the same bullet beginning with an em dash: <code>— Author</code>.</p></>}
   <footer><button type="button" onClick={onClose}>Cancel</button><button className="dash-primary" disabled={disabled||!title.trim()}>Save changes</button></footer>
  </form></LibraryDialog>;
 }
@@ -190,6 +192,7 @@ export function Dashboard({doc,disabled,onChange,onCapture,onNote,onStudy,onCale
        {widget.kind==='habits'&&<HabitsWidget mobile={mobile} expanded={!mobile||!!widget.settings.mobileExpanded} value={value} today={today} disabled={disabled} onChange={change}/>}
        {widget.kind==='capture'&&<CaptureWidget widget={widget} disabled={disabled} onCapture={onCapture} onNote={onNote}/>}
        {widget.kind==='agenda'&&<AgendaWidget doc={doc} today={today} disabled={disabled} onNote={onNote} onTask={onTask} onCalendar={onCalendar}/>}
+       {widget.kind==='quotes'&&<QuotesWidget nodes={doc.tables.bullets as NoteNode[]} source={widget.settings.source} onNote={onNote}/>}
        {widget.kind==='study'&&<StudyWidget expanded={!mobile||!!widget.settings.mobileExpanded} doc={doc} now={now} onStudy={onStudy}/>}
       </div>
      </article>
