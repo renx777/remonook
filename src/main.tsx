@@ -6,7 +6,7 @@ import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
 import {useSidebarMotion} from './useSidebarMotion';
 import {ResearchPanel,useResearchDrafts} from './Research';
 import type {ResearchDraft} from './data';
-import {restoreDeviceState} from './cloud-model.mjs';
+import {restoreDeviceState,historyAfterSync} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
 import {SaveIndicator} from './SaveIndicator';
@@ -322,7 +322,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       // Publish the incoming view synchronously so typing during the IndexedDB
       // transaction builds on it. Later edits queue behind the durable adoption.
       cloudApplying.current=true;
-      docRef.current=incoming;assetsRef.current=remoteAssets;pendingAssets.current.clear();history.current={undo:[],redo:[]};
+      docRef.current=incoming;assetsRef.current=remoteAssets;pendingAssets.current.clear();history.current=historyAfterSync(history.current,previous,incoming);
       if(editing&&activeEditor&&!activeEditor.isDestroyed){
         const node=incoming.tables.bullets.find(n=>n.id===editing);
         if(node){activeEditor.chain().setContent(toEditor(node as Node),{emitUpdate:false}).setMeta('addToHistory',false).run();
