@@ -2,8 +2,20 @@ import test from 'node:test';import assert from 'node:assert/strict';import {emp
 import {registerBooks} from '../src/book-storage.mjs';import {captureReadingHighlight,markReading,readingPosition,readingDoneToday,changeReadingHighlight,validateReading} from '../src/reading.mjs';
 import {dashboard,saveDashboardTab,dashboardTabs,addWidget,visibleWidgets,reorderMobileWidget,mobileWidgets} from '../src/dashboard.mjs';
 import {seed,sharedState,openShared,applyIntent,project,Y} from '../src/sync-crdt.mjs';
+import {historyAfterSync} from '../src/cloud-model.mjs';
 const hash='a'.repeat(64),fingerprint='b'.repeat(64),book={id:crypto.randomUUID(),hash,title:'A small book',name:'A small book.pdf',format:'pdf',size:1024,createdAt:1,position:0,deleted:false};
 const base=()=>registerBooks(empty(),[book]);const select={unit:0,start:0,end:12,quote:'A good idea.',rects:[{x:.1,y:.1,w:.4,h:.02}]};
+test('capture undo survives acknowledged row normalization; changed remote notes invalidate snapshots',()=>{
+ const before=base(),captured=captureReadingHighlight(before,book,select,fingerprint,{comment:'Keep this thought'}).doc,history={undo:[before],redo:[]},y=seed(captured);
+ try{
+  const acknowledged=project(y).doc;
+  assert.notDeepEqual(acknowledged.tables.bullets.map(n=>n.id),captured.tables.bullets.map(n=>n.id),'Projection reorders the appended comment and passage rows');
+  assert.equal(historyAfterSync(history,captured,acknowledged),history);
+  const redoHistory={undo:[],redo:[captured]};assert.equal(historyAfterSync(redoHistory,before,project(seed(before)).doc),redoHistory);
+  const remote=structuredClone(acknowledged);remote.tables.bullets[0].text='Changed on another device';assert.deepEqual(historyAfterSync(history,captured,remote),{undo:[],redo:[]});
+  const reordered=structuredClone(acknowledged);reordered.tables.bullets[0].position++;assert.deepEqual(historyAfterSync(history,captured,reordered),{undo:[],redo:[]});
+ }finally{y.destroy();}
+});
 test('highlights append editable notes under one stable book heading with comments and duplicate protection',()=>{
  const one=captureReadingHighlight(base(),book,select,fingerprint,{comment:'My own thought'});assert.equal(one.doc.tables.bullets.length,3);const root=one.doc.tables.bullets.find(n=>n.parentId===null);assert.equal(root.text,book.title);assert.equal(one.doc.tables.bullets.find(n=>n.id===one.bulletId).parentId,root.id);assert.equal(one.doc.tables.bullets.find(n=>n.text==='My own thought').parentId,one.bulletId);
  assert.equal(captureReadingHighlight(one.doc,book,select,fingerprint).doc,one.doc);

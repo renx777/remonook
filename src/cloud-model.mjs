@@ -13,6 +13,14 @@ export function restoreDeviceState(remote,local){
 }
 const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().filter(k=>value[k]!==undefined).map(k=>[k,canonical(value[k])])):value;
 export const contentKey=doc=>JSON.stringify(canonical(cloudDocument(doc)));
+// CRDT projection sorts database rows by identity. That storage order does not
+// change the outline: sibling order is stored in each bullet's position field.
+// Keep snapshot undo only for an unchanged view; genuine remote edits still
+// invalidate snapshots so undo cannot overwrite another device's changes.
+export function historyAfterSync(history,local,remote){
+ const key=doc=>{const shared=canonical(cloudDocument(doc));for(const [name,rows]of Object.entries(shared.tables))if(Array.isArray(rows))shared.tables[name]=rows.map(row=>JSON.stringify(row)).sort();return JSON.stringify(shared);};
+ return key(local)===key(remote)?history:{undo:[],redo:[]};
+}
 // Historical keys contain the complete acknowledged document, not a hash.
 // Recover that exact baseline; never infer it from the current local/cloud copies.
 export function recoverCheckpoint(checkpoint){

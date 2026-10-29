@@ -47,6 +47,12 @@ test('the real focused Tiptap editor receives remote text, keeps its caret, and 
   await until(()=>editor.getText().startsWith(prefix));assert.equal(editor.isFocused,true);assert.equal(editor.state.selection.anchor,6+prefix.length);
   await act(async()=>editor.commands.insertContent('typed '));
   await until(async()=>{const r=await(await send('GET','/sync/v2')).json();return project(openShared(r.update)).doc.tables.bullets[0].text.includes('typed ');});
+  await until(()=>document.querySelector('.save-status')?.title.includes('Cloud: Synced'));
+  assert.equal(document.querySelector('button[aria-label="Undo"]').disabled,false,'Acknowledging the local edit must preserve its undo step');
+  await act(async()=>document.querySelector('button[aria-label="Undo"]').click());
+  await until(async()=>{const r=await(await send('GET','/sync/v2')).json();const text=project(openShared(r.update)).doc.tables.bullets[0].text;return text.startsWith(prefix)&&!text.includes('typed ');});
+  await act(async()=>document.querySelector('button[aria-label="Redo"]').click());
+  await until(async()=>{const r=await(await send('GET','/sync/v2')).json();return project(openShared(r.update)).doc.tables.bullets[0].text.includes('typed ');});
   assert.match(editor.getText(),/From laptop/);assert.equal(document.querySelector('.recovery-screen'),null);
  }finally{if(app)await act(async()=>app.appRoot.unmount());globalThis.fetch=originalFetch;setStorageAccount(null);sqlite.close();dom.window.close();}
 });
