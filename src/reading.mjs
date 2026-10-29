@@ -11,7 +11,11 @@ export function markReading(doc,hash,unit,day){
  const progress={...old,units:{...old.units,[unit]:day}},next={...doc,web:{...doc.web,readingProgress:{...doc.web.readingProgress,[hash]:progress}}};
  return {...next,web:{...next.web,readingBooks:{...next.web.readingBooks,[book.id]:{...book,position:readingPosition(next,book)}}}};
 }
-const allNoteIds=doc=>new Set([...doc.tables.bullets.map(n=>n.id),...(doc.tables.trash||[]).flatMap(t=>(t.nodes||[]).map(n=>n.id))]);
+const allNoteIds=doc=>{
+ const ids=new Set(doc.tables.bullets.map(n=>n.id));
+ for(const entry of doc.tables.trash||[]){let nodes=entry.nodes;try{if(!Array.isArray(nodes)&&typeof entry.payload==='string')nodes=JSON.parse(entry.payload).nodes;}catch{/* Invalid legacy payloads are handled by the ordinary restore path. */}if(Array.isArray(nodes))for(const node of nodes)if(typeof node?.id==='string')ids.add(node.id);}
+ return ids;
+};
 const available=(base,used)=>{let id=base,i=0;while(used.has(id))id=base+'-'+(++i);return id;};
 const position=(nodes,parentId)=>Math.max(-1,...nodes.filter(n=>n.parentId===parentId).map(n=>n.position))+1;
 function readingNoteRoot(doc,book){

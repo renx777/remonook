@@ -75,3 +75,9 @@ test('book notes can be added before any highlight and reuse edited book heading
  const id=crypto.randomUUID(),one=addReadingNote(base(),book,id),root=one.web.readingNoteRoots[hash];assert.equal(one.tables.bullets.find(n=>n.id===id).parentId,root);one.tables.bullets.find(n=>n.id===root).text='My own book notes';
  const next=addReadingNote(one,book,crypto.randomUUID());assert.equal(next.tables.bullets.filter(n=>!n.parentId).length,1);assert.equal(next.tables.bullets.find(n=>n.id===root).text,'My own book notes');assert.equal(Object.keys(next.web.readingHighlights||{}).length,0);
 });
+
+test('new book notes do not reuse IDs stored in the real serialized Trash payload',()=>{
+ const one=addReadingNote(base(),book,crypto.randomUUID()),oldRoot=one.web.readingNoteRoots[hash];
+ const trashed={...one,tables:{...one.tables,bullets:[],trash:[{id:crypto.randomUUID(),payload:JSON.stringify({nodes:one.tables.bullets,media:[]})}]}};
+ const next=addReadingNote(trashed,book,crypto.randomUUID());assert.notEqual(next.web.readingNoteRoots[hash],oldRoot);assert.equal(JSON.parse(next.tables.trash[0].payload).nodes[0].id,oldRoot);assert.equal(next.tables.bullets.filter(n=>!n.parentId).length,1);
+});
