@@ -1,5 +1,5 @@
 import {ReadingSources,ReaderBoundary,ReaderStartup} from './ReadingSources';
-import {validateReading} from './reading.mjs';
+import {captureReadingImage,readingBook,readingSources,validateReading} from './reading.mjs';
 import {BookStorage} from './BookStorage';
 import {GoogleTasksProvider,GoogleTasksConnection} from './GoogleTasks';
 import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
@@ -12,7 +12,7 @@ import {RemoLogo} from './RemoLogo';
 import {SaveIndicator} from './SaveIndicator';
 import {FlowNumber} from './FlowNumber';
 import {useEntranceMotion} from './useEntranceMotion';
-import {AuthGate,openAccountSignIn,AccountSecurity,googleSignOut,setAccountTransitionHandler,type User} from './CloudAccount';
+import {AuthGate,openAccountSignIn,AccountSecurity,googleSignOut,setAccountTransitionHandler,type User,authenticatedUid} from './CloudAccount';
 import {useCloudSync} from './useCloudSync';
 import './cloud.css';
 import './settings.css';
@@ -1300,7 +1300,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     return () => window.removeEventListener("keydown", handler);
   }, [editing, dialog, menu, doc, views.panes, views.activePane]);
   readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
-  const readingSourceMap=React.useMemo(()=>Object.fromEntries(Object.values(doc?.web.readingHighlights||{}).map((h:any)=>[h.bulletId,{hash:h.bookHash,unit:h.unit,id:h.id,label:(h.format==='pdf'?'Page ':'Passage ')+(h.unit+1)}])),[doc?.web.readingHighlights]);
+  const readingSourceMap=React.useMemo(()=>doc?readingSources(doc):{},[doc?.web.readingHighlights,doc?.tables.media]);
   const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader}),[readingSourceMap,openReader]);
   if (!doc)
     return (
@@ -1950,7 +1950,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <a className="feature-guide-link" href="/guides" target="_blank" rel="noopener noreferrer"><Icon name="learn" size={16}/><span>Guides & tutorials</span><Icon name="forward" size={12}/></a>
         </div>
       </OutlinePopover>}
-      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onNote={id=>navigateTo(id)} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
+      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onNote={id=>navigateTo(id)} onScreenshot={async(unit,blob)=>{
+        if(authenticatedUid()!==cloudUser?.uid)throw Error('Your account changed. Open the book again to capture a page.');
+        if(failed.current||working||!readerTarget)throw Error('Wait for saving to finish, then try again.');
+        const current=docRef.current!,book=readingBook(current,readerTarget.hash);if(!book)throw Error('The original book is no longer available.');
+        const id=crypto.randomUUID(),fileName=id+(blob.type==='image/png'?'.png':'.webp'),path='media/'+fileName;
+        const result=captureReadingImage(current,book,unit,{id,fileName,mimeType:blob.type}),added=new Map([[path,blob]]);checkNewAssets(assetsRef.current,added);
+        const nextAssets=new Map(assetsRef.current);nextAssets.set(path,blob);pendingAssets.current.set(path,blob);assetsRef.current=nextAssets;setAssets(nextAssets);
+        commit(withNodes(result.doc,result.doc.tables.bullets as Node[]));await flush();if(failed.current)throw Error('The capture is in your notes, but saving needs attention. Open Account settings to retry.');
+      }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <Dialog title="Jump to" onClose={() => setDialog(null)}><JumpTo nodes={nodes} onChoose={navigateTo} /></Dialog>}
       {dialog === "shortcuts" && <Dialog title="Keyboard shortcuts" onClose={() => setDialog(null)}><div className="shortcut-list">{[
         ["Paste outline", "Ctrl + V · text, Markdown, OPML or formatted text"], ["Mask selected text", "Ctrl + Shift + M"], ["Command menu", "/ at start or after a space"], ["New pane", "Alt + R"], ["Open bullet in pane", "Alt + click bullet"], ["Link to a bullet", "[[ then search"], ["Mirror a bullet", "(( then search"], ["Code block", "Ctrl + Alt + C"], ["Numbered / bulleted list", "Ctrl + Shift + 7 / 8"], ["MCQ editor", "Ctrl + Alt + M"], ["Task", "Ctrl + Alt + T"], ["Plain bullet", "Ctrl + Alt + 0"], ["Exit code block", "Ctrl + Enter"], ["New bullet", "Enter"], ["New line", "Shift + Enter"], ["Animated emoji picker", ": then a name"], ["Indent / outdent", "Tab / Shift + Tab"], ["Complete / uncomplete", "Ctrl + Enter"], ["Expand / collapse", "Ctrl + Space"], ["Move branch up / down", "Ctrl + Shift + ↑ / ↓"], ["Zoom in / out", "Alt + → / ←"], ["Jump to a note", "Ctrl + K"], ["Toggle sidebar", "Ctrl + \\"], ["Undo / redo", "Ctrl + Z / Shift + Ctrl + Z"], ["Finish editing", "Escape"],

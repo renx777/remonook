@@ -14,6 +14,13 @@ export function markReading(doc,hash,unit,day){
 const allNoteIds=doc=>new Set([...doc.tables.bullets.map(n=>n.id),...(doc.tables.trash||[]).flatMap(t=>(t.nodes||[]).map(n=>n.id))]);
 const available=(base,used)=>{let id=base,i=0;while(used.has(id))id=base+'-'+(++i);return id;};
 const position=(nodes,parentId)=>Math.max(-1,...nodes.filter(n=>n.parentId===parentId).map(n=>n.position))+1;
+function readingNoteRoot(doc,book){
+ const nodes=[...doc.tables.bullets],used=allNoteIds(doc),priorRoot=doc.web.readingNoteRoots?.[book.hash];
+ let rootId=priorRoot&&nodes.some(n=>n.id===priorRoot)?priorRoot:available('book-'+book.hash,used);
+ if(!nodes.some(n=>n.id===rootId)){nodes.push(bullet(rootId,{text:book.title,parentId:null,position:position(nodes,null)}));used.add(rootId);}
+ else{const at=nodes.findIndex(n=>n.id===rootId);nodes[at]={...nodes[at],collapsed:false};}
+ return {nodes,used,rootId};
+}
 export function captureReadingHighlight(doc,book,selection,fingerprint,{color='yellow',comment=''}={}){
  if(!readingBook(doc,book.hash)||!colors.includes(color)||!/^[a-f0-9]{64}$/.test(fingerprint))throw Error('This book is unavailable.');
  const {unit,start,end,quote,rects=[]}=selection;
@@ -25,15 +32,28 @@ export function captureReadingHighlight(doc,book,selection,fingerprint,{color='y
   return {doc:next,id,bulletId:existing.bulletId};
  }
  if(Object.values(doc.web.readingHighlights||{}).filter(h=>!h.deleted&&h.bookHash===book.hash&&h.unit===unit).length>=200)throw Error('This page already has 200 highlights.');
- const nodes=[...doc.tables.bullets],used=allNoteIds(doc),priorRoot=doc.web.readingNoteRoots?.[book.hash];
- let rootId=priorRoot&&nodes.some(n=>n.id===priorRoot)?priorRoot:available('book-'+book.hash,used);
- if(!nodes.some(n=>n.id===rootId)){nodes.push(bullet(rootId,{text:book.title,parentId:null,position:position(nodes,null)}));used.add(rootId);}
- else{const at=nodes.findIndex(n=>n.id===rootId);nodes[at]={...nodes[at],collapsed:false};}
+ const {nodes,used,rootId}=readingNoteRoot(doc,book);
  const bulletId=available('quote-'+fingerprint,used);used.add(bulletId);
  nodes.push(bullet(bulletId,{parentId:rootId,position:position(nodes,rootId),text:quote.trim()}));
  if(comment.trim())nodes.push(bullet(available('comment-'+crypto.randomUUID(),used),{parentId:bulletId,position:0,text:comment.trim()}));
  const annotation={id,bookHash:book.hash,bookId:book.id,format:book.format,unit,start,end,quote,color,rects,bulletId,rootId,deleted:false};
  return {doc:{...doc,tables:{...doc.tables,bullets:nodes},web:{...doc.web,readingNoteRoots:{...doc.web.readingNoteRoots,[book.hash]:rootId},readingHighlights:{...doc.web.readingHighlights,[id]:annotation}}},id,bulletId};
+}
+// Image source anchors use an existing media metadata field; no new sync schema.
+export const readingImageSource=(hash,unit)=>'remonook:pdf/'+hash+'/'+unit;
+export function parseReadingImageSource(value){const match=typeof value==='string'&&value.match(/^remonook:pdf\/([a-f0-9]{64})\/(0|[1-9]\d{0,3})$/);return match?{hash:match[1],unit:Number(match[2])}:null;}
+export function readingSources(doc){
+ const sources=Object.fromEntries(Object.values(doc.web.readingHighlights||{}).map(h=>[h.bulletId,{hash:h.bookHash,unit:h.unit,id:h.id,label:sourceLabel(h,h.unit)}]));
+ for(const media of doc.tables.media){const source=parseReadingImageSource(media.sourceUrl);if(source)sources[media.bulletId]={...source,id:'',label:'Page '+(source.unit+1)};}
+ return sources;
+}
+export function captureReadingImage(doc,book,unit,{id,fileName,mimeType}){
+ if(!book||book.format!=='pdf'||!readingBook(doc,book.hash)||!Number.isInteger(unit)||unit<0||unit>=10000||!/^[a-f0-9-]{36}$/.test(id)||fileName!==id+(mimeType==='image/png'?'.png':'.webp')||!['image/png','image/webp'].includes(mimeType))throw Error('The PDF capture could not be saved.');
+ if(doc.tables.media.some(media=>media.id===id))throw Error('This capture already exists.');
+ const {nodes,used,rootId}=readingNoteRoot(doc,book),bulletId=available('capture-'+id,used);
+ nodes.push(bullet(bulletId,{parentId:rootId,position:position(nodes,rootId),text:'Page '+(unit+1)+' · Screenshot'}));
+ const media={id,bulletId,fileName,mimeType,sourceUrl:readingImageSource(book.hash,unit),credit:book.title+' · page '+(unit+1),licenseUrl:''};
+ return {doc:{...doc,tables:{...doc.tables,bullets:nodes,media:[...doc.tables.media,media]},web:{...doc.web,readingNoteRoots:{...doc.web.readingNoteRoots,[book.hash]:rootId}}},bulletId};
 }
 export function changeReadingHighlight(doc,id,patch){const old=doc.web.readingHighlights?.[id];if(!old)return doc;return {...doc,web:{...doc.web,readingHighlights:{...doc.web.readingHighlights,[id]:{...old,...patch,id:old.id}}}};}
 export const sourceLabel=(book,unit)=>book?.format==='pdf'?'Page '+(unit+1):'Passage '+(unit+1);

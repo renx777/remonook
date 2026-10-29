@@ -1,0 +1,8 @@
+import {useRef,useState} from 'react';
+import type {CaptureRect} from './pdf-capture';
+export function PdfCaptureOverlay({onCapture,disabled}:{onCapture:(rect:CaptureRect)=>void;disabled:boolean}){
+ const start=useRef<{x:number;y:number;pointer:number}|null>(null),[rect,setRect]=useState<CaptureRect|null>(null);
+ const point=(event:React.PointerEvent<HTMLDivElement>)=>{const bounds=event.currentTarget.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(event.clientX-bounds.left)/bounds.width)),y:Math.max(0,Math.min(1,(event.clientY-bounds.top)/bounds.height))};};
+ const region=(end:{x:number;y:number}):CaptureRect=>({x:Math.min(start.current!.x,end.x),y:Math.min(start.current!.y,end.y),w:Math.abs(start.current!.x-end.x),h:Math.abs(start.current!.y-end.y)});
+ return <div className="reader-capture-overlay" aria-hidden="true" onPointerDown={event=>{if(disabled||event.button!==0)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);start.current={...point(event),pointer:event.pointerId};setRect(null);}} onPointerMove={event=>{if(start.current?.pointer===event.pointerId)setRect(region(point(event)));}} onPointerUp={event=>{if(start.current?.pointer!==event.pointerId)return;const next=region(point(event)),bounds=event.currentTarget.getBoundingClientRect();start.current=null;setRect(null);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);if(next.w*bounds.width>=12&&next.h*bounds.height>=12)onCapture(next);}} onPointerCancel={()=>{start.current=null;setRect(null);}}>{rect&&<span style={{left:rect.x*100+'%',top:rect.y*100+'%',width:rect.w*100+'%',height:rect.h*100+'%'}}/>}</div>;
+}

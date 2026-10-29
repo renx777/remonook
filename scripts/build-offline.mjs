@@ -14,7 +14,7 @@ const files = [
   "/learn.css",
   ...publicPaths.filter(path=>path!=='/').map(path=>path+'.html'),
   ...(await readdir("dist/reminder-emojis")).map(f=>"/reminder-emojis/"+f),
-  ...(await readdir("dist/assets")).filter(f=>!(/^(PdfPage|PdfDocument|book-cover|pdf-|pdf\.|pdf-runtime|epub-worker|reader-)/.test(f))).map((f) => "/assets/" + f),
+  ...(await readdir("dist/assets")).filter(f=>!(/^(PdfPage|PdfDocument|book-cover|pdf-capture|pdf-|pdf\.|pdf-runtime|epub-worker|reader-)/.test(f))).map((f) => "/assets/" + f),
 ];
 const hash=createHash('sha256');
 for(const file of files){hash.update(file);hash.update(await readFile('dist'+(file==='/'?'/index.html':file.split('?')[0])));}
