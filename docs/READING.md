@@ -7,11 +7,15 @@ EPUB parsing runs in a separate worker using pinned fast-xml-parser and JSZip.
 
 ## Reading experience
 
-The focused reader is a native modal: a quiet title bar, one active page/passage,
-previous/next and a jump field, display-size controls, and Mark as read. Desktop
+The focused reader fills the viewport without an inset modal card. Native dialog
+semantics retain keyboard isolation and focus restoration. A quiet title bar, one
+active page/passage, previous/next and a jump field, display-size controls, and
+Mark as read provide the reading workspace. Desktop
 has an optional highlights sidebar; on phones it becomes a sheet. Selection uses
-native text selection, with a compact color/comment palette. Comment typing
-stays local to the reader until the highlight is committed. Escape dismisses the
+native text selection, with a compact color bar reserved above the document.
+Comments expand only on request; typing stays local until the highlight is
+committed. Controls never float over the PDF. Selection is captured after dragging
+ends and cleared on navigation, deselection and PDF rerendering. Escape dismisses the
 selection, then the highlights panel, then the reader. Focus returns on close.
 
 PDF rendering is limited to the current page, capped at four million canvas
