@@ -1,6 +1,6 @@
 import {NoteTable} from './NoteTable';
 import {readTable} from './table.mjs';
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { ClipboardInput } from "./clipboard";
 import {ConnectedText,InlineConnections} from "./Connections";
 import {tagHighlight} from "./TagHighlight";
@@ -204,7 +204,7 @@ export function fromEditor(json: JSONContent) {
   }
   return { text, formatting: encode([...grouped.values()].flat()) };
 }
-export function RichRead({ node, search = "", literal = false, connected = true }: { node: Node; search?: string; literal?: boolean; connected?:boolean }) {
+export const RichRead = memo(function RichReadContent({ node, search = "", literal = false, connected = true }: { node: Node; search?: string; literal?: boolean; connected?:boolean }) {
   if(!literal && /^!\[[^\]]*\]\(https?:\/\/[^\s]+\)$/.test(node.text.trim()))return null;
   if(readTable(node.text))return <NoteTable id={node.id} text={node.text}/>;
   if (node.blockStyle === 'divider') {
@@ -320,7 +320,7 @@ export function RichRead({ node, search = "", literal = false, connected = true 
       })}
     </>
   );
-}
+});
 export const unsupportedFormatting = (node: Node) =>
   node.formatting
     .split(";")
@@ -336,6 +336,7 @@ function MountedBulletEditor({
   caret,
   initialSelection,
   onChange,
+  readCurrentNode,
   onCommand,
   onOutlinePaste,
   onImages,
@@ -346,6 +347,7 @@ function MountedBulletEditor({
   caret: number | null;
   initialSelection?: { anchor: number; head: number };
   onChange: (id: string, value: { text: string; formatting: string }) => void;
+  readCurrentNode?: (id: string) => Node | undefined;
   onCommand: (action: string, id: string, start: number, end: number) => void;
   onOutlinePaste: (id: string, start: number, end: number, text: ClipboardInput) => void;
   onImages?: (id: string, files: File[]) => void;
@@ -532,13 +534,17 @@ function MountedBulletEditor({
   useEffect(() => {
     const e = editor.current;
     if (!e) return;
+    // A concurrent outline render may echo an earlier keystroke after the
+    // editor has accepted newer input. Reconcile against the authoritative
+    // document, which is published synchronously before React renders it.
+    const incoming = readCurrentNode?.(node.id) || node;
     const current = content(e);
-    if (current.text !== node.text || current.formatting !== node.formatting) {
+    if (current.text !== incoming.text || current.formatting !== incoming.formatting) {
       const pos = e.state.selection.from;
-      e.commands.setContent(toEditor(node), { emitUpdate: false });
-      e.commands.setTextSelection(Math.min(pos, node.text.length + 1));
+      e.commands.setContent(toEditor(incoming), { emitUpdate: false });
+      e.commands.setTextSelection(Math.min(pos, incoming.text.length + 1));
     }
-    const editable = !disabled && !unsupportedFormatting(node);
+    const editable = !disabled && !unsupportedFormatting(incoming);
     if (e.isEditable !== editable) e.setEditable(editable, false);
   }, [node.text, node.formatting, disabled]);
   // Refresh decorations only when their inputs change. Dispatching an empty

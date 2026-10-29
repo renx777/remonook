@@ -34,6 +34,23 @@ test('unrelated typing preserves derived data and unchanged snapshots; invalid c
  assert.equal(next.tables.bullets.find(n=>n.id==='a'),doc.tables.bullets.find(n=>n.id==='a'));
  assert.throws(()=>updateBulletContent(doc,'plain',{text:null,formatting:''}),/Invalid bullet content/);
 });
+test('targeted refresh matches complete derivation through blank questions, nested decks and mirrored answers',()=>{
+ const originalNow=Date.now;Date.now=()=>2000000;
+ try{
+  for(const layout of ['FLAT','TOPICS']){
+   let nodes=[bullet('root',{text:'Deck'}),bullet('topic',{parentId:'root',text:'Topic'}),bullet('question',{parentId:'topic',text:'Question'}),bullet('answer',{parentId:'question',text:'Answer',listType:'ORDERED'}),bullet('detail',{parentId:'answer',text:'Detail'}),bullet('other',{parentId:'root',position:1,text:'Other',kind:'QUESTION'}),bullet('other-answer',{parentId:'other',text:'Another answer'}),bullet('mirror',{parentId:'other',position:1}),bullet('divider',{parentId:'question',position:1,blockStyle:'divider',text:'Separator'})];
+   nodes=createMirror(nodes,'mirror','answer').nodes;
+   let doc=empty();doc.tables.decks=[{rootId:'root',createdAt:1,pinned:0,layout}];doc.web.studyExcludedCards=['other'];doc=withNodes(doc,nodes);
+   doc.tables.cards=doc.tables.cards.map(card=>({...card,repetitionCount:12,stability:31}));
+   for(const id of ['question','answer','detail','mirror','topic','other','divider'])for(const text of ['', '  ', 'Edited 日本語\nSecond line']){
+    const value={text,formatting:''},full=withNodes(doc,doc.tables.bullets.map(n=>n.id===id?{...n,...value}:n));
+    const next=updateBulletContent(doc,id,value);
+    assert.deepEqual(next,full,`${layout}: ${id} -> ${JSON.stringify(text)}`);
+    doc=next;
+   }
+  }
+ }finally{Date.now=originalNow;}
+});
 test('fast edits survive durable saving and a full backup',async()=>{
  let doc=await save(null,fixture(),'fixture');doc=updateBulletContent(doc,'a',{text:'A saved answer',formatting:'0:7:BOLD'});doc=await save(await load(),doc,'edit');
  assert.equal((await load()).tables.bullets.find(n=>n.id==='a').text,'A saved answer');

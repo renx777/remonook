@@ -1,3 +1,4 @@
+import {memo} from 'react';
 import {Bold,Italic,Underline,Strikethrough,CodeXml,EyeOff,PencilLine,RemoveFormatting,Type,ImagePlus,Waypoints,ListTree,GraduationCap,Link,CornerDownLeft,PanelsLeftRight,IndentIncrease,IndentDecrease,ListOrdered,TextQuote,Sigma,Workflow,Table2,ChevronLeft,type LucideIcon} from 'lucide-react';
 
 // A curated first pass: shared editor and action symbols keep the existing size,
@@ -84,7 +85,7 @@ const paths: Record<string, string> = {
   home: "m3 10 9-7 9 7M5 9v11h5v-6h4v6h5V9",
   forward: "m10 19 7-7-7-7",
 };
-export function Icon({ name, size = 18 }: { name: string; size?: number }) {
+export const Icon=memo(function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const Component=lucideIcons[name];
   if(Component)return <Component className="remo-icon" data-icon-library="lucide" data-icon={name} size={size} strokeWidth={1.65} color="currentColor" aria-hidden="true" focusable="false" style={{flexShrink:0,verticalAlign:'middle'}}/>;
   return (
@@ -105,4 +106,4 @@ export function Icon({ name, size = 18 }: { name: string; size?: number }) {
       <path d={paths[name] || paths.notes} />
     </svg>
   );
-}
+});
