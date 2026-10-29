@@ -120,17 +120,17 @@ export function updateBulletContent(doc:Workspace,id:string,value:{text:string;f
  for(const node of changed)noteTimes[node.id]={...noteTimes[node.id],updatedAt:now};
  const decks=doc.tables.decks.filter(deck=>doc.web.deckTypes?.[deck.rootId]!=='MCQ'),roots=new Set(decks.map(deck=>deck.rootId));
  let byId:Map<string,Node>|undefined;
- const affectsCards=changed.some(node=>{
+ const affectedIds=new Set<string>();let affectsCards=false;
+ for(const node of changed){
   let parent:Node|undefined=node;const seen=new Set<string>();
-  while(parent){if(seen.has(parent.id))throw Error('A branch cannot contain itself');seen.add(parent.id);if(parent.kind==='QUESTION'||roots.has(parent.id))return true;if(!parent.parentId)break;byId??=new Map(nodes.map(n=>[n.id,n]));parent=byId.get(parent.parentId);}
-  return false;
- });
+  while(parent){if(seen.has(parent.id))throw Error('A branch cannot contain itself');seen.add(parent.id);affectedIds.add(parent.id);if(parent.kind==='QUESTION'||roots.has(parent.id))affectsCards=true;if(!parent.parentId)break;byId??=new Map(nodes.map(n=>[n.id,n]));parent=byId.get(parent.parentId);}
+ }
  let cards=doc.tables.cards;
  if(affectsCards){
   const ids=new Set(nodes.map(node=>node.id)),sourceCards:RecordData[]=[],independentCards:RecordData[]=[];
   for(const card of cards)(ids.has(card.id)?sourceCards:independentCards).push(card);
   const excluded=new Set(doc.web.studyExcludedCards||[]);
-  cards=[...independentCards,...refreshCards(nodes,decks,doc.tables.media,sourceCards,now)].map(card=>excluded.has(card.id)&&card.state!=='INACTIVE'?{...card,state:'INACTIVE'}:card);
+  cards=[...independentCards,...refreshCards(nodes,decks,doc.tables.media,sourceCards,now,affectedIds)].map(card=>excluded.has(card.id)&&card.state!=='INACTIVE'?{...card,state:'INACTIVE'}:card);
  }
  return {...doc,web:{...doc.web,noteTimes},tables:{...doc.tables,bullets:nodes,cards}};
 }

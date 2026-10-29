@@ -33,3 +33,22 @@ No delayed text publishing or increased save debounce was introduced. Document r
 Regression coverage includes content-update equivalence, formatting, mirrors, review schedules, backups, immutable index reuse, emoji context freshness, syntax decoration reuse, editor selection, image layout, and focused-editor cloud updates. Chromium acceptance checks cover 320, 393, 768, 850, and 1440 pixels, including Japanese IME composition, rapid sidebar toggles, caret stability, reduced motion, undo/redo, mirrored typing, quick search, and split panes.
 
 Release to staging first. Physical device and real-account latency can vary; production remains a separate release.
+
+## Follow-up: keeping input ahead of surrounding views
+
+The next target is median keydown-to-next-frame below 30 ms and p95 below 50 ms in the same throttled scenario. ProseMirror updates the editable DOM and the authoritative workspace synchronously. React transitions let surrounding note views yield to input; this adds no debounce to publishing text, saving, or the durable outbox. Controlled title inputs retain synchronous React updates.
+
+Editor reconciliation reads the authoritative current node. An intermediate React render can contain an older text echo; applying that echo would overwrite newer typing and move the caret. A deterministic regression test reproduces this case and checks that genuine external updates still apply. Browser acceptance also types 180 characters without delay, then immediately splits the bullet and saves.
+
+Unchanged rich-text readers and icons now use React memoization. Content-only flashcard refreshes derive answers only for affected ancestor IDs, including mirrored instances. Full structural mutations retain complete derivation. Differential tests cover blank-question activation/deactivation, nested FLAT/TOPICS decks, exclusions, mirrors, and scheduling.
+
+Final production-build samples retain the same 3,300-bullet fixture, 59-character input, 45 ms requested input interval, and 4× CPU throttling. Desktop width is 1440 pixels; the mobile layout sample is 393 pixels and remains desktop Chromium rather than physical mobile hardware.
+
+| Edited content / layout | Median | p95 | Maximum | Long tasks |
+| --- | ---: | ---: | ---: | ---: |
+| Ordinary note, desktop | 17 ms | 23 ms | 44 ms | 0 |
+| Question, desktop | 23 ms | 31 ms | 85 ms | 1 |
+| Answer child, desktop | 25 ms | 32 ms | 70 ms | 1 |
+| Ordinary note, mobile layout | 22 ms | 30 ms | 76 ms | 1 |
+
+All four samples meet the median/p95 target. Occasional longer frames remain; these samples are not a promise for all devices or workspaces. The earlier implementation remeasured at 46 ms median and 65 ms p95 for ordinary notes in this session. The follow-up passes all 80 test files and the production build; browser checks cover rapid input and immediate split/save, controlled titles, IME, focus stability, mirrors, undo/redo, quick search, split panes, and reduced motion at 320–1440 pixels.

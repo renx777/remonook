@@ -154,6 +154,8 @@ type CalendarViewProps = {
   onZoom: (id: string) => void;
   onToggle: (id: string) => void;
   onChange: (id: string, value: { text: string; formatting: string }) => void;
+  onEditorChange?: (id: string, value: { text: string; formatting: string }) => void;
+  readCurrentNode?: (id: string) => Node | undefined;
   onCommand: (action: string, id: string, start: number, end: number, selectedIds?: string[]) => void;
   onOutlinePaste: (id: string, start: number, end: number, text: ClipboardInput) => void;
   onReady: (editor: Editor | null) => void;
@@ -661,6 +663,8 @@ export function CalendarView(props: CalendarViewProps) {
             onZoom={props.onZoom}
             onToggle={props.onToggle}
             onChange={props.onChange}
+            onEditorChange={props.onEditorChange}
+            readCurrentNode={props.readCurrentNode}
             onCommand={props.onCommand}
             onOutlinePaste={props.onOutlinePaste}
             onReady={props.onReady}

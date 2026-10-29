@@ -26,7 +26,7 @@ import {CalendarReminders,ReminderTabs,ReminderEditor,type ReminderTarget} from 
 import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
 import {enableStudyBranch,saveStudyFolder} from './study-library.mjs';
 import type {FolderDraft} from './StudyFolders';
-import React, { useEffect, useRef, useState } from "react";
+import React, { startTransition, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Editor } from "@tiptap/core";
 import { parseClipboard, type ClipboardInput } from "./clipboard";
@@ -396,6 +396,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const changeBulletContent=(id:string,value:{text:string;formatting:string})=>{
     try{const current=docRef.current!,next=updateBulletContent(current,id,value);if(next!==current)commit(next,id);}catch(e){showError(e);}
   };
+  // ProseMirror updates its editable DOM immediately; surrounding views can
+  // yield to input. Controlled title fields keep the synchronous change path.
+  const changeEditorContent=(id:string,value:{text:string;formatting:string})=>startTransition(()=>changeBulletContent(id,value));
+  const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
     const h = history.current,
       from = redo ? h.redo : h.undo,
@@ -1595,6 +1599,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               onOpenPane={openPane}
               onToggle={id=>{if(pane.id==='main')mutate(ns=>ns.map(n=>n.id===id?{...n,collapsed:!n.collapsed}:n));else views.update(pane.id,{collapsed:{...pane.collapsed,[id]:!(pane.collapsed[id]??idx.byId.get(id)?.collapsed)}});}}
               onChange={changeBulletContent}
+              onEditorChange={changeEditorContent}
+              readCurrentNode={readCurrentNode}
               onCommand={(action,id,start,end,selectedIds)=>{if(pane.id!=='main'&&['toggleCollapse','expandBranch','collapseBranch'].includes(action)){const ids=action==='toggleCollapse'?new Set([id]):descendants(nodes,id),collapsed={...pane.collapsed};for(const key of ids)collapsed[key]=action==='toggleCollapse'?!(collapsed[key]??idx.byId.get(key)?.collapsed):action==='collapseBranch';views.update(pane.id,{collapsed});return;}command(action,id,start,end,selectedIds);}}
               onOutlinePaste={pasteAsOutline}
               onReady={(e) => {
@@ -1662,6 +1668,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               )
             }
             onChange={changeBulletContent}
+            onEditorChange={changeEditorContent}
+            readCurrentNode={readCurrentNode}
             onCommand={command}
             onOutlinePaste={pasteAsOutline}
             onReady={(e) => {

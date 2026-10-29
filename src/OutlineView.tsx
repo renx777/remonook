@@ -40,6 +40,8 @@ type Props = {
   onOpenPane?: (id:string)=>void;
   onToggle: (id: string) => void;
   onChange: (id: string, value: { text: string; formatting: string }) => void;
+  onEditorChange?: (id: string, value: { text: string; formatting: string }) => void;
+  readCurrentNode?: (id: string) => Node | undefined;
   onCommand: (action: string, id: string, start: number, end: number, selectedIds?: string[]) => void;
   onOutlinePaste: (id: string, start: number, end: number, text: ClipboardInput) => void;
   onReady: (editor: Editor | null) => void;
@@ -809,7 +811,8 @@ export function OutlineView(p: Props) {
                     node={n}
                     caret={p.caret}
                     initialSelection={readerRange?.id === n.id ? readerRange : undefined}
-                    onChange={p.onChange}
+                    onChange={p.onEditorChange || p.onChange}
+                    readCurrentNode={p.readCurrentNode}
                     onCommand={p.onCommand}
                     onOutlinePaste={p.onOutlinePaste}
                     onImages={p.onImages}

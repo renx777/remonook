@@ -469,7 +469,8 @@ export function inferDeckLayout(nodes, rootId) {
   if (idx.byId.get(rootId)?.kind === 'QUESTION' || children.some(node => node.kind === 'QUESTION')) return 'FLAT';
   return children.some(topic => (idx.children.get(topic.id) || []).filter(n => n.blockStyle !== 'divider').some(question => (idx.children.get(question.id) || []).filter(n => n.blockStyle !== 'divider').length)) ? 'TOPICS' : 'FLAT';
 }
-export function flashcardSources(nodes, decks, media = []) {
+/** @param {Set<string>|null} onlyIds */
+export function flashcardSources(nodes, decks, media = [], onlyIds = null) {
   const idx = index(nodes),
     questionIds = new Set(
       nodes.filter((n) => n.kind === "QUESTION" && n.blockStyle !== 'divider').map((n) => n.id),
@@ -505,7 +506,7 @@ export function flashcardSources(nodes, decks, media = []) {
     mediaIds = new Set(media.map((m) => m.bulletId)),
     out = [];
   for (const { bullet: q } of indexedRows(idx, null, true)) {
-    if (q.mirrorSourceId || q.blockStyle === 'divider' || (!q.text.trim() && !mediaIds.has(q.id)) || !excluded.has(q.id)) continue;
+    if ((onlyIds && !onlyIds.has(q.id)) || q.mirrorSourceId || q.blockStyle === 'divider' || (!q.text.trim() && !mediaIds.has(q.id)) || !excluded.has(q.id)) continue;
     const answers = (idx.children.get(q.id) || []).filter(a => !excluded.has(a.id) && a.blockStyle !== 'divider');
     const lines = [], answerRows = [],
       stack = answers
@@ -537,15 +538,19 @@ export function flashcardSources(nodes, decks, media = []) {
   }
   return out;
 }
-export function generatedCards(nodes, decks, media = []) {
-  return flashcardSources(nodes, decks, media).map(({ id, question, answer }) => ({ id, question, answer }));
+/** @param {Set<string>|null} onlyIds */
+export function generatedCards(nodes, decks, media = [], onlyIds = null) {
+  return flashcardSources(nodes, decks, media, onlyIds).map(({ id, question, answer }) => ({ id, question, answer }));
 }
-export function refreshCards(nodes, decks, media, cards, now) {
-  const derived = generatedCards(nodes, decks, media),
+// onlyIds is valid for content-only edits: source membership and hierarchy must
+// remain unchanged. Structural mutations always refresh the complete card set.
+/** @param {Set<string>|null} onlyIds */
+export function refreshCards(nodes, decks, media, cards, now, onlyIds = null) {
+  const derived = generatedCards(nodes, decks, media, onlyIds),
     ids = new Set(derived.map((c) => c.id)),
     old = new Map(cards.map((c) => [c.id, c]));
   const result = cards.map((c) =>
-    !ids.has(c.id) && c.state === "ACTIVE" ? { ...c, state: "INACTIVE" } : c,
+    (!onlyIds || onlyIds.has(c.id)) && !ids.has(c.id) && c.state === "ACTIVE" ? { ...c, state: "INACTIVE" } : c,
   );
   const positions = new Map(result.map((c, i) => [c.id, i]));
   for (const c of derived) {
