@@ -69,3 +69,10 @@ test('full backups retain reading metadata without embedding originals; Android 
  const result=await parseArchive(await archive(doc,new Map()));assert.equal(result.doc.web.readingBooks[book.id].position,18);assert.equal(result.assets.size,0);
  await assert.rejects(archive(doc,new Map(),true),/Reading book metadata/);
 });
+
+test('reimporting a deleted original after restoring metadata retains progress without replaying a deleted identity',()=>{
+ const old={...details(),format:'pdf',createdAt:Date.now()},doc=registerBooks(empty(),[old]);doc.web.readingBooks[old.id].position=18;
+ const fresh={...old,id:crypto.randomUUID()},next=registerBooks(doc,[fresh]);
+ assert.equal(next.web.readingBooks[fresh.id].position,18);assert.equal(next.web.readingBooks[old.id].deleted,true);
+ assert.equal(registerBooks(next,[old]),next,'stale listing cannot resurrect the deleted identity');
+});

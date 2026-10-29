@@ -29,8 +29,8 @@ export function BookStorage({user,doc,disabled,onChange,onSignIn}:{user:User|nul
  const run=async(label:string,action:()=>Promise<void>)=>{if(lock.current)return;lock.current=true;setBusy(label);setError('');setNotice('');try{await action();}catch(e){if(alive.current)setError((e as Error).message);}finally{lock.current=false;if(alive.current){setBusy('');if(navigator.onLine)void refresh().catch(()=>{});}}};
  const upload=(file:File)=>run('Adding book…',async()=>{
   checkBook(file);const {inspectBook}=await import('./book-files');await inspectBook(file);
-  const hash=await digest(await file.arrayBuffer()),previous=books.find(b=>b.hash===hash);
-  const response=await request('/books',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:previous?.id||crypto.randomUUID(),name:file.name,size:file.size,hash})});
+  const hash=await digest(await file.arrayBuffer());
+  const response=await request('/books',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:crypto.randomUUID(),name:file.name,size:file.size,hash})});
   let result=await response.json();if(result.state!=='ready')result=await(await request('/books/'+result.book.id,{method:'PUT',body:file})).json();
   if(!alive.current)return;
   // The cloud upload is durable before library metadata enters normal note sync.
