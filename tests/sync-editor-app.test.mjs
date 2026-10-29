@@ -16,7 +16,7 @@ import {route} from '../cloud/worker.mjs';
 await build({entryPoints:['src/main.tsx'],bundle:true,packages:'external',outfile:'tests/.build/sync-app.mjs',format:'esm',platform:'node',jsx:'automatic',loader:{'.css':'empty'},define:{'import.meta.env.PROD':'true'},plugins:[{name:'signed-in-fixture',setup(b){
  b.onResolve({filter:/^\.\/data$/},()=>({path:pathToFileURL(resolve('tests/.build/data.mjs')).href,external:true}));
  b.onResolve({filter:/^\.\/(CloudAccount|cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));
- b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?`export const authenticatedUid=()=> 'alice';export const googleSignIn=async()=>{};export const googleSignOut=async()=>{};export const setAccountTransitionHandler=()=>()=>{};const user={uid:'alice',email:'test@example.invalid',getIdToken:async()=> 'token'};export function AuthGate({children}){return children(user);}`:`export const CLOUD_API='https://sync.test';`}));
+ b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?`export const authenticatedUid=()=> 'alice';export const openAccountSignIn=async()=>{};export const AccountSecurity=()=>null;export const googleSignOut=async()=>{};export const setAccountTransitionHandler=()=>()=>{};const user={uid:'alice',email:'test@example.invalid',getIdToken:async()=> 'token'};export function AuthGate({children}){return children(user);}`:`export const CLOUD_API='https://sync.test';`}));
 }}]});
 
 test('the real focused Tiptap editor receives remote text, keeps its caret, and continues syncing new typing',async()=>{

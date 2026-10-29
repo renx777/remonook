@@ -9,7 +9,7 @@ import {RemoLogo} from './RemoLogo';
 import {SaveIndicator} from './SaveIndicator';
 import {FlowNumber} from './FlowNumber';
 import {useEntranceMotion} from './useEntranceMotion';
-import {AuthGate,googleSignIn,googleSignOut,setAccountTransitionHandler,type User} from './CloudAccount';
+import {AuthGate,openAccountSignIn,AccountSecurity,googleSignOut,setAccountTransitionHandler,type User} from './CloudAccount';
 import {useCloudSync} from './useCloudSync';
 import './cloud.css';
 import './settings.css';
@@ -331,7 +331,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     }
   });
   useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
-  const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await googleSignIn();}catch(e){showError(e);}};
+  const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await openAccountSignIn();}catch(e){showError(e);}};
   const commit = (next: Workspace, group?: string, record = true) => {
     if (failed.current) {
       setError(
@@ -1997,11 +1997,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </section>}
           {settingsPanel==="account" && <section aria-label="Account">
           <section className="cloud-account">
-            <div className="cloud-account-heading"><div><h3>{cloudUser ? 'Your account' : 'Your notes, everywhere'}</h3><p>{cloudUser?.email || 'Sign in with Google to keep a private workspace.'}</p></div><span className="cloud-state">{cloud.status}</span></div>
-            {cloudUser ? <><div className="cloud-account-actions"><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Edits save securely in this browser first, including while offline. Your signed-in workspace syncs to the cloud and your other devices when connected.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><p className="dialog-muted">Your changes save on this device first and update across devices automatically when connected. RemoNook keeps recovery copies in the background. Files: 2 MiB each · 20 MiB per account. Notes: 900 KiB per workspace.</p></details>
+            <div className="cloud-account-heading"><div><h3>{cloudUser ? 'Your account' : 'Your notes, everywhere'}</h3><p>{cloudUser?.email || 'Sign in to keep a private workspace.'}</p></div><span className="cloud-state">{cloud.status}</span></div>
+            {cloudUser ? <><AccountSecurity user={cloudUser}/><div className="cloud-account-actions"><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Edits save securely in this browser first, including while offline. Your signed-in workspace syncs to the cloud and your other devices when connected.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><p className="dialog-muted">Your changes save on this device first and update across devices automatically when connected. RemoNook keeps recovery copies in the background. Files: 2 MiB each · 20 MiB per account. Notes: 900 KiB per workspace.</p></details>
 
             {!doc.tables.bullets.length&&<button className="wide action" disabled={disabled} onClick={async()=>{try{await flush();const guest=await load('remo-web'),guestAssets=await getAssets('remo-web');if(!guest)throw Error('No device-only notes found.');if(!confirm('Copy device-only notes into this account? They will upload to your private cloud workspace.'))return;const next=await save(persisted.current,{...guest,web:{...guest.web,deviceId:docRef.current!.web.deviceId}},'copy device notes',guestAssets,true);persisted.current=next;docRef.current=next;assetsRef.current=guestAssets;setDoc(next);setAssets(guestAssets);setResearchTarget(null);await research.refresh();}catch(e){showError(e);}}}>Import existing device-only notes…</button>}
-</> : <><button className="wide action cloud-google" disabled={disabled} onClick={()=>void accountAction()}>Continue with Google</button><p className="dialog-muted">Your current notes stay in the device-only workspace. After signing in, you can choose to import them. Sign out to return to these notes.</p></>}
+</> : <><button className="wide action cloud-google" disabled={disabled} onClick={()=>void accountAction()}>Sign in or create account</button><p className="dialog-muted">Your current notes stay in the device-only workspace. After signing in, you can choose to import them. Sign out to return to these notes.</p></>}
             {cloud.error&&<p className="cloud-error" role="status">{cloud.error}</p>}
           </section>
           <section className="upload-storage-status"><h3>Attachment storage</h3><p className="dialog-muted">{(attachmentBytes(assets)/1024/1024).toFixed(1)} MB / 20 MB used · 2 MB per file</p><progress aria-label="Attachment storage used" max={MAX_ATTACHMENT_BYTES} value={Math.min(attachmentBytes(assets),MAX_ATTACHMENT_BYTES)}/><p className="dialog-muted">Images and files stored in this workspace. Embedded links use no space.</p></section>

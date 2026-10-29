@@ -211,7 +211,13 @@ test("production bundle: interaction smoke test", async context => {
   assert.equal(document.querySelector('.settings-folder'),null,'Folder autosync controls must not ship');
   assert.match(document.querySelector('[aria-label="Backups"]').textContent,/Existing RemoNook folder ZIPs were not deleted/);
   await click([...document.querySelectorAll('.settings-navigation button')].find(b=>b.textContent==='Account'));
-  assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent==='Continue with Google'), 'Google sign-in ships in the production settings');
+  assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent==='Sign in or create account'), 'Account entry ships in settings');
+  dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
+  await click([...document.querySelectorAll('.cloud-account button')].find(button=>button.textContent==='Sign in or create account'));
+  await wait(()=>document.querySelector('.account-access[open]'));
+  assert.ok([...document.querySelectorAll('.account-access button')].some(button=>button.textContent==='Continue with Google'), 'Google sign-in remains available');
+  assert.ok(document.querySelector('.account-access input[autocomplete=\"current-password\"]'), 'Email sign-in is available');
+  await click(document.querySelector('[aria-label=\"Close sign-in\"]'));
   assert.match(document.querySelector('.cloud-account').textContent,/current notes stay in the device-only workspace/);
   await click(document.querySelector('[aria-label="Close dialog"]'));
   await act(async () => window.dispatchEvent(new window.ErrorEvent("error", { error: new Error("Regression diagnostic"), message: "Regression diagnostic" })));
