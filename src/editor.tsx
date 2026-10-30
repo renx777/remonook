@@ -1,3 +1,5 @@
+import {Icon} from './icons';
+import {useVisualTools} from './VisualTools';
 import {NoteTable} from './NoteTable';
 import {readTable} from './table.mjs';
 import { memo, useEffect, useRef, useState } from "react";
@@ -205,6 +207,7 @@ export function fromEditor(json: JSONContent) {
   return { text, formatting: encode([...grouped.values()].flat()) };
 }
 export const RichRead = memo(function RichReadContent({ node, search = "", literal = false, connected = true }: { node: Node; search?: string; literal?: boolean; connected?:boolean }) {
+  const visual=useVisualTools();
   if(!literal && /^!\[[^\]]*\]\(https?:\/\/[^\s]+\)$/.test(node.text.trim()))return null;
   if(readTable(node.text))return <NoteTable id={node.id} text={node.text}/>;
   if (node.blockStyle === 'divider') {
@@ -264,7 +267,7 @@ export const RichRead = memo(function RichReadContent({ node, search = "", liter
       cursor = part.end;
       const fragment = (a: number, b: number) => ({ ...node, text: node.text.slice(a, b), formatting: encode(marks(node.formatting, node.text.length).filter((m: any) => m.end > a && m.start < b).map((m: any) => ({ ...m, start: Math.max(m.start, a) - a, end: Math.min(m.end, b) - a }))) });
       const style = notationFormatting(node, part.start, part.end);
-      return <span key={part.start}><RichRead node={fragment(start, part.start)} search={search} literal /><span data-selection-source={node.text.slice(part.start, part.end)}><Notation {...part} style={style} bold={style.fontWeight === 700} /></span></span>;
+      return <span key={part.start}><RichRead node={fragment(start, part.start)} search={search} literal /><span data-selection-source={node.text.slice(part.start, part.end)}><Notation {...part} style={style} bold={style.fontWeight === 700} />{part.kind==='mermaid'&&visual.diagram&&<button className="edit-note-diagram" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();visual.diagram?.({id:node.id,source:part.source,original:node.text.slice(part.start,part.end),start:part.start,base:node.text});}}><Icon name="diagram" size={13}/>Edit diagram</button>}</span></span>;
     })}<RichRead node={{ ...node, text: node.text.slice(cursor), formatting: encode(marks(node.formatting, node.text.length).filter((m: any) => m.end > cursor).map((m: any) => ({ ...m, start: Math.max(m.start, cursor) - cursor, end: m.end - cursor }))) }} search={search} literal /></>;
   }
   const semanticRanges=connected?[...noteLinks(node.text),...[...node.text.matchAll(/(?:^|(?<=\s))(#[\p{L}\p{N}_-]+)/gu)].map(m=>({start:m.index!,end:m.index!+m[0].length}))].sort((a,b)=>a.start-b.start).filter((r,i,all)=>!all.slice(0,i).some(p=>r.start<p.end)&&!marks(node.formatting,node.text.length).some((m:any)=>m.style==='CODE'&&m.start<r.end&&m.end>r.start)):[];
@@ -573,7 +576,7 @@ function MountedBulletEditor({
       ) : (
         <div key="text-editor" ref={host} className="bullet-editor" />
       )}
-      {emojiEditor && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':['pane','date','image','complete','countdown','table','gallery','music','divider'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
+      {emojiEditor && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':['pane','date','image','complete','countdown','table','gallery','music','divider','diagram','drawing'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
       {emojiEditor && <InlineConnections editor={emojiEditor} nodeId={node.id} enabled={!disabled&&!node.codeLanguage&&!unsupportedFormatting(node)} keyHandler={connectionKeys}/>}
       {emojiEditor && <InlineEmojiPicker editor={emojiEditor} nodeId={node.id} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node) && !/^(?:```|\$\$|\\\[)/.test(node.text)} keyHandler={emojiKeys} />}
       {!node.codeLanguage && notationParts(node.text).length > 0 && <div className="notation-preview"><small>Preview · edit source above</small><RichRead node={node} /></div>}

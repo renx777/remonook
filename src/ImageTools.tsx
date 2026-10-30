@@ -7,10 +7,10 @@ export function useImageUrl(item:RecordData,blob?:Blob){
  const url=useMemo(()=>blob?URL.createObjectURL(new Blob([blob],{type:imageType(item.fileName,item.mimeType)||blob.type})):null,[blob,item.fileName,item.mimeType]);
  useEffect(()=>()=>{if(url)URL.revokeObjectURL(url);},[url]);return url;
 }
-export function ImageDialog({title,onClose,children,className=''}:{title:string;onClose:()=>void;children:ReactNode;className?:string}){
+export function ImageDialog({title,onClose,children,className='',allowKeyboardBubble=false}:{title:string;onClose:()=>void;children:ReactNode;className?:string;allowKeyboardBubble?:boolean}){
  const ref=useRef<HTMLDialogElement>(null);
  useEffect(()=>{const previous=document.activeElement as HTMLElement|null,dialog=ref.current!;if(dialog.showModal)dialog.showModal();else dialog.setAttribute('open','');dialog.querySelector<HTMLButtonElement>('button')?.focus();return()=>{if(dialog.open&&dialog.close)dialog.close();if(previous?.isConnected)previous.focus();};},[]);
- return <dialog ref={ref} className={`image-dialog ${className}`} aria-label={title} onKeyDown={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onCancel={e=>{e.preventDefault();e.stopPropagation();onClose();}} onClick={e=>{e.stopPropagation();if(e.target===e.currentTarget)onClose();}}><header className="image-dialog-header"><h2>{title}</h2><button className="icon-button" aria-label="Close image dialog" onClick={onClose}><Icon name="close"/></button></header>{children}</dialog>;
+ return <dialog ref={ref} className={`image-dialog ${className}`} aria-label={title} onKeyDown={e=>{if(!allowKeyboardBubble)e.stopPropagation();}} onPointerDown={e=>e.stopPropagation()} onCancel={e=>{e.preventDefault();e.stopPropagation();onClose();}} onClick={e=>{e.stopPropagation();if(e.target===e.currentTarget)onClose();}}><header className="image-dialog-header"><h2>{title}</h2><button className="icon-button" aria-label="Close image dialog" onClick={onClose}><Icon name="close"/></button></header>{children}</dialog>;
 }
 export function ImageViewer({title,children,onClose}:{title:string;children:ReactNode;onClose:()=>void}){
  return <ImageDialog title={title} onClose={onClose} className="image-viewer"><div className="image-viewer-body">{children}</div><div className="image-viewer-footer">Full image · press Escape to close</div></ImageDialog>;

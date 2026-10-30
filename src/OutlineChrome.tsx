@@ -1,3 +1,4 @@
+import * as Sheet from '@radix-ui/react-dialog';
 import * as Popover from '@radix-ui/react-popover';
 import {snapshotIndex} from './outline-snapshot.mjs';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -17,10 +18,13 @@ export function OutlinePopover({ title, anchor, onClose, children, className = "
   className?: string;
 }) {
   const panel = useRef<HTMLDialogElement>(null), outside = useRef(false);
+  const [viewport,setViewport]=useState(()=>({width:window.innerWidth,height:window.visualViewport?.height||window.innerHeight,bottom:0}));
+  useEffect(()=>{const update=()=>{const v=window.visualViewport;setViewport({width:window.innerWidth,height:v?.height||window.innerHeight,bottom:Math.max(0,window.innerHeight-((v?.offsetTop||0)+(v?.height||window.innerHeight)))});};window.addEventListener('resize',update);window.visualViewport?.addEventListener('resize',update);window.visualViewport?.addEventListener('scroll',update);update();return()=>{window.removeEventListener('resize',update);window.visualViewport?.removeEventListener('resize',update);window.visualViewport?.removeEventListener('scroll',update);};},[]);
   const virtualRef = useMemo(() => ({ current: {
     getBoundingClientRect: () => anchor?.getBoundingClientRect() || new DOMRect(80, 75, 0, 0),
     contextElement: anchor || undefined,
   } }), [anchor]);
+  if(viewport.width<=650&&className.includes('bullet-actions-menu'))return <Sheet.Root open onOpenChange={open=>{if(!open)onClose();}}><Sheet.Portal container={anchor?.closest('.app')||document.body}><Sheet.Overlay className="outline-sheet-backdrop"/><Sheet.Content asChild aria-describedby={undefined} onOpenAutoFocus={event=>{event.preventDefault();panel.current?.focus();}} onCloseAutoFocus={event=>{event.preventDefault();const active=document.activeElement;if(active===document.body||panel.current?.contains(active))anchor?.isConnected&&anchor.focus({preventScroll:true});}} onEscapeKeyDown={event=>{if(panel.current?.querySelector('[data-escape-local="true"]'))event.preventDefault();else event.stopPropagation();}}><dialog open tabIndex={-1} ref={panel} className={`outline-popover outline-mobile-sheet ${className}`} style={{maxHeight:viewport.height-12,bottom:viewport.bottom}}><div className="sheet-grabber" aria-hidden="true"/><div className="popover-heading"><Sheet.Title asChild><span>{title}</span></Sheet.Title><Sheet.Close asChild><button className="icon-button" aria-label="Close dialog"><Icon name="close" size={18}/></button></Sheet.Close></div>{children}</dialog></Sheet.Content></Sheet.Portal></Sheet.Root>;
   return <Popover.Root open onOpenChange={open => { if (!open) onClose(); }} modal={false}>
     <Popover.Anchor virtualRef={virtualRef}/>
     <Popover.Portal container={anchor?.closest('.app') || document.body}>
