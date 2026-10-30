@@ -18,7 +18,7 @@ async function authorize(env,uid='alice'){
  return {...started,cookie,authURL};
 }
 async function callback(env,start,options={}){
- const result=await publicRoute(request('/callback?state='+start.state+'&code=code',undefined,{Cookie:start.cookie}),env,{fetcher:async()=>tokenResponse(),identity,...options});
+ const result=await publicRoute(request('/callback?state='+start.state+'&code=code',undefined,{Cookie:start.cookie}),env,{fetcher:async(url,init)=>{assert.equal(init.redirect,'manual','Workers supports manual redirect handling');return tokenResponse();},identity,...options});
  const html=await result.text();const payload=/postMessage\((\{.*?\}),/.exec(html);return {result,html,data:payload?JSON.parse(payload[1]):null};
 }
 async function connect(env,uid='alice'){
@@ -65,6 +65,7 @@ test('Tasks proxy handles pages, date-only creation, completion, receipts and qu
  const env=setup();try{
  const c=await connect(env);let creates=0;
  const fetcher=async(url,options)=>{
+  assert.equal(options.redirect,'manual','authenticated requests must never follow redirects');
   assert.equal(options.headers.Authorization,'Bearer google-access-private');
   if(options.method==='POST'){creates++;const body=JSON.parse(options.body);assert.equal(body.due,'2026-11-04T00:00:00.000Z');return Response.json({id:'created',title:body.title,status:'needsAction',due:body.due});}
   if(options.method==='PATCH'){assert.deepEqual(JSON.parse(options.body),{status:'needsAction',completed:null});return Response.json({id:'task',title:'Task',status:'needsAction'});}
@@ -129,5 +130,16 @@ test('an unreadable successful create response is ambiguous and is never replaye
  const env=setup();try{
   const c=await connect(env);let attempts=0;const options={readLimited,fetcher:async()=>{attempts++;return new Response('not json',{status:200});}},body={connection:c.connection,list:'list',title:'Task',operation:'invalid-json-operation'};
   assert.equal((await(await handle(request('/create',body),env,'alice',options)).json()).code,'ambiguous');assert.equal((await handle(request('/create',body),env,'alice',options)).status,409);assert.equal(attempts,1);
+ }finally{env.sqlite.close();}
+});
+
+test('OAuth and task proxy reject redirects without forwarding credentials',async()=>{
+ const env=setup();try{
+  const start=await authorize(env);let tokenCalls=0;
+  const done=await callback(env,start,{fetcher:async(url,init)=>{tokenCalls++;assert.equal(init.redirect,'manual');return new Response(null,{status:302,headers:{Location:'https://untrusted.example/token'}});}});
+  assert.equal(tokenCalls,1);assert.equal(done.data.completion,'');
+  const c=await connect(env);let taskCalls=0;
+  const r=await handle(request('/lists?connection='+c.connection),env,'alice',{readLimited,fetcher:async(url,init)=>{taskCalls++;assert.equal(init.redirect,'manual');return new Response(null,{status:302,headers:{Location:'https://untrusted.example/tasks'}});}});
+  assert.equal(taskCalls,1);assert.equal(r.status,502);
  }finally{env.sqlite.close();}
 });
