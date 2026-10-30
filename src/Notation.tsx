@@ -1,4 +1,5 @@
-import { useEffect, useId, useState, type CSSProperties } from "react";
+import {mountDiagram, type DiagramState} from './diagram-renderer';
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 
 export function notationParts(text: string) {
   const pattern = /```mermaid\s*\n([\s\S]*?)```|\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)|(?<![\\\w])\$([^$\n]+?)\$(?!\w)/g;
@@ -11,8 +12,10 @@ export function notationParts(text: string) {
 
 export function Notation({ source, kind, display, style, bold = false }: { source: string; kind: "math" | "mermaid"; display: boolean; style?: CSSProperties; bold?: boolean }) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
-  const [result, setResult] = useState<{ html?: string; error?: string }>({});
+  const host = useRef<HTMLSpanElement>(null);
+  const [result, setResult] = useState<DiagramState & {html?:string}>({});
   useEffect(() => {
+    if (kind === "mermaid" && host.current) return mountDiagram(host.current, source, `remoDiagram${id}`, setResult);
     let cancelled = false;
     setResult({});
     void (async () => {
@@ -21,11 +24,7 @@ export function Notation({ source, kind, display, style, bold = false }: { sourc
         if (kind === "math") {
           const { default: katex } = await import("katex");
           html = katex.renderToString(bold ? `\\boldsymbol{${source}}` : source, { displayMode: display, throwOnError: true, trust: false, maxSize: 20, maxExpand: 1000 });
-        } else {
-          const { default: mermaid } = await import("mermaid");
-          mermaid.initialize({ startOnLoad: false, securityLevel: "strict", suppressErrorRendering: true, theme: "neutral" });
-          html = (await mermaid.render(`remoDiagram${id}`, source)).svg;
-        }
+        } else return;
         if (!cancelled) setResult({ html });
       } catch {
         if (!cancelled) setResult({ error: `Invalid ${kind === "math" ? "LaTeX" : "Mermaid"} — edit the source to correct it.` });
@@ -34,7 +33,8 @@ export function Notation({ source, kind, display, style, bold = false }: { sourc
     return () => { cancelled = true; };
   }, [source, kind, display, id, bold]);
   return <span className={`notation ${display ? "notation-block" : ""}`} style={style}>
-    {result.html ? <span role="img" aria-label={source} dangerouslySetInnerHTML={{ __html: result.html }} /> :
+    {kind === "mermaid" && <span ref={host} className="diagram-canvas" role="img" aria-label={source} aria-busy={!result.ready && !result.error}/> }
+    {result.ready ? null : result.html ? <span role="img" aria-label={source} dangerouslySetInnerHTML={{ __html: result.html }} /> :
       <span className="notation-source"><code>{source}</code>{result.error && <small role="status">{result.error}</small>}</span>}
   </span>;
 }
