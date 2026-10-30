@@ -70,6 +70,8 @@ test('research drafts recover locally, append once, support clipboard fallback, 
   assert.match(document.querySelector('.research-destination').textContent,/no longer available/);assert.ok(textButton('.research-panel button','Add answer').disabled);
   assert.equal(document.querySelector('#research-answer').value,'Keep this draft');
   await click('[aria-label="Close research"]');await click('[aria-label="Undo"]');await action();await click(researchButton());await wait(()=>document.querySelector("#research-answer"));
+  // The injected failure belongs to Add answer, not the preceding Undo autosave.
+  await wait(()=>document.querySelector('.save-status')?.textContent.includes('Device: Saved on this device'));
   const originalPut=IDBObjectStore.prototype.put;let blocked=false;
   IDBObjectStore.prototype.put=function(value,key){if(key==='workspace'&&!blocked){blocked=true;throw Error('Injected save failure');}return originalPut.call(this,value,key);};
   try{await click(textButton('.research-panel button','Add answer'));await wait(()=>document.querySelector('.research-message')?.textContent.includes('could not be saved'));}finally{IDBObjectStore.prototype.put=originalPut;}

@@ -2043,3 +2043,8 @@ hr {
 
 @media(max-width:760px){.app>main{margin-left:0}}
 .reader-startup{max-width:390px;width:calc(100vw - 32px);font-size:14px;line-height:1.7}.reading-citation{display:inline-flex;background:transparent;border:0;padding:2px 4px;font-size:10px;min-height:24px;color:var(--muted)}
+
+/* Pele inherits the workspace theme; color changes need no diagram redraw. */
+.diagram-canvas { display:block; min-width:0; --pele-bg:var(--panel); --pele-fg:var(--text); --pele-muted:var(--muted); --pele-line:var(--text); --pele-surface:var(--soft); --pele-surface-alt:var(--hover); --pele-border:var(--line); --pele-accent:var(--accent); --pele-font:var(--reading-font); --pele-radius:6px; }
+.diagram-canvas:empty { display:none; }
+.diagram-canvas > svg { display:block; }

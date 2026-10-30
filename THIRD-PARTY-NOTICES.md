@@ -175,3 +175,13 @@ Radix UI supplies unstyled popover and command-menu primitives. Floating UI supp
 | @floating-ui/dom | 1.8.0 | MIT |
 | @floating-ui/core | 1.8.0 | MIT |
 | @floating-ui/utils | 0.2.12 | MIT |
+
+## Diagram rendering
+
+Mermaid code blocks use **Pele 1.12.0**, by kepano / Obsidian, under the MIT license.
+The library has no runtime dependencies and is bundled locally, with diagram
+families loaded on demand. Full notice: `LICENSES/pele-MIT.txt`.
+https://github.com/obsidianmd/pele
+
+Mermaid 12.2 remains bundled as an on-demand compatibility fallback, with its
+existing license notices retained.

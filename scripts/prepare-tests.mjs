@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { mkdir } from "node:fs/promises";
 await mkdir("tests/.build", { recursive: true });
 await build({
-  entryPoints: ["src/ActionMenu.tsx", "src/BulletMenuBody.tsx", "src/QuotesWidget.tsx", "src/ResearchResults.tsx", "src/MobileEditToolbar.tsx", "src/StudyCardEditor.tsx", "src/clipboard.ts", "src/data.ts", "src/editor.tsx", "src/RecoveryBoundary.tsx", "src/SelectionFormatting.tsx", "src/deck-designs.ts", "src/OutlineChrome.tsx", "src/AnimatedEmoji.tsx", "src/OutlineView.tsx", "src/outline-selection.ts"],
+  entryPoints: ["src/Notation.tsx", "src/diagram-renderer.ts", "src/ActionMenu.tsx", "src/BulletMenuBody.tsx", "src/QuotesWidget.tsx", "src/ResearchResults.tsx", "src/MobileEditToolbar.tsx", "src/StudyCardEditor.tsx", "src/clipboard.ts", "src/data.ts", "src/editor.tsx", "src/RecoveryBoundary.tsx", "src/SelectionFormatting.tsx", "src/deck-designs.ts", "src/OutlineChrome.tsx", "src/AnimatedEmoji.tsx", "src/OutlineView.tsx", "src/outline-selection.ts"],
   bundle: true,
   packages: "external",
   outdir: "tests/.build",
