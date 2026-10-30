@@ -1,3 +1,4 @@
+import {ActionMenu,ActionMenuItem} from './ActionMenu';
 import {occlusionDefinition} from "./occlusion.mjs";
 import {OcclusionStudyImage} from "./ImageTools";
 import {OcclusionEditor} from "./OcclusionEditor";
@@ -102,8 +103,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   };
   const pinned: string[] = Array.isArray(doc.web.pinnedDecks) ? doc.web.pinnedDecks.filter((id: unknown) => typeof id === "string") : [];
   const { rootRef, immersive, fullscreenNotice, enterImmersive, exitImmersive, lastNativeExit } = useImmersiveStudy(screen === "session"),
-    cardScroll = useRef<HTMLDivElement>(null),
-    cardMenu = useRef<HTMLDivElement>(null);
+    cardScroll = useRef<HTMLDivElement>(null);
   const celebrateCorrect = useStudyConfetti(rootRef, screen === "session", session ? session.tag || "legacy" : null, currentId || null, !!session && queue.length > 0 && session.cursor >= queue.length && session.reviewed > 0);
   useEntranceMotion(rootRef, `${screen}:${activeFolder}:${session?.tag}:${session?.cursor}`, {
     selector: screen === "session" ? ".study-question-layout, .study-finished" : ".study-heading, .study-stats, .study-decks, .study-topic-list",
@@ -111,9 +111,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   useEntranceMotion(rootRef, `${session?.tag}:${session?.cursor}:${session?.revealed}`, {
     selector: ".flashcard-answer", kind: "reveal", active: screen === "session" && !!session?.revealed && !currentMcq && !editingCard,
   });
-  useEntranceMotion(cardMenu, cardMenuOpen, { selector: ".study-more-menu", kind: "popover", active: cardMenuOpen });
   useEffect(()=>{setCardMenuOpen(false);touchStart.current=null;setRevealedBullets(bulletRevealMode === 'all' ? 9999 : 1);},[currentId,screen,session?.cursor,session?.tag]);
-  useEffect(()=>{if(!cardMenuOpen)return;const close=(event:PointerEvent)=>{if(!cardMenu.current?.contains(event.target as globalThis.Node))setCardMenuOpen(false);};window.addEventListener("pointerdown",close);cardMenu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();return()=>window.removeEventListener("pointerdown",close);},[cardMenuOpen]);
   const showLibrary = () => { exitImmersive(); setScreen("library"); };
   const resizeCard = (value: number) => {
     const next = Math.max(70, Math.min(150, value)); setCardZoom(next);
@@ -228,7 +226,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     const handler = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : document.body;
       if (screen !== "session" || event.isComposing || editingCard || target.closest("dialog[open]")) return;
-      if (cardMenuOpen) {if(event.key==="Escape"){event.preventDefault();setCardMenuOpen(false);cardMenu.current?.querySelector<HTMLButtonElement>("button")?.focus();}return;}
+      if (cardMenuOpen) return;
       if (event.key === "Escape") {
         event.preventDefault();
         if (event.repeat || Date.now() - lastNativeExit.current < 350) return;
@@ -318,9 +316,10 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
       {done ? <div className="study-finished"><div className="study-success"><Icon name="check" size={30} /></div><h2>{queue.length ? "Session complete" : "You’re caught up"}</h2><p>{queue.length ? `You reviewed ${session.reviewed} cards.` : session.mode === "SPACED" ? "No cards are due within your daily limits right now." : "There are no available cards in this selection."}</p>{results.answered > 0 && <div className="mcq-score"><strong>{results.correct} / {results.answered}</strong><span>MCQs correct on the first attempt</span>{results.missedIds.length > 0 && <button disabled={disabled} onClick={practiceMissed}>Practice {results.missedIds.length} missed questions</button>}</div>}<p>{session.mode === "NORMAL" ? "Cram practice leaves your review schedule unchanged." : "Your next reviews have been saved. Cards marked Again return after 10 minutes."}</p></div> : !valid ? <div className="study-finished"><h2>This card is no longer available</h2><p>{currentMcq?.error || "Its source may have changed, or the card may be suspended or hidden."}</p></div> : <>
         <div className="study-question-layout">
         <article className="flashcard" aria-label="Flashcard">
-{editingCard && !occlusion ? <StudyCardEditor key={card.id} doc={doc} id={card.id} disabled={disabled} startWithBullet={editingAdd} onSave={onChange} onClose={()=>{setEditingCard(false);setEditingAdd(false);shownAt.current=Date.now();}}/> : <>           <div className="flashcard-label"><span>QUESTION</span><div className="study-card-tools"><button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(false);setEditingCard(true);}}><Icon name="edit" size={13}/>Edit card</button>{source && !currentMcq && !occlusion && <button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(true);setEditingCard(true);}}><Icon name="plus" size={13}/>Add bullet</button>}{source && <button className="study-text-button" onClick={() => { exitImmersive(); onSource(card.id); }}><Icon name="link" size={13} />Open source</button>}            <div className="study-more-actions" ref={cardMenu}>
-              <button className="study-text-button study-card-more" aria-label="Card actions" title="More card actions" aria-expanded={cardMenuOpen} aria-haspopup="menu" disabled={disabled||done||!valid} onClick={()=>setCardMenuOpen(value=>!value)}><Icon name="more" size={18}/></button>
-              {cardMenuOpen&&<div className="study-more-menu" role="menu" aria-label="Card actions" onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();setCardMenuOpen(false);cardMenu.current?.querySelector<HTMLButtonElement>('button')?.focus();}else if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')],at=buttons.indexOf(document.activeElement as HTMLButtonElement),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(at+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next]?.focus();}}}><button role="menuitem" onClick={()=>{setCardMenuOpen(false);pauseCard(false);}}>Hide until tomorrow</button><button role="menuitem" onClick={()=>{setCardMenuOpen(false);pauseCard(true);}}>Suspend card</button></div>}
+{editingCard && !occlusion ? <StudyCardEditor key={card.id} doc={doc} id={card.id} disabled={disabled} startWithBullet={editingAdd} onSave={onChange} onClose={()=>{setEditingCard(false);setEditingAdd(false);shownAt.current=Date.now();}}/> : <>           <div className="flashcard-label"><span>QUESTION</span><div className="study-card-tools"><button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(false);setEditingCard(true);}}><Icon name="edit" size={13}/>Edit card</button>{source && !currentMcq && !occlusion && <button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(true);setEditingCard(true);}}><Icon name="plus" size={13}/>Add bullet</button>}{source && <button className="study-text-button" onClick={() => { exitImmersive(); onSource(card.id); }}><Icon name="link" size={13} />Open source</button>}            <div className="study-more-actions">
+              <ActionMenu open={cardMenuOpen} onOpenChange={setCardMenuOpen} trigger={<button className="study-text-button study-card-more" aria-label="Card actions" title="More card actions" disabled={disabled||done||!valid}><Icon name="more" size={18}/></button>}>
+                <div className="study-more-menu" aria-label="Card actions"><ActionMenuItem onClick={()=>{setCardMenuOpen(false);pauseCard(false);}}>Hide until tomorrow</ActionMenuItem><ActionMenuItem onClick={()=>{setCardMenuOpen(false);pauseCard(true);}}>Suspend card</ActionMenuItem></div>
+              </ActionMenu>
             </div></div></div>
           <div className="flashcard-question">{occlusion ? <><RichRead node={source?.node as Node || idx.byId.get(card.id) as Node}/><OcclusionStudyImage definition={occlusion} blob={assets.get("media/"+occlusion.media.fileName)} revealed={!!session.revealed}/></> : source ? content(source.node as Node) : card.question}</div>
           {currentMcq ? <MCQCard key={`${session.tag}:${card.id}:${currentMcq.fingerprint}`} definition={currentMcq} options={options} attempt={attempt} doc={doc} assets={assets} disabled={disabled} onChoose={choose} /> : !!session.revealed && <div className="flashcard-answer">

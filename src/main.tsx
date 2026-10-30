@@ -452,7 +452,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     }
     setResearchTarget(source);
   };
-  const closeResearch=()=>{setResearchTarget(null);requestAnimationFrame(()=>researchOrigin.current?.isConnected&&researchOrigin.current.focus());};
+  const closeResearch=()=>{setResearchTarget(null);requestAnimationFrame(()=>{const active=document.activeElement;if(active===document.body||active?.closest('.research-panel'))researchOrigin.current?.isConnected&&researchOrigin.current.focus();});};
   const insertResearch=async(draft:ResearchDraft)=>{
     if(researchBusy.current)return;
     researchBusy.current=true;

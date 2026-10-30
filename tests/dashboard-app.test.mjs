@@ -1,3 +1,4 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
@@ -9,6 +10,7 @@ import {localDate,saveCalendarEvent} from '../src/calendar-events.mjs';
 
 const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost/#app',pretendToBeVisual:true});
 for(const key of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Node','Element','DOMParser','MutationObserver','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key],configurable:true});
+installOverlayGlobals(dom);
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 globalThis.ResizeObserver=undefined;
 const realInterval=globalThis.setInterval;globalThis.setInterval=(fn,delay,...args)=>realInterval(fn,delay===1000?3600000:delay,...args);
@@ -22,7 +24,7 @@ HTMLElement.prototype.getBoundingClientRect=function(){return {x:0,y:0,top:0,lef
 window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
 window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
 const wait=async check=>{for(let i=0;i<150;i++){if(check())return;await act(async()=>new Promise(resolve=>setTimeout(resolve,20)));}throw Error('Timed out waiting for dashboard');};
-const click=async selector=>act(async()=>{const target=typeof selector==='string'?document.querySelector(selector):selector;assert.ok(target,selector);target.click();});
+const click=async selector=>act(async()=>{const target=typeof selector==='string'?document.querySelector(selector):selector;assert.ok(target,selector);if(target.matches('.dash-widget-more, .study-card-more')) target.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); else target.click();});
 const textButton=(selector,text)=>[...document.querySelectorAll(selector)].find(button=>button.textContent.trim()===text);
 const input=async(selector,value)=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);Object.getOwnPropertyDescriptor(el instanceof HTMLTextAreaElement?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));});
 const choose=async(selector,value)=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);el.value=value;el.dispatchEvent(new window.Event('change',{bubbles:true}));});
@@ -47,11 +49,11 @@ test('dashboard widgets customize, save habits, survive timer suspension, captur
   await click('[aria-label="Options for Clock"]');await click(textButton('.dash-widget-menu button','Customize'));await choose('[aria-label="Clock appearance"]','analog');await act(async()=>document.querySelector('.dash-settings-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
   assert.ok(document.querySelector('.dash-clock-face'));assert.equal((await stored()).web.dashboard.widgets['default-clock'].settings.style,'analog');
   await click('[aria-label="Options for Clock"]');
-  assert.equal(document.activeElement.textContent,'Customize');
+  await wait(()=>document.activeElement.textContent==='Customize');
   await act(async()=>document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown',{key:'End',bubbles:true})));
-  assert.equal(document.activeElement.textContent,'Remove widget');
+  await wait(()=>document.activeElement.textContent==='Remove widget');
   await act(async()=>document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
-  assert.equal(document.activeElement.getAttribute('aria-label'),'Options for Clock');assert.equal(document.querySelector('.dash-widget-menu'),null);
+  await wait(()=>document.activeElement.getAttribute('aria-label')==='Options for Clock');assert.equal(document.querySelector('.dash-widget-menu'),null);
   await click('[aria-label="Options for Clock"]');await click(textButton('.dash-widget-menu button','Customize'));
   await input('[aria-label="Widget name"]','World clock');await choose('[aria-label="Clock appearance"]','split');await choose('[aria-label="Clock time zone"]','UTC');
   await act(async()=>document.querySelector('.dash-settings-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
