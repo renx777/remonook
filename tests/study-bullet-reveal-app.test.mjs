@@ -1,3 +1,4 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -10,6 +11,7 @@ const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', preten
 for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'HTMLInputElement', 'HTMLTextAreaElement', 'HTMLSelectElement', 'Node', 'DOMParser', 'MutationObserver', 'getComputedStyle']) {
   Object.defineProperty(globalThis, key, { value: key === 'getComputedStyle' ? dom.window.getComputedStyle.bind(dom.window) : dom.window[key], configurable: true });
 }
+installOverlayGlobals(dom);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.ResizeObserver = undefined;
 globalThis.requestAnimationFrame = window.requestAnimationFrame.bind(window);
@@ -43,15 +45,15 @@ test('flashcard study mode reveals child bullets one by one with option to show 
   const click = async selector => act(async () => {
     const el = document.querySelector(selector);
     assert.ok(el, selector);
-    el.click();
+    if(el.matches('.study-card-more')) el.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); else el.click();
   });
   const clickText = async text => act(async () => {
     const el = [...document.querySelectorAll('button')].find(b => b.textContent.trim().startsWith(text));
     assert.ok(el, text);
-    el.click();
+    if(el.matches('.study-card-more')) el.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); else el.click();
   });
   const keyDown = async (key, shift = false) => act(async () => {
-    window.dispatchEvent(new window.KeyboardEvent('keydown', { key, shiftKey: shift, bubbles: true, cancelable: true }));
+    (key === 'Escape' ? document.activeElement : window).dispatchEvent(new window.KeyboardEvent('keydown', { key, shiftKey: shift, bubbles: true, cancelable: true }));
   });
 
   try {
@@ -72,8 +74,9 @@ test('flashcard study mode reveals child bullets one by one with option to show 
     assert.ok(document.querySelector('.study-card-tools [aria-label="Card actions"]'));
     assert.equal(document.querySelector('.study-action-dock [aria-label="Card actions"]'), null);
     await click('[aria-label="Card actions"]');
-    assert.ok(document.querySelector('.flashcard [role="menu"]'));
+    assert.ok(document.querySelector('.study-session [role="menu"]'));
     await keyDown('Escape');
+    await wait(()=>document.querySelector('.study-more-menu')===null);
 
     // Reveal answer via Space bar
     await keyDown(' ');

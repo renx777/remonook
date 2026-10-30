@@ -1,3 +1,4 @@
+import * as Popover from '@radix-ui/react-popover';
 import {snapshotIndex} from './outline-snapshot.mjs';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -7,7 +8,7 @@ import { index } from "./domain.mjs";
 import { depthIndent } from "./outline-layout.mjs";
 import { Icon } from "./icons";
 
-/** A non-modal menu: keep the outline visible and place actions beside their source. */
+/** Mixed controls belong in a non-modal dialog, rather than an ARIA menu. */
 export function OutlinePopover({ title, anchor, onClose, children, className = "" }: {
   title: string;
   anchor: HTMLElement | null;
@@ -15,71 +16,44 @@ export function OutlinePopover({ title, anchor, onClose, children, className = "
   children: ReactNode;
   className?: string;
 }) {
-  const panel = useRef<HTMLDialogElement>(null),
-    close = useRef(onClose),
-    [position, setPosition] = useState({ left: 16, top: 56 });
-  close.current = onClose;
-  useLayoutEffect(() => {
-    const el = panel.current;
-    if (!el) return;
-    const r = anchor?.getBoundingClientRect(),
-      width = el.offsetWidth || 280,
-      height = el.offsetHeight || 400;
-    setPosition({
-      left: Math.max(8, Math.min(r?.left ?? 80, window.innerWidth - width - 8)),
-      top: Math.max(8, Math.min(r ? r.bottom + 5 : 80, window.innerHeight - height - 8)),
-    });
-    const previous = document.activeElement as HTMLElement | null;
-    (el.querySelector<HTMLElement>(".popover-quick-actions button:not(:disabled)") || el.querySelector<HTMLElement>("button:not(:disabled), input, select"))?.focus();
-    return () => {
-      if (anchor?.isConnected) anchor.focus();
-      else if (previous?.isConnected) previous.focus();
-    };
-  }, [anchor]);
-  useEffect(() => {
-    const el = panel.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      const r = anchor?.getBoundingClientRect();
-      setPosition({ left: Math.max(8, Math.min(r?.left ?? 80, window.innerWidth - el.offsetWidth - 8)), top: Math.max(8, Math.min(r ? r.bottom + 5 : 80, window.innerHeight - el.offsetHeight - 8)) });
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [anchor]);
-  useEffect(() => {
-    const outside = (event: PointerEvent) => {
-      if (!panel.current?.contains(event.target as globalThis.Node) &&
-          !anchor?.contains(event.target as globalThis.Node)) close.current();
-    };
-    const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        close.current();
-      }
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        const elements = [...(panel.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input, select, summary") || [])].filter(el => !el.closest("[hidden]") && (!el.closest("details:not([open])") || el.tagName === "SUMMARY" && el.parentElement === el.closest("details:not([open])")));
-        const at = elements.indexOf(document.activeElement as HTMLElement);
-        if ((event.target as HTMLElement).tagName === "SELECT") return;
-        event.preventDefault();
-        elements[(at + (event.key === "ArrowDown" ? 1 : -1) + elements.length) % elements.length]?.focus();
-      }
-    };
-    const reposition = () => close.current();
-    document.addEventListener("pointerdown", outside);
-    panel.current?.addEventListener("keydown", key);
-    window.addEventListener("resize", reposition);
-    const el = panel.current;
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      el?.removeEventListener("keydown", key);
-      window.removeEventListener("resize", reposition);
-    };
-  }, [anchor]);
-  return <dialog open ref={panel} className={`outline-popover ${className}`} aria-label={title} style={position}>
-    <div className="popover-heading"><span>{title}</span><button className="icon-button" aria-label="Close dialog" onClick={onClose}><Icon name="close" size={14} /></button></div>
-    {children}
-  </dialog>;
+  const panel = useRef<HTMLDialogElement>(null), outside = useRef(false);
+  const virtualRef = useMemo(() => ({ current: {
+    getBoundingClientRect: () => anchor?.getBoundingClientRect() || new DOMRect(80, 75, 0, 0),
+    contextElement: anchor || undefined,
+  } }), [anchor]);
+  return <Popover.Root open onOpenChange={open => { if (!open) onClose(); }} modal={false}>
+    <Popover.Anchor virtualRef={virtualRef}/>
+    <Popover.Portal container={anchor?.closest('.app') || document.body}>
+      <Popover.Content asChild side="bottom" align="start" sideOffset={5} collisionPadding={12} aria-describedby={undefined}
+        onEscapeKeyDown={event => {
+          if (panel.current?.querySelector('[data-escape-local="true"]')) event.preventDefault();
+          else event.stopPropagation();
+        }}
+        onOpenAutoFocus={event => {
+          event.preventDefault();
+          (panel.current?.querySelector<HTMLElement>('.bullet-action-search input, .popover-quick-actions button:not(:disabled)') || panel.current?.querySelector<HTMLElement>('button:not(:disabled), input, select'))?.focus();
+        }}
+        onInteractOutside={() => { outside.current = true; }}
+        onCloseAutoFocus={event => {
+          event.preventDefault();
+          // Outside clicks and newly opened dialogs own their focus.
+          const active = document.activeElement;
+          if (!outside.current && (active === document.body || panel.current?.contains(active))) anchor?.isConnected && anchor.focus({preventScroll:true});
+        }}>
+        <dialog open ref={panel} className={`outline-popover ${className}`} aria-label={title} onKeyDown={event => {
+          if (event.defaultPrevented || (event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return;
+          if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+          const elements = [...(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), summary') || [])].filter(el => el.getClientRects().length > 0);
+          const at = elements.indexOf(document.activeElement as HTMLElement);
+          event.preventDefault(); event.stopPropagation();
+          elements[event.key === 'Home' ? 0 : event.key === 'End' ? elements.length - 1 : (at + (event.key === 'ArrowDown' ? 1 : -1) + elements.length) % elements.length]?.focus();
+        }}>
+          <div className="popover-heading"><Popover.Title asChild><span>{title}</span></Popover.Title><Popover.Close asChild><button className="icon-button" aria-label="Close dialog"><Icon name="close" size={14}/></button></Popover.Close></div>
+          {children}
+        </dialog>
+      </Popover.Content>
+    </Popover.Portal>
+  </Popover.Root>;
 }
 
 export function OutlineSidebar({ nodes, scope, starred, savedSearches, disabled, onNavigate, onSearch, onAdd }: {

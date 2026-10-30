@@ -1,3 +1,4 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
@@ -29,6 +30,7 @@ for (const k of [
         : dom.window[k],
     configurable: true,
   });
+installOverlayGlobals(dom);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia = () => ({
   matches: false,

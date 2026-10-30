@@ -1,3 +1,4 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -9,6 +10,7 @@ import { bullet } from '../src/domain.mjs';
 
 const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost', pretendToBeVisual: true });
 for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'HTMLInputElement', 'HTMLTextAreaElement', 'HTMLSelectElement', 'Node', 'DOMParser', 'MutationObserver', 'getComputedStyle']) Object.defineProperty(globalThis, key, { value: key === 'getComputedStyle' ? dom.window.getComputedStyle.bind(dom.window) : dom.window[key], configurable: true });
+installOverlayGlobals(dom);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.ResizeObserver = undefined;
 globalThis.requestAnimationFrame = window.requestAnimationFrame.bind(window); globalThis.cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
@@ -24,8 +26,8 @@ test('topic picker and touch card navigation retain structure, ignore scrolling 
  const nodes=[bullet('ml',{text:'Machine Learning'}),bullet('f',{parentId:'ml',text:'Foundations'}),bullet('q1',{parentId:'f',text:'First question'}),bullet('a1',{parentId:'q1',text:'First answer',formatting:'0:12:MASK'}),bullet('q2',{parentId:'f',position:1,text:'Second question'}),bullet('a2',{parentId:'q2',text:'Second answer'}),bullet('r',{parentId:'ml',position:1,text:'Regression'}),bullet('q3',{parentId:'r',text:'Regression question'}),bullet('a3',{parentId:'q3',text:'Regression answer'})];
  let doc=empty();doc.tables.decks=[{rootId:'ml',layout:'TOPICS',createdAt:Date.now(),pinned:0}];
  await save(null,withNodes(doc,nodes));let app;
- const click=async selector=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);el.click();});
- const textClick=async text=>act(async()=>{const el=[...document.querySelectorAll('button')].find(el=>el.textContent.trim().startsWith(text));assert.ok(el,text);el.click();});
+ const click=async selector=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);if(el.matches('.study-card-more')) el.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); else el.click();});
+ const textClick=async text=>act(async()=>{const el=[...document.querySelectorAll('button')].find(el=>el.textContent.trim().startsWith(text));assert.ok(el,text);if(el.matches('.study-card-more')) el.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); else el.click();});
  const pointer=(target,type,x,y=30)=>{const e=new window.MouseEvent(type,{bubbles:true,clientX:x,clientY:y});Object.defineProperties(e,{pointerType:{value:'touch'},pointerId:{value:1},isPrimary:{value:true}});target.dispatchEvent(e);};
  const tap=async(x,target=document.querySelector('.flashcard'))=>act(async()=>{document.querySelector('.flashcard').getBoundingClientRect=()=>({left:0,width:800,top:0,bottom:500});pointer(target,'pointerdown',x);pointer(target,'pointerup',x);});
  try {
@@ -51,7 +53,7 @@ test('topic picker and touch card navigation retain structure, ignore scrolling 
   assert.equal(document.querySelector('.flashcard-answer'),null,'Opening card actions does not reveal the answer');
   await act(async()=>document.querySelector('[role="menu"]').dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   assert.equal(document.querySelector('[role="menu"]'),null);
-  assert.equal(document.activeElement.getAttribute('aria-label'),'Card actions');
+  await wait(()=>document.activeElement.getAttribute('aria-label')==='Card actions');
   await tap(100,document.querySelector('.session-scroll'));
   assert.ok(document.querySelector('.flashcard-answer'),'Empty study-space tap reveals even on the left');
   await tap(700,document.querySelector('.masked-text'));

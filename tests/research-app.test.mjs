@@ -1,3 +1,4 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
@@ -10,6 +11,7 @@ import {localDate,saveCalendarEvent} from '../src/calendar-events.mjs';
 
 const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost/#app',pretendToBeVisual:true});
 for(const key of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Node','Element','DOMParser','MutationObserver','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key],configurable:true});
+installOverlayGlobals(dom);
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 globalThis.ResizeObserver=undefined;
 const realFetch=globalThis.fetch,requests=[];

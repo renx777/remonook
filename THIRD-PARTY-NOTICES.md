@@ -131,3 +131,47 @@ Microsoft Fluent Emoji Animated and Fluent Emoji artwork is used under the MIT l
   MIT License, Copyright (c) 2021-present Tanner Linsley. See
   `LICENSES/tanstack-react-virtual-MIT.txt` and `LICENSES/tanstack-virtual-core-MIT.txt`.
   https://github.com/TanStack/virtual
+
+## Accessible overlays
+
+Radix UI supplies unstyled popover and command-menu primitives. Floating UI supplies collision-aware editor-palette positioning. Both are bundled locally.
+
+| Package | Version | Declared license |
+| --- | --- | --- |
+| @radix-ui/primitive | 1.2.0 | MIT |
+| @radix-ui/react-arrow | 1.1.17 | MIT |
+| @radix-ui/react-collection | 1.2.0 | MIT |
+| @radix-ui/react-compose-refs | 1.1.5 | MIT |
+| @radix-ui/react-context | 1.3.0 | MIT |
+| @radix-ui/react-direction | 1.2.0 | MIT |
+| @radix-ui/react-dismissable-layer | 1.2.1 | MIT |
+| @radix-ui/react-dropdown-menu | 2.2.1 | MIT |
+| @radix-ui/react-focus-guards | 1.2.0 | MIT |
+| @radix-ui/react-focus-scope | 1.3.1 | MIT |
+| @radix-ui/react-id | 1.1.4 | MIT |
+| @radix-ui/react-menu | 2.2.1 | MIT |
+| @radix-ui/react-popover | 1.3.1 | MIT |
+| @radix-ui/react-popper | 1.4.0 | MIT |
+| @radix-ui/react-portal | 1.2.0 | MIT |
+| @radix-ui/react-presence | 1.1.11 | MIT |
+| @radix-ui/react-primitive | 2.2.0 | MIT |
+| @radix-ui/react-roving-focus | 1.2.1 | MIT |
+| @radix-ui/react-slot | 1.5.0 | MIT |
+| @radix-ui/react-use-callback-ref | 1.1.5 | MIT |
+| @radix-ui/react-use-controllable-state | 1.3.0 | MIT |
+| @radix-ui/react-use-effect-event | 0.0.5 | MIT |
+| @radix-ui/react-use-is-hydrated | 0.1.3 | MIT |
+| @radix-ui/react-use-layout-effect | 1.1.4 | MIT |
+| @radix-ui/react-use-rect | 1.1.4 | MIT |
+| @radix-ui/react-use-size | 1.1.5 | MIT |
+| @radix-ui/rect | 1.1.3 | MIT |
+| aria-hidden | 1.2.6 | MIT |
+| react-remove-scroll | 2.7.2 | MIT |
+| react-remove-scroll-bar | 2.3.8 | MIT |
+| react-style-singleton | 2.2.3 | MIT |
+| use-callback-ref | 1.3.3 | MIT |
+| use-sidecar | 1.1.3 | MIT |
+| @floating-ui/react-dom | 2.1.9 | MIT |
+| @floating-ui/dom | 1.8.0 | MIT |
+| @floating-ui/core | 1.8.0 | MIT |
+| @floating-ui/utils | 0.2.12 | MIT |

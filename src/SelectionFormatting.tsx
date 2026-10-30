@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import {usePalettePosition} from './usePalettePosition';
+import { useEffect, useReducer, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { FloatingFormatbar } from "./FloatingFormatbar";
 import { Icon } from "./icons";
@@ -28,42 +29,7 @@ export function DividerColorPicker({
   const [open, setOpen] = useState(false);
   const activeColor = color || "";
 
-  useLayoutEffect(() => {
-    if (!open) return;
-    document.querySelectorAll<HTMLDetailsElement>(".format-palette[open]").forEach(element => {
-      if (element !== details.current) element.open = false;
-    });
-    const place = () => {
-      const anchor = details.current?.querySelector("summary")?.getBoundingClientRect();
-      const popover = panel.current;
-      if (!anchor || !popover) return;
-      const viewport = window.visualViewport;
-      const left = viewport?.offsetLeft || 0, top = viewport?.offsetTop || 0;
-      const width = viewport?.width || window.innerWidth, height = viewport?.height || window.innerHeight;
-      const fitsBelow = anchor.bottom + popover.offsetHeight + 12 <= top + height - 8;
-      Object.assign(popover.style, {
-        position: "fixed", right: "auto", bottom: "auto",
-        left: `${Math.max(left + 8, Math.min(anchor.left, left + width - popover.offsetWidth - 8))}px`,
-        top: `${Math.max(top + 8, Math.min(fitsBelow ? anchor.bottom + 12 : anchor.top - popover.offsetHeight - 12, top + height - popover.offsetHeight - 8))}px`,
-      });
-    };
-    const dismiss = (event: PointerEvent) => {
-      if (details.current && event.target instanceof globalThis.Node && !details.current.contains(event.target)) {
-        details.current.open = false;
-      }
-    };
-    place();
-    window.addEventListener("scroll", place, true);
-    window.addEventListener("resize", place);
-    window.visualViewport?.addEventListener("resize", place);
-    document.addEventListener("pointerdown", dismiss);
-    return () => {
-      window.removeEventListener("scroll", place, true);
-      window.removeEventListener("resize", place);
-      window.visualViewport?.removeEventListener("resize", place);
-      document.removeEventListener("pointerdown", dismiss);
-    };
-  }, [open]);
+  usePalettePosition(open, details, panel);
 
   return (
     <details

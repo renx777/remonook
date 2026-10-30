@@ -22,7 +22,7 @@ export function BulletMenuBody({children}:{children:ReactNode}) {
     setActive(index);
     requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(index === null ? `[data-category="${active}"]` : '.bullet-category-back')?.focus());
   }
-  return <div ref={root} className="bullet-menu-body" onKeyDownCapture={event => {
+  return <div ref={root} className="bullet-menu-body" data-escape-local={searching || active !== null} onKeyDownCapture={event => {
     if(event.key === 'Escape' && (searching || active !== null)) {
       event.preventDefault();event.stopPropagation();
       if(searching){setQuery('');root.current?.querySelector<HTMLInputElement>('input')?.focus();}else open(null);
