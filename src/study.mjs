@@ -1,4 +1,6 @@
-import {fsrsSettings} from './fsrs-scheduler.mjs';
+import {fsrsSettings,readFsrs,readFsrsReview} from './fsrs-scheduler.mjs';
+const learningCard=card=>{const state=readFsrs(card)?.state;return state===1||state===3;};
+const beforeState=log=>{try{return readFsrsReview(log)?.before.state;}catch{return undefined;}};
 import {occlusionDefinition} from "./occlusion.mjs";
 import { index, indexedRows, rows, schedule } from "./domain.mjs";
 import { ALL_MCQS, mcqDefinition } from "./mcq.mjs";
@@ -20,10 +22,11 @@ export function createStudyContext(doc, now = Date.now()) {
   }
   const day = localDay(now), seen = new Map(), counts = new Map(), firstSpaced = new Map();
   for (const log of doc.tables.review_logs.filter(log => log.mode === "SPACED").sort((a, b) => a.reviewedAtEpochMillis - b.reviewedAtEpochMillis)) {
-    if (!firstSpaced.has(log.cardId)) firstSpaced.set(log.cardId, log.reviewedAtEpochMillis);
+    if (!firstSpaced.has(log.cardId)) firstSpaced.set(log.cardId, beforeState(log)>0?-Infinity:log.reviewedAtEpochMillis);
     if (log.reviewedAtEpochMillis < day || seen.has(log.cardId)) continue;
     const owner = owners.get(log.cardId) || "__default__", kind = firstSpaced.get(log.cardId) >= day ? "newCards" : "reviewCards", key = owner + ":" + kind;
-    seen.set(log.cardId, kind); counts.set(key, (counts.get(key) || 0) + 1);
+    seen.set(log.cardId, kind);
+    if(![1,3].includes(beforeState(log)))counts.set(key, (counts.get(key) || 0) + 1);
   }
   return { idx, rank, ranges, owners, definitions: new Map(), seen, counts, limits: new Map(doc.tables.study_limits.map(limit => [limit.deckId, limit])) };
 }
@@ -72,7 +75,7 @@ export function dueCards(doc, scope = null, now = Date.now(), context = createSt
   return scopedCards(doc, scope, now, context, topicId).filter(card => card.dueAtEpochMillis <= now)
     .sort((a, b) => a.dueAtEpochMillis - b.dueAtEpochMillis || a.createdAtEpochMillis - b.createdAtEpochMillis || a.id.localeCompare(b.id))
     .filter(card => {
-      if (seen.has(card.id)) return true;
+      if (seen.has(card.id)||learningCard(card)) return true;
       const owner = owners.get(card.id) || "__default__",
         kind = card.lastReviewAtEpochMillis ? "reviewCards" : "newCards",
         key = owner + ":" + kind,
@@ -95,7 +98,7 @@ export function deckTopics(doc, scope, now = Date.now(), context = createStudyCo
     if (!topic || rank <= topic.range.start) continue;
     topic.cards++;
     if (card.dueAtEpochMillis > now) continue;
-    if (context.seen.has(card.id)) { topic.due++; continue; }
+    if (context.seen.has(card.id)||learningCard(card)) { topic.due++; continue; }
     const owner = context.owners.get(card.id) || '__default__', kind = card.lastReviewAtEpochMillis ? 'reviewCards' : 'newCards', key = owner + ':' + kind;
     const used = topic.counts.get(key) ?? context.counts.get(key) ?? 0, cap = context.limits.get(owner)?.[kind] ?? -1;
     if (cap === -1 || used < cap) { topic.due++; topic.counts.set(key, used + 1); }

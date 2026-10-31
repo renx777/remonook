@@ -44,3 +44,13 @@ test('spaced state and detailed review logs update together, cram leaves memory 
  const practice=reviewCard(reviewed,{...newStudySession(reviewed,null,'NORMAL',now),revealed:1},'GOOD',0,now+1);assert.deepEqual(practice.tables.cards,reviewed.tables.cards);assert.equal(practice.tables.review_logs.at(-1).grade,'PRACTICE');assert.equal(practice.tables.review_logs.at(-1).fsrsReview,undefined);
  const secondDevice=reviewCard(d,session,'GOOD',0,now);assert.notEqual(log.id,secondDevice.tables.review_logs[0].id,'offline devices do not overwrite a shared numeric log ID');
 });
+
+test('learning continues across midnight without consuming the next day’s review budget',()=>{
+ const d=doc(),late=new Date(2026,10,1,23,58).getTime();d.tables.cards[0].dueAtEpochMillis=late;
+ const first=reviewCard(d,{...newStudySession(d,null,'SPACED',late),revealed:1},'GOOD',0,late);
+ first.tables.study_limits=[{deckId:'__default__',newCards:0,reviewCards:1}];
+ const mature={...fresh(),id:'mature',lastReviewAtEpochMillis:late-day,repetitionCount:4,intervalDays:2,dueAtEpochMillis:late};first.tables.bullets.push(bullet('mature',{kind:'QUESTION',text:'Another card'}));first.tables.cards.push(mature);
+ const at=late+600000;assert.equal(dueCards(first,null,at).length,2,'a learning card does not spend the review slot');
+ const learned=reviewCard(first,{...newStudySession(first,null,'SPACED',at),queueJson:JSON.stringify(['q']),revealed:1},'GOOD',0,at);
+ assert.deepEqual(dueCards(learned,null,at).map(c=>c.id),['mature'],'learning grades do not consume the day’s mature-review budget');
+});
