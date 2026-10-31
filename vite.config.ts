@@ -13,7 +13,8 @@ export default defineConfig(({mode})=>{
   build: {
     rollupOptions: {
       output: {
-        chunkFileNames: chunk => chunk.moduleIds.some(id=>id.includes('/node_modules/@excalidraw/')||id.endsWith('/src/DrawingEditor.tsx'))?'assets/drawing-[name]-[hash].js':'assets/[name]-[hash].js',
+        chunkFileNames: chunk => chunk.moduleIds.some(id=>id.includes('/node_modules/@excalidraw/')||id.endsWith('/src/DrawingEditor.tsx'))?'assets/drawing-[name]-[hash].js':chunk.moduleIds.some(id=>id.includes('/node_modules/driver.js/'))?'assets/guide-[name]-[hash].js':'assets/[name]-[hash].js',
+        assetFileNames: asset => asset.names?.includes('driver.css')?'assets/guide-[name]-[hash][extname]':'assets/[name]-[hash][extname]',
         manualChunks: {
           editor: ["@tiptap/core", "@tiptap/starter-kit", "@tiptap/pm/model"],
           react: ["react", "react-dom"],

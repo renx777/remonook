@@ -30,6 +30,7 @@
     "@tiptap/starter-kit": "^3.0.0",
     "canvas-confetti": "^1.9.4",
     "diff": "8.0.2",
+    "driver.js": "1.10.2",
     "fast-xml-parser": "5.11.2",
     "firebase": "^13.1.0",
     "highlight.js": "^11.12.0",

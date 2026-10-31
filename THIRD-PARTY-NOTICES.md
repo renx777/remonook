@@ -1,5 +1,9 @@
 # Third-party notices
 
+Optional walkthroughs use **Driver.js 1.10.2** (MIT), bundled locally and loaded
+on demand. Full notice: LICENSES/driver.js-1.10.2-MIT.txt.
+https://github.com/nilbuild/driver.js
+
 Dashboard layouts use React Grid Layout 2.3.0, React Draggable 4.7.2, and React Resizable 3.2.0 (MIT). Their full notices are retained in `LICENSES/react-grid-layout-MIT.txt`, `LICENSES/react-draggable-MIT.txt`, and `LICENSES/react-resizable-MIT.txt`.
 
 Selected interface controls use Lucide React 1.61.0 (ISC, with upstream artwork notices retained in `LICENSES/lucide-react-LICENSE.txt`). Study Desk empty-state artwork uses Phosphor Icons React 2.1.10 (MIT; see `LICENSES/phosphor-icons-MIT.txt`). Both are bundled locally and imported selectively.

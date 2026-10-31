@@ -10,7 +10,7 @@ export function BulletMenuBody({children}:{children:ReactNode}) {
   const items = Children.toArray(children);
   const sections = items.filter((c):c is Element => isValidElement(c) && c.type === 'details').map(section => {
     const [summary,...content] = Children.toArray(section.props.children) as Element[];
-    return {label:words(summary.props.children).trim(),icon:Children.toArray(summary.props.children)[0],content};
+    return {label:words(summary.props.children).trim(),icon:Children.toArray(summary.props.children)[0],content,tour:section.props['data-tour']};
   });
   const common = items.filter(c => !isValidElement(c) || c.type !== 'details');
   const [active,setActive] = useState<number|null>(null), [query,setQuery] = useState('');
@@ -32,7 +32,7 @@ export function BulletMenuBody({children}:{children:ReactNode}) {
     <div className="bullet-action-scroll">
       {searching ? <div className="bullet-search-results" aria-label="Matching actions">{matches.length ? matches.map(group=><section key={group.label}><h3>{group.label}</h3><div className="bullet-section-content">{group.actions}</div></section>) : <p className="bullet-no-results" role="status">No matching actions.<br/><span>Try “emoji”, “task” or “link”.</span></p>}</div> : active === null ? <>
         <h3 className="bullet-group-label">Quick actions</h3>{common}
-        <div className="bullet-category-list">{sections.map((section,i)=><button key={section.label} data-category={i} aria-controls={`${id}-category`} onClick={()=>open(i)}>{section.icon}<span><strong>{section.label}</strong><small>{descriptions[i]}</small></span><Icon name="chevron" size={14}/></button>)}</div>
+        <div className="bullet-category-list">{sections.map((section,i)=><button key={section.label} data-category={i} data-tour={section.tour} aria-controls={`${id}-category`} onClick={()=>open(i)}>{section.icon}<span><strong>{section.label}</strong><small>{descriptions[i]}</small></span><Icon name="chevron" size={14}/></button>)}</div>
       </> : <section id={`${id}-category`} aria-label={sections[active].label}>
         <button className="bullet-category-back" onClick={()=>open(null)}><Icon name="categoryBack" size={15}/><span>All actions</span></button>
         <h3 className="bullet-category-title">{sections[active].label}</h3>
