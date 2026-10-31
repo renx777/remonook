@@ -59,3 +59,10 @@ The new regression suite checks status isolation, pending acknowledgement displa
 formatting subscriptions, stale title echoes, search coalescing, composition,
 blur/navigation reconciliation and cancellation on unmount. Existing sync tests
 continue to cover automatic merging and rich-text preservation.
+
+The live release check also caught an immediate-Undo case: Undo could restore
+text equal to the last React prop before a passive echo, so a dependency-limited
+reconciliation effect did not run. Notes, reader notes and titles now reconcile
+on every published render, with their existing equality checks preventing
+unnecessary content replacement. Regression tests cover Undo/Redo while rendered
+props remain identical, plus the older-echo case.
