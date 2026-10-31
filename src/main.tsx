@@ -11,8 +11,6 @@ import {BookStorage} from './BookStorage';
 import {GoogleTasksProvider,GoogleTasksConnection} from './GoogleTasks';
 import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
 import {useSidebarMotion} from './useSidebarMotion';
-import {ResearchPanel,useResearchDrafts} from './Research';
-import type {ResearchDraft} from './data';
 import {restoreDeviceState,historyAfterSync} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
@@ -179,9 +177,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const closeReader=React.useCallback(()=>{if(viewTimer.current)publishView(true);setReaderTarget(null);requestAnimationFrame(()=>{const element=readerOrigin.current?.isConnected?readerOrigin.current:document.querySelector<HTMLElement>('.topbar button');element?.focus();});},[]);
   const readerOpenHandler=useRef<(hash:string,unit?:number,id?:string)=>void>(()=>{});
   const openReader=React.useCallback((hash:string,unit?:number,id?:string)=>readerOpenHandler.current(hash,unit,id),[]);
-  const research=useResearchDrafts(storageAccountKey());
-  const [researchTarget,setResearchTarget]=useState<string|null>(null);
-  const researchBusy=useRef(false),researchOrigin=useRef<HTMLElement|null>(null);
   const views=useWorkspacePanes();
   const {scope,setScope,search,setSearch}=views;
   const [occlusionImage,setOcclusionImage]=useState<string|null>(null);
@@ -462,44 +457,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     menuSelection.current = selectedIds?.includes(id) ? selectedIds : [id];
     setViewMenu(false);
     setMenu(id);
-  };
-  const openResearch=async(id:string)=>{
-    if(!research.state){setNotice('Research drafts are loading. Try again in a moment.');return;}
-    const source=sourceId(docRef.current!.tables.bullets,id);
-    const node=docRef.current!.tables.bullets.find(n=>n.id===source);
-    researchOrigin.current=menuAnchor.current;setMenu(null);setEditing(null);
-    if(!Object.hasOwn(research.state.drafts,source)){
-      try{await research.put({id:source,query:node?.text||'',answer:'',updatedAt:Date.now()},source);}catch{/* The live draft remains available for copying. */}
-    }
-    setResearchTarget(source);
-  };
-  const closeResearch=()=>{setResearchTarget(null);requestAnimationFrame(()=>{const active=document.activeElement;if(active===document.body||active?.closest('.research-panel'))researchOrigin.current?.isConnected&&researchOrigin.current.focus();});};
-  const insertResearch=async(draft:ResearchDraft)=>{
-    if(researchBusy.current)return;
-    researchBusy.current=true;
-    try{
-      if(failed.current)throw Error('Saving is paused. Retry saving your notes first. Your draft is kept.');
-      const all=docRef.current!.tables.bullets as Node[],parent=all.find(n=>n.id===draft.id);
-      if(!parent)throw Error('This bullet is no longer available. Copy your draft to keep it.');
-      if(!draft.answer.trim())return;
-      let id=draft.insertedId;
-      if(!id||!all.some(n=>n.id===id)){
-        id=crypto.randomUUID();
-        await research.put({...draft,insertedId:id},draft.id);
-        const childId=id;
-        if(failed.current)throw Error('Saving is paused. Your draft is kept.');
-        const latest=docRef.current!.tables.bullets as Node[];
-        if(!latest.some(n=>n.id===draft.id))throw Error('This bullet is no longer available.');
-        if(!mutate(ns=>move([...ns.map(n=>n.id===draft.id?{...n,collapsed:false}:n),bullet(childId,{text:draft.answer,kind:'ANSWER'})],childId,draft.id,(index(ns).children.get(draft.id)||[]).length)))throw Error('Could not add the answer. Your draft is kept.');
-      }
-      await flush();
-      if(failed.current||!persisted.current?.tables.bullets.some(n=>n.id===id))throw Error('The answer could not be saved. Your draft is kept; retry saving your notes before continuing.');
-      await research.put(null,draft.id);
-      setResearchTarget(null);setTab('notes');setSearch('');
-      // Open the source branch so the new answer is visible even from a mirror or a filtered view.
-      if(scope!==draft.id&&!rows(docRef.current!.tables.bullets.map(n=>({...n,collapsed:views.active.collapsed[n.id]??n.collapsed})),scope).some((r:any)=>r.bullet.id===draft.id))setScope(parent.parentId);
-      views.update(views.active.id,{collapsed:{...views.active.collapsed,[draft.id]:false}});focus(id!,0);setNotice('Answer added. You can undo this insertion.');
-    }finally{researchBusy.current=false;}
   };
   const attachImages = async (id: string, files: File[]) => {
     id=sourceId(docRef.current!.tables.bullets,id);
@@ -1223,7 +1180,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       setScope(null);
       setEditing(null);
       setRestore(null);
-      setResearchTarget(null);await research.refresh();
       setDialog(null);
       setStatus("Saved on this device");
       setNotice(
@@ -1759,7 +1715,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           ))}
         </nav>
       </main>
-      {researchTarget!==null&&<ResearchPanel draft={researchTarget?research.state?.drafts[researchTarget]||null:null} drafts={Object.values(research.state?.drafts||{}).sort((a,b)=>b.updatedAt-a.updatedAt)} nodes={nodes} error={research.error} disabled={disabled} onChoose={setResearchTarget} onEdit={draft=>{void research.put(draft,draft.id).catch(()=>{});}} onDiscard={async()=>{if(researchTarget)await research.put(null,researchTarget);setResearchTarget('');}} onClose={closeResearch} onInsert={insertResearch}/>}
       {nodeDate&&<Dialog title="Bullet date" onClose={()=>setNodeDate(null)}><form onSubmit={e=>{e.preventDefault();mutate(ns=>ns.map(n=>n.id===nodeDate.id?{...n,dueDate:nodeDate.date}:n));setNodeDate(null);}}><label className="field-label">Date<input data-autofocus type="date" aria-label="Bullet date" value={nodeDate.date} onChange={e=>setNodeDate({...nodeDate,date:e.target.value})}/></label><button type="submit" className="study-primary">Save date</button></form></Dialog>}
       {connectionTarget&&<Dialog title={connectionTarget.mode==='mirror'?'Mirror a bullet':connectionTarget.mode==='link'?'Link to a bullet':'Backlinks & mirrors'} onClose={()=>setConnectionTarget(null)}><ConnectionChooser key={connectionTarget.mode+connectionTarget.id} mode={connectionTarget.mode} at={connectionTarget.id} onChoose={n=>{const target=connectionTarget;if(target.mode==='mirror'){mirrorHere(target.id,n.id);}else if(target.mode==='link'){pasteAsOutline(target.id,target.start,target.end,{text:internalLink(n)});setConnectionTarget(null);}else{setConnectionTarget(null);navigateTo(n.id);}}}/></Dialog>}
       {bulkMcqEditing && <BulkMCQEditor doc={doc} id={bulkMcqEditing} onClose={() => setBulkMcqEditing(null)} onSave={() => {
@@ -1782,7 +1737,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {menuNode && (
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
-            <button disabled={!research.state} onClick={()=>void openResearch(menuNode.id)}><Icon name="search" size={16}/><span>{research.state&&Object.hasOwn(research.state.drafts,sourceId(nodes,menuNode.id))?'Resume research…':'Research answer…'}</span></button>
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
             <button disabled={disabled} onClick={()=>command('action:date',menuNode.id,0,0)}><Icon name="calendar" size={16}/><span>Add date…</span></button>
             <button disabled={disabled} onClick={() => { command("complete", menuNode.id, 0, 0); setMenu(null); }}><Icon name="check" size={16} /><span>{menuNode.taskState === "DONE" ? "Uncomplete" : "Complete"}</span><kbd>Ctrl ↵</kbd></button>
@@ -1951,7 +1905,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }}><label className="field-label">Share URL or embed code<input data-autofocus aria-label="Media share URL" placeholder="Paste a YouTube, Instagram or image link" value={embedValue} onChange={event => setEmbedValue(event.target.value)} /></label><p className="dialog-muted">Supported share links become players in your notes and flashcards. Players load when you choose to open them.</p><button className="study-primary" type="submit" disabled={disabled || !embedValue.trim()}>Insert link</button></form></Dialog>}
       {viewMenu && <OutlinePopover title="Outline options" anchor={viewAnchor.current} onClose={() => setViewMenu(false)}>
         <div className="popover-quick-actions">
-          <button disabled={!research.state} onClick={()=>{researchOrigin.current=viewAnchor.current;setViewMenu(false);setResearchTarget('');}}><Icon name="search" size={16}/><span>Research drafts</span></button>
           <button disabled={disabled} onClick={() => editorPrefs("showCompleted", !showCompleted)}><Icon name="check" size={16} /><span>{showCompleted ? "Hide completed" : "Show completed"}</span></button>
           {[false, true].map(collapsed => <button key={String(collapsed)} disabled={disabled} onClick={() => { mutate(ns => { const ids = new Set(rows(ns, scope, true).map((row: any) => row.bullet.id)); return ns.map(n => ids.has(n.id) ? { ...n, collapsed } : n); }); setViewMenu(false); }}><Icon name={collapsed ? "collapse" : "expand"} size={16} /><span>{collapsed ? "Collapse all" : "Expand all"}</span></button>)}
           <button onClick={() => { toggleSidebar(); setViewMenu(false); }}><Icon name="sidebar" size={16} /><span>{sidebarOpen ? "Hide sidebar" : "Show sidebar"}</span><kbd>Ctrl \</kbd></button>
@@ -2044,7 +1997,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <div className="cloud-account-heading"><div><h3>{cloudUser ? 'Your account' : 'Your notes, everywhere'}</h3><p>{cloudUser?.email || 'Sign in to keep a private workspace.'}</p></div><span className="cloud-state">{cloud.status}</span></div>
             {cloudUser ? <><AccountSecurity user={cloudUser}/><div className="cloud-account-actions"><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Edits save securely in this browser first, including while offline. Your signed-in workspace syncs to the cloud and your other devices when connected.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><p className="dialog-muted">Your changes save on this device first and update across devices automatically when connected. RemoNook keeps recovery copies in the background. Note attachments: 2 MiB each · 20 MiB total. Books: 25 MiB each. Combined cloud storage: 100 MiB. Notes: 900 KiB per workspace.</p></details>
 
-            {!doc.tables.bullets.length&&<button className="wide action" disabled={disabled} onClick={async()=>{try{await flush();const guest=await load('remo-web'),guestAssets=await getAssets('remo-web');if(!guest)throw Error('No device-only notes found.');if(!confirm('Copy device-only notes into this account? They will upload to your private cloud workspace.'))return;const next=await save(persisted.current,{...guest,web:{...guest.web,deviceId:docRef.current!.web.deviceId}},'copy device notes',guestAssets,true);persisted.current=next;docRef.current=next;assetsRef.current=guestAssets;setDoc(next);setAssets(guestAssets);setResearchTarget(null);await research.refresh();}catch(e){showError(e);}}}>Import existing device-only notes…</button>}
+            {!doc.tables.bullets.length&&<button className="wide action" disabled={disabled} onClick={async()=>{try{await flush();const guest=await load('remo-web'),guestAssets=await getAssets('remo-web');if(!guest)throw Error('No device-only notes found.');if(!confirm('Copy device-only notes into this account? They will upload to your private cloud workspace.'))return;const next=await save(persisted.current,{...guest,web:{...guest.web,deviceId:docRef.current!.web.deviceId}},'copy device notes',guestAssets,true);persisted.current=next;docRef.current=next;assetsRef.current=guestAssets;setDoc(next);setAssets(guestAssets);}catch(e){showError(e);}}}>Import existing device-only notes…</button>}
 </> : <><button className="wide action cloud-google" disabled={disabled} onClick={()=>void accountAction()}>Sign in or create account</button><p className="dialog-muted">Your current notes stay in the device-only workspace. After signing in, you can choose to import them. Sign out to return to these notes.</p></>}
             {cloud.error&&<p className="cloud-error" role="status">{cloud.error}</p>}
           </section>
