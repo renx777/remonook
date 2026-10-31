@@ -1,5 +1,6 @@
+import {useEditorToolbarState} from './editor-toolbar-state';
 import {usePalettePosition} from './usePalettePosition';
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { FloatingFormatbar } from "./FloatingFormatbar";
 import { Icon } from "./icons";
@@ -128,13 +129,7 @@ export function SelectionFormatting({
   onDividerStyle?: (style: string) => void;
   onDividerColor?: (color: string) => void;
 }) {
-  const [, refresh] = useReducer(value => value + 1, 0);
-  useEffect(() => {
-    if (!editor) return;
-    const update = () => refresh();
-    editor.on("transaction", update);
-    return () => { editor.off("transaction", update); };
-  }, [editor]);
+  useEditorToolbarState(editor);
   return (
     <FloatingFormatbar editor={editor}>
       {onBlock && (

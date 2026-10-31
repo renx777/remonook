@@ -1,4 +1,5 @@
-import {useEffect,useReducer,useState} from 'react';
+import {useEditorToolbarState} from './editor-toolbar-state';
+import {useEffect,useState} from 'react';
 import type {Editor} from '@tiptap/core';
 import {Icon} from './icons';
 import {FormattingPalette} from './FormattingPalette';
@@ -8,9 +9,8 @@ import {textColors} from './color-palettes';
 export function MobileEditToolbar({editor,disabled,formattingDisabled,blockStyle,dividerStyle,dividerColor,onCommand,onDone}:{editor:Editor|null;disabled:boolean;formattingDisabled:boolean;blockStyle:string;dividerStyle?:string;dividerColor?:string;onCommand:(action:string)=>void;onDone:()=>void}){
  const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width: 760px)').matches);
  const [inset,setInset]=useState(0);
- const [,refresh]=useReducer(n=>n+1,0);
+ useEditorToolbarState(editor,mobile);
  useEffect(()=>{const media=window.matchMedia('(max-width: 760px)'),update=()=>setMobile(media.matches);media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
- useEffect(()=>{if(!editor)return;const update=()=>refresh();editor.on('transaction',update);return()=>{editor.off('transaction',update);};},[editor]);
  useEffect(()=>{
   if(!mobile)return;
   const viewport=window.visualViewport;

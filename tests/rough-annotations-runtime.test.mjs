@@ -23,7 +23,7 @@ test('selected-text picker creates real drawings while typing without inserting 
  const editor=new Editor({element:document.getElementById('editor'),extensions:[StarterKit,RemoRough],content:'<p>Remember this line</p>'}),root=createRoot(document.getElementById('tools'));
  try{
   editor.commands.setTextSelection({from:1,to:9});await act(async()=>root.render(React.createElement(RoughAnnotationPicker,{editor,disabled:false})));
-  await act(async()=>document.querySelector('summary').click());await act(async()=>document.querySelector('[aria-label="Coral annotation"]').click());await act(async()=>document.querySelector('[aria-label="Sketch circle"]').click());await settle();
+  await act(async()=>document.querySelector('summary').click());await act(async()=>{await settle();});await act(async()=>document.querySelector('[aria-label="Coral annotation"]').click());await act(async()=>document.querySelector('[aria-label="Sketch circle"]').click());await settle();
   const span=document.querySelector('#editor [data-remo-rough="circle"]');assert.ok(span);assert.ok(span.querySelector('svg path'));assert.equal(span.querySelector('svg').getAttribute('aria-hidden'),'true');
   let saved=fromEditor(editor.getJSON());assert.equal(saved.text,'Remember this line');assert.match(saved.formatting,/0:8:ROUGH_CIRCLE_F2A29B/);assert.ok(!editor.getHTML().includes('<svg'),'Clipboard serialization excludes generated drawing geometry');
   editor.commands.setTextSelection(5);editor.commands.insertContent('!');await settle();saved=fromEditor(editor.getJSON());assert.equal(saved.text,'Reme!mber this line');assert.match(saved.formatting,/ROUGH_CIRCLE_F2A29B/);

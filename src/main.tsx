@@ -1,3 +1,4 @@
+import {createUiSignal} from './ui-signal';
 import {KeyboardShortcuts} from './KeyboardShortcuts';
 import {CommandPalette} from './CommandPalette';
 import {bindWorkspaceShortcuts,modLabel,shortcutAllowed} from './workspace-shortcuts';
@@ -15,7 +16,7 @@ import type {ResearchDraft} from './data';
 import {restoreDeviceState,historyAfterSync} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
-import {SaveIndicator} from './SaveIndicator';
+import {DeviceSaveIndicator} from './SaveIndicator';
 import {FlowNumber} from './FlowNumber';
 import {useEntranceMotion} from './useEntranceMotion';
 import {AuthGate,openAccountSignIn,AccountSecurity,googleSignOut,setAccountTransitionHandler,type User,authenticatedUid} from './CloudAccount';
@@ -175,7 +176,7 @@ const DrawingEditor=React.lazy(()=>import('./DrawingEditor').then(m=>({default:m
 export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const [readerTarget,setReaderTarget]=useState<{hash:string;unit?:number;id?:string}|null>(null);
   const readerOrigin=useRef<HTMLElement|null>(null);
-  const closeReader=React.useCallback(()=>{setReaderTarget(null);requestAnimationFrame(()=>{const element=readerOrigin.current?.isConnected?readerOrigin.current:document.querySelector<HTMLElement>('.topbar button');element?.focus();});},[]);
+  const closeReader=React.useCallback(()=>{if(viewTimer.current)publishView(true);setReaderTarget(null);requestAnimationFrame(()=>{const element=readerOrigin.current?.isConnected?readerOrigin.current:document.querySelector<HTMLElement>('.topbar button');element?.focus();});},[]);
   const readerOpenHandler=useRef<(hash:string,unit?:number,id?:string)=>void>(()=>{});
   const openReader=React.useCallback((hash:string,unit?:number,id?:string)=>readerOpenHandler.current(hash,unit,id),[]);
   const research=useResearchDrafts(storageAccountKey());
@@ -197,7 +198,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     emojiTarget = useRef<{ id: string; start: number; end: number } | null>(null),
     emojiDownload = useRef<AbortController | null>(null),
     [embedValue, setEmbedValue] = useState(""),
-    [editing, setEditing] = useState<string | null>(null),
+    [editing, setEditingState] = useState<string | null>(null),
     [caret, setCaret] = useState<number | null>(null),
     [tab, setTab] = useState("notes"),
     [calendarDate, setCalendarDate] = useState(() => getLocalDateString()),
@@ -205,7 +206,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [nodeDate,setNodeDate]=useState<{id:string;date:string}|null>(null),
     [reminderEditor,setReminderEditor]=useState<ReminderTarget|null>(null),
     [remindersVisible,setRemindersVisible]=useState(true),
-    [status, setStatus] = useState("Loading"),
+    [deviceStatus] = useState(()=>createUiSignal("Loading")),
     [error, setError] = useState<string | null>(null),
     [fatal, setFatal] = useState(false),
     failed = useRef(false),
@@ -243,6 +244,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     chain = useRef(Promise.resolve()),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null),
     dirty = useRef(false);
+  const setStatus=deviceStatus.set;
+  const viewTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const cancelView=()=>{if(viewTimer.current)clearTimeout(viewTimer.current);viewTimer.current=null;};
+  const publishView=(immediate=false)=>{cancelView();if(!docRef.current)return;const publish=()=>{setDoc(docRef.current);setHistoryTick(t=>t+1);};if(immediate)publish();else startTransition(publish);};
+  const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);setEditingState(value);};
+  const queueView=()=>{cancelView();viewTimer.current=setTimeout(()=>publishView(),220);};
+  useEffect(()=>()=>{if(viewTimer.current)clearTimeout(viewTimer.current);},[]);
   const sidebarMotion=useSidebarMotion(sidebarOpen);
   recoveryDraft = () => ({ doc: docRef.current, assets });
   useEffect(() => {
@@ -311,7 +319,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         persisted.current = next;
         if (docRef.current === target) {
           docRef.current = next;
-          setDoc(next);
+          if(!viewTimer.current)setDoc(next);
         }
         if (!dirty.current && docRef.current === next)
           setStatus("Saved on this device");
@@ -326,10 +334,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const cloud = useCloudSync({user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
     get:()=>({doc:docRef.current,assets:assetsRef.current}),flush,
-    canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!working&&!failed.current&&!cloudApplying.current,
+    canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!document.querySelector('.zoomed-title-input[data-composing="true"]')&&!working&&!failed.current&&!cloudApplying.current,
     selection:()=>editing&&activeEditor?.isFocused?{id:editing,anchor:Math.max(0,activeEditor.state.selection.anchor-1),head:Math.max(0,activeEditor.state.selection.head-1)}:null,
     apply:async(remote,remoteAssets,sync)=>{
-      if(dirty.current||activeEditor?.view.composing||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
+      if(dirty.current||activeEditor?.view.composing||document.querySelector('.zoomed-title-input[data-composing="true"]')||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
       validate(remote.tables.bullets);validateWorkdays(remote.web.workdays);
       const previous=docRef.current!;
       const incoming={...restoreDeviceState(remote,previous),revision:previous.revision+1} as Workspace;
@@ -355,7 +363,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   });
   useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
   const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await openAccountSignIn();}catch(e){showError(e);}};
-  const commit = (next: Workspace, group?: string, record = true) => {
+  const commit = (next: Workspace, group?: string, record = true, immediate = true) => {
     if (failed.current) {
       setError(
         "Saving has stopped. Retry saving or export your unsaved work first.",
@@ -382,10 +390,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }
       history.current.redo = [];
       lastText.current = { id: group || "", at: now };
-      setHistoryTick((x) => x + 1);
+      if(immediate)setHistoryTick((x) => x + 1);
     }
     docRef.current = next;
-    setDoc(next);
+    if(immediate){cancelView();setDoc(next);}else queueView();
     dirty.current = true;
     setStatus("Saving…");
     if (timer.current) clearTimeout(timer.current);
@@ -417,12 +425,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return false;
     }
   };
-  const changeBulletContent=(id:string,value:{text:string;formatting:string})=>{
-    try{const current=docRef.current!,next=updateBulletContent(current,id,value);if(next!==current)commit(next,id);}catch(e){showError(e);}
+  const changeBulletContent=(id:string,value:{text:string;formatting:string},immediate=true)=>{
+    try{const current=docRef.current!,next=updateBulletContent(current,id,value);if(next!==current)commit(next,id,true,immediate);}catch(e){showError(e);}
   };
-  // ProseMirror updates its editable DOM immediately; surrounding views can
-  // yield to input. Controlled title fields keep the synchronous change path.
-  const changeEditorContent=(id:string,value:{text:string;formatting:string})=>startTransition(()=>changeBulletContent(id,value));
+  // Publish to the authoritative model immediately; only passive React views wait
+  // for a typing pause. Saving and structural commands always read docRef.
+  const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
     const h = history.current,
@@ -449,6 +457,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const openPane=(id:string|null=scope)=>{if(!docRef.current)return;views.add(id,docRef.current.tables.bullets as Node[]);setTab('notes');setEditing(null);setMenu(null);};
   const openBulletMenu = (id: string, anchor?: HTMLElement, selectedIds?: string[]) => {
+    if(viewTimer.current)publishView(true);
     menuAnchor.current = anchor || [...document.querySelectorAll<HTMLElement>("[data-node-id]")].find(el => el.dataset.nodeId === id) || null;
     menuSelection.current = selectedIds?.includes(id) ? selectedIds : [id];
     setViewMenu(false);
@@ -1255,7 +1264,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       if (document.hidden) void flush();
     };
     const before = (e: BeforeUnloadEvent) => {
-      if (dirty.current || status === "Saving…") {
+      if (dirty.current || deviceStatus.get() === "Saving…") {
         void flush();
         e.preventDefault();
         e.returnValue = "";
@@ -1267,7 +1276,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("beforeunload", before);
     };
-  }, [status]);
+  }, [deviceStatus]);
   useEffect(()=>{if(!doc)return;const ids=snapshotIndex(doc.tables.bullets).byId;for(const pane of views.panes)if(pane.scope&&!ids.has(pane.scope))views.update(pane.id,{scope:null,search:'',back:pane.back.filter(id=>id===null||ids.has(id)),forward:pane.forward.filter(id=>id===null||ids.has(id))});},[doc?.tables.bullets,views.panes]);
   useEffect(() => {
     if (!notice) return;
@@ -1276,7 +1285,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   }, [notice]);
   useEffect(() => {
     const unbind=bindWorkspaceShortcuts(window,{
-      command:()=>{setMenu(null);setViewMenu(false);setDialog(value=>value==='jump'?null:'jump');},
+      command:()=>{if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog(value=>value==='jump'?null:'jump');},
       save:()=>void flush(),sidebar:toggleSidebar,pane:()=>openPane(),
     });
     const undoKey=(e:KeyboardEvent)=>{
@@ -1406,7 +1415,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="sidebarCollapse" />
             </button>
           </div>
-          <button className="sidebar-jump" onClick={() => {setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="search" size={16} /><span>Commands & notes</span><kbd>{modLabel()} K</kbd></button>
+          <button className="sidebar-jump" onClick={() => {if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="search" size={16} /><span>Commands & notes</span><kbd>{modLabel()} K</kbd></button>
           <nav aria-label="Main navigation">
             {[
               ["dashboard", "Dashboard", "dashboard"],
@@ -1553,9 +1562,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             >
               <Icon name="redo" />
             </button>
-            <button className="icon-button" aria-label="Commands & notes" title={`Commands & notes (${modLabel()} K)`} onClick={()=>{setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="commands" size={17}/></button>
+            <button className="icon-button" aria-label="Commands & notes" title={`Commands & notes (${modLabel()} K)`} onClick={()=>{if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="commands" size={17}/></button>
             <button data-guide-help className="icon-button" aria-label="Show me how" title="Show me how" onClick={()=>{setViewMenu(false);setMenu(null);setDialog("help");}}><Icon name="help" size={17}/></button>
-            <SaveIndicator device={status} cloud={{connected:!!cloudUser,status:cloud.status,error:cloud.error,conflict:cloud.conflict}} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
+            <DeviceSaveIndicator signal={deviceStatus} isPending={()=>!!cloudUser&&(dirty.current||persisted.current?.revision!==cloud.acknowledgedRevision)} cloud={{connected:!!cloudUser,status:cloud.status,error:cloud.error,conflict:cloud.conflict}} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
             {<button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
             {tab==='notes'&&<button className="icon-button" aria-label="New pane" title="New pane · Alt+R" onClick={()=>openPane()}><Icon name="pane" size={17}/></button>}
           </div>
@@ -1954,7 +1963,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         </div>
       </OutlinePopover>}
       <GuidedTours key={cloudUser?.uid||'guest'} open={dialog==='help'} account={storageAccountKey()} signedIn={!!cloudUser} onOpenChange={open=>setDialog(open?'help':null)} onCloseMenus={()=>{setMenu(null);setViewMenu(false);}} onNavigate={async nextTab=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');if(readerTarget)closeReader();setMenu(null);setViewMenu(false);setEditing(null);setTab(nextTab);if(nextTab==='notes'){setScope(null);setSearch('');}}} onBulletMenu={()=>{document.querySelector('[data-tour-active-bullet]')?.removeAttribute('data-tour-active-bullet');const row=[...document.querySelectorAll<HTMLElement>('.outline-row[data-node-id]')].find(el=>el.getClientRects().length>0&&docRef.current?.tables.bullets.some(n=>n.id===el.dataset.nodeId&&n.blockStyle!=='divider')),button=row&&[...row.querySelectorAll<HTMLButtonElement>('[aria-label="Bullet actions"]')].find(el=>el.getClientRects().length>0);if(!button)return false;button.setAttribute('data-tour-active-bullet','');return true;}}/>
-      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader onHelp={()=>setDialog("help")} user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onNote={id=>navigateTo(id)} renderNotes={()=> <React.Suspense fallback={<p role="status">Loading book notes…</p>}><ReaderBookNotes doc={doc} hash={readerTarget.hash} assets={assets} disabled={disabled||failed.current} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onFullNotes={id=>{closeReader();navigateTo(id);}} onAdd={()=>{if(failed.current)throw Error('Saving is paused. Open Account settings to retry.');const current=docRef.current!,book=readingBook(current,readerTarget.hash),id=crypto.randomUUID();const next=addReadingNote(current,book,id);commit(withNodes(next,next.tables.bullets as Node[]));return id;}}/></React.Suspense>} onScreenshot={async(unit,blob)=>{
+      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader onHelp={()=>setDialog("help")} user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onNote={id=>navigateTo(id)} renderNotes={()=> <React.Suspense fallback={<p role="status">Loading book notes…</p>}><ReaderBookNotes onCommit={()=>{if(viewTimer.current)publishView(true);}} doc={doc} hash={readerTarget.hash} assets={assets} disabled={disabled||failed.current} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onFullNotes={id=>{closeReader();navigateTo(id);}} onAdd={()=>{if(failed.current)throw Error('Saving is paused. Open Account settings to retry.');const current=docRef.current!,book=readingBook(current,readerTarget.hash),id=crypto.randomUUID();const next=addReadingNote(current,book,id);commit(withNodes(next,next.tables.bullets as Node[]));return id;}}/></React.Suspense>} onScreenshot={async(unit,blob)=>{
         if(authenticatedUid()!==cloudUser?.uid)throw Error('Your account changed. Open the book again to capture a page.');
         if(failed.current||working||!readerTarget)throw Error('Wait for saving to finish, then try again.');
         const current=docRef.current!,book=readingBook(current,readerTarget.hash);if(!book)throw Error('The original book is no longer available.');
