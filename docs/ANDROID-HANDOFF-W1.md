@@ -1,5 +1,7 @@
 # Remo Web W1 handoff to Android thread
 
+Historical contract/handoff: the web scheduler moved to FSRS-6 on 1 November 2026. See [FSRS.md](FSRS.md) for the current memory state, migration and Android compatibility behavior.
+
 Web v0.1.0 · Proposed contract 1.0.0 · Android reference v0.17.0 / Room schema 11.
 
 The Android reference was inspected and left unchanged. This is a separate web implementation; no thread-to-thread synchronization has occurred. Please read this handoff and the contract explicitly.

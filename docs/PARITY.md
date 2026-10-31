@@ -23,7 +23,7 @@ Status reflects source inspection and web implementation, not fresh Android devi
 | Linked Q&A decks                                  | Implemented                              | Live source questions, bulk decks and rich answers       | Device acceptance                   |
 | Study Desk selection/pins                         | Implemented                              | Deck selection/search; imported pins retained            | Pin control                         |
 | Normal study and tag filters                      | Implemented                              | Ordered cram implemented; tag filters deferred           | Tag filters                         |
-| Spaced repetition                                 | SM-2 adaptation                          | Rated due-card sessions, eligible queue shuffled         | Device acceptance                   |
+| Spaced repetition                                 | SM-2 adaptation                          | FSRS-6 due-card sessions, eligible queue shuffled         | Device acceptance                   |
 | Card browser, suspension, tomorrow hiding         | Implemented                              | Suspension/unsuspend and tomorrow hiding implemented     | Full card browser                   |
 | Daily limits and study statistics                 | Implemented                              | Per-deck limits and daily review counts                  | Extended statistics                 |
 | Saved current session and review undo             | Implemented                              | Queue/cursor/reveal resume; review undo deferred          | Review undo                         |
@@ -36,3 +36,5 @@ Status reflects source inspection and web implementation, not fresh Android devi
 | Legacy Goals/Library/Insights screens             | Hard-coded, inactive in main navigation  | Not copied; underlying data preserved                   | No scope commitment                 |
 
 Intentional differences: desktop navigation rail/mobile navigation; Tab/Shift+Tab and Escape; browser fonts; capped visual indentation after eight levels while full hierarchy remains intact; web-only operation journal; unsupported formatting paused rather than stripped; explicit rejection of unsupported ZIP64 archives. Browser storage and clipboard limitations require user-visible errors and downloadable backups. Threads do not synchronize automatically.
+
+Web scheduling now uses FSRS-6; older Android builds retain their SM-2 adaptation. Use full web backups to preserve FSRS memory/settings. See [FSRS.md](FSRS.md) for migration and compatibility.

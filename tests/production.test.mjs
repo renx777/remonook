@@ -204,7 +204,7 @@ test("production bundle: interaction smoke test", async context => {
   await click([...document.querySelectorAll('.sidebar nav button')].find(button => button.textContent === 'Study Desk'));
   const allMcqs = [...document.querySelectorAll('.study-deck')].find(deck => deck.querySelector('h2')?.textContent === 'All MCQs');
   assert.ok(allMcqs, 'The permanent All MCQs collection ships in production');
-  await click([...allMcqs.querySelectorAll('button')].find(button => button.textContent === 'Limits'));
+  await click([...allMcqs.querySelectorAll('button')].find(button => button.textContent === 'Review settings'));
   assert.equal(document.querySelectorAll('.study-limits').length, 1, 'Shared budget data does not open multiple notebook panels');
   await click([...document.querySelectorAll(".sidebar-bottom button")].find(b => b.textContent === "Settings & backups"));
   assert.ok(document.querySelector("dialog[open]"));

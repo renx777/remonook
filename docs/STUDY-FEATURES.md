@@ -15,7 +15,7 @@ Study Desk lists all flashcards and each registered branch deck. It shows availa
 
 **Cram** visits available cards in the exact expanded outline order, ignoring collapse state and daily spaced budgets. Reveal the answer, then advance. Practice is logged, but schedules remain unchanged.
 
-**Spaced repetition** selects new and due cards within daily budgets, then shuffles that eligible queue. It does not pull future cards forward at random. Again/Hard/Good/Easy use the existing tested SM-2 adaptation: Again returns in 10 minutes, with later intervals based on repetitions, interval, and ease. Interval previews appear on the rating buttons. Scheduling and the review event are saved together. Imported schedules remain usable.
+**Spaced repetition** selects new and due cards within daily budgets, then shuffles that eligible queue. It does not pull future cards forward at random. Again/Hard/Good/Easy use FSRS-6 (see [FSRS.md](FSRS.md)): Again returns in 10 minutes, with later intervals based on repetitions, interval, and ease. Interval previews appear on the rating buttons. Scheduling and the review event are saved together. Imported schedules remain usable.
 
 Pause a session or leave for the source notes and resume later, including after reload. The saved queue, cursor, reveal state, and review count are preserved. Cards removed, suspended, or buried during a session can be skipped safely. Hide until tomorrow uses the browser’s next local midnight; suspended cards can be restored from Study Desk. Same-day relearning does not use an extra daily budget slot. Note undo does not rewind completed reviews.
 

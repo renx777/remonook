@@ -49,7 +49,8 @@ test('topic picker and touch card navigation retain structure, ignore scrolling 
   assert.match(document.querySelector('.flashcard-question').textContent,/First question/);
   assert.equal(document.querySelectorAll('.study-dock-inner kbd').length,0,'Compact controls have no visible shortcut badges');
   await click('[aria-label="Card actions"]');
-  assert.equal(document.querySelectorAll('[role="menuitem"]').length,2);
+  assert.equal(document.querySelectorAll('[role="menuitem"]').length,3);
+  assert.ok([...document.querySelectorAll('[role="menuitem"]')].some(item=>item.textContent==='Review schedule'));
   assert.equal(document.querySelector('.flashcard-answer'),null,'Opening card actions does not reveal the answer');
   await act(async()=>document.querySelector('[role="menu"]').dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   assert.equal(document.querySelector('[role="menu"]'),null);
