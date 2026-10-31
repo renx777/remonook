@@ -540,6 +540,8 @@ function MountedBulletEditor({
     // A concurrent outline render may echo an earlier keystroke after the
     // editor has accepted newer input. Reconcile against the authoritative
     // document, which is published synchronously before React renders it.
+    // Check every published render: fast Undo can restore the last rendered
+    // text while the native editor still contains a newer, un-echoed draft.
     const incoming = readCurrentNode?.(node.id) || node;
     const current = content(e);
     if (current.text !== incoming.text || current.formatting !== incoming.formatting) {
@@ -549,7 +551,7 @@ function MountedBulletEditor({
     }
     const editable = !disabled && !unsupportedFormatting(incoming);
     if (e.isEditable !== editable) e.setEditable(editable, false);
-  }, [node.text, node.formatting, disabled]);
+  });
   // Refresh decorations only when their inputs change. Dispatching an empty
   // transaction for every local text echo can restore an older DOM selection
   // while the browser is still processing native typing.

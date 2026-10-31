@@ -17,7 +17,7 @@ const {createRoot}=await import('react-dom/client');
 const {BulletEditor}=await import('./.build/editor.mjs');
 
 test('an older React echo cannot overwrite newer typing; authoritative external updates still apply',async()=>{
- const root=createRoot(document.querySelector('#root'));let latest=bullet('n',{text:'Start'}),editor;
+ const root=createRoot(document.querySelector('#root'));let latest=bullet('n',{text:'Start'}),editor;const initial=latest;
  const render=node=>root.render(createElement(BulletEditor,{node,caret:node.text.length,disabled:false,readCurrentNode:()=>latest,onChange:(id,value)=>{latest={...latest,...value};},onReady:e=>{editor=e;},onCommand(){},onOutlinePaste(){}}));
  try{
   await act(async()=>render(latest));
@@ -27,6 +27,11 @@ test('an older React echo cannot overwrite newer typing; authoritative external 
    editor.commands.insertContent(' one');earlier=latest;
    editor.commands.insertContent(' two 日本語');
   });
+  // Undo/redo may arrive before the first passive text echo. Props can stay
+  // identical while the authoritative model changes in both directions.
+  const authored=latest;latest=initial;
+  await act(async()=>render(initial));assert.equal(editor.getText(),'Start');
+  latest=authored;await act(async()=>render(initial));assert.equal(editor.getText(),'Start one two 日本語');
   const position=editor.state.selection.from,documentBefore=editor.state.doc;
   await act(async()=>render(earlier));
   assert.equal(editor.getText(),'Start one two 日本語');
