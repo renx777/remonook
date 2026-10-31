@@ -6,7 +6,7 @@ import "fake-indexeddb/auto";
 import React, { act } from "react";
 
 import { load } from "./.build/data.mjs";
-import {readdir} from "node:fs/promises";
+import {readdir,readFile} from "node:fs/promises";
 const dom = new JSDOM(
   '<!doctype html><html><body><div id="root"></div></body></html>',
   { url: "http://localhost/", pretendToBeVisual: true },
@@ -71,7 +71,8 @@ test("production bundle: interaction smoke test", async context => {
     // Modules are imported from disk and JSDOM does not load styles. Mark the
     // local assets present so Vite does not attempt network preloads here.
     for(const file of assets.filter(f=>/\.(css|js)$/.test(f))){const link=document.createElement('link');link.rel=file.endsWith('.css')?'stylesheet':'preload';link.href='/assets/'+file;document.head.append(link);}
-    const main=assets.find(f=>f.startsWith("index-")&&f.endsWith(".js"));await import("../dist/assets/"+main);
+    const html=await readFile("dist/index.html","utf8"),entry=html.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/);
+    assert.ok(entry,"Built HTML must identify its application entry");await import("../dist"+entry[1]);
   });
   await wait(() => document.querySelector('.landing'));
   const hero = document.querySelector('.landing h1');

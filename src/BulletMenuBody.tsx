@@ -17,7 +17,7 @@ export function BulletMenuBody({children}:{children:ReactNode}) {
   const root = useRef<HTMLDivElement>(null), id = useId();
   const searching = query.trim().length > 0;
   const groups = [{label:'Quick actions',content:common},...sections];
-  const matches = groups.map(group => ({...group,actions:controls(group.content).filter(action => words(action.props.children).toLowerCase().includes(query.trim().toLowerCase()))})).filter(group => group.actions.length);
+  const matches = groups.map(group => ({...group,actions:controls(group.content).filter(action => (words(action.props.children)+' '+(action.props['data-keywords']||'')).toLowerCase().includes(query.trim().toLowerCase()))})).filter(group => group.actions.length);
   function open(index:number|null) {
     setActive(index);
     requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(index === null ? `[data-category="${active}"]` : '.bullet-category-back')?.focus());

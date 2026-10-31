@@ -185,3 +185,134 @@ https://github.com/obsidianmd/pele
 
 Mermaid 12.2 remains bundled as an on-demand compatibility fallback, with its
 existing license notices retained.
+
+Visual notes use **Excalidraw 0.18.1** (MIT), loaded only when opening the drawing editor. Full notice: `LICENSES/excalidraw-MIT.txt`.
+Bundled fonts are self-hosted, with their copyright and license notices in `LICENSES/excalidraw-font-*.txt` and `/excalidraw/licenses/`. Assistant, Cascadia, Excalifont, Lilita, Nunito, Virgil and Xiaolai use SIL OFL; Comic Shanns uses MIT. The legacy Liberation fallback retains its GPL v2 font embedding exception and corresponding font-source reference.
+Mobile bullet actions use **Radix Dialog 1.3.1** (MIT), alongside the existing Radix Popover and Floating UI integrations.
+
+Additional packages introduced or updated with the visual tools:
+
+| Package | Version | Declared license |
+| --- | --- | --- |
+| @babel/runtime | 7.29.10 | MIT |
+| @braintree/sanitize-url | 6.0.2 | MIT |
+| @chevrotain/cst-dts-gen | 11.0.3 | Apache-2.0 |
+| @chevrotain/gast | 11.0.3 | Apache-2.0 |
+| @chevrotain/regexp-to-ast | 11.0.3 | Apache-2.0 |
+| @chevrotain/types | 11.0.3 | Apache-2.0 |
+| @chevrotain/types | 11.1.2 | Apache-2.0 |
+| @chevrotain/utils | 11.0.3 | Apache-2.0 |
+| @excalidraw/excalidraw | 0.18.1 | MIT |
+| @excalidraw/laser-pointer | 1.3.1 | MIT |
+| @excalidraw/markdown-to-text | 0.1.2 | MIT |
+| @excalidraw/mermaid-to-excalidraw | 2.2.2 | MIT |
+| @excalidraw/random-username | 1.1.0 | MIT |
+| @mermaid-js/parser | 0.6.3 | MIT |
+| @mermaid-js/parser | 1.2.1 | MIT |
+| @radix-ui/primitive | 1.0.0 | MIT |
+| @radix-ui/primitive | 1.1.1 | MIT |
+| @radix-ui/react-arrow | 1.1.2 | MIT |
+| @radix-ui/react-collection | 1.0.1 | MIT |
+| @radix-ui/react-compose-refs | 1.0.0 | MIT |
+| @radix-ui/react-compose-refs | 1.1.1 | MIT |
+| @radix-ui/react-context | 1.0.0 | MIT |
+| @radix-ui/react-context | 1.1.1 | MIT |
+| @radix-ui/react-dialog | 1.3.1 | MIT |
+| @radix-ui/react-direction | 1.0.0 | MIT |
+| @radix-ui/react-dismissable-layer | 1.1.5 | MIT |
+| @radix-ui/react-focus-guards | 1.1.1 | MIT |
+| @radix-ui/react-focus-scope | 1.1.2 | MIT |
+| @radix-ui/react-id | 1.0.0 | MIT |
+| @radix-ui/react-id | 1.1.0 | MIT |
+| @radix-ui/react-popover | 1.1.6 | MIT |
+| @radix-ui/react-popper | 1.2.2 | MIT |
+| @radix-ui/react-portal | 1.1.4 | MIT |
+| @radix-ui/react-presence | 1.0.0 | MIT |
+| @radix-ui/react-presence | 1.1.2 | MIT |
+| @radix-ui/react-primitive | 1.0.1 | MIT |
+| @radix-ui/react-primitive | 2.0.2 | MIT |
+| @radix-ui/react-roving-focus | 1.0.2 | MIT |
+| @radix-ui/react-slot | 1.0.1 | MIT |
+| @radix-ui/react-slot | 1.1.2 | MIT |
+| @radix-ui/react-tabs | 1.0.2 | MIT |
+| @radix-ui/react-use-callback-ref | 1.0.0 | MIT |
+| @radix-ui/react-use-callback-ref | 1.1.0 | MIT |
+| @radix-ui/react-use-controllable-state | 1.0.0 | MIT |
+| @radix-ui/react-use-controllable-state | 1.1.0 | MIT |
+| @radix-ui/react-use-escape-keydown | 1.1.0 | MIT |
+| @radix-ui/react-use-layout-effect | 1.0.0 | MIT |
+| @radix-ui/react-use-layout-effect | 1.1.0 | MIT |
+| @radix-ui/react-use-rect | 1.1.0 | MIT |
+| @radix-ui/react-use-size | 1.1.0 | MIT |
+| @radix-ui/rect | 1.1.0 | MIT |
+| anymatch | 3.1.3 | ISC |
+| binary-extensions | 2.3.0 | MIT |
+| braces | 3.0.3 | MIT |
+| browser-fs-access | 0.29.1 | Apache-2.0 |
+| canvas-roundrect-polyfill | 0.0.1 | MIT |
+| chevrotain | 11.0.3 | Apache-2.0 |
+| chevrotain-allstar | 0.3.1 | MIT |
+| chokidar | 3.6.0 | MIT |
+| clsx | 1.1.1 | MIT |
+| commander | 8.3.0 | MIT |
+| crc-32 | 0.3.0 | Apache-2.0 |
+| cross-env | 7.0.3 | MIT |
+| cross-spawn | 7.0.6 | MIT |
+| es6-promise-pool | 2.5.0 | MIT |
+| fastdom | 1.0.12 | MIT |
+| fill-range | 7.1.1 | MIT |
+| fractional-indexing | 3.2.0 | CC0-1.0 |
+| fuzzy | 0.1.3 | See upstream |
+| glob-parent | 5.1.2 | ISC |
+| glur | 1.1.2 | MIT |
+| image-blob-reduce | 3.0.1 | MIT |
+| immutable | 4.3.9 | MIT |
+| is-binary-path | 2.1.0 | MIT |
+| is-extglob | 2.1.1 | MIT |
+| is-glob | 4.0.3 | MIT |
+| is-number | 7.0.0 | MIT |
+| isexe | 2.0.0 | ISC |
+| jotai | 2.11.0 | MIT |
+| jotai-scope | 0.7.2 | MIT |
+| katex | 0.16.47 | MIT |
+| langium | 3.3.1 | MIT |
+| lodash-es | 4.17.21 | MIT |
+| lodash.debounce | 4.0.8 | MIT |
+| lodash.throttle | 4.1.1 | MIT |
+| marked | 16.4.2 | MIT |
+| mermaid | 11.17.2 | MIT |
+| multimath | 2.0.0 | MIT |
+| nanoid | 3.3.3 | MIT |
+| nanoid | 4.0.2 | MIT |
+| normalize-path | 3.0.0 | MIT |
+| open-color | 1.9.1 | MIT |
+| pako | 2.0.3 | (MIT AND Zlib) |
+| path-key | 3.1.1 | MIT |
+| perfect-freehand | 1.2.0 | MIT |
+| pica | 7.1.1 | MIT |
+| picomatch | 2.3.2 | MIT |
+| png-chunk-text | 1.0.0 | MIT |
+| png-chunks-encode | 1.0.0 | MIT |
+| png-chunks-extract | 1.0.0 | MIT |
+| points-on-curve | 0.2.0 | MIT |
+| points-on-curve | 1.0.1 | MIT |
+| pwacompat | 2.0.17 | Apache-2.0 |
+| readdirp | 3.6.0 | MIT |
+| roughjs | 4.6.4 | MIT |
+| sass | 1.51.0 | MIT |
+| shebang-command | 2.0.0 | MIT |
+| shebang-regex | 3.0.0 | MIT |
+| sliced | 1.0.1 | MIT |
+| strictdom | 1.0.1 | MIT |
+| to-regex-range | 5.0.1 | MIT |
+| tunnel-rat | 0.1.2 | MIT |
+| use-sync-external-store | 1.7.0 | MIT |
+| vscode-jsonrpc | 8.2.0 | MIT |
+| vscode-languageserver | 9.0.1 | MIT |
+| vscode-languageserver-protocol | 3.17.5 | MIT |
+| vscode-languageserver-textdocument | 1.0.16 | MIT |
+| vscode-languageserver-types | 3.17.5 | MIT |
+| vscode-uri | 3.0.8 | MIT |
+| webworkify | 1.5.0 | MIT |
+| which | 2.0.2 | ISC |
+| zustand | 4.5.7 | MIT |

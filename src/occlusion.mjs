@@ -43,3 +43,15 @@ export function applyOcclusion(doc,{mediaId,title,masks,mode,deckId=null,groupId
  }
  return enableStudyBranch({...doc,tables:{...doc.tables,bullets:nodes,media,decks},web:{...doc.web,occlusions:configs}},root);
 }
+
+/** Normalized geometry stays inside the source image at every zoom level. */
+export function adjustOcclusionMask(mask,patch){
+ const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
+ if(Object.values(patch).some(n=>!Number.isFinite(n)))return mask;
+ const next={...mask,...patch};
+ next.w=clamp(next.w,.01,1);next.h=clamp(next.h,.01,1);
+ if('w' in patch&&!('x' in patch))next.w=Math.min(next.w,1-mask.x);
+ if('h' in patch&&!('y' in patch))next.h=Math.min(next.h,1-mask.y);
+ next.x=clamp(next.x,0,1-next.w);next.y=clamp(next.y,0,1-next.h);
+ return next;
+}

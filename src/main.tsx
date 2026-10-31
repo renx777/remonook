@@ -1,3 +1,5 @@
+import {VisualToolsContext,VisualToolLoader,type DiagramTarget} from './VisualTools';
+import {saveDiagram} from './visual-notes.mjs';
 import {ReadingSources,ReaderBoundary,ReaderStartup} from './ReadingSources';
 import {addReadingNote,captureReadingImage,readingBook,readingSources,validateReading} from './reading.mjs';
 import {BookStorage} from './BookStorage';
@@ -162,6 +164,8 @@ function Dialog({
     </dialog>
   );
 }
+const DiagramEditor=React.lazy(()=>import('./DiagramEditor').then(m=>({default:m.DiagramEditor})));
+const DrawingEditor=React.lazy(()=>import('./DrawingEditor').then(m=>({default:m.DrawingEditor})));
 export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const [readerTarget,setReaderTarget]=useState<{hash:string;unit?:number;id?:string}|null>(null);
   const readerOrigin=useRef<HTMLElement|null>(null);
@@ -174,6 +178,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const views=useWorkspacePanes();
   const {scope,setScope,search,setSearch}=views;
   const [occlusionImage,setOcclusionImage]=useState<string|null>(null);
+  const [diagramTarget,setDiagramTarget]=useState<DiagramTarget|null>(null),[drawingTarget,setDrawingTarget]=useState<{id:string;mediaId?:string;account:string}|null>(null);
+  useEffect(()=>{setDiagramTarget(null);setDrawingTarget(null);},[cloudUser?.uid]);
   const [doc, setDoc] = useState<Workspace | null>(null),
     docRef = useRef<Workspace | null>(null),
     persisted = useRef<Workspace | null>(null),
@@ -845,6 +851,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       if (['NOTE','QUESTION','ANSWER'].includes(kind)) mutate(ns => ns.map(node => targets.has(node.id) ? {...node,kind,autoHighlight:false} : node));
       return;
     }
+    if(action==='action:diagram'){openDiagram({id});return;}
+    if(action==='action:drawing'){openDrawing(id);return;}
     if(action==='action:pane'){openPane(id);return;}
     if(action==='action:countdown'){const n=docRef.current!.tables.bullets.find(n=>n.id===id);setReminderEditor({date:n?.dueDate||getLocalDateString(),kind:'target',title:n?.text.slice(0,160)||''});return;}
     if(action==='action:date'){const n=docRef.current!.tables.bullets.find(n=>n.id===id);setNodeDate({id,date:n?.dueDate||getLocalDateString()});setMenu(null);return;}
@@ -1363,6 +1371,18 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             ? "ui-rounded, system-ui, sans-serif"
             : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   } as React.CSSProperties;
+  const openDiagram=(target:DiagramTarget)=>{if(disabled)return;setMenu(null);setEditing(null);setDiagramTarget({...target,id:sourceId(docRef.current!.tables.bullets,target.id)});};
+  const openDrawing=(id:string,mediaId?:string)=>{if(disabled)return;setMenu(null);setEditing(null);setDrawingTarget({id:sourceId(docRef.current!.tables.bullets,id),mediaId,account:storageAccountKey()});};
+  const saveDrawing=(blob:Blob,title:string)=>{
+    const target=drawingTarget,current=docRef.current;
+    if(!target||target.account!==storageAccountKey()||!current||disabled||failed.current)throw Error('Saving is unavailable. Your drawing is still open; retry when saving is available.');
+    if(!current.tables.bullets.some(n=>n.id===target.id))throw Error('The destination note was removed. Your drawing is still open.');
+    if(blob.size>2*1024*1024)throw Error('Drawings must fit within 2 MB.');
+    const id=crypto.randomUUID(),fileName=id+'.png',nextAssets=new Map(assetsRef.current);nextAssets.set('media/'+fileName,blob);checkAttachmentBudget(nextAssets);
+    const item={id,bulletId:target.id,fileName,mimeType:'image/png',sourceUrl:'',credit:title+'.excalidraw.png',licenseUrl:''};
+    pendingAssets.current.set('media/'+fileName,blob);assetsRef.current=nextAssets;setAssets(nextAssets);
+    commit(withNodes({...current,tables:{...current.tables,media:[...current.tables.media,item]}},current.tables.bullets as Node[]));setDrawingTarget(null);setNotice('Drawing added to your note.');
+  };
   const insertNotation = (id: string, diagram: boolean) => {
     const node = docRef.current!.tables.bullets.find(node => node.id === id);
     if (!node || unsupportedFormatting(node as Node)) return;
@@ -1373,7 +1393,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     focus(id, prefix.length);
   };
   return (
-    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}>
+    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
     <ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
@@ -1829,7 +1849,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             </select>
           </label>
 </div></details><details className="bullet-action-section"><summary><Icon name="insert" size={16}/><span>Insert</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content"><button disabled={disabled} onClick={()=>command('action:music',menuNode.id,0,0)}><Icon name="music" size={16}/><span>{doc.web.musicNodes?.[menuNode.id]?"Turn off music gallery":"Music gallery"}</span></button><button disabled={disabled} onClick={()=>command('action:gallery',menuNode.id,0,0)}><Icon name="image" size={16}/><span>{doc.web.galleryNodes?.[menuNode.id]?"Turn off gallery":"Show as gallery"}</span></button><button disabled={disabled} onClick={()=>command('action:table',menuNode.id,0,0)}><Icon name="table" size={16}/><span>Insert table</span></button>            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => insertNotation(menuNode.id, false)}><Icon name="equation" size={16}/><span>Insert LaTeX equation</span></button>
-            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => insertNotation(menuNode.id, true)}><Icon name="diagram" size={16}/><span>Insert Mermaid diagram</span></button>
+            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} data-keywords="diagram flowchart mindmap chart sequence" onClick={() => openDiagram({id:menuNode.id})}><Icon name="diagram" size={16}/><span>Create diagram…</span></button><button disabled={disabled} data-keywords="drawing sketch excalidraw canvas whiteboard" onClick={()=>openDrawing(menuNode.id)}><Icon name="sketch" size={16}/><span>Draw with Excalidraw…</span></button>
             <button disabled={disabled} onClick={() => { mediaTarget.current = menuNode.id; imageInput.current?.click(); }}><Icon name="image" size={16} /><span>Add images…</span></button>
             <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => openEmojiPicker(menuNode.id)}><Icon name="emoji" size={16} /><span>Insert animated emoji…</span></button>
             <button disabled={disabled} onClick={() => { mediaTarget.current = menuNode.id; setEmbedValue(""); setMenu(null); setDialog("embed"); }}><Icon name="play" size={16} /><span>Insert media link…</span></button>
@@ -2283,6 +2303,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         }}
       />
       {reminderEditor&&<ReminderEditor key={`${reminderEditor.id||'new'}:${reminderEditor.date}`} doc={doc} target={reminderEditor} disabled={disabled} onChange={next=>commit(next)} onClose={()=>setReminderEditor(null)}/>}
+      {diagramTarget&&<VisualToolLoader title="Diagram workspace" onClose={()=>setDiagramTarget(null)}><DiagramEditor source={diagramTarget.source} editing={!!diagramTarget.original} disabled={disabled} onClose={()=>setDiagramTarget(null)} onSave={source=>{if(disabled)throw Error('Saving is unavailable.');const next=saveDiagram(docRef.current!.tables.bullets,diagramTarget,source);commit(withNodes(docRef.current!,next));setDiagramTarget(null);setNotice('Diagram saved to your note.');}}/></VisualToolLoader>}
+      {drawingTarget&&<VisualToolLoader title="Drawing workspace" onClose={()=>setDrawingTarget(null)}><DrawingEditor blob={drawingTarget.mediaId?assets.get('media/'+doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.fileName):undefined} title={drawingTarget.mediaId?doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.credit:undefined} theme={['Light','Catppuccin Latte'].includes(theme)?'light':'dark'} disabled={disabled} onClose={()=>setDrawingTarget(null)} onSave={saveDrawing}/></VisualToolLoader>}
       {occlusionImage && doc.tables.media.some(item=>item.id===occlusionImage) && <OcclusionEditor groupId={(Object.values(doc.web.occlusions||{}) as any[]).find(config=>config.mediaId===occlusionImage)?.groupId} doc={doc} item={doc.tables.media.find(item=>item.id===occlusionImage)!} assets={assets} disabled={disabled} onSave={next=>{commit(next);setNotice('Image occlusion cards saved to Study Desk.');}} onClose={()=>setOcclusionImage(null)}/>}
       {notice && (
         <div className="toast" role="status">
@@ -2293,7 +2315,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     </div>
     </EmojiProvider>
     </ConnectionContext.Provider>
-    </SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></ReadingSources.Provider></GoogleTasksProvider>
+    </VisualToolsContext.Provider></SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></ReadingSources.Provider></GoogleTasksProvider>
   );
 }
 export const appRoot = createRoot(document.getElementById("root")!);

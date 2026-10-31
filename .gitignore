@@ -17,3 +17,6 @@ dist/
 *.key
 *service-account*.json
 cloud/config.*.local.json
+
+# Generated, self-hosted Excalidraw fonts
+/public/excalidraw/

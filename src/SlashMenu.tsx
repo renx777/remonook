@@ -4,6 +4,8 @@ import type { Editor } from '@tiptap/core';
 import {Icon} from './icons';
 
 export const blockCommands = [
+  {id:'diagram',label:'Diagram',detail:'Templates and a live Mermaid preview',keys:'',terms:'diagram mermaid flowchart mindmap sequence chart',icon:'diagram'},
+  {id:'drawing',label:'Drawing',detail:'Sketch with Excalidraw',keys:'',terms:'drawing draw sketch canvas excalidraw whiteboard',icon:'sketch'},
   {id:'music',label:'Music gallery',detail:'Audio files, YouTube Music and Spotify',keys:'',terms:'music audio playlist spotify youtube',icon:'music'},
   {id:'gallery',label:'Gallery',detail:'Images, GIFs and videos in a media grid',keys:'',terms:'gallery photos images video album',icon:'image'},
   {id:'table',label:'Table',detail:'Cells with simple spreadsheet formulas',keys:'',terms:'table spreadsheet sum formula',icon:'notes'},
