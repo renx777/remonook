@@ -8,7 +8,7 @@ import { SelectionFormatting } from "./.build/SelectionFormatting.mjs";
 import { RemoColor, RemoHighlight, RemoMask } from "./.build/editor.mjs";
 
 const dom = new JSDOM('<div id="editor"></div><div id="toolbar"></div><input id="outside">', { url: "http://localhost", pretendToBeVisual: true });
-for (const key of ["window", "document", "navigator", "Node", "HTMLElement", "HTMLInputElement", "MutationObserver", "DOMParser", "getComputedStyle"])
+for (const key of ["window", "document", "navigator", "Node", "Element", "HTMLElement", "HTMLInputElement", "MutationObserver", "DOMParser", "getComputedStyle"])
   Object.defineProperty(globalThis, key, { value: key === "getComputedStyle" ? dom.window.getComputedStyle.bind(dom.window) : dom.window[key], configurable: true });
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.requestAnimationFrame = window.requestAnimationFrame.bind(window);
@@ -25,6 +25,7 @@ test("selection menu stays hidden for carets, preserves formatting selection, an
   const root = createRoot(document.getElementById("toolbar"));
   await act(async () => { root.render(React.createElement(SelectionFormatting, { editor, disabled: false })); editor.view.dom.focus(); });
   await settle();
+  const openPalette=async label=>{const summary=document.querySelector(`summary[aria-label="${label}"]`);if(!summary.parentElement.open){await act(async()=>summary.click());await settle();}};
   const bar = document.querySelector('[aria-label="Text formatting"]');
   assert.ok(bar.hidden, "Focusing text with a caret must not show the toolbar");
   await act(async () => { editor.commands.setTextSelection({ from: 1, to: 7 }); });
@@ -40,21 +41,26 @@ test("selection menu stays hidden for carets, preserves formatting selection, an
   assert.equal(editor.isActive('remoMask'), false);
   assert.deepEqual([editor.state.selection.from, editor.state.selection.to], [1, 7]);
   assert.equal(bar.hidden, false, "Formatting retains the selection and menu");
+  await openPalette("Text color");
   await act(async () => { document.querySelector('[aria-label="Blue text"]').click(); });
   await settle();
   assert.equal(editor.getAttributes("remoColor").value, "2463BB");
+  await openPalette("Text color");
   const blueSwatch = document.querySelector('[aria-label="Blue text"]');
   assert.equal(blueSwatch.style.color, 'rgb(36, 99, 187)');
   assert.equal(blueSwatch.querySelector('span').textContent, 'A', 'The selected color still displays its colored A');
   assert.equal(blueSwatch.getAttribute('aria-pressed'), 'true');
   assert.equal(document.querySelectorAll('[aria-label="Text color options"] button').length, 24);
-  assert.equal(document.querySelectorAll('[aria-label="Highlight options"] button').length, 24);
+
   assert.ok(document.querySelector('summary[aria-label="Text color"]'));
   assert.ok(document.querySelector('summary[aria-label="Highlight color"]'));
   await act(async () => { document.querySelector('[aria-label="Yellow text"]').click(); });
   assert.equal(editor.getAttributes("remoColor").value, "EAB308");
+  await openPalette("Highlight color");
+  assert.equal(document.querySelectorAll('[aria-label="Highlight options"] button').length,24);
   await act(async () => { document.querySelector('[aria-label="Yellow highlight"]').click(); });
   assert.equal(editor.getAttributes("remoHighlight").value, "FFE082");
+  await settle();await openPalette("Highlight color");
   assert.ok(document.querySelector('[aria-label="Recent highlight FFE082"]'));
   await act(async () => { [...document.querySelectorAll("button")].find(button => button.textContent === "Remove highlight").click(); });
   assert.equal(editor.isActive("remoHighlight"), false);

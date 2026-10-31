@@ -7,7 +7,7 @@ import StarterKit from '@tiptap/starter-kit';
 import {MobileEditToolbar} from './.build/MobileEditToolbar.mjs';
 import {RemoColor,RemoHighlight,RemoMask} from './.build/editor.mjs';
 const dom=new JSDOM('<div id="editor"></div><div id="toolbar"></div>',{url:'http://localhost',pretendToBeVisual:true});
-for(const key of ['window','document','navigator','Node','HTMLElement','HTMLInputElement','MutationObserver','DOMParser','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window[key].bind(dom.window):dom.window[key],configurable:true});
+for(const key of ['window','document','navigator','Node','Element','HTMLElement','HTMLInputElement','MutationObserver','DOMParser','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window[key].bind(dom.window):dom.window[key],configurable:true});
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 globalThis.requestAnimationFrame=window.requestAnimationFrame.bind(window);
 globalThis.cancelAnimationFrame=window.cancelAnimationFrame.bind(window);
@@ -28,6 +28,7 @@ test('mobile editing retains selections, sets typing colors, dispatches hierarch
  await click('Bold');assert.ok(editor.isActive('bold'));assert.deepEqual([editor.state.selection.from,editor.state.selection.to],[1,9]);
  await click('Indent bullet');await click('Outdent bullet');assert.deepEqual(commands,['indent','outdent']);
  await act(async()=>editor.commands.setTextSelection(14));
+ await click('Text color');await act(async()=>new Promise(resolve=>setTimeout(resolve,30)));
  await click('Blue text');assert.equal(editor.getAttributes('remoColor').value,'2463BB');
  await act(async()=>editor.commands.insertContent('!'));assert.match(editor.getHTML(),/2463BB/);
  await act(async()=>{viewport.height=window.innerHeight-300;viewport.dispatchEvent(new window.Event('resize'));});

@@ -1,3 +1,4 @@
+import {LiveTitleInput} from './LiveTitleInput';
 import {ReadingCitation} from './ReadingSources';
 import {snapshotIndex} from './outline-snapshot.mjs';
 import {branchMedia,musicItems} from './music.mjs';
@@ -600,20 +601,22 @@ export function OutlineView(p: Props) {
       >
         {!p.hideTitle && (scopedNode ? (
           <div className="zoomed-header">
-            <input
+            <LiveTitleInput key={scopedNode.id}
+              readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text}
               className="zoomed-title zoomed-title-input"
               value={scopedNode.text}
               placeholder="Untitled"
               aria-label="Zoomed node title"
               disabled={p.disabled || !!scopedNode.formatting}
               title={scopedNode.formatting ? "Edit this formatted title from its parent page" : undefined}
-              onChange={(e) => {
-                p.onChange(scopedNode.id, {
-                  text: e.target.value,
+              onValue={(text) => {
+                (p.onEditorChange||p.onChange)(scopedNode.id, {
+                  text,
                   formatting: scopedNode.formatting || "",
                 });
               }}
               onKeyDown={(e) => {
+                if(e.nativeEvent.isComposing||e.keyCode===229)return;
                 if (e.key === "Enter") {
                   e.preventDefault();
                   if (rs.length > 0) {

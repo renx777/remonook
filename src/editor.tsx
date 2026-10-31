@@ -395,7 +395,7 @@ function MountedBulletEditor({
         RemoHighlight,
         RemoRough,
       ],
-      content: toEditor(node),
+      content: toEditor(readCurrentNode?.(node.id)||node),
       editorProps: {
         attributes: {
           "aria-label": "Edit bullet",

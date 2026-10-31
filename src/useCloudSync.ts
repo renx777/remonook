@@ -12,6 +12,7 @@ type Apply={state:string;selection?:Selection};
 type Options={user:User|null;revision?:number;ready:boolean;get:()=>{doc:Workspace|null;assets:Map<string,Blob>};flush:()=>Promise<unknown>;canApply:()=>boolean;selection?:()=>Selection|null;apply:(doc:Workspace,assets:Map<string,Blob>,sync?:Apply)=>Promise<void>};
 export function useCloudSync(options:Options){
  const latest=useRef(options);latest.current=options;
+ const acknowledged=useRef<number|null>(null);
  const busy=useRef(false),queued=useRef(false),alive=useRef(true),timer=useRef<ReturnType<typeof setTimeout>|null>(null),failures=useRef(0),cache=useRef(new WeakMap<Blob,string>());
  const [status,setStatus]=useState(options.user?'Connecting…':'Device only'),[error,setError]=useState('');
  async function request(path:string,init:RequestInit={}){
@@ -78,6 +79,7 @@ export function useCloudSync(options:Options){
    }
    const final=await syncMetadata(),currentDoc=latest.current.get().doc;
    const remaining=!!final.inflight||final.pending.length>0||!currentDoc||contentKey(currentDoc)!==contentKey(shared.doc);
+   if(!remaining)acknowledged.current=currentDoc?.revision??null;
    setStatus(remaining?'Saved on device · sync pending':'Synced');failures.current=0;
    if(remaining)queued.current=true;
   }catch(e:any){
@@ -93,5 +95,5 @@ export function useCloudSync(options:Options){
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;if(timer.current)clearTimeout(timer.current);};},[]);
  useEffect(()=>{if(!options.user||!options.ready)return;const t=setTimeout(()=>void run.current(),500);return()=>clearTimeout(t);},[options.user?.uid,options.revision,options.ready]);
  useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const t=setInterval(resume,2000);window.addEventListener('online',resume);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',resume);return()=>{clearInterval(t);window.removeEventListener('online',resume);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',resume);};},[options.user?.uid]);
- return {status,error,conflict:false,sync};
+ return {status,error,conflict:false,sync,acknowledgedRevision:acknowledged.current};
 }
