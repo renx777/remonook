@@ -1,17 +1,18 @@
-.command-backdrop{position:fixed;inset:0;background:#0006;backdrop-filter:blur(3px);z-index:1500}
-.command-dialog{position:fixed;z-index:1501;top:min(16vh,120px);left:50%;transform:translateX(-50%);width:min(600px,calc(100vw - 24px));max-height:calc(100dvh - 32px);background:var(--panel,#fff);color:var(--text,#333);border:1px solid var(--line,#ddd);border-radius:16px;box-shadow:0 24px 80px #0004;overflow:hidden;padding:0;font:14px/1.5 system-ui,sans-serif}
+.command-backdrop{position:fixed;inset:0;background:#0006;z-index:1500}
+.command-dialog{position:fixed;z-index:1501;top:clamp(12px,10vh,80px);left:50%;transform:translateX(-50%);width:min(600px,calc(100vw - 24px));height:min(560px,calc(100dvh - 100px));max-height:calc(100dvh - 24px);background:var(--panel,#fff);color:var(--text,#333);border:1px solid var(--line,#ddd);border-radius:16px;box-shadow:0 16px 48px #0003;overflow:hidden;padding:0;font:14px/1.5 system-ui,sans-serif}
 .command-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.command-search{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line,#ddd)}
+.command-search{flex:none;display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line,#ddd)}
 .command-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:inherit;font:inherit;font-size:16px;padding:6px 0}
 .command-search button{display:grid;place-items:center;min-width:36px;min-height:36px;background:transparent;border:0;border-radius:8px;color:inherit;cursor:pointer}
-.command-dialog [cmdk-list]{max-height:min(52dvh,440px);overflow:auto;overscroll-behavior:contain;padding:6px;scroll-padding:8px}
+.command-dialog [cmdk-root]{display:flex;flex-direction:column;height:100%;min-height:0}
+.command-dialog [cmdk-list]{flex:1;min-height:0;scrollbar-gutter:stable;scroll-behavior:auto;contain:layout paint;overflow:auto;overscroll-behavior:contain;padding:6px;scroll-padding:8px}
 .command-dialog [cmdk-group-heading]{padding:10px 10px 5px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted,#777)}
 .command-dialog [cmdk-item]{display:flex;align-items:center;gap:12px;min-height:44px;padding:9px 10px;border-radius:8px;cursor:pointer;scroll-margin:8px;outline:none}
 .command-dialog [cmdk-item]>span{flex:1;min-width:0}.command-dialog [cmdk-item] strong{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.command-dialog [cmdk-item] small{display:block;font-size:12px;color:var(--muted,#777);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .command-dialog [cmdk-item][data-selected=true]{background:var(--soft,#e9f2f7);box-shadow:inset 0 0 0 1px var(--accent,#3784a8)}
 .command-dialog [cmdk-item][data-disabled=true]{opacity:.45;cursor:default}
 .command-search button:focus-visible{outline:2px solid var(--accent,#3784a8);outline-offset:1px}
-.command-footer{display:flex;justify-content:space-between;gap:8px;padding:10px 16px;border-top:1px solid var(--line,#ddd);font-size:11px;color:var(--muted,#777)}
+.command-footer{flex:none;display:flex;justify-content:space-between;gap:8px;padding:10px 16px;border-top:1px solid var(--line,#ddd);font-size:11px;color:var(--muted,#777)}
 .command-empty,.command-error{padding:20px 16px;margin:0}.command-error{color:var(--text);background:var(--soft)}
-@media(max-width:600px){.command-dialog{top:max(12px,env(safe-area-inset-top));border-radius:12px}.command-dialog [cmdk-list]{max-height:48dvh}.command-dialog [cmdk-item]{min-height:48px}}
-@media(prefers-reduced-motion:no-preference){.command-dialog{animation:command-enter .14s ease-out}@keyframes command-enter{from{opacity:0;translate:0 -6px}to{opacity:1;translate:0 0}}}
+@media(max-width:600px){.command-dialog{top:max(12px,env(safe-area-inset-top));border-radius:12px;height:min(560px,calc(100dvh - 24px))}.command-dialog [cmdk-item]{min-height:48px}}
+@media(hover:hover){.command-dialog [cmdk-item]:not([data-disabled=true]):hover{background:var(--hover,#ededed)}}

@@ -18,6 +18,9 @@ test('real cmdk searches all notes, handles duplicate titles, disabled commands,
  await query('unavailable');await key('Enter');assert.equal(chosen.includes('disabled'),false);
  await query('fail safely');await key('Enter');assert.match(document.querySelector('[role="alert"]').textContent,/Saving needs attention/);assert.equal(closed.length,2);assert.ok(document.activeElement.matches('[cmdk-input]'));
  await query('zzzznothing');assert.match(document.querySelector('.command-empty').textContent,/No matches/);await key('Escape');assert.equal(closed.length,3);
+ const large=[...Array.from({length:2000},(_,i)=>({id:'bulk'+i,text:'Bulk note '+i,parentId:null})),{id:'late',text:'Latest query target',parentId:null}];
+ await act(async()=>root.render(React.createElement(CommandPalette,{key:'large',nodes:large,actions:[],onChoose:id=>chosen.push(id),onClose:()=>closed.push(true)})));
+ await query('bulk');await query('latest query');for(let i=0;i<50&&!document.querySelector('[cmdk-item]')?.textContent.includes('Latest query');i++)await settle();assert.equal(document.querySelectorAll('[cmdk-item]').length,1);await key('Enter');assert.equal(chosen.at(-1),'late');
  await act(async()=>root.render(null));await settle();document.getElementById('origin').focus();
  await act(async()=>root.render(React.createElement(CommandPalette,{key:'fresh-focus',nodes:[],actions:[],onChoose:()=>{},onClose:()=>root.render(null)})));await settle();await key('Escape');await settle();assert.equal(document.activeElement.id,'origin');
  }finally{await act(async()=>root.unmount());await settle();dom.window.close();}
