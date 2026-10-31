@@ -920,7 +920,7 @@ export function OutlineView(p: Props) {
             <button
               className="zoomed-plus-btn"
               title="Add bullet"
-              aria-label="Add bullet"
+              data-tour="add-bullet" aria-label="Add bullet"
               disabled={p.disabled}
               onClick={(e) => {
                 e.stopPropagation();
