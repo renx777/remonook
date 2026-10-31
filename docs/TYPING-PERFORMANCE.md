@@ -72,3 +72,6 @@ conditional Clear button between pointer-down and click. Clear now prevents the
 pointer-down focus transfer, retaining the intended input focus and allowing its
 click to cancel the pending query. A regression assertion and 20 consecutive
 real-pointer browser cycles passed.
+Blur now requests reconciliation after publishing instead of briefly resetting
+the draft to the previous parent value. This also keeps a keyboard-focused Clear
+button mounted. Native Tab/Enter activation passed alongside the pointer cycles.
