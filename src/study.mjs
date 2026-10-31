@@ -1,3 +1,4 @@
+import {fsrsSettings} from './fsrs-scheduler.mjs';
 import {occlusionDefinition} from "./occlusion.mjs";
 import { index, indexedRows, rows, schedule } from "./domain.mjs";
 import { ALL_MCQS, mcqDefinition } from "./mcq.mjs";
@@ -162,20 +163,31 @@ export function reviewCard(doc, session, grade, responseTimeMillis, now = Date.n
   if (!["AGAIN", "HARD", "GOOD", "EASY"].includes(grade)) throw Error("Unknown grade");
   // A revisited card is history: moving forward must never reschedule or log it twice.
   if (session.cursor < studyFrontier(session)) return navigateStudyCard(doc, session, 'next', now);
-  const updated = session.mode === "SPACED" ? schedule(card, grade, now) : card,
+  const updated = session.mode === "SPACED" ? schedule(card, grade, now, reviewSettings(doc,card), doc.tables.review_logs) : card,
     log = {
-      id: doc.tables.review_logs.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1,
+      id: reviewId(doc.tables.review_logs),
       cardId: id, grade: session.mode === "NORMAL" ? "PRACTICE" : grade,
       reviewedAtEpochMillis: now, responseTimeMillis: Math.max(0, Math.round(responseTimeMillis)),
       scheduledNextAtEpochMillis: updated.dueAtEpochMillis, mode: session.mode,
+      ...(session.mode === "SPACED" ? {fsrsReview:updated.fsrsReview} : {}),
     },
     next = { ...session, cursor: session.cursor + 1, ...(session.furthestCursor !== undefined ? { furthestCursor: session.cursor + 1 } : {}), reviewed: session.reviewed + 1, revealed: 0, updatedAt: now };
-  return saveSession({ ...doc, tables: { ...doc.tables, cards: doc.tables.cards.map(item => item.id === id ? updated : item), review_logs: [...doc.tables.review_logs, log] } }, next);
+  const columns=doc.columns&&session.mode==="SPACED"?{...doc.columns,cards:[...new Set([...doc.columns.cards,"fsrsState"])],review_logs:[...new Set([...doc.columns.review_logs,"fsrsReview"])]}:undefined;
+  const {fsrsReview,...scheduled}=updated;
+  return saveSession({ ...doc, ...(columns?{columns}:{}), tables: { ...doc.tables, cards: doc.tables.cards.map(item => item.id === id ? (session.mode === "SPACED" ? scheduled : item) : item), review_logs: [...doc.tables.review_logs, log] } }, next);
 }
 
-export function intervalLabel(card, grade, now = Date.now()) {
-  const next = schedule(card, grade, now).dueAtEpochMillis - now;
-  if (next < 3600000) return `${Math.round(next / 60000)} min`;
+export function intervalLabel(card, grade, now = Date.now(), doc) {
+  const next = schedule(card, grade, now,doc?reviewSettings(doc,card):{},doc?.tables.review_logs||[]).dueAtEpochMillis - now;
+  if (next < 3600000) return `${Math.max(1,Math.round(next / 60000))} min`;
+  if(next<86400000)return `${Math.round(next/3600000)} hr`;
   const days = Math.round(next / 86400000);
   return days === 1 ? "1 day" : `${days} days`;
+}
+
+export function reviewSettings(doc,card){return fsrsSettings(doc,deckOwners(doc.tables.bullets,doc.tables.decks).get(card.id)||'__default__');}
+function reviewId(logs){
+ const used=new Set(logs.map(l=>l.id));let id;
+ do{const words=crypto.getRandomValues(new Uint32Array(2));id=(words[0]&0x1fffff)*4294967296+words[1];}while(!id||used.has(id));
+ return id;
 }

@@ -126,7 +126,7 @@ test("configure a four-child MCQ, study choices, resume feedback, practice misse
   await click(button('Cram'));
   const allMcqs = [...document.querySelectorAll('.study-deck')].find(article => article.querySelector('h2').textContent === 'All MCQs');
   assert.match(allMcqs.querySelector('.study-deck-counts').textContent, /2 cards/);
-  await click([...allMcqs.querySelectorAll('button')].find(element => element.textContent === 'Limits'));
+  await click([...allMcqs.querySelectorAll('button')].find(element => element.textContent === 'Review settings'));
   assert.equal(document.querySelectorAll('.study-limits').length, 1, 'Only the selected default notebook opens its limits panel');
   assert.equal(allMcqs.querySelector('[title="Open deck source"]'), null, 'Default MCQ deck has no fake source link');
   await click(allMcqs.querySelector('.study-primary'));

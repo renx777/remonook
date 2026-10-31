@@ -1,3 +1,5 @@
+import {FsrsPreferences,DeckRetention} from './FsrsPreferences';
+import {fsrsSettings,memoryInfo} from './fsrs-scheduler.mjs';
 import {ActionMenu,ActionMenuItem} from './ActionMenu';
 import {occlusionDefinition} from "./occlusion.mjs";
 import {OcclusionStudyImage} from "./ImageTools";
@@ -20,7 +22,7 @@ import { deckDesign, coverPresets, type DeckDesign } from "./deck-designs";
 import { ALL_MCQS, answerMcq, mcqAttempt, mcqDefinition, mcqRunResults, orderedMcqOptions } from "./mcq.mjs";
 import { MCQCard } from "./MCQCard";
 import { QuizFeedback, QuizReactionSettings, type ReactionSettings } from "./QuizReactions";
-import {FolderArtwork,FolderEditor,DeckManager,type FolderDraft} from './StudyFolders';
+import {LibraryDialog,FolderArtwork,FolderEditor,DeckManager,type FolderDraft} from './StudyFolders';
 import {studyFolders,deckFolder,moveStudyDeck} from './study-library.mjs';
 
 type Props = {
@@ -39,6 +41,8 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     [topicDeck, setTopicDeck] = useState<string | null>(null),
     [editingCard, setEditingCard] = useState(false), [editingAdd, setEditingAdd] = useState(false),
     [cardMenuOpen,setCardMenuOpen] = useState(false),
+    [scheduleInfo,setScheduleInfo] = useState(false),
+    [studyError,setStudyError] = useState(''),
     [showRevealHint,setShowRevealHint] = useState(true),
     [activeFolder,setActiveFolder] = useState<string|null>(null),
     [folderEditor,setFolderEditor] = useState<{id?:string}|null>(null),
@@ -111,7 +115,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   useEntranceMotion(rootRef, `${session?.tag}:${session?.cursor}:${session?.revealed}`, {
     selector: ".flashcard-answer", kind: "reveal", active: screen === "session" && !!session?.revealed && !currentMcq && !editingCard,
   });
-  useEffect(()=>{setCardMenuOpen(false);touchStart.current=null;setRevealedBullets(bulletRevealMode === 'all' ? 9999 : 1);},[currentId,screen,session?.cursor,session?.tag]);
+  useEffect(()=>{setCardMenuOpen(false);setScheduleInfo(false);touchStart.current=null;setRevealedBullets(bulletRevealMode === 'all' ? 9999 : 1);},[currentId,screen,session?.cursor,session?.tag]);
   const showLibrary = () => { exitImmersive(); setScreen("library"); };
   const resizeCard = (value: number) => {
     const next = Math.max(70, Math.min(150, value)); setCardZoom(next);
@@ -158,7 +162,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   };
   const grade = (value: string) => {
     if (disabled || !session || !card || !session.revealed || !availableCard(card, Date.now())) return;
-    onChange(reviewCard(doc, session, value, Date.now() - shownAt.current));
+    try{setStudyError('');onChange(reviewCard(doc, session, value, Date.now() - shownAt.current));}catch(error){setStudyError((error as Error).message);}
   };
   const navigate = (direction: 'previous' | 'next') => {
     if (disabled || !session || navigationLock.current) return;
@@ -226,7 +230,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     const handler = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : document.body;
       if (screen !== "session" || event.isComposing || editingCard || target.closest("dialog[open]")) return;
-      if (cardMenuOpen) return;
+      if (cardMenuOpen||scheduleInfo) return;
       if (event.key === "Escape") {
         event.preventDefault();
         if (event.repeat || Date.now() - lastNativeExit.current < 350) return;
@@ -274,7 +278,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [screen, session, card, doc, disabled, immersive, attempt, editingCard, cardMenuOpen, isFlashcard, hasStepBullets, revealedBullets, totalBullets]);
+  }, [screen, session, card, doc, disabled, immersive, attempt, editingCard, cardMenuOpen, scheduleInfo, isFlashcard, hasStepBullets, revealedBullets, totalBullets]);
 
   const all = [...scopedCards(doc, null, clock, studyContext), ...scopedCards(doc, ALL_MCQS, clock, studyContext)], due = [...dueCards(doc, null, clock, studyContext), ...dueCards(doc, ALL_MCQS, clock, studyContext)],
     today = new Date(clock).toDateString(),
@@ -287,12 +291,14 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
       valid = card && availableCard(card, Date.now()) && (!currentMcq || currentMcq.valid) && (!occlusion || occlusion.valid),
       deckTitle = session.scope === ALL_MCQS ? "All MCQs" : session.scope ? idx.byId.get(session.scope)?.text || "Study session" : "All flashcards",
       title = session.topicId ? `${deckTitle} · ${idx.byId.get(session.topicId)?.text || 'Topic'}` : deckTitle;
-    const results = mcqRunResults(doc, session);
+    const results = mcqRunResults(doc, session),memory=card?memoryInfo(card,clock):null;
+    const readyAgain=done&&session.mode==='SPACED'?dueCards(doc,session.scope,clock,studyContext,session.topicId||null).length:0;
+    const nextLearning=done&&session.mode==='SPACED'?scopedCards(doc,session.scope,clock,studyContext,session.topicId||null).filter((c:RecordData)=>{const info=memoryInfo(c,clock);return info&&(info.state==='Learning'||info.state==='Relearning')&&c.dueAtEpochMillis>clock;}).sort((a:RecordData,b:RecordData)=>a.dueAtEpochMillis-b.dueAtEpochMillis)[0]:null;
     const zoomControls = <div className="study-card-sizing" role="group" aria-label="Study card size"><span>Card size</span><button className="icon-button" aria-label="Zoom out study card" title="Smaller card" disabled={cardZoom <= 70} onClick={() => resizeCard(cardZoom - 10)}><Icon name="zoomOut" size={16} /></button><button className="study-zoom-reset" aria-label={`Reset study card zoom (${cardZoom}%)`} title="Reset to 100%" onClick={() => resizeCard(100)}><FlowNumber value={cardZoom} suffix="%" /></button><button className="icon-button" aria-label="Zoom in study card" title="Larger card" disabled={cardZoom >= 150} onClick={() => resizeCard(cardZoom + 10)}><Icon name="zoomIn" size={16} /></button></div>;
     return <section ref={rootRef} data-card-enlarged={cardZoom > 100} className={`study-session ${immersive ? "is-immersive" : ""} ${sessionDesign.backdrop ? "has-study-background" : ""}`} style={{ ...backdropStyle(sessionDesign, sessionImage), '--study-card-zoom': cardZoom / 100 } as CSSProperties} role={immersive ? "dialog" : undefined} aria-modal={immersive || undefined} aria-label={immersive ? "Immersive study" : "Study session"} tabIndex={-1}
       onPointerDownCapture={event=>{
         touchStart.current=null;
-        if(event.isPrimary===false||event.button>0||disabled||editingCard||cardMenuOpen||done||!valid)return;
+        if(event.isPrimary===false||event.button>0||disabled||editingCard||cardMenuOpen||scheduleInfo||done||!valid)return;
         const target=event.target as HTMLElement;
         if(target.closest('button,a,input,select,textarea,summary,dialog,video,audio,iframe,[role="button"],[role="menu"],.masked-text,.notation,[contenteditable]'))return;
         touchStart.current={id:event.pointerId,x:event.clientX,y:event.clientY,time:Date.now(),scroll:cardScroll.current?.scrollTop||0,cardId:currentId,revealed:!!session.revealed};
@@ -300,25 +306,27 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
       onPointerCancelCapture={()=>{touchStart.current=null;}}
       onPointerUpCapture={event=>{
         const first=touchStart.current;touchStart.current=null;
-        if(!first||first.id!==event.pointerId||first.cardId!==currentId||first.revealed!==!!session.revealed||disabled||editingCard||cardMenuOpen||done||!valid||Date.now()-first.time>400||Math.hypot(event.clientX-first.x,event.clientY-first.y)>12||Math.abs((cardScroll.current?.scrollTop||0)-first.scroll)>3||window.getSelection()?.isCollapsed===false)return;
+        if(!first||first.id!==event.pointerId||first.cardId!==currentId||first.revealed!==!!session.revealed||disabled||editingCard||cardMenuOpen||scheduleInfo||done||!valid||Date.now()-first.time>400||Math.hypot(event.clientX-first.x,event.clientY-first.y)>12||Math.abs((cardScroll.current?.scrollTop||0)-first.scroll)>3||window.getSelection()?.isCollapsed===false)return;
         if((event.target as HTMLElement).closest('button,a,input,select,textarea,summary,dialog,video,audio,iframe,[role="button"],[role="menu"],.masked-text,.notation,[contenteditable]'))return;
         if(!session.revealed){if(!currentMcq)reveal();return;}
         const bounds=event.currentTarget.getBoundingClientRect(),width=bounds.width||window.innerWidth;
         if(event.clientX<bounds.left+width/2)navigate('previous');else tapNext();
       }}>
       <div inert={editingCard} className="session-topline session-controls"><button className="study-text-button" onClick={showLibrary}><Icon name="back" size={16} />{done ? "Study Desk" : "Pause & return"}</button><div className="session-view-controls">{zoomControls}<span className="study-mode-chip">{session.mode === "NORMAL" ? "Cram · outline order" : "Spaced repetition"}</span><button className="study-text-button immersive-toggle" aria-label={immersive ? "Exit immersive mode" : "Enter immersive mode"} aria-pressed={immersive} title={immersive ? "Exit immersive mode · Esc" : "Immersive fullscreen · F"} onClick={() => immersive ? exitImmersive() : enterImmersive()}><Icon name={immersive ? "fullscreenExit" : "fullscreen"} size={16} /><span>{immersive ? "Exit immersive" : "Immersive"}</span></button></div></div>
+      {studyError&&<p className="fullscreen-notice" role="alert">{studyError}</p>}
       {fullscreenNotice && <p className="fullscreen-notice" role="status">{fullscreenNotice}</p>}
       {disabled && <p className="fullscreen-notice" role="status">Study controls are paused. Return to Study Desk to check the save status.</p>}
       <div className="session-scroll" ref={cardScroll}><div className="session-content">
       <h1>{title}</h1>
+      {scheduleInfo&&card&&<LibraryDialog title="Review schedule" onClose={()=>setScheduleInfo(false)}><p>{card.question}</p><dl className="study-memory-details"><dt>Next review</dt><dd>{new Date(card.dueAtEpochMillis).toLocaleString()}</dd><dt>Scheduler</dt><dd>{memory?'FSRS-6':'Moves to FSRS on its next spaced review'}</dd>{memory&&<><dt>State</dt><dd>{memory.state}</dd><dt>Estimated recall now</dt><dd>{Math.round(memory.retrievability*100)}%</dd><dt>Stability</dt><dd>{memory.stability.toFixed(1)} days</dd><dt>Difficulty</dt><dd>{memory.difficulty.toFixed(1)} / 10</dd><dt>Reviews / lapses</dt><dd>{memory.reps} / {memory.lapses}</dd></>}</dl><p>Recall is an estimate. Cram practice leaves this schedule unchanged.</p></LibraryDialog>}
       <div className="study-progress-label"><NumberGroup key={session.tag || 'legacy'}><span><FlowNumber value={session.reviewed} /> reviewed</span><span><FlowNumber value={Math.min(session.cursor + (done ? 0 : 1), queue.length)} /> / <FlowNumber value={queue.length} /></span></NumberGroup></div>
       <progress className="study-progress" value={session.cursor} max={Math.max(1, queue.length)} />
-      {done ? <div className="study-finished"><div className="study-success"><Icon name="check" size={30} /></div><h2>{queue.length ? "Session complete" : "You’re caught up"}</h2><p>{queue.length ? `You reviewed ${session.reviewed} cards.` : session.mode === "SPACED" ? "No cards are due within your daily limits right now." : "There are no available cards in this selection."}</p>{results.answered > 0 && <div className="mcq-score"><strong>{results.correct} / {results.answered}</strong><span>MCQs correct on the first attempt</span>{results.missedIds.length > 0 && <button disabled={disabled} onClick={practiceMissed}>Practice {results.missedIds.length} missed questions</button>}</div>}<p>{session.mode === "NORMAL" ? "Cram practice leaves your review schedule unchanged." : "Your next reviews have been saved. Cards marked Again return after 10 minutes."}</p></div> : !valid ? <div className="study-finished"><h2>This card is no longer available</h2><p>{currentMcq?.error || "Its source may have changed, or the card may be suspended or hidden."}</p></div> : <>
+      {done ? <div className="study-finished"><div className="study-success"><Icon name="check" size={30} /></div><h2>{queue.length ? "Session complete" : "You’re caught up"}</h2><p>{queue.length ? `You reviewed ${session.reviewed} cards.` : session.mode === "SPACED" ? "No cards are due within your daily limits right now." : "There are no available cards in this selection."}</p>{results.answered > 0 && <div className="mcq-score"><strong>{results.correct} / {results.answered}</strong><span>MCQs correct on the first attempt</span>{results.missedIds.length > 0 && <button disabled={disabled} onClick={practiceMissed}>Practice {results.missedIds.length} missed questions</button>}</div>}<p>{session.mode === "NORMAL" ? "Cram practice leaves your review schedule unchanged." : "Your next reviews have been saved. Learning cards return when due; start another review to continue."}</p>{nextLearning&&<p>Next learning review: {new Date(nextLearning.dueAtEpochMillis).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}. You can leave and return; your place is saved.</p>}</div> : !valid ? <div className="study-finished"><h2>This card is no longer available</h2><p>{currentMcq?.error || "Its source may have changed, or the card may be suspended or hidden."}</p></div> : <>
         <div className="study-question-layout">
         <article className="flashcard" aria-label="Flashcard">
 {editingCard && !occlusion ? <StudyCardEditor key={card.id} doc={doc} id={card.id} disabled={disabled} startWithBullet={editingAdd} onSave={onChange} onClose={()=>{setEditingCard(false);setEditingAdd(false);shownAt.current=Date.now();}}/> : <>           <div className="flashcard-label"><span>QUESTION</span><div className="study-card-tools"><button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(false);setEditingCard(true);}}><Icon name="edit" size={13}/>Edit card</button>{source && !currentMcq && !occlusion && <button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(true);setEditingCard(true);}}><Icon name="plus" size={13}/>Add bullet</button>}{source && <button className="study-text-button" onClick={() => { exitImmersive(); onSource(card.id); }}><Icon name="link" size={13} />Open source</button>}            <div className="study-more-actions">
               <ActionMenu open={cardMenuOpen} onOpenChange={setCardMenuOpen} trigger={<button className="study-text-button study-card-more" aria-label="Card actions" title="More card actions" disabled={disabled||done||!valid}><Icon name="more" size={18}/></button>}>
-                <div className="study-more-menu" aria-label="Card actions"><ActionMenuItem onClick={()=>{setCardMenuOpen(false);pauseCard(false);}}>Hide until tomorrow</ActionMenuItem><ActionMenuItem onClick={()=>{setCardMenuOpen(false);pauseCard(true);}}>Suspend card</ActionMenuItem></div>
+                <div className="study-more-menu" aria-label="Card actions"><ActionMenuItem onClick={()=>{setCardMenuOpen(false);setScheduleInfo(true);}}>Review schedule</ActionMenuItem><ActionMenuItem onClick={()=>{setCardMenuOpen(false);pauseCard(false);}}>Hide until tomorrow</ActionMenuItem><ActionMenuItem onClick={()=>{setCardMenuOpen(false);pauseCard(true);}}>Suspend card</ActionMenuItem></div>
               </ActionMenu>
             </div></div></div>
           <div className="flashcard-question">{occlusion ? <><RichRead node={source?.node as Node || idx.byId.get(card.id) as Node}/><OcclusionStudyImage definition={occlusion} blob={assets.get("media/"+occlusion.media.fileName)} revealed={!!session.revealed}/></> : source ? content(source.node as Node) : card.question}</div>
@@ -351,7 +359,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
           <nav className="study-card-navigation" aria-label="Card navigation">
             <button className="study-nav-arrow" aria-label="Previous card" title="Previous card" disabled={disabled||session.cursor===0} onClick={()=>navigate('previous')}><Icon name="back" size={18}/></button>
             <div className={`study-dock-main ${!done&&valid?(!session.revealed?"reveal-actions":session.mode==="NORMAL"?"cram-actions":""):""}`}>
-              {done?<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history&&isAllBulletsRevealed?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value)}</small></button>)}</div>:<button className={`study-primary dock-primary ${session.revealed&&hasStepBullets&&revealedBullets<totalBullets?'study-step-actions':''}`} disabled={disabled} onClick={event=>{if(event.detail>1)return;if(!session.revealed)reveal();else if(hasStepBullets&&revealedBullets<totalBullets)nextBullet();else grade('GOOD');}}>{!session.revealed?'Show answer':hasStepBullets&&revealedBullets<totalBullets?'Next bullet':'Next card'}</button>}
+              {done?readyAgain?<button className="study-primary dock-primary" disabled={disabled} onClick={()=>start(session.scope,session.topicId||null)}>Continue {readyAgain} due {readyAgain===1?'card':'cards'}</button>:<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history&&isAllBulletsRevealed?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value,clock,doc)}</small></button>)}</div>:<button className={`study-primary dock-primary ${session.revealed&&hasStepBullets&&revealedBullets<totalBullets?'study-step-actions':''}`} disabled={disabled} onClick={event=>{if(event.detail>1)return;if(!session.revealed)reveal();else if(hasStepBullets&&revealedBullets<totalBullets)nextBullet();else grade('GOOD');}}>{!session.revealed?'Show answer':hasStepBullets&&revealedBullets<totalBullets?'Next bullet':'Next card'}</button>}
             </div>
             <button className="study-nav-arrow" aria-label="Next card" title="Next card" disabled={disabled||done||!valid||!session.revealed||!!currentMcq&&!attempt} onClick={tapNext}><Icon name="forward" size={18}/></button>
 
@@ -375,7 +383,8 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     <div className="study-stats"><div><strong><FlowNumber value={all.length} /></strong><span>available cards</span></div><div><strong><FlowNumber value={due.length} /></strong><span>ready to review</span></div><div><strong><FlowNumber value={todayCount} /></strong><span>reviews today</span></div></div>
     {session && session.cursor < queue.length && <div className="study-resume"><div><strong>Pick up where you left off</strong><p>{session.mode === "NORMAL" ? "Cram" : "Spaced repetition"} · <NumberGroup><FlowNumber value={session.reviewed} /> reviewed · <FlowNumber value={queue.length - session.cursor} /> remaining</NumberGroup></p></div><button className="study-primary" disabled={disabled} onClick={resume}>Resume</button></div>}
     <div className="study-controls"><div className="study-mode-switch" aria-label="Study mode">{[["SPACED", "Spaced repetition"], ["NORMAL", "Cram"]].map(([value, label]) => <button key={value} aria-pressed={mode === value} className={mode === value ? "is-active" : ""} onClick={() => setMode(value)}>{label}</button>)}</div><div className="study-filter"><Icon name="search" size={15} /><input aria-label="Find a deck" placeholder="Find a deck" value={filter} onChange={event => setFilter(event.target.value)} /></div></div>
-    <p className="study-mode-description">{mode === "SPACED" ? "New and due cards, shuffled for recall. Your rating sets the next review." : "All available cards in the same order as your outline. No changes to your schedule."}</p>
+    <p className="study-mode-description">{mode === "SPACED" ? "FSRS schedules new and due cards from your recall history. Rate Hard only when you remembered the answer." : "All available cards in the same order as your outline. No changes to your schedule."}</p>
+    <FsrsPreferences doc={doc} disabled={disabled} onChange={onChange}/>
     <label className="immersive-preference"><input type="checkbox" checked={preferImmersive} onChange={event => setPreferImmersive(event.target.checked)} /><span>Start in immersive mode<small>Fullscreen · only your flashcard and controls</small></span></label>
     <div className="study-folder-navigation"><button className={`study-folder-breadcrumb ${dropFolder==='__unfiled__'?'is-drop-target':''}`} onClick={()=>{setActiveFolder(null);setFilter('');}} {...folderDrop(null)}><Icon name="study" size={16}/>{currentFolder?'Study Desk':'All decks'}{draggedDeck&&<small>Drop to unfile</small>}</button>{currentFolder&&<><Icon name="chevron" size={14}/><span>{currentFolder.name}</span><button className="icon-button" disabled={disabled} aria-label={`Edit ${currentFolder.name} folder`} onClick={()=>setFolderEditor({id:currentFolder.id})}><Icon name="more" size={17}/></button></>}</div>
     {!currentFolder&&folders.length>0&&<div className="study-folders" aria-label="Study deck folders">{folders.filter(f=>!filter||f.name.toLowerCase().includes(filter.toLowerCase())||doc.tables.decks.some(d=>deckFolder(doc,d.rootId)===f.id&&(idx.byId.get(d.rootId)?.text||'').toLowerCase().includes(filter.toLowerCase()))).map(folder=>{const count=doc.tables.decks.filter(d=>deckFolder(doc,d.rootId)===folder.id).length;return <article key={folder.id} className={`study-folder ${dropFolder===folder.id?'is-drop-target':''}`} {...folderDrop(folder.id)}><button className="study-folder-open" aria-label={`Open ${folder.name} folder`} onClick={()=>{setActiveFolder(folder.id);setFilter('');setLibraryNotice('');}}><FolderArtwork color={folder.color} logo={folder.logo} image={assets.get(folder.image)} imagePosition={folder.imagePosition}/><strong>{folder.name}</strong><small>{dropFolder===folder.id?'Drop deck here':`${count} ${count===1?'deck':'decks'}`}</small></button><button className="icon-button folder-options" disabled={disabled} aria-label={`Edit ${folder.name} folder`} onClick={()=>setFolderEditor({id:folder.id})}><Icon name="more" size={18}/></button></article>;})}</div>}
@@ -397,13 +406,13 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         <div className="study-deck-title"><div className="deck-glyph"><Icon name="study" size={22} /></div><div><h2>{deck.title}</h2><p>{deck.description}</p></div>{deck.rootId && deck.rootId !== ALL_MCQS && <button className="icon-button" title="Open deck source" aria-label={`Open ${deck.title} source`} onClick={() => onSource(deck.rootId!)}><Icon name="link" size={16} /></button>}</div>
         <div className="study-deck-counts"><NumberGroup><span><FlowNumber value={cards.length} /> cards</span><span className="due-badge"><FlowNumber value={ready.length} /> due</span></NumberGroup></div>
         {(designId === ALL_MCQS || doc.web.deckTypes?.[designId] === "MCQ") && !cards.length && <p className="mcq-notebook-empty">Add a question with four child options, then choose “Turn into MCQ…” or bulk-convert a branch with @Answer markers.</p>}
-        <div className="study-deck-actions"><button className="study-primary" disabled={disabled || !count} onClick={() => openDeck(deck.rootId)}>{mode === "NORMAL" ? "Start cram" : "Review due"}<span><FlowNumber value={count} /></span></button><button className="study-text-button" onClick={() => setSettings(settings === designId ? null : designId)}><Icon name="settings" size={14} />Limits</button></div>
+        <div className="study-deck-actions"><button className="study-primary" disabled={disabled || !count} onClick={() => openDeck(deck.rootId)}>{mode === "NORMAL" ? "Start cram" : "Review due"}<span><FlowNumber value={count} /></span></button><button className="study-text-button" onClick={() => setSettings(settings === designId ? null : designId)}><Icon name="settings" size={14} />Review settings</button></div>
         {settings === designId && <div className="study-limits"><p>{deck.rootId && deck.rootId !== ALL_MCQS ? "Daily spaced-review limits" : "Shared daily limits for questions outside a deck"} · −1 means unlimited</p>{[["newCards", "New cards"], ["reviewCards", "Review cards"]].map(([key, label]) => <label key={key}>{label}<input type="number" aria-label={`${label} per day for ${deck.title}`} min={-1} max={100000} value={limit?.[key] ?? -1} disabled={disabled} onChange={event => {
           const value = Number(event.target.value);
           if (!Number.isInteger(value) || value < -1 || value > 100000) return;
           const next = { deckId: limitId, newCards: -1, reviewCards: -1, ...limit, [key]: value };
           onChange({ ...doc, tables: { ...doc.tables, study_limits: [...doc.tables.study_limits.filter(item => item.deckId !== limitId), next] } });
-        }} /></label>)}</div>}
+        }} /></label>)}<DeckRetention key={String(limit?.retention)} value={limit?.retention??null} defaultValue={fsrsSettings(doc).retention} disabled={disabled} title={deck.title} onChange={retention=>{const next={deckId:limitId,newCards:-1,reviewCards:-1,...limit,retention};onChange({...doc,columns:{...doc.columns,study_limits:[...new Set([...doc.columns.study_limits,'retention'])]},tables:{...doc.tables,study_limits:[...doc.tables.study_limits.filter(item=>item.deckId!==limitId),next]}});}}/></div>}
       </article>;
     })}</div>
     {currentFolder&&!decks.some(deck=>deckFolder(doc,deck.rootId)===currentFolder.id&&deck.title.toLowerCase().includes(filter.toLowerCase()))&&<div className="study-folder-empty">{filter?<StudyEmptyArtwork search/>:<FolderArtwork color={currentFolder.color} logo={currentFolder.logo} image={assets.get(currentFolder.image)} imagePosition={currentFolder.imagePosition}/>} <h2>{filter?'No matching decks':'Your folder is ready'}</h2><p>{filter?'Try a different deck name.':'Return to Study Desk and drag a deck here, or choose this folder from a deck’s menu.'}</p><button className="study-text-button" onClick={()=>{setActiveFolder(null);setFilter('');}}>Back to all decks</button></div>}

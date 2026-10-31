@@ -51,6 +51,7 @@
     "react-grid-layout": "2.3.0",
     "rough-notation": "0.5.1",
     "tinykeys": "4.0.1",
+    "ts-fsrs": "6.0.0",
     "yjs": "13.6.33"
   },
   "devDependencies": {

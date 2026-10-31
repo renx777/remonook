@@ -1,3 +1,4 @@
+import {validateFsrs} from './fsrs-scheduler.mjs';
 import {validateReading} from './reading.mjs';
 import {validateReadingBooks} from './book-storage.mjs';
 import {project,openShared} from './sync-crdt.mjs';
@@ -159,6 +160,7 @@ export function androidBlockers(doc: Workspace) {
   if(doc.web.readingHighlights)reasons.push('Book highlight sources require a full web backup');
   if(doc.web.readingBooks)reasons.push('Reading book metadata requires a full web backup');
   if(doc.web.dashboard)reasons.push('Dashboard widgets and habits require a full web backup');
+  if(doc.tables.cards.some(card=>card.fsrsState))reasons.push('FSRS memory state and settings require a full web backup; older Android schedulers do not use FSRS');
   if(doc.web.studyFolders?.length||Object.keys(doc.web.deckFolders||{}).length||doc.web.studyExcludedCards?.length)reasons.push("Study folders and removed study cards require a full web backup");
   if(Object.keys(doc.web.occlusions||{}).length)reasons.push("Image occlusion cards require a full web backup");
   if (doc.tables.bullets.some(node => /(?:^|;)\d+:\d+:MASK(?:;|$)/.test(node.formatting || ""))) reasons.push("Masked text requires a full web backup");
@@ -252,6 +254,7 @@ export async function save(
   removeAssets: string[] = [],
   adoptSyncState?: string,
 ): Promise<Workspace> {
+  validateFsrs(after);
   validateWorkdays(after.web.workdays);
   validateDashboard(after.web.dashboard);validateReadingBooks(after.web.readingBooks);validateReading(after.web);
   const db = await openDb();
@@ -696,6 +699,7 @@ export async function parseArchive(
     throw Error("Undeclared backup files");
   for (const path of references(doc))
     if (!assets.has(path)) throw Error("Missing attachment: " + path);
+  validateFsrs(doc);
   validateOcclusions(doc.web.occlusions);
   validateStudyLibrary(doc.web);
   validateCalendarEvents(doc.web.calendarEvents);

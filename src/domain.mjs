@@ -582,46 +582,5 @@ export function refreshCards(nodes, decks, media, cards, now, onlyIds = null) {
   }
   return result;
 }
-export function schedule(card, grade, now) {
-  if (!["AGAIN", "HARD", "GOOD", "EASY"].includes(grade))
-    throw Error("Invalid grade");
-  const q = { AGAIN: 2, HARD: 3, GOOD: 4, EASY: 5 }[grade],
-    ease = Math.max(
-      1.3,
-      Math.min(3.5, card.easeFactor + 0.1 - (5 - q) * (0.08 + (5 - q) * 0.02)),
-    ),
-    rep = grade === "AGAIN" ? 0 : card.repetitionCount + 1,
-    base =
-      rep === 0
-        ? 0
-        : rep === 1
-          ? 1
-          : rep === 2
-            ? 6
-            : Math.ceil(Math.max(1, card.intervalDays) * card.easeFactor);
-  const days = Math.max(
-    0,
-    Math.min(
-      36500,
-      grade === "AGAIN"
-        ? 0
-        : grade === "HARD"
-          ? rep === 1
-            ? 1
-            : Math.max(card.intervalDays + 1, Math.ceil(base * 0.8))
-          : grade === "EASY"
-            ? rep === 1
-              ? 3
-              : Math.ceil(base * 1.3)
-            : base,
-    ),
-  );
-  return {
-    ...card,
-    repetitionCount: rep,
-    intervalDays: days,
-    easeFactor: ease,
-    lastReviewAtEpochMillis: now,
-    dueAtEpochMillis: now + (grade === "AGAIN" ? 600000 : days * 86400000),
-  };
-}
+// The original Android scheduler fixture remains documented for legacy archives.
+export {scheduleFsrs as schedule} from './fsrs-scheduler.mjs';

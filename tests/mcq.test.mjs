@@ -47,7 +47,7 @@ test("MCQ practice preserves schedules; a wrong spaced answer can be scheduled A
     doc = saveSession(doc, session);
     doc = answerMcq(doc, session, "o0", 2000);
     const next = reviewCard(doc, doc.tables.study_sessions[0], "AGAIN", 1000, 2000);
-    assert.equal(next.tables.cards[0].dueAtEpochMillis, mode === "NORMAL" ? doc.tables.cards[0].dueAtEpochMillis : 602000);
+    assert.equal(next.tables.cards[0].dueAtEpochMillis, mode === "NORMAL" ? doc.tables.cards[0].dueAtEpochMillis : 62000);
     assert.equal(next.tables.review_logs[0].grade, mode === "NORMAL" ? "PRACTICE" : "AGAIN");
   }
 });

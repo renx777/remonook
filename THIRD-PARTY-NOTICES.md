@@ -1,5 +1,7 @@
 # Third-party notices
 
+Spaced reviews use ts-fsrs 6.0.0 (MIT), with its supported FSRS-6 model and @open-spaced-repetition/srs-kit 1.0.0 (BSD-3-Clause). Notices: `LICENSES/ts-fsrs-6.0.0-MIT.txt` and `LICENSES/srs-kit-1.0.0-BSD-3-Clause.txt`. https://github.com/open-spaced-repetition/ts-fsrs
+
 Optional walkthroughs use **Driver.js 1.10.2** (MIT), bundled locally and loaded
 on demand. Full notice: LICENSES/driver.js-1.10.2-MIT.txt.
 https://github.com/nilbuild/driver.js
