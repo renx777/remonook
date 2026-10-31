@@ -1,3 +1,4 @@
+import {KeyboardShortcuts} from './KeyboardShortcuts';
 import {CommandPalette} from './CommandPalette';
 import {bindWorkspaceShortcuts,modLabel,shortcutAllowed} from './workspace-shortcuts';
 import {GuidedTours} from './GuidedTours';
@@ -137,13 +138,14 @@ function Dialog({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const previous = document.activeElement as HTMLElement | null;
+    const active = document.activeElement as HTMLElement | null;
+    const previous = !active || active===document.body || active.closest("[data-command-palette]") ? document.querySelector<HTMLElement>('.topbar [aria-label="Commands & notes"]') : active;
     if (typeof el.showModal === "function") el.showModal();
     else el.setAttribute("open", "");
     el.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     return () => { if (previous?.isConnected) previous.focus(); };
   }, []);
-  useEntranceMotion(ref, true, { kind: "dialog" });
+  useEntranceMotion(ref, true, { kind: "dialog", active:className!=="shortcuts-dialog" });
   return (
     <dialog
       ref={ref}
@@ -1969,9 +1971,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         {id:'help',label:'Show me how',icon:'help',keywords:['tour','walkthrough','guide'],run:()=>setDialog('help')},
         {id:'shortcuts',label:'Keyboard shortcuts',icon:'help',run:()=>setDialog('shortcuts')},
       ]}/>}
-      {dialog === "shortcuts" && <Dialog title="Keyboard shortcuts" onClose={() => setDialog(null)}><div className="shortcut-list">{[
-        ["Paste outline", "Ctrl + V · text, Markdown, OPML or formatted text"], ["Mask selected text", "Ctrl + Shift + M"], ["Command menu", "/ at start or after a space"], ["New pane", "Alt + R"], ["Open bullet in pane", "Alt + click bullet"], ["Link to a bullet", "[[ then search"], ["Mirror a bullet", "(( then search"], ["Code block", "Ctrl + Alt + C"], ["Numbered / bulleted list", "Ctrl + Shift + 7 / 8"], ["MCQ editor", "Ctrl + Alt + M"], ["Task", "Ctrl + Alt + T"], ["Plain bullet", "Ctrl + Alt + 0"], ["Exit code block", "Ctrl + Enter"], ["New bullet", "Enter"], ["New line", "Shift + Enter"], ["Animated emoji picker", ": then a name"], ["Indent / outdent", "Tab / Shift + Tab"], ["Complete / uncomplete", "Ctrl + Enter"], ["Expand / collapse", "Ctrl + Space"], ["Move branch up / down", "Ctrl + Shift + ↑ / ↓"], ["Zoom in / out", "Alt + → / ←"], ["Commands & notes", "Ctrl + K"], ["Toggle sidebar", "Ctrl + \\"], ["Undo / redo", "Ctrl + Z / Shift + Ctrl + Z"], ["Finish editing", "Escape"],
-      ].map(([label, keys]) => <div key={label}><span>{label}</span><kbd>{keys}</kbd></div>)}<p className="dialog-muted">On Mac, use ⌘ instead of Ctrl.</p></div></Dialog>}
+      {dialog === "shortcuts" && <Dialog title="Keyboard shortcuts" className="shortcuts-dialog" onClose={() => setDialog(null)}><KeyboardShortcuts/></Dialog>}
       {dialog === "settings" && (
         <Dialog title="Settings" className="settings-dialog" onClose={() => setDialog(null)}>
           <p className="settings-subtitle">Make a little space for yourself.</p>

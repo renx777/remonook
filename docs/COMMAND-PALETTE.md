@@ -49,3 +49,18 @@ On 31 October 2026, all 106 regression files passed. After the final focus and
 shortcut-scope refinements, the affected palette/shortcut/reader tests and
 TypeScript checks passed again. Production builds passed, and browser checks
 verified repeated commands in PDF readers at 1440px/390px and EPUB at 320px.
+
+## Performance refinement
+
+Large outlines now search in a local module worker. Note matching uses linear
+text/token checks and bounded preview fuzzy matching, retaining the best 40
+results without sorting the full outline. The worker indexes text once per
+outline version and discards stale query responses. When workers are unavailable,
+a cancellable fallback yields between 250-note batches. Search never calls an
+external service, and pending results cannot open an item from an older query.
+
+The palette keeps a stable height while filtering. Its backdrop has no blur,
+opening is immediate, and pointer hover uses CSS rather than updating cmdk's
+keyboard selection. Keyboard navigation still scrolls the active item into view.
+The shortcut reference has grouped/searchable commands, a fixed header and one
+scroll region; its native dialog also has no backdrop blur or entrance animation.
