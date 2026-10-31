@@ -66,3 +66,9 @@ reconciliation effect did not run. Notes, reader notes and titles now reconcile
 on every published render, with their existing equality checks preventing
 unnecessary content replacement. Regression tests cover Undo/Redo while rendered
 props remain identical, plus the older-echo case.
+
+Live pointer testing found that blurring a pending search could remount its
+conditional Clear button between pointer-down and click. Clear now prevents the
+pointer-down focus transfer, retaining the intended input focus and allowing its
+click to cancel the pending query. A regression assertion and 20 consecutive
+real-pointer browser cycles passed.
