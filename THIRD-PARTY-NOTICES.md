@@ -320,3 +320,13 @@ Additional packages introduced or updated with the visual tools:
 | webworkify | 1.5.0 | MIT |
 | which | 2.0.2 | ISC |
 | zustand | 4.5.7 | MIT |
+
+## cmdk 1.1.1
+
+Command palette primitives. MIT © 2022 Paco Coursey. Full notice: `LICENSES/cmdk-1.1.1-MIT.txt`.
+Source: https://github.com/pacocoursey/cmdk
+
+## Tinykeys 4.0.1
+
+Shared keyboard shortcuts. MIT © 2020 Jamie Kyle. Full notice: `LICENSES/tinykeys-4.0.1-MIT.txt`.
+Source: https://github.com/jamiebuilds/tinykeys

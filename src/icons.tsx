@@ -58,6 +58,7 @@ const paths: Record<string, string> = {
   zoomOut: "M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15m5-2 6 6M7 10.5h7",
   chevron: "m9 5 7 7-7 7",
   back: "m14 5-7 7 7 7",
+  commands: "M9 7V5a2 2 0 1 0-2 2h10a2 2 0 1 0-2-2v14a2 2 0 1 0 2-2H7a2 2 0 1 0 2 2V7",
   search: "M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15m5-2 6 6",
   settings:
     "M4 7h4m6 0h6M4 17h10M14 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0M20 17a3 3 0 1 1-6 0 3 3 0 0 1 6 0",

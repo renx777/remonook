@@ -29,7 +29,7 @@ test('panes maintain separate navigation/search, share edits, resize, close, per
  await save(null,withNodes(empty(),[bullet('alpha',{text:'Alpha'}),bullet('fact',{parentId:'alpha',text:'Shared fact #imp @Ambar'}),bullet('beta',{position:1,text:'Beta'}),bullet('other',{parentId:'beta',text:'Unrelated'})]));let app;
  const click=async selector=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);el.click();});
  const input=async(selector,value)=>act(async()=>{const el=document.querySelector(selector);Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));});
- const panes=()=>[...document.querySelectorAll('.note-pane')];const newPane=()=>act(async()=>window.dispatchEvent(new window.KeyboardEvent('keydown',{key:'r',altKey:true,bubbles:true,cancelable:true})));
+ const panes=()=>[...document.querySelectorAll('.note-pane')];const newPane=()=>act(async()=>window.dispatchEvent(new window.KeyboardEvent('keydown',{key:'r',code:'KeyR',altKey:true,bubbles:true,cancelable:true})));
  try{
  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="alpha"]'));
  await click('[data-node-id="alpha"] .bullet-dot-btn');await newPane();assert.equal(panes().length,2);const firstId=panes()[0].dataset.paneId,secondId=panes()[1].dataset.paneId;

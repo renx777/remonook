@@ -37,7 +37,7 @@ test('rapid editor transactions publish immediately to structural commands and d
    key('Enter');
   });
   await wait(()=>document.querySelectorAll('[data-depth="1"]').length===2);
-  await act(async()=>window.dispatchEvent(new window.KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true,cancelable:true})));
+  await act(async()=>window.dispatchEvent(new window.KeyboardEvent('keydown',{key:'s',code:'KeyS',ctrlKey:true,bubbles:true,cancelable:true})));
   await wait(async()=> (await load()).tables.bullets.length===3);
   const written=await load();
   assert.equal(written.tables.bullets.find(n=>n.id==='answer').text,'Answer one two 日本語');
