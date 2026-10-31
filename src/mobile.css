@@ -67,8 +67,9 @@
  .outline-row .row-hover-more { display:none; }
  /* Reserve horizontal space only: actions must not increase measured row height. */
  .outline-row .row-end { display:flex; position:relative; opacity:1; flex:0 0 44px; width:44px; min-height:0; margin:0; align-self:stretch; }
- .outline-row .row-end > .icon-button[aria-label="Bullet actions"] { position:absolute; inset:0; display:inline-flex; visibility:visible; pointer-events:auto; align-items:center; justify-content:center; width:44px; min-width:44px; height:min(44px,100%); min-height:24px; padding:0; color:var(--muted); }
- .outline-row.selected .row-end > .icon-button[aria-label="Bullet actions"] { visibility:visible; pointer-events:auto; }
+ .outline-row .row-end > .icon-button[aria-label="Bullet actions"] { position:absolute; inset:0; display:inline-flex; visibility:hidden; pointer-events:none; align-items:center; justify-content:center; width:44px; min-width:44px; height:min(44px,100%); min-height:24px; padding:0; color:var(--muted); }
+ .outline-row.selected .row-end > .icon-button[aria-label="Bullet actions"],
+ .outline-row:focus-within .row-end > .icon-button[aria-label="Bullet actions"] { visibility:visible; pointer-events:auto; }
 }
 
 .topbar-reminders { display:contents; }
