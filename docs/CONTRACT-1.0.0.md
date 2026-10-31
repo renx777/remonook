@@ -1,5 +1,7 @@
 # Remo shared contract 1.0.0 — proposed baseline, W1
 
+Historical contract/handoff: the web scheduler moved to FSRS-6 on 1 November 2026. See [FSRS.md](FSRS.md) for the current memory state, migration and Android compatibility behavior.
+
 Android baseline: v0.17.0; Room schema 11. Web: v0.1.0. This specification is versioned separately from either app. It must be handed to the Android thread explicitly. The web implementation of this contract does not imply that the Android thread accepted it or made changes.
 
 ## Authority and separation

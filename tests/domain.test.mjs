@@ -202,20 +202,6 @@ test("dividers are excluded from flashcard decks and study sources", () => {
   assert.equal(cs[0].id, "q");
   assert.equal(cs[0].answer, "Answer text");
 });
-test("scheduler matches Android initial grades and uses old ease for later base", () => {
-  const card = { repetitionCount: 0, intervalDays: 0, easeFactor: 2.5 };
-  assert.equal(schedule(card, "AGAIN", 100).dueAtEpochMillis, 600100);
-  assert.equal(schedule(card, "GOOD", 100).intervalDays, 1);
-  assert.equal(schedule(card, "HARD", 100).intervalDays, 1);
-  assert.equal(schedule(card, "EASY", 100).intervalDays, 3);
-  const third = schedule(
-    { repetitionCount: 2, intervalDays: 6, easeFactor: 2.5 },
-    "EASY",
-    100,
-  );
-  assert.equal(third.intervalDays, 20);
-  assert.equal(third.easeFactor, 2.6);
-});
 test("10,000-node deep traversal is iterative and validates without stack overflow", () => {
   const ns = Array.from({ length: 10000 }, (_, i) =>
     b(String(i), { parentId: i ? String(i - 1) : null }),
@@ -241,16 +227,6 @@ test("10,000-wide outline moves preserve every ID", () => {
     "10k wide move + traversal ms:",
     Math.round(performance.now() - start),
   );
-});
-import fixture from "../docs/fixtures/scheduler-v1.json" with { type: "json" };
-test("shared scheduler vectors match source-derived Android expectations", () => {
-  for (const c of fixture.cases) {
-    const actual = schedule(c.before, c.grade, c.now);
-    for (const [key, value] of Object.entries(c.expected))
-      if (key === "easeFactor")
-        assert.ok(Math.abs(actual[key] - value) < 1e-10, c.name);
-      else assert.equal(actual[key], value, c.name);
-  }
 });
 test("5,000 linked cards derive and refresh without quadratic ID lookup", () => {
   const ns = [b("deck")];

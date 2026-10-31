@@ -68,8 +68,8 @@ test("spaced reviews randomize eligible cards only, schedule and log atomically"
     queue = sessionQueue(session);
   assert.deepEqual(new Set(queue), new Set(["q1", "q2"]));
   const next = reviewCard(doc, session, "AGAIN", 2000, now);
-  assert.equal(next.tables.cards.find(card => card.id === queue[0]).dueAtEpochMillis, now + 600000);
-  assert.equal(next.tables.review_logs[0].scheduledNextAtEpochMillis, now + 600000);
+  assert.equal(next.tables.cards.find(card => card.id === queue[0]).dueAtEpochMillis, now + 60000);
+  assert.equal(next.tables.review_logs[0].scheduledNextAtEpochMillis, now + 60000);
   assert.equal(next.tables.study_sessions[0].reviewed, 1);
   assert.throws(() => reviewCard(doc, { ...session, revealed: 0 }, "GOOD", 0, now), /Reveal/);
 });
@@ -80,7 +80,7 @@ test("daily budgets count distinct cards and allow same-day relearning without s
   const session = { ...newStudySession(doc, "deck", "SPACED", now), revealed: 1 },
     next = reviewCard(doc, session, "AGAIN", 0, now);
   assert.equal(dueCards(next, "deck", now).length, 0);
-  assert.deepEqual(dueCards(next, "deck", now + 600001).map(card => card.id), sessionQueue(session));
+  assert.deepEqual(dueCards(next, "deck", now + 60001).map(card => card.id), sessionQueue(session));
   assert.equal(scopedCards(next, "deck", now).length, 2, "cram ignores spaced budgets");
 });
 test("saved sessions resume their queue and nested decks own their daily budgets", () => {

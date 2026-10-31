@@ -1,3 +1,6 @@
+import {fsrsSettings,readFsrs,readFsrsReview} from './fsrs-scheduler.mjs';
+const learningCard=card=>{const state=readFsrs(card)?.state;return state===1||state===3;};
+const beforeState=log=>{try{return readFsrsReview(log)?.before.state;}catch{return undefined;}};
 import {occlusionDefinition} from "./occlusion.mjs";
 import { index, indexedRows, rows, schedule } from "./domain.mjs";
 import { ALL_MCQS, mcqDefinition } from "./mcq.mjs";
@@ -19,10 +22,11 @@ export function createStudyContext(doc, now = Date.now()) {
   }
   const day = localDay(now), seen = new Map(), counts = new Map(), firstSpaced = new Map();
   for (const log of doc.tables.review_logs.filter(log => log.mode === "SPACED").sort((a, b) => a.reviewedAtEpochMillis - b.reviewedAtEpochMillis)) {
-    if (!firstSpaced.has(log.cardId)) firstSpaced.set(log.cardId, log.reviewedAtEpochMillis);
+    if (!firstSpaced.has(log.cardId)) firstSpaced.set(log.cardId, beforeState(log)>0?-Infinity:log.reviewedAtEpochMillis);
     if (log.reviewedAtEpochMillis < day || seen.has(log.cardId)) continue;
     const owner = owners.get(log.cardId) || "__default__", kind = firstSpaced.get(log.cardId) >= day ? "newCards" : "reviewCards", key = owner + ":" + kind;
-    seen.set(log.cardId, kind); counts.set(key, (counts.get(key) || 0) + 1);
+    seen.set(log.cardId, kind);
+    if(![1,3].includes(beforeState(log)))counts.set(key, (counts.get(key) || 0) + 1);
   }
   return { idx, rank, ranges, owners, definitions: new Map(), seen, counts, limits: new Map(doc.tables.study_limits.map(limit => [limit.deckId, limit])) };
 }
@@ -71,7 +75,7 @@ export function dueCards(doc, scope = null, now = Date.now(), context = createSt
   return scopedCards(doc, scope, now, context, topicId).filter(card => card.dueAtEpochMillis <= now)
     .sort((a, b) => a.dueAtEpochMillis - b.dueAtEpochMillis || a.createdAtEpochMillis - b.createdAtEpochMillis || a.id.localeCompare(b.id))
     .filter(card => {
-      if (seen.has(card.id)) return true;
+      if (seen.has(card.id)||learningCard(card)) return true;
       const owner = owners.get(card.id) || "__default__",
         kind = card.lastReviewAtEpochMillis ? "reviewCards" : "newCards",
         key = owner + ":" + kind,
@@ -94,7 +98,7 @@ export function deckTopics(doc, scope, now = Date.now(), context = createStudyCo
     if (!topic || rank <= topic.range.start) continue;
     topic.cards++;
     if (card.dueAtEpochMillis > now) continue;
-    if (context.seen.has(card.id)) { topic.due++; continue; }
+    if (context.seen.has(card.id)||learningCard(card)) { topic.due++; continue; }
     const owner = context.owners.get(card.id) || '__default__', kind = card.lastReviewAtEpochMillis ? 'reviewCards' : 'newCards', key = owner + ':' + kind;
     const used = topic.counts.get(key) ?? context.counts.get(key) ?? 0, cap = context.limits.get(owner)?.[kind] ?? -1;
     if (cap === -1 || used < cap) { topic.due++; topic.counts.set(key, used + 1); }
@@ -162,20 +166,31 @@ export function reviewCard(doc, session, grade, responseTimeMillis, now = Date.n
   if (!["AGAIN", "HARD", "GOOD", "EASY"].includes(grade)) throw Error("Unknown grade");
   // A revisited card is history: moving forward must never reschedule or log it twice.
   if (session.cursor < studyFrontier(session)) return navigateStudyCard(doc, session, 'next', now);
-  const updated = session.mode === "SPACED" ? schedule(card, grade, now) : card,
+  const updated = session.mode === "SPACED" ? schedule(card, grade, now, reviewSettings(doc,card), doc.tables.review_logs) : card,
     log = {
-      id: doc.tables.review_logs.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1,
+      id: reviewId(doc.tables.review_logs),
       cardId: id, grade: session.mode === "NORMAL" ? "PRACTICE" : grade,
       reviewedAtEpochMillis: now, responseTimeMillis: Math.max(0, Math.round(responseTimeMillis)),
       scheduledNextAtEpochMillis: updated.dueAtEpochMillis, mode: session.mode,
+      ...(session.mode === "SPACED" ? {fsrsReview:updated.fsrsReview} : {}),
     },
     next = { ...session, cursor: session.cursor + 1, ...(session.furthestCursor !== undefined ? { furthestCursor: session.cursor + 1 } : {}), reviewed: session.reviewed + 1, revealed: 0, updatedAt: now };
-  return saveSession({ ...doc, tables: { ...doc.tables, cards: doc.tables.cards.map(item => item.id === id ? updated : item), review_logs: [...doc.tables.review_logs, log] } }, next);
+  const columns=doc.columns&&session.mode==="SPACED"?{...doc.columns,cards:[...new Set([...doc.columns.cards,"fsrsState"])],review_logs:[...new Set([...doc.columns.review_logs,"fsrsReview"])]}:undefined;
+  const {fsrsReview,...scheduled}=updated;
+  return saveSession({ ...doc, ...(columns?{columns}:{}), tables: { ...doc.tables, cards: doc.tables.cards.map(item => item.id === id ? (session.mode === "SPACED" ? scheduled : item) : item), review_logs: [...doc.tables.review_logs, log] } }, next);
 }
 
-export function intervalLabel(card, grade, now = Date.now()) {
-  const next = schedule(card, grade, now).dueAtEpochMillis - now;
-  if (next < 3600000) return `${Math.round(next / 60000)} min`;
+export function intervalLabel(card, grade, now = Date.now(), doc) {
+  const next = schedule(card, grade, now,doc?reviewSettings(doc,card):{},doc?.tables.review_logs||[]).dueAtEpochMillis - now;
+  if (next < 3600000) return `${Math.max(1,Math.round(next / 60000))} min`;
+  if(next<86400000)return `${Math.round(next/3600000)} hr`;
   const days = Math.round(next / 86400000);
   return days === 1 ? "1 day" : `${days} days`;
+}
+
+export function reviewSettings(doc,card){return fsrsSettings(doc,deckOwners(doc.tables.bullets,doc.tables.decks).get(card.id)||'__default__');}
+function reviewId(logs){
+ const used=new Set(logs.map(l=>l.id));let id;
+ do{const words=crypto.getRandomValues(new Uint32Array(2));id=(words[0]&0x1fffff)*4294967296+words[1];}while(!id||used.has(id));
+ return id;
 }
