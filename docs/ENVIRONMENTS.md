@@ -2,7 +2,7 @@
 
 ## Current state
 
-GitHub `main` is the source for every environment. The production toolbar and split-pane release was first published as Sites version 49; its eight changed source/test files are now being reconciled into `main`. Local and staging must run that same application source. Environment-specific build configuration, Firebase accounts, database contents and attachment buckets remain separate.
+GitHub `main` is the source for every environment. Release `2026-10-31.1` aligns local, staging and production on the application changes through `3d332fe` (including Research removal). The previous production application matches GitHub commit `86ab010`; no production-only source changes need importing. `/release.json` identifies the release on each frontend. Sites uses a separate source-repository commit, whose application files must match GitHub byte for byte. Environment-specific build configuration, Firebase accounts, database contents and attachment buckets remain separate.
 
 Do not publish changes only from the Sites checkout. Implement and test in the development checkout, commit to GitHub, wait for the staging workflow to succeed, then publish those exact source files through Sites. Before publishing, compare all tracked application files against the selected GitHub commit; exclude only generated `dist/` output and the Sites hosting manifest. After any emergency production edit, reconcile it into GitHub and the local checkout immediately, then wait for staging deployment before declaring the release complete.
 
@@ -41,7 +41,7 @@ Do not enable GitHub auto-deployment to production yet. The existing Sites publi
 
 Record the exact tested commit SHA, make independent data backups, then build using `.env.production.example` copied to `.env.production.local` and `npm run build:production`. An environment value in `.env.local` overrides mode files, so remove conflicting local overrides first. CI/release jobs should use explicit environment variables. Preserve `remo-978fb`, the existing D1 ID and R2 bucket when migrating hosting.
 
-If deploying this repository's sync Worker, use `cloud/config.json` intentionally: it identifies the existing production resources and includes the new required environment variables. The currently deployed Worker does not change until such a deployment. Apply additive schema migrations before dependent application changes. Keep older clients compatible through the service-worker update window.
+If deploying this repository's sync Worker, use `cloud/config.json` intentionally: it identifies the existing production resources and includes the new required environment variables. The parity release applies additive book/Google Tasks tables and deploys the same tested backend bundle to both environments, preserving their existing D1/R2 bindings. Production enables book uploads and hourly cleanup. Google Tasks remains unavailable in production until its own OAuth client and encryption secrets are configured; staging credentials must not be reused. Apply additive schema migrations before dependent application changes. Keep older clients compatible through the service-worker update window.
 
 Publish the tested GitHub commit through the retained Sites workflow during transition, or later through a reviewed Cloudflare production workflow. Record a release tag and the frontend/backend versions. Do not assume a frontend rollback undoes database writes or migrations.
 
