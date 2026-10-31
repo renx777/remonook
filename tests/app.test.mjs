@@ -50,10 +50,12 @@ window.matchMedia = () => ({
 });
 globalThis.ResizeObserver = class {
   observe() {}
+  unobserve() {}
   disconnect() {}
 };
 globalThis.requestAnimationFrame = window.requestAnimationFrame.bind(window);
 globalThis.cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+HTMLElement.prototype.scrollIntoView=function(){};
 HTMLElement.prototype.scrollTo = function ({ top = 0 }) {
   this.scrollTop = top;
 };
@@ -351,12 +353,12 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   assert.equal(document.querySelector('.zoomed-title-input').value, 'Welcome to RemoNook');
 
   // Quick jump is keyboard-accessible and opens a selected result without editing it.
-  await act(async () => window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
-  assert.ok(document.querySelector('.jump-search'));
-  assert.ok(document.activeElement === document.querySelector('.jump-search'), 'Quick jump receives keyboard focus');
-  await click([...document.querySelectorAll('.jump-results button')].find(button => button.textContent.includes('Ideas')));
-  assert.equal(document.querySelector('.zoomed-title-input').value, 'Ideas');
-  assert.equal(document.querySelector('.jump-search'), null);
+  await act(async () => window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true })));
+  assert.ok(document.querySelector('[cmdk-input]'));
+  assert.ok(document.activeElement === document.querySelector('[cmdk-input]'), 'Quick jump receives keyboard focus');
+  await click([...document.querySelectorAll('[cmdk-item]')].find(button => button.textContent.includes('Ideas')));
+  await wait(()=>document.querySelector('.zoomed-title-input')?.value==='Ideas'&&!document.querySelector('[cmdk-input]'));
+  assert.equal(document.querySelector('[cmdk-input]'), null);
   await click([...document.querySelectorAll('.breadcrumbs button')].find(button => button.textContent.includes('My notes')));
 
   // Explicit questions, local images, and study sessions use the same saved workspace.
@@ -460,8 +462,8 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   assert.equal(document.querySelector('.study-session').getAttribute('aria-modal'), 'true');
   assert.equal(sidebar.inert, true, 'Background navigation is inaccessible in focus view');
   assert.ok(document.activeElement === document.querySelector('.study-dock-main button'), 'Primary study control receives focus');
-  await act(async () => document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
-  assert.equal(document.querySelector('.jump-search'), null, 'Background quick-jump stays inactive in immersive mode');
+  await act(async () => document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true })));
+  assert.equal(document.querySelector('[cmdk-input]'), null, 'Background quick-jump stays inactive in immersive mode');
   await act(async () => document.body.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
   assert.equal(fullscreenElement, null);
   assert.ok(!document.querySelector('.study-session').classList.contains('is-immersive'));

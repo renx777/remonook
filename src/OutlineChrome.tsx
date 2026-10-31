@@ -137,24 +137,3 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, disabled,
     </div>
   </div>;
 }
-
-export function JumpTo({ nodes, onChoose }: { nodes: Node[]; onChoose: (id: string) => void }) {
-  const [query, setQuery] = useState(""), [active, setActive] = useState(0),
-    idx = snapshotIndex(nodes),
-    matches = nodes.filter(node => node.text.trim() && node.text.toLowerCase().includes(query.toLowerCase())).slice(0, 40);
-  useEffect(() => { document.querySelector<HTMLInputElement>(".jump-search")?.focus(); }, []);
-  useEffect(() => { document.querySelector<HTMLElement>('.jump-results [aria-selected="true"]')?.scrollIntoView?.({ block: "nearest" }); }, [active]);
-  return <div className="jump-picker">
-    <div className="jump-search-wrap"><Icon name="search" /><input className="jump-search" data-autofocus aria-label="Jump to a note" placeholder="Find a page or bullet…" value={query} onChange={event => { setQuery(event.target.value); setActive(0); }} onKeyDown={event => {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        setActive(value => Math.max(0, Math.min(matches.length - 1, value + (event.key === "ArrowDown" ? 1 : -1))));
-      } else if (event.key === "Enter" && matches[active]) { event.preventDefault(); onChoose(matches[active].id); }
-    }} /></div>
-    <div className="jump-results" role="listbox" aria-label="Matching notes">
-      {matches.map((node, i) => <button key={node.id} role="option" aria-selected={i === active} className={i === active ? "jump-active" : ""} onClick={() => onChoose(node.id)}><Icon name="notes" size={16} /><span><strong>{node.text}</strong><small>{idx.byId.get(node.parentId)?.text || "Home"}</small></span><Icon name="chevron" size={13} /></button>)}
-      {!matches.length && <p className="jump-empty">No notes found. Try another search.</p>}
-    </div>
-    <div className="jump-hint">↑ ↓ to navigate <span>Enter to open</span></div>
-  </div>;
-}

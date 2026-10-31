@@ -1,3 +1,5 @@
+import {CommandPalette} from './CommandPalette';
+import {bindWorkspaceShortcuts,modLabel,shortcutAllowed} from './workspace-shortcuts';
 import {GuidedTours} from './GuidedTours';
 import {VisualToolsContext,VisualToolLoader,type DiagramTarget} from './VisualTools';
 import {saveDiagram} from './visual-notes.mjs';
@@ -80,7 +82,7 @@ import {
   storageAccountKey,
 } from "./data";
 import { OutlineView } from "./OutlineView";
-import { JumpTo, OutlinePopover, OutlineSidebar } from "./OutlineChrome";
+import { OutlinePopover, OutlineSidebar } from "./OutlineChrome";
 import { StudyDesk } from "./StudyDesk";
 import { imageType, mediaLink } from "./media.mjs";
 import { EmojiProvider } from './AnimatedEmoji';
@@ -145,6 +147,7 @@ function Dialog({
   return (
     <dialog
       ref={ref}
+      aria-label={title}
       className={className}
       onCancel={onClose}
       onClick={(e) => {
@@ -1270,45 +1273,16 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     return () => clearTimeout(t);
   }, [notice]);
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if(document.body.classList.contains("driver-active"))return;
-      if(e.target instanceof HTMLElement&&e.target.closest('.study-library-dialog[open],dialog[open]'))return;
-      if(!e.isComposing&&((e.altKey&&!e.ctrlKey&&!e.metaKey)||(/Mac/.test(navigator.platform)&&e.ctrlKey&&!e.metaKey&&!e.altKey))&&e.key.toLowerCase()==='r'){e.preventDefault();openPane();return;}
-      // Focus view owns its shortcuts; background dialogs/outline undo must stay inactive.
-      if (e.target instanceof HTMLElement && e.target.closest(".study-session.is-immersive")) {
-        if (!e.isComposing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-          e.preventDefault();
-          void flush();
-        }
-        return;
-      }
-      if (!e.isComposing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setMenu(null);
-        setViewMenu(false);
-        setDialog(value => value === "jump" ? null : "jump");
-        return;
-      }
-      if(!e.isComposing&&!dialog&&!menu&&(e.ctrlKey||e.metaKey)){
-        if(e.key.toLowerCase()==='s'){e.preventDefault();void flush();return;}
-        if(e.key==='\\'){e.preventDefault();toggleSidebar();return;}
-      }
-      if (
-        e.isComposing ||
-        dialog ||
-        menu ||
-        e.target instanceof HTMLInputElement ||
-        (e.target instanceof HTMLElement && !!e.target.closest('textarea,[contenteditable="true"]')) ||
-        e.target instanceof HTMLSelectElement
-      )
-        return;
-      if (!editing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        undo(e.shiftKey);
-      }
+    const unbind=bindWorkspaceShortcuts(window,{
+      command:()=>{setMenu(null);setViewMenu(false);setDialog(value=>value==='jump'?null:'jump');},
+      save:()=>void flush(),sidebar:toggleSidebar,pane:()=>openPane(),
+    });
+    const undoKey=(e:KeyboardEvent)=>{
+      if(!shortcutAllowed(e)||dialog||menu||editing||(e.target instanceof HTMLElement&&e.target.closest('input,textarea,select,[contenteditable="true"]')))return;
+      if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='z'){e.preventDefault();undo(e.shiftKey);}
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener('keydown',undoKey);
+    return()=>{unbind();window.removeEventListener('keydown',undoKey);};
   }, [editing, dialog, menu, doc, views.panes, views.activePane]);
   readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
   const readingSourceMap=React.useMemo(()=>doc?readingSources(doc):{},[doc?.web.readingHighlights,doc?.tables.media]);
@@ -1430,7 +1404,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="sidebarCollapse" />
             </button>
           </div>
-          <button className="sidebar-jump" onClick={() => setDialog("jump")}><Icon name="search" size={16} /><span>Jump to…</span><kbd>Ctrl K</kbd></button>
+          <button className="sidebar-jump" onClick={() => {setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="search" size={16} /><span>Commands & notes</span><kbd>{modLabel()} K</kbd></button>
           <nav aria-label="Main navigation">
             {[
               ["dashboard", "Dashboard", "dashboard"],
@@ -1577,6 +1551,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             >
               <Icon name="redo" />
             </button>
+            <button className="icon-button" aria-label="Commands & notes" title={`Commands & notes (${modLabel()} K)`} onClick={()=>{setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="commands" size={17}/></button>
             <button data-guide-help className="icon-button" aria-label="Show me how" title="Show me how" onClick={()=>{setViewMenu(false);setMenu(null);setDialog("help");}}><Icon name="help" size={17}/></button>
             <SaveIndicator device={status} cloud={{connected:!!cloudUser,status:cloud.status,error:cloud.error,conflict:cloud.conflict}} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
             {<button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
@@ -1986,9 +1961,16 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         const nextAssets=new Map(assetsRef.current);nextAssets.set(path,blob);pendingAssets.current.set(path,blob);assetsRef.current=nextAssets;setAssets(nextAssets);
         commit(withNodes(result.doc,result.doc.tables.bullets as Node[]));await flush();if(failed.current)throw Error('The capture is in your notes, but saving needs attention. Open Account settings to retry.');
       }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
-      {dialog === "jump" && <Dialog title="Jump to" onClose={() => setDialog(null)}><JumpTo nodes={nodes} onChoose={navigateTo} /></Dialog>}
+      {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
+        ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
+        {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
+        {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},
+        {id:'settings',label:'Open settings & backups',icon:'settings',run:()=>setDialog('settings')},
+        {id:'help',label:'Show me how',icon:'help',keywords:['tour','walkthrough','guide'],run:()=>setDialog('help')},
+        {id:'shortcuts',label:'Keyboard shortcuts',icon:'help',run:()=>setDialog('shortcuts')},
+      ]}/>}
       {dialog === "shortcuts" && <Dialog title="Keyboard shortcuts" onClose={() => setDialog(null)}><div className="shortcut-list">{[
-        ["Paste outline", "Ctrl + V · text, Markdown, OPML or formatted text"], ["Mask selected text", "Ctrl + Shift + M"], ["Command menu", "/ at start or after a space"], ["New pane", "Alt + R"], ["Open bullet in pane", "Alt + click bullet"], ["Link to a bullet", "[[ then search"], ["Mirror a bullet", "(( then search"], ["Code block", "Ctrl + Alt + C"], ["Numbered / bulleted list", "Ctrl + Shift + 7 / 8"], ["MCQ editor", "Ctrl + Alt + M"], ["Task", "Ctrl + Alt + T"], ["Plain bullet", "Ctrl + Alt + 0"], ["Exit code block", "Ctrl + Enter"], ["New bullet", "Enter"], ["New line", "Shift + Enter"], ["Animated emoji picker", ": then a name"], ["Indent / outdent", "Tab / Shift + Tab"], ["Complete / uncomplete", "Ctrl + Enter"], ["Expand / collapse", "Ctrl + Space"], ["Move branch up / down", "Ctrl + Shift + ↑ / ↓"], ["Zoom in / out", "Alt + → / ←"], ["Jump to a note", "Ctrl + K"], ["Toggle sidebar", "Ctrl + \\"], ["Undo / redo", "Ctrl + Z / Shift + Ctrl + Z"], ["Finish editing", "Escape"],
+        ["Paste outline", "Ctrl + V · text, Markdown, OPML or formatted text"], ["Mask selected text", "Ctrl + Shift + M"], ["Command menu", "/ at start or after a space"], ["New pane", "Alt + R"], ["Open bullet in pane", "Alt + click bullet"], ["Link to a bullet", "[[ then search"], ["Mirror a bullet", "(( then search"], ["Code block", "Ctrl + Alt + C"], ["Numbered / bulleted list", "Ctrl + Shift + 7 / 8"], ["MCQ editor", "Ctrl + Alt + M"], ["Task", "Ctrl + Alt + T"], ["Plain bullet", "Ctrl + Alt + 0"], ["Exit code block", "Ctrl + Enter"], ["New bullet", "Enter"], ["New line", "Shift + Enter"], ["Animated emoji picker", ": then a name"], ["Indent / outdent", "Tab / Shift + Tab"], ["Complete / uncomplete", "Ctrl + Enter"], ["Expand / collapse", "Ctrl + Space"], ["Move branch up / down", "Ctrl + Shift + ↑ / ↓"], ["Zoom in / out", "Alt + → / ←"], ["Commands & notes", "Ctrl + K"], ["Toggle sidebar", "Ctrl + \\"], ["Undo / redo", "Ctrl + Z / Shift + Ctrl + Z"], ["Finish editing", "Escape"],
       ].map(([label, keys]) => <div key={label}><span>{label}</span><kbd>{keys}</kbd></div>)}<p className="dialog-muted">On Mac, use ⌘ instead of Ctrl.</p></div></Dialog>}
       {dialog === "settings" && (
         <Dialog title="Settings" className="settings-dialog" onClose={() => setDialog(null)}>

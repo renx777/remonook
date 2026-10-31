@@ -29,6 +29,7 @@
     "@tiptap/pm": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
     "canvas-confetti": "^1.9.4",
+    "cmdk": "1.1.1",
     "diff": "8.0.2",
     "driver.js": "1.10.2",
     "fast-xml-parser": "5.11.2",
@@ -49,6 +50,7 @@
     "react-dom": "^19.0.0",
     "react-grid-layout": "2.3.0",
     "rough-notation": "0.5.1",
+    "tinykeys": "4.0.1",
     "yjs": "13.6.33"
   },
   "devDependencies": {
