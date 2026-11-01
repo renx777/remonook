@@ -9,3 +9,12 @@ export function SaveIndicator({device,cloud,onOpen,pending=false}:{device:string
 }
 
 export function DeviceSaveIndicator({signal,isPending,...props}:Omit<Parameters<typeof SaveIndicator>[0],'device'>&{signal:ReturnType<typeof createUiSignal<string>>;isPending?:()=>boolean}){const device=useSyncExternalStore(signal.subscribe,signal.get,signal.get);return <SaveIndicator device={device} pending={isPending?.()} {...props}/>;}
+
+export function CloudDeviceSaveIndicator({cloudSignal,connected,...props}:Omit<Parameters<typeof DeviceSaveIndicator>[0],'cloud'>&{cloudSignal:ReturnType<typeof createUiSignal<{status:string;error:string}>>;connected:boolean}){
+ const state=useSyncExternalStore(cloudSignal.subscribe,cloudSignal.get,cloudSignal.get);
+ return <DeviceSaveIndicator {...props} cloud={{...state,connected,conflict:false}}/>;
+}
+export function CloudAccountStatus({signal,error=false}:{signal:ReturnType<typeof createUiSignal<{status:string;error:string}>>;error?:boolean}){
+ const state=useSyncExternalStore(signal.subscribe,signal.get,signal.get);
+ return error?(state.error?<p className="cloud-error" role="status">{state.error}</p>:null):<span className="cloud-state">{state.status}</span>;
+}
