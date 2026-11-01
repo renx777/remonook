@@ -3,6 +3,8 @@ import {empty,withNodes,save,load,archive,parseArchive} from './.build/data.mjs'
 import {bullet} from '../src/domain.mjs';import {newStudySession,reviewCard} from '../src/study.mjs';import {readFsrs} from '../src/fsrs-scheduler.mjs';
 import {seed,sharedState,openShared,applyIntent,project,Y} from '../src/sync-crdt.mjs';
 const now=Date.UTC(2026,10,1,12);
+// Card creation and the historical review fixture must use the same clock.
+test.mock.method(Date,'now',()=>now);
 function initial(){let d=withNodes(empty(),[bullet('q',{kind:'QUESTION',text:'Q'}),bullet('a',{parentId:'q',text:'A'})]);Object.assign(d.preferences.study_preferences,{fsrsRetention:.93,fsrsMaximumInterval:1000});return d;}
 const review=(d,grade,at=now)=>reviewCard(d,{...newStudySession(d,null,'SPACED',at),revealed:1},grade,500,at);
 test('FSRS state, review snapshots and retention survive durable reload and a full archive round trip',async()=>{
