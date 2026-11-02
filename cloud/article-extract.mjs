@@ -1,0 +1,20 @@
+import {Readability} from '@mozilla/readability';
+import {DOMParser} from 'linkedom/worker';
+export function publicUrl(value){const u=new URL(value),h=u.hostname.toLowerCase().replace(/^\[|\]$/g,'');if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.port&&!['80','443'].includes(u.port)||!h.includes('.')||h.endsWith('.local')||h.endsWith('.internal')||h.endsWith('.localhost')||h==='localhost'||/^[\d.]+$/.test(h)||h.includes(':'))throw Error('Only public website addresses are supported.');u.hash='';return u;}
+export async function extractArticle(value,fetcher=fetch){
+ let url=publicUrl(value),response;const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+ try{
+  for(let i=0;i<5;i++){response=await fetcher(url.href,{redirect:'manual',signal:controller.signal,headers:{Accept:'text/html'}});if(response.status>=300&&response.status<400){const target=response.headers.get('location');await response.body?.cancel();if(!target)throw Error('The page redirected without an address.');url=publicUrl(new URL(target,url).href);continue;}break;}
+  if(!response?.ok||!response.headers.get('content-type')?.includes('text/html'))throw Error('Reader unavailable for this page. Open the original or try again.');
+  const reader=response.body.getReader(),chunks=[];let size=0;try{while(true){const{done,value}=await reader.read();if(done)break;size+=value.length;if(size>5*1024*1024){await reader.cancel();throw Error('This page is too large for reader mode.');}chunks.push(value);}}finally{reader.releaseLock();}
+  const bytes=new Uint8Array(size);let at=0;for(const c of chunks){bytes.set(c,at);at+=c.length;}
+  const document=new DOMParser().parseFromString(new TextDecoder().decode(bytes),'text/html');
+  for(const element of document.querySelectorAll('script,style,iframe,object,embed,form,base,link,meta[http-equiv]'))element.remove();
+  for(const element of document.querySelectorAll('[href],[src]'))for(const attr of ['href','src'])if(element.hasAttribute(attr)){try{const target=publicUrl(new URL(element.getAttribute(attr),url).href);element.setAttribute(attr,target.href);}catch{element.removeAttribute(attr);}}
+  const article=new Readability(document,{charThreshold:100,maxElemsToParse:30000}).parse();if(!article?.textContent?.trim()||article.textContent.length<100)throw Error('No readable article found. Your bookmark is still saved.');
+  const clean=new DOMParser().parseFromString('<html><body>'+article.content+'</body></html>','text/html');let imageBytes=0;
+  const images=[...clean.querySelectorAll('img')];for(let index=0;index<images.length;index++){const img=images[index],src=img.getAttribute('src');img.removeAttribute('srcset');img.removeAttribute('src');if(index>=8||!src)continue;try{let imageUrl=publicUrl(src),image;for(let hop=0;hop<4;hop++){image=await fetcher(imageUrl.href,{redirect:'manual',signal:controller.signal});if(image.status>=300&&image.status<400){const location=image.headers.get('location');await image.body?.cancel();if(!location)break;imageUrl=publicUrl(new URL(location,imageUrl).href);continue;}break;}const mime=image.headers.get('content-type')?.split(';')[0];if(!image.ok||!['image/png','image/jpeg','image/webp','image/gif'].includes(mime)){await image.body?.cancel();continue;}const stream=image.body.getReader(),parts=[];let length=0;try{while(true){const item=await stream.read();if(item.done)break;length+=item.value.length;if(length>128*1024||imageBytes+length>512*1024){await stream.cancel();throw Error('Image too large');}parts.push(item.value);}}finally{stream.releaseLock();}let binary='';for(const part of parts)for(const byte of part)binary+=String.fromCharCode(byte);img.setAttribute('src','data:'+mime+';base64,'+btoa(binary));imageBytes+=length;}catch{/* Preserve image alt text when its private copy cannot be fetched. */}}
+  article.content=clean.body.innerHTML;
+  return{schema:1,url:url.href,title:(article.title||url.hostname).slice(0,1000),byline:article.byline||'',excerpt:(article.excerpt||'').slice(0,500),html:article.content,text:article.textContent,capturedAt:Date.now()};
+ }finally{clearTimeout(timeout);}
+}

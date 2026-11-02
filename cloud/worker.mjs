@@ -1,3 +1,5 @@
+import {bookmarksRoute} from './bookmarks.mjs';
+import {validateBookmarks} from '../src/bookmarks.mjs';
 import {validateReading} from '../src/reading.mjs';
 import {booksRoute,cleanupBooks} from './books.mjs';
 import {STORAGE_LIMIT,validateReadingBooks} from '../src/book-storage.mjs';
@@ -26,7 +28,7 @@ export async function verifyUser(token, project) {
 }
 export function validatePayload(value) {
   if(!value||!Number.isSafeInteger(value.baseRevision)||value.baseRevision<0||!value.doc?.tables||!value.doc?.columns||!value.doc?.preferences||!value.doc?.web||!Array.isArray(value.doc.tables.bullets)||!Array.isArray(value.assets))fail('Invalid workspace.',400);
-  validateReadingBooks(value.doc.web.readingBooks);validateReading(value.doc.web);
+  validateReadingBooks(value.doc.web.readingBooks);validateReading(value.doc.web);validateBookmarks(value.doc.web);
   if(value.assets.length>2000)fail('Too many attachments.',413);
   let total=0;const paths=new Set();for(const a of value.assets){if(typeof a.path!=='string'||!a.path||a.path.length>500||paths.has(a.path)||!/^[a-f0-9]{64}$/.test(a.hash)||!Number.isSafeInteger(a.size)||a.size<0||a.size>FILE_LIMIT||typeof a.type!=='string'||a.type.length>150)fail('Invalid attachment.',400);paths.add(a.path);total+=a.size;}
   if(total>ACCOUNT_LIMIT)fail('Attachments exceed 20 MiB.',413);
@@ -41,6 +43,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
   if(url.pathname==='/storage'||url.pathname==='/books'||url.pathname.startsWith('/books/'))return booksRoute(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/integrations/google-tasks/'))return googleTasksRoute(request,env,uid,{readLimited});
+  if(url.pathname==='/bookmarks/capture')return bookmarksRoute(request,env,uid,{readLimited});
   if(url.pathname==='/sync/v2')return syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT});
   if(url.pathname==='/workspace'){
     if(request.method==='GET'){

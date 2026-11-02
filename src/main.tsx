@@ -1,3 +1,4 @@
+import {Bookmarks} from './Bookmarks';
 import {createUiSignal} from './ui-signal';
 import {KeyboardShortcuts} from './KeyboardShortcuts';
 import {CommandPalette} from './CommandPalette';
@@ -199,6 +200,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [editing, setEditingState] = useState<string | null>(null),
     [caret, setCaret] = useState<number | null>(null),
     [tab, setTab] = useState("notes"),
+    [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string}|null>(null),
     [calendarDate, setCalendarDate] = useState(() => getLocalDateString()),
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
     [nodeDate,setNodeDate]=useState<{id:string;date:string}|null>(null),
@@ -1279,8 +1281,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     window.addEventListener('keydown',undoKey);
     return()=>{unbind();window.removeEventListener('keydown',undoKey);};
   }, [editing, dialog, menu, doc, views.panes, views.activePane, tab]);
-  readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
-  const readingSourceMap=React.useMemo(()=>doc?readingSources(doc):{},[doc?.web.readingHighlights,doc?.tables.media]);
+  readerOpenHandler.current=(hash,unit,id)=>{if(hash.startsWith("web:")){setBookmarkTarget({id:hash.slice(4),highlight:id});setTab("bookmarks");return;}void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
+  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{hash:"web:"+s.bookmarkId,unit:0,id:s.highlightId||"",label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
   const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader}),[readingSourceMap,openReader]);
   if (!doc)
     return (
@@ -1409,6 +1411,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               ["study", "Study Desk", "study"],
               ["bookshelf", "Bookshelf", "study"],
               ["mindmap", "Mindmap", "mindmap"],
+              ["bookmarks", "Bookmarks", "link"],
             ].map(([id, label, icon]) => (
               <button
                 key={id}
@@ -1652,6 +1655,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             const current=docRef.current!,id=crypto.randomUUID(),position=current.tables.bullets.filter(node=>!node.parentId).reduce((max,node)=>Math.max(max,node.position+1),0);
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
+        ) : tab === "bookmarks" ? (
+          <Bookmarks target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/>
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
@@ -1745,6 +1750,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             ["study", "Study Desk", "study"],
               ["bookshelf", "Bookshelf", "study"],
               ["mindmap", "Mindmap", "mindmap"],
+              ["bookmarks", "Bookmarks", "link"],
           ].map(([id, label, icon]) => (
             <button
               key={id}
@@ -1972,7 +1978,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         commit(withNodes(result.doc,result.doc.tables.bullets as Node[]));await flush();if(failed.current)throw Error('The capture is in your notes, but saving needs attention. Open Account settings to retry.');
       }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
-        ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
+        ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
         {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
         {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},
         {id:'settings',label:'Open settings & backups',icon:'settings',run:()=>setDialog('settings')},
