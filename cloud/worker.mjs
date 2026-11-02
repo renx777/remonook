@@ -1,3 +1,4 @@
+import {cleanupArticles} from './article-storage.mjs';
 import {bookmarksRoute} from './bookmarks.mjs';
 import {validateBookmarks} from '../src/bookmarks.mjs';
 import {validateReading} from '../src/reading.mjs';
@@ -37,13 +38,13 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID)) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,bookmarkReader:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
   const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
   if(url.pathname==='/storage'||url.pathname==='/books'||url.pathname.startsWith('/books/'))return booksRoute(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/integrations/google-tasks/'))return googleTasksRoute(request,env,uid,{readLimited});
-  if(url.pathname==='/bookmarks/capture')return bookmarksRoute(request,env,uid,{readLimited});
+  if(url.pathname.startsWith('/bookmarks/'))return bookmarksRoute(request,env,uid,{readLimited});
   if(url.pathname==='/sync/v2')return syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT});
   if(url.pathname==='/workspace'){
     if(request.method==='GET'){
@@ -77,7 +78,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
     if(request.method==='PUT'){
       const bytes=await readLimited(request,FILE_LIMIT);
       const actual=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');if(actual!==hash)fail('Attachment checksum mismatch.',400);
-      await env.DB.prepare('INSERT OR IGNORE INTO assets(uid,hash,size) SELECT ?,?,? WHERE (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?) + ? <= ? AND (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?) + (SELECT COALESCE(SUM(size),0) FROM books WHERE uid=? AND state!=\'deleted\') + ? <= ?').bind(uid,hash,bytes.length,uid,bytes.length,ACCOUNT_LIMIT,uid,uid,bytes.length,STORAGE_LIMIT).run();
+      await env.DB.prepare('INSERT OR IGNORE INTO assets(uid,hash,size) SELECT ?,?,? WHERE (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?) + ? <= ? AND (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?) + (SELECT COALESCE(SUM(size),0) FROM books WHERE uid=? AND state!=\'deleted\') + (SELECT COALESCE(SUM(size),0) FROM article_snapshots WHERE uid=? AND state!=\'deleted\') + ? <= ?').bind(uid,hash,bytes.length,uid,bytes.length,ACCOUNT_LIMIT,uid,uid,uid,bytes.length,STORAGE_LIMIT).run();
       const reserved=await env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(uid,hash).first();if(!reserved||reserved.size!==bytes.length)fail('Attachment storage is full (20 MiB), or combined book and attachment storage exceeds 100 MiB.',413);
       await env.FILES.put(key,bytes,{httpMetadata:{contentType:'application/octet-stream'}});
       return json({ok:true});
@@ -86,7 +87,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   fail('Not found.',404);
 }
 export default {
-  async scheduled(controller,env){await cleanupGoogleTasks(env);await cleanupBooks(env);},
+  async scheduled(controller,env){await cleanupGoogleTasks(env);await cleanupBooks(env);await cleanupArticles(env);},
   async fetch(request,env){
     const project=env.FIREBASE_PROJECT_ID,allowed=(env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);
     if(!project||project.startsWith('REPLACE_')||!allowed.length)return json({error:'Environment is not configured.'},503);

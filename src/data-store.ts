@@ -1,3 +1,4 @@
+import {cachedArticle,cacheArticle} from './article-cache.mjs';
 import {validateBookmarks} from './bookmarks.mjs';
 import {validateFsrs} from './fsrs-scheduler.mjs';
 import {validateReading} from './reading.mjs';
@@ -450,7 +451,7 @@ export function references(doc: Workspace) {
   return paths;
 }
 const safe = (p: string) =>
-  /^(media|emoji)\/[A-Za-z0-9._-]+$/.test(p) &&
+  (/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(p)||/^articles\/[a-f0-9]{64}\.json$/.test(p)) &&
   ![".", ".."].includes(p.split("/")[1]);
 export async function archive(
   doc: Workspace,
@@ -462,6 +463,9 @@ export async function archive(
     if (reasons.length)
       throw Error("Android export would lose data: " + reasons.join("; "));
   }
+  assets=new Map(assets);
+  if(!android)for(const bookmark of Object.values(doc.web.bookmarks||{}) as any[]){if(!bookmark.snapshotHash)continue;const path='articles/'+bookmark.snapshotHash+'.json';if(!assets.has(path)){const local=await cachedArticle(storageName,bookmark.snapshotHash);if(local)assets.set(path,local.blob);}}
+  const missingSnapshots=Object.values(doc.web.bookmarks||{}).filter((b:any)=>b.snapshotHash&&!assets.has('articles/'+b.snapshotHash+'.json')).map((b:any)=>b.id);
   const zip = new JSZip(),
     declared = [];
   let total = 0;
@@ -487,7 +491,7 @@ export async function archive(
     tables: tableManifest(doc),
     preferences: doc.preferences,
     assets: declared,
-    ...(!android ? { web: doc.web } : {}),
+    ...(!android ? { web: {...doc.web,bookmarkBackupMissing:missingSnapshots} } : {}),
   };
   const json = JSON.stringify(manifest);
   if (new TextEncoder().encode(json).length > 64 * 1024 * 1024)
@@ -710,6 +714,7 @@ export async function parseArchive(
   validateWorkdays(doc.web.workdays);
   for(const item of doc.tables.media)if(item.displayWidth!=null&&(!Number.isFinite(item.displayWidth)||item.displayWidth<15||item.displayWidth>100))throw Error("Invalid image display width");
   const warnings = androidBlockers(doc);
+  if(doc.web.bookmarkBackupMissing?.length)warnings.push("Some article snapshots were not cached on the exporting device. Their URLs and notes are included.");
   return { doc, assets, warnings };
 }
 export function download(blob: Blob, name: string) {

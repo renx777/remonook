@@ -1,17 +1,33 @@
-# Bookmarks implementation
+# Bookmarks — local and staging
 
-The Bookmarks tab saves public URLs, deduplicates fragments, filters by read/favourite/archive state, and opens saved reader snapshots. Article selections create linked quote bullets and optional child thoughts; notes can be edited beside the article. Citations reopen their source. Reader search, outline, appearance controls and screenshot selection/preview are included.
+Bookmarks saves public URLs and immutable article snapshots, with a searchable library, tags, read/favourite/archive filters, a reader, source-linked quote notes, editable side notes, article search/outline, reading position and screenshot crop/preview/save. Removing a library item keeps source-linked notes readable. Bookmarks and article libraries are distinct from Bookshelf.
 
-Capture uses Mozilla Readability with LinkeDOM in a service-bound Worker. The capture Worker has no storage bindings, no public workers.dev endpoint, and uses strictly-public fetch routing. Requests reject credentials, IP literals, local names and unsafe redirects, and have bounded HTML, image and time budgets. At most eight raster images are embedded within a 512 KiB aggregate budget. Client rendering uses DOMPurify. No page script executes. Unsupported pages remain usable bookmarks.
+## Capture and storage
 
-The authenticated sync Worker requires ARTICLE_CAPTURE and ARTICLE_RATE_LIMITER bindings. Without either, capture returns 503 while URL saving remains available. The rate limiter must be configured to 10 capture requests per 60 seconds per account. Deploy distinct capture services for staging and production; never copy account data between environments.
+The authenticated staging sync API exposes `POST /bookmarks/capture`, plus authenticated `GET`, `PUT` and `DELETE /bookmarks/snapshots/:sha256`. Capture requires `ARTICLE_CAPTURE` and `ARTICLE_RATE_LIMITER` bindings. The rate limiter allows 10 capture requests per 60 seconds per account. Invalid or unsupported pages remain saved links with Retry reader and Open original.
 
-Current storage integration reuses durable attachment blobs (`articles/<sha256>.json`), so snapshots participate in existing atomic persistence, backup/restore and cloud synchronization. Each snapshot is limited to 2 MiB and currently counts against the existing 20 MiB attachment allowance as well as the combined account allowance. This differs from the proposed dedicated 100 MiB on-demand snapshot store: that storage migration, lazy download and independent garbage collection are not implemented yet. Removed bookmark metadata and referenced notes are retained; captures do not silently discard notes or highlights.
+The capture Worker has no storage/secret bindings and no public workers.dev or preview endpoint. It uses strictly-public fetch routing, rejects IP literals/local destinations/URL credentials/unsafe redirects, does not execute page scripts, and bounds HTML, redirects, images and processing time. Readability + LinkeDOM extracts content. Up to eight raster images are privately embedded within a 512 KiB aggregate image budget. DOMPurify sanitizes browser output; remote image URLs are not loaded from saved content.
 
-Remaining release gates: dedicated snapshot storage, mobile screenshot adjustment handles, cross-browser capture validation, robust ambiguous-anchor recovery, bookmark-specific backend isolation/quota tests, extraction deployment and environment parity. The feature is not production-ready until those gates pass.
+Snapshots are private R2 objects with D1 ownership/quota/lifecycle records. The byte limit is 2 MiB per snapshot. Atomic reservations share the existing 100 MiB account allowance with books and attachments; snapshots do not consume the legacy 20 MiB attachment allowance. Failed or abandoned pending saves retain quota until scheduled cleanup deletes the object successfully. Ready snapshots referenced by bookmarks (including removed records) or source notes cannot be deleted through the snapshot endpoint. This deliberately favours retaining source material over aggressive garbage collection.
 
-## Verified implementation increment
+Article bodies do not enter note sync or its attachment manifest. Devices download snapshots only when opened and cache them in separate account-scoped IndexedDB stores with checksum validation. Cards distinguish Saved link, Download on open and Available offline. Full backups include locally cached snapshots and explicitly identify unavailable snapshots. Restore validates/imports cached bodies; signed-in restore uploads article bodies before publishing their references. A signed-in restore containing articles requires a connection; guest restore remains local.
 
-TypeScript passes and all 114 test files pass. Native Chromium verified guest URL saving, opening a seeded immutable snapshot, text selection, automatic linked note creation, screenshot preview encoding and saving a screenshot attachment. Extraction fixtures cover content parsing, absolute links, local-address rejection and unsafe redirects. Existing durable storage, sync and typing checks pass.
+Highlights store offsets, exact quote and surrounding context against an immutable snapshot. Offset recovery is preferred, context matching is used when needed, and ambiguous passages are not attached arbitrarily. Quotes and comments are committed alongside their source metadata. Ordinary note edits do not change original quotes. Reading sources distinguish books from webpages without changing PDF/EPUB formats.
 
-These checks do not constitute production capture activation or cross-browser/mobile sign-off. No production deployment was made for this increment.
+## Local cloud development
+
+`npm run dev:staging` serves the local app at `http://127.0.0.1:5173` using the public staging configuration. It uses staging accounts/storage, never production. The staging API allows that loopback origin and `http://localhost:5173`. Google popup sign-in also requires the selected loopback hostname in Firebase authorized domains. `npm run dev` retains device-only local development.
+
+## Staging rollout
+
+1. Apply `cloud/bookmark-snapshots.sql` to **remo-sync-staging** database `8343200b-cb13-4d6a-a165-d6881873e306` only.
+2. Deploy `remonook-article-capture-staging` from `cloud/article-capture-worker.mjs`; keep its public endpoint disabled.
+3. Deploy the sync backend with existing staging D1/R2, authentication and Google Tasks settings preserved, adding the capture service and rate-limit bindings from `cloud/config.staging.example.json`.
+4. Require `/health` to report `bookmarkReader:1` and `bookmarkCapture:true` before the staging frontend deploys.
+5. Build/test the exact feature commit and dispatch the Staging frontend workflow for `feature/bookmarks`. Production is not part of this rollout.
+
+## Verification
+
+Node tests cover URL deduplication, safe article extraction, redirect rejection, quote-note idempotence, private snapshots, account isolation, atomic combined quotas, failed-write cleanup, cache integrity, backups, source anchoring and ordinary editor/storage/sync regressions. See `qa/bookmarks/README.md` for a repeatable credential-free browser fixture using actual backend routes, synthetic content and a local test identity.
+
+Browser-engine checks are not physical-device certification. Live signed-in staging verification is separate and must not log credentials. Production publication remains a separate explicit action.

@@ -1,4 +1,5 @@
-import {Bookmarks} from './Bookmarks';
+import {cacheArticle,articleAccount} from './article-cache.mjs';
+import {uploadCachedArticles} from './article-api';
 import {createUiSignal} from './ui-signal';
 import {KeyboardShortcuts} from './KeyboardShortcuts';
 import {CommandPalette} from './CommandPalette';
@@ -113,6 +114,7 @@ import "./outline-chrome.css";
 import "./study.css";
 import "./mcq.css";
 import "./mobile.css";
+const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
 const Bookshelf = React.lazy(()=>import('./Bookshelf').then(module=>({default:module.Bookshelf})));
@@ -1185,6 +1187,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     try {
       await flush();
       if (failed.current) throw Error("Current changes could not be saved");
+      const restoredAssets=new Map(prepared.assets);
+      for(const [path,blob]of prepared.assets){const match=path.match(/^articles\/([a-f0-9]{64})\.json$/);if(match){await cacheArticle(articleAccount(cloudUser?.uid),match[1],blob,!!cloudUser);restoredAssets.delete(path);}}
+      if(cloudUser){if(!navigator.onLine)throw Error('Reconnect to restore saved webpages to your account. Your backup and current notes are unchanged.');await uploadCachedArticles(cloudUser,new Set(Object.values(prepared.doc.web.bookmarks||{}).map((b:any)=>b.snapshotHash).filter(Boolean) as string[]));}
       const restoredDoc = {
         ...prepared.doc,
         web: { ...prepared.doc.web, deviceId: persisted.current!.web.deviceId },
@@ -1193,15 +1198,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         persisted.current,
         restoredDoc,
         "restore",
-        prepared.assets,
+        restoredAssets,
         true,
       );
       persisted.current = next;
       docRef.current = next;
       dirty.current = false;
       setDoc(next);
-      setAssets(prepared.assets);
-      assetsRef.current = prepared.assets;
+      setAssets(restoredAssets);
+      assetsRef.current = restoredAssets;
       pendingAssets.current.clear();
       history.current = { undo: [], redo: [] };
       setScope(null);
@@ -1281,9 +1286,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     window.addEventListener('keydown',undoKey);
     return()=>{unbind();window.removeEventListener('keydown',undoKey);};
   }, [editing, dialog, menu, doc, views.panes, views.activePane, tab]);
-  readerOpenHandler.current=(hash,unit,id)=>{if(hash.startsWith("web:")){setBookmarkTarget({id:hash.slice(4),highlight:id});setTab("bookmarks");return;}void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
-  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{hash:"web:"+s.bookmarkId,unit:0,id:s.highlightId||"",label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
-  const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader}),[readingSourceMap,openReader]);
+  readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
+  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
+  const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader,openWeb:(id:string,highlight:string)=>{setBookmarkTarget({id,highlight});setTab("bookmarks");}}),[readingSourceMap,openReader]);
   if (!doc)
     return (
       <div className="startup">
@@ -1656,7 +1661,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
         ) : tab === "bookmarks" ? (
-          <Bookmarks target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/>
+          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onText={(id,text)=>changeEditorContent(id,{text,formatting:""})} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
