@@ -49,9 +49,15 @@ test('mindmap converts branches, renders a read-only tree, navigates back to not
     assert.equal(document.querySelectorAll('.mind-node').length, 3, 'tree renders root plus children');
     assert.equal(document.querySelector('.mindmap-root-label span').textContent, 'Plan');
     assert.equal(navButton('Mindmap').getAttribute('aria-current'), 'page');
-    await click([...document.querySelectorAll('.mind-node')].find(n => n.textContent === 'Beta'));
+    const betaNode = [...document.querySelectorAll('.mind-node')].find(n => n.textContent === 'Beta');
+    await click(betaNode);
+    await wait(() => betaNode.classList.contains('is-selected'));
+    assert.ok(betaNode.classList.contains('is-selected'), 'clicking a node selects it in place');
+    assert.equal(document.querySelector('.zoomed-title'), null, 'clicking a node no longer navigates to Notes');
+    assert.equal(navButton('Mindmap').getAttribute('aria-current'), 'page');
+    await click(betaNode.querySelector('[aria-label="Open in Notes"]'));
     await wait(() => document.querySelector('.zoomed-title'));
-    assert.equal(document.querySelector('.zoomed-title').value, 'Beta', 'clicking a node opens its bullet in Notes');
+    assert.equal(document.querySelector('.zoomed-title').value, 'Beta', 'Open in Notes opens its bullet in Notes');
     assert.equal(navButton('Notes').getAttribute('aria-current'), 'page');
     await click(navButton('Mindmap')); await wait(() => document.querySelector('.mindmap-view'));
     assert.equal(document.querySelectorAll('.mind-node').length, 3, 'a child scope resolves to its mindmap root');
@@ -152,8 +158,11 @@ test('mindmap branches expand, collapse, rename, add and delete nodes', async ()
     assert.equal(doc.tables.bullets.some(n => n.id === 'b'), false, 'deleted branch is gone');
     assert.equal(doc.tables.bullets.some(n => n.text === 'Beta child'), false, 'descendants go with the deleted branch');
     await click('.react-flow__node[data-id="a"] .mind-node');
+    await wait(() => node('a').querySelector('.mind-node.is-selected'));
+    assert.equal(navButton('Mindmap').getAttribute('aria-current'), 'page', 'clicking selects the node without leaving the mindmap');
+    await click('.react-flow__node[data-id="a"] [aria-label="Open in Notes"]');
     await wait(() => document.querySelector('.zoomed-title'));
-    assert.equal(document.querySelector('.zoomed-title').value, 'Alpha', 'clicking a node still opens its bullet in Notes');
+    assert.equal(document.querySelector('.zoomed-title').value, 'Alpha', 'Open in Notes opens its bullet in Notes');
     assert.equal(navButton('Notes').getAttribute('aria-current'), 'page');
   } finally { if (app) await act(async () => app.appRoot.unmount()); dom.window.close(); }
 });

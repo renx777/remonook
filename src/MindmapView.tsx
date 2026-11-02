@@ -9,23 +9,22 @@ import {Icon} from './icons';
 import './mindmap.css';
 
 type MindData={
-  id:string;text:string;root:boolean;hasChildren:boolean;collapsed:boolean;hidden:number;editing:boolean;confirm:boolean;
-  onOpen:(id:string)=>void;onToggle:(id:string)=>void;onEditStart:(id:string)=>void;onEditCommit:(id:string,text:string)=>void;onEditCancel:()=>void;
+  id:string;text:string;root:boolean;hasChildren:boolean;collapsed:boolean;hidden:number;editing:boolean;confirm:boolean;selected:boolean;
+  onSelect:(id:string)=>void;onOpen:(id:string)=>void;onToggle:(id:string)=>void;onEditStart:(id:string)=>void;onEditCommit:(id:string,text:string)=>void;onEditCancel:()=>void;
   onAddChild:(id:string)=>void;onAddSibling:(id:string)=>void;onDeleteRequest:(id:string)=>void;onDeleteConfirm:(id:string)=>void;onDeleteCancel:()=>void;
 };
 const MindNode=({id,data}:{id:string;data:MindData})=>{
-  const openTimer=useRef(0),down=useRef({x:0,y:0});
-  const clearOpen=()=>window.clearTimeout(openTimer.current);
+  const down=useRef({x:0,y:0});
   return <div
-    className={`mind-node ${data.root?'is-root':''} ${data.collapsed&&data.hasChildren?'is-collapsed':''} ${data.confirm?'is-confirm':''}`}
+    className={`mind-node ${data.root?'is-root':''} ${data.collapsed&&data.hasChildren?'is-collapsed':''} ${data.confirm?'is-confirm':''} ${data.selected?'is-selected':''}`}
     title={data.text||'Untitled'}
     onPointerDown={e=>{down.current={x:e.clientX,y:e.clientY};}}
-    onClick={e=>{ if(data.confirm||data.editing)return; if(Math.abs(e.clientX-down.current.x)>5||Math.abs(e.clientY-down.current.y)>5)return; clearOpen(); openTimer.current=window.setTimeout(()=>data.onOpen(data.id),240); }}
-    onDoubleClick={()=>{ clearOpen(); if(!data.confirm)data.onEditStart(data.id); }}
+    onClick={e=>{ if(data.confirm||data.editing)return; if(Math.abs(e.clientX-down.current.x)>5||Math.abs(e.clientY-down.current.y)>5)return; data.onSelect(data.id); }}
+    onDoubleClick={()=>{ if(!data.confirm)data.onEditStart(data.id); }}
   >
     <Handle type="target" position={Position.Left}/>
     <div className="mind-node-main">
-      {data.hasChildren&&<button className="mind-toggle nodrag" aria-label={data.collapsed?'Expand branch':'Collapse branch'} title={data.collapsed?'Expand branch':'Collapse branch'} onClick={e=>{e.stopPropagation();clearOpen();data.onToggle(data.id);}}><Icon name="chevron" size={12}/>{data.collapsed&&data.hidden>0&&<span className="mind-hidden-count">{data.hidden}</span>}</button>}
+      {data.hasChildren&&<button className="mind-toggle nodrag" aria-label={data.collapsed?'Expand branch':'Collapse branch'} title={data.collapsed?'Expand branch':'Collapse branch'} onClick={e=>{e.stopPropagation();data.onToggle(data.id);}}><Icon name="chevron" size={12}/>{data.collapsed&&data.hidden>0&&<span className="mind-hidden-count">{data.hidden}</span>}</button>}
       {data.editing
         ? <input className="mind-input nodrag" autoFocus defaultValue={data.text} aria-label="Rename bullet"
             onClick={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()} onFocus={e=>e.currentTarget.select()}
@@ -37,13 +36,14 @@ const MindNode=({id,data}:{id:string;data:MindData})=>{
     {!data.editing&&<div className="mind-node-actions">
       {data.confirm?<>
         <span className="mind-confirm-text">Delete branch?</span>
-        <button className="mind-danger nodrag" title="Move branch to Trash" onClick={e=>{e.stopPropagation();clearOpen();data.onDeleteConfirm(data.id);}}><Icon name="trash" size={12}/></button>
-        <button className="nodrag" title="Cancel" onClick={e=>{e.stopPropagation();clearOpen();data.onDeleteCancel();}}><Icon name="close" size={12}/></button>
+        <button className="mind-danger nodrag" title="Move branch to Trash" onClick={e=>{e.stopPropagation();data.onDeleteConfirm(data.id);}}><Icon name="trash" size={12}/></button>
+        <button className="nodrag" title="Cancel" onClick={e=>{e.stopPropagation();data.onDeleteCancel();}}><Icon name="close" size={12}/></button>
       </>:<>
-        <button className="nodrag" title="Add child" aria-label="Add child" onClick={e=>{e.stopPropagation();clearOpen();data.onAddChild(data.id);}}><Icon name="plus" size={12}/></button>
-        <button className="nodrag" title="Add sibling below" aria-label="Add sibling below" onClick={e=>{e.stopPropagation();clearOpen();data.onAddSibling(data.id);}}><Icon name="down" size={12}/></button>
-        <button className="nodrag" title="Rename" aria-label="Rename" onClick={e=>{e.stopPropagation();clearOpen();data.onEditStart(data.id);}}><Icon name="edit" size={12}/></button>
-        <button className="nodrag" title="Delete branch" aria-label="Delete branch" onClick={e=>{e.stopPropagation();clearOpen();data.onDeleteRequest(data.id);}}><Icon name="trash" size={12}/></button>
+        <button className="nodrag" title="Open in Notes" aria-label="Open in Notes" onClick={e=>{e.stopPropagation();data.onOpen(data.id);}}><Icon name="notes" size={12}/></button>
+        <button className="nodrag" title="Add child" aria-label="Add child" onClick={e=>{e.stopPropagation();data.onAddChild(data.id);}}><Icon name="plus" size={12}/></button>
+        <button className="nodrag" title="Add sibling below" aria-label="Add sibling below" onClick={e=>{e.stopPropagation();data.onAddSibling(data.id);}}><Icon name="down" size={12}/></button>
+        <button className="nodrag" title="Rename" aria-label="Rename" onClick={e=>{e.stopPropagation();data.onEditStart(data.id);}}><Icon name="edit" size={12}/></button>
+        <button className="nodrag" title="Delete branch" aria-label="Delete branch" onClick={e=>{e.stopPropagation();data.onDeleteRequest(data.id);}}><Icon name="trash" size={12}/></button>
       </>}
     </div>}
     <Handle type="source" position={Position.Right}/>
@@ -68,6 +68,7 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
  const root=resolveRoot(nodes,scope);
  const [editingId,setEditingId]=useState<string|null>(null);
  const [confirmId,setConfirmId]=useState<string|null>(null);
+ const [selectedId,setSelectedId]=useState<string|null>(null);
  const rf=useRef<{fitView:(options:object)=>void}|null>(null);
  const {byId,children}=useMemo(()=>index(nodes),[nodes]);
  const scopePath=useMemo(()=>{const path=new Set<string>();let cur=scope?byId.get(scope):undefined;while(cur&&cur.id!==root?.id){path.add(cur.id);cur=cur.parentId?byId.get(cur.parentId):undefined;}return path;},[byId,scope,root]);
@@ -77,7 +78,8 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
  const addChild=(parentId:string)=>{ if(disabled)return; const newId=crypto.randomUUID(); onAddChild(parentId,newId); setEditingId(newId); };
  const addSibling=(id:string)=>{ if(disabled)return; const newId=crypto.randomUUID(); onAddSibling(id,newId); setEditingId(newId); };
  const confirmDelete=(id:string)=>{ setConfirmId(null); onDelete(id); };
- useEffect(()=>{ if(!confirmId)return; const h=(e:KeyboardEvent)=>{ if(e.key==='Escape')setConfirmId(null); }; window.addEventListener('keydown',h); return ()=>window.removeEventListener('keydown',h); },[confirmId]);
+ useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if(e.key!=='Escape')return; setConfirmId(null); setSelectedId(null); }; window.addEventListener('keydown',h); return ()=>window.removeEventListener('keydown',h); },[]);
+ useEffect(()=>{ if(selectedId&&!byId.has(selectedId))setSelectedId(null); },[byId,selectedId]);
  const model=useMemo(()=>{ if(!root)return null;
   const counts=new Map<string,number>();
   const count=(id:string):number=>{ const cached=counts.get(id); if(cached!==undefined)return cached; const total=((children.get(id)||[]) as Node[]).reduce((sum,c)=>sum+1+count(c.id),0); counts.set(id,total); return total; };
@@ -89,13 +91,13 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
     const n=nodes.find(x=>x.id===d.data.id) as Node,kids=children.get(n.id)||[];
     return {id:d.data.id,position:{x:d.y,y:d.x},type:'mind',data:{
       id:n.id,text:displayText(n.text),root:n.id===root.id,hasChildren:kids.length>0,collapsed:!!n.collapsed,hidden:counts.get(n.id)||0,
-      editing:editingId===n.id,confirm:confirmId===n.id,
-      onOpen,onToggle:onToggleCollapse,onEditStart:startEdit,onEditCommit:commitEdit,onEditCancel:cancelEdit,
+      editing:editingId===n.id,confirm:confirmId===n.id,selected:selectedId===n.id,
+      onSelect:setSelectedId,onOpen,onToggle:onToggleCollapse,onEditStart:startEdit,onEditCommit:commitEdit,onEditCancel:cancelEdit,
       onAddChild:addChild,onAddSibling:addSibling,onDeleteRequest:setConfirmId,onDeleteConfirm:confirmDelete,onDeleteCancel:()=>setConfirmId(null)}};
   });
   const flowEdges:Edge[]=layout.links().map(l=>({id:`e-${l.source.data.id}-${l.target.data.id}`,source:l.source.data.id,target:l.target.data.id,style:{stroke:'var(--muted)',strokeWidth:1.4}}));
   return {flowNodes,flowEdges};
- },[nodes,root,children,scopePath,editingId,confirmId,disabled,onOpen,onToggleCollapse,onRename,onDelete]);
+ },[nodes,root,children,scopePath,editingId,confirmId,selectedId,disabled,onOpen,onToggleCollapse,onRename,onDelete]);
  const [rfNodes,setRfNodes,onNodesChange]=useNodesState<FlowNode<MindData>>(model?.flowNodes??[]);
  useEffect(()=>{ if(model)setRfNodes(model.flowNodes); },[model,setRfNodes]);
  const onNodeDragStop=(_:unknown,node:FlowNode<MindData>,all:FlowNode<MindData>[])=>{
@@ -109,7 +111,7 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
  };
  if(!root)return <section className="mindmap-empty"><div><Icon name="mindmap" size={36}/><h2>{scope?'No mindmap for this branch':'Mindmap'}</h2><p>{scope?'Convert this branch into a mindmap, or open a branch that already has one.':'Zoom into a branch in Notes, then choose Mindmap from its bullet actions (or type / and pick Mindmap) to convert it.'}</p>{scope&&<button className="primary" onClick={()=>onConvert(scope)}><Icon name="mindmap" size={16}/>Convert this branch to a mindmap</button>}<button className="ghost" onClick={onNotes}>Back to notes</button></div></section>;
  return <div className="mindmap-view" aria-label="Mindmap">
-  <ReactFlow key={root.id} nodes={rfNodes} edges={model!.flowEdges} onNodesChange={onNodesChange} nodeTypes={{mind:MindNode}} fitView fitViewOptions={{padding:0.15}} minZoom={0.15} maxZoom={2.5} nodesDraggable={!disabled} nodesConnectable={false} elementsSelectable={false} zoomOnDoubleClick={false} zoomOnScroll panOnScroll={false} panOnDrag nodeDragThreshold={5} onNodeDragStop={onNodeDragStop} onInit={instance=>{rf.current=instance;}} proOptions={{hideAttribution:true}}>
+  <ReactFlow key={root.id} nodes={rfNodes} edges={model!.flowEdges} onNodesChange={onNodesChange} nodeTypes={{mind:MindNode}} fitView fitViewOptions={{padding:0.15}} minZoom={0.15} maxZoom={2.5} nodesDraggable={!disabled} nodesConnectable={false} elementsSelectable={false} zoomOnDoubleClick={false} zoomOnScroll panOnScroll={false} panOnDrag nodeDragThreshold={5} onNodeDragStop={onNodeDragStop} onPaneClick={()=>setSelectedId(null)} onInit={instance=>{rf.current=instance;}} proOptions={{hideAttribution:true}}>
    <Background variant={BackgroundVariant.Dots} gap={24} size={1.1} color="var(--line)"/>
    <MiniMap pannable zoomable nodeColor="var(--accent)" nodeStrokeColor="var(--line)" maskColor="rgb(0 0 0 / 0.12)"/>
    <Controls/>

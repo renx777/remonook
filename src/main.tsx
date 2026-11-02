@@ -28,6 +28,7 @@ import {TableContext} from './NoteTable';
 import {tableText} from './table.mjs';
 import {SearchBox,SearchContext} from "./SearchBox";
 import {useWorkspacePanes,PaneDivider} from "./WorkspacePanes";
+import {PaneSearchBar} from "./PaneSearchBar";
 import {ConnectionContext,ConnectionChooser,ConnectionPanel} from "./Connections";
 import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
@@ -1583,6 +1584,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
             <div className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
             {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
+            {views.panes.length>1&&<div className="pane-bar">
+             <PaneSearchBar value={pane.search} onChange={q=>views.update(pane.id,{search:q})} label={`Search pane ${i+1}`} onFocus={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}/>
+             <button className="icon-button pane-close" aria-label={`Close pane ${i+1}`} title="Close pane" onClick={()=>views.close(pane.id)}><Icon name="close" size={14}/></button>
+            </div>}
             <OutlineView
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
               scope={pane.global&&pane.search?null:pane.scope}

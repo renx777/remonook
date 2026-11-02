@@ -25,6 +25,11 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 5;
 }
+.mind-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent), 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 6;
+}
 .mind-node.is-root {
   border-color: var(--accent);
   border-width: 1.5px;
@@ -100,7 +105,8 @@
 }
 .mind-node:hover .mind-node-actions,
 .mind-node:focus-within .mind-node-actions,
-.mind-node.is-confirm .mind-node-actions {
+.mind-node.is-confirm .mind-node-actions,
+.mind-node.is-selected .mind-node-actions {
   opacity: 1;
   pointer-events: auto;
 }

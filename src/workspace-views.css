@@ -14,6 +14,15 @@
 .notes-panes { display:flex;flex:1;min-height:0;min-width:0;overflow-x:auto;overflow-y:hidden;align-items:stretch; }
 .note-pane { display:flex;flex-direction:column;min-width:320px;min-height:0;position:relative;flex-shrink:0; }
 .notes-panes.is-single .note-pane { flex:1!important;min-width:0; }
+.pane-bar { display:flex;align-items:center;gap:6px;padding:8px 10px 0 10px;flex:0 0 auto; }
+.pane-search { position:relative;flex:1;display:flex;align-items:center;gap:6px;min-width:0;height:28px;padding:0 8px;border:1px solid var(--line);border-radius:14px;background:var(--bg);color:var(--muted); }
+.pane-search:focus-within { border-color:var(--accent);color:var(--accent); }
+.pane-search input { flex:1;min-width:0;border:0;background:transparent;color:var(--text);font:inherit;font-size:12px;outline:0;padding:0; }
+.pane-search input::placeholder { color:var(--muted);opacity:.8; }
+.pane-search-clear { position:absolute;right:4px;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center; }
+.pane-search-clear:hover { color:var(--text);background:var(--hover); }
+.pane-search.has-query input { padding-right:18px; }
+.pane-close { width:26px;height:26px;padding:0;flex:0 0 auto;border-radius:8px; }
 .note-pane .outline-scroll { min-width:0; }
 .note-pane:not(.is-active) .outline-scroll { opacity:.8; }
 .note-pane:not(.is-active):hover .outline-scroll,.note-pane:not(.is-active):focus-within .outline-scroll { opacity:1; }
