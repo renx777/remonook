@@ -31,12 +31,14 @@ test('list styles and bullet types apply atomically to selected branches through
   await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="a"]'));
   await click('[data-node-id="a"] .text-button',{ctrlKey:true});
   await click('[data-node-id="b"] .text-button',{ctrlKey:true});
-  await choose('[aria-label="Selected list style"]','ORDERED');
+  await click('[aria-label="Numbered list"]');
+  assert.equal(document.querySelector('[aria-label="Numbered list"]').getAttribute('aria-pressed'),'true','Segmented control reports the applied style');
   assert.deepEqual(types(await stored()),{a:'ORDERED',child:'ORDERED',b:'ORDERED',c:'NONE'});
   await click('[data-node-id="b"] .row-hover-more');await click('[data-category="0"]');
   await choose('[aria-label="List style"]','UNORDERED');
   assert.ok(document.querySelector('.is-multi-selected'),'Menu interaction preserves the selection');
   assert.deepEqual(types(await stored()),{a:'UNORDERED',child:'UNORDERED',b:'UNORDERED',c:'NONE'});
+  assert.equal(document.querySelector('[aria-label="Bulleted list"]').getAttribute('aria-pressed'),'true');
   await choose('[aria-label="Bullet type"]','QUESTION');
   const questionDoc=await stored();
   assert.ok(questionDoc.tables.bullets.filter(n=>n.id!=='c').every(n=>n.kind==='QUESTION'));
@@ -60,6 +62,8 @@ test('list styles and bullet types apply atomically to selected branches through
   await click('[data-node-id="c"] .text-button',{ctrlKey:true});
   await click('[data-node-id="a"] .row-hover-more');await click('[data-category="0"]');
   assert.equal(document.querySelector('[aria-label="List style"]').value,'','Mixed selections do not falsely report the first bullet’s style');
+  assert.equal(document.querySelector('[aria-label="Numbered list"]').getAttribute('aria-pressed'),'false');
+  assert.equal(document.querySelector('[aria-label="Bulleted list"]').getAttribute('aria-pressed'),'false');
   await choose('[aria-label="List style"]','UNORDERED');
   assert.deepEqual(types(await stored()),{a:'UNORDERED',child:'UNORDERED',b:'UNORDERED',c:'UNORDERED'});
  }finally{if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}

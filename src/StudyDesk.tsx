@@ -5,10 +5,14 @@ import {occlusionDefinition} from "./occlusion.mjs";
 import {OcclusionStudyImage} from "./ImageTools";
 import {OcclusionEditor} from "./OcclusionEditor";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { Workspace, RecordData, Node } from "./data";
-import { flashcardSources, index, rows } from "./domain.mjs";
+import type { Editor } from "@tiptap/core";
+import { withNodes, type Workspace, type RecordData, type Node } from "./data";
+import { flashcardSources, index, rows, bullet, move } from "./domain.mjs";
+import type { ClipboardInput } from "./clipboard";
+import { readerSelection } from "./outline-selection";
+import { SelectionFormatting } from "./SelectionFormatting";
 import { availableCard, createStudyContext, deckTopics, dueCards, intervalLabel, navigateStudyCard, newStudySession, reviewCard, saveSession, scopedCards, separateFlashcardSession, sessionQueue, studyFrontier, STUDY_SESSION, tomorrow } from "./study.mjs";
-import { RichRead } from "./editor";
+import { BulletEditor, RichRead } from "./editor";
 import { MediaContent } from "./MediaContent";
 import { Icon } from "./icons";
 import {StudyEmptyArtwork} from './StudyEmptyArtwork';
@@ -39,7 +43,10 @@ type Props = {
 export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, onSaveFolder, onSource, onSaveDesign, onSaveReactions }: Props) {
   const [screen, setScreen] = useState<"library" | "topics" | "session">("library"),
     [topicDeck, setTopicDeck] = useState<string | null>(null),
-    [editingCard, setEditingCard] = useState(false), [editingAdd, setEditingAdd] = useState(false),
+    [editingCard, setEditingCard] = useState(false),
+    [editingNodeId, setEditingNodeId] = useState<string|null>(null),
+    [inlineCaret, setInlineCaret] = useState<{id:string;offset:number}|null>(null),
+    [inlineEditor, setInlineEditor] = useState<Editor|null>(null),
     [cardMenuOpen,setCardMenuOpen] = useState(false),
     [scheduleInfo,setScheduleInfo] = useState(false),
     [studyError,setStudyError] = useState(''),
@@ -95,7 +102,8 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   const storedAttempt = session ? mcqAttempt(doc, session) : null;
   const attempt = storedAttempt?.fingerprint === currentMcq?.fingerprint ? storedAttempt : null;
   const options = currentMcq?.valid ? orderedMcqOptions(currentMcq, `${session?.tag || "legacy"}:${currentId}`) : [];
-  const choiceLock = useRef(false);
+  const choiceLock = useRef(false), docRef = useRef(doc), inlineEditorRef = useRef<Editor | null>(null);
+  docRef.current = doc;
   const touchStart = useRef<{ id: number; x: number; y: number; time: number; scroll: number; cardId:string|null; revealed:boolean } | null>(null), navigationLock = useRef(false);
   useEffect(() => { navigationLock.current = false; }, [session?.cursor, session?.tag, session?.revealed]);
   useEffect(() => { choiceLock.current = false; }, [currentId, session?.tag, currentMcq?.fingerprint]);
@@ -115,7 +123,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   useEntranceMotion(rootRef, `${session?.tag}:${session?.cursor}:${session?.revealed}`, {
     selector: ".flashcard-answer", kind: "reveal", active: screen === "session" && !!session?.revealed && !currentMcq && !editingCard,
   });
-  useEffect(()=>{setCardMenuOpen(false);setScheduleInfo(false);touchStart.current=null;setRevealedBullets(bulletRevealMode === 'all' ? 9999 : 1);},[currentId,screen,session?.cursor,session?.tag]);
+  useEffect(()=>{setCardMenuOpen(false);setScheduleInfo(false);touchStart.current=null;setRevealedBullets(bulletRevealMode === 'all' ? 9999 : 1);setEditingCard(false);setEditingNodeId(null);setInlineCaret(null);setInlineEditor(null);inlineEditorRef.current=null;},[currentId,screen,session?.cursor,session?.tag]);
   const showLibrary = () => { exitImmersive(); setScreen("library"); };
   const resizeCard = (value: number) => {
     const next = Math.max(70, Math.min(150, value)); setCardZoom(next);
@@ -283,7 +291,136 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   const all = [...scopedCards(doc, null, clock, studyContext), ...scopedCards(doc, ALL_MCQS, clock, studyContext)], due = [...dueCards(doc, null, clock, studyContext), ...dueCards(doc, ALL_MCQS, clock, studyContext)],
     today = new Date(clock).toDateString(),
     todayCount = doc.tables.review_logs.filter(log => new Date(log.reviewedAtEpochMillis).toDateString() === today).length;
-  const content = (node: Node) => <><RichRead node={node} /><MediaContent nodeId={node.id} text={node.text} media={doc.tables.media} assets={assets} /></>;
+  const inlineEligible = isFlashcard && !!source,
+    inlineEditing = editingCard && inlineEligible,
+    answerRows = source?.answerRows || [],
+    visibleAnswerRows = inlineEditing ? answerRows : hasStepBullets ? answerRows.slice(0, revealedBullets) : answerRows;
+  const endInlineEditing = () => {
+    setEditingCard(false);
+    setEditingNodeId(null);
+    setInlineCaret(null);
+    setInlineEditor(null);
+    inlineEditorRef.current = null;
+  };
+  const revealForEdit = () => {
+    if (session && !session.revealed) reveal(true);
+  };
+  const enterInlineEditing = () => {
+    if (disabled) return;
+    revealForEdit();
+    setEditingCard(true);
+    setEditingNodeId(null);
+    setInlineCaret(null);
+  };
+  const toggleCardEditing = () => {
+    if (inlineEditing) { endInlineEditing(); return; }
+    if (inlineEligible) { enterInlineEditing(); return; }
+    setEditingCard(true);
+  };
+  const updateInlineNode = (id: string, value: { text: string; formatting: string }) => {
+    const current = docRef.current,
+      target = current.tables.bullets.find(node => node.id === id)?.mirrorSourceId || id,
+      next = withNodes(current, current.tables.bullets.map(node => node.id === target ? { ...node, text: value.text, formatting: value.formatting } : node) as Node[]);
+    docRef.current = next;
+    onChange(next);
+  };
+  const handleInlineReady = (editor: Editor | null) => {
+    inlineEditorRef.current = editor;
+    setInlineEditor(editor);
+  };
+  const activateInlineRowAtEnd = (nodeId: string) => {
+    if (disabled) return;
+    const node = index(docRef.current.tables.bullets).byId.get(nodeId) as Node | undefined;
+    if (!node) return;
+    setEditingNodeId(nodeId);
+    setInlineCaret({ id: nodeId, offset: node.text.length });
+    setInlineEditor(null);
+  };
+  const activateInlineRow = (nodeId: string, element: HTMLElement, event: React.MouseEvent) => {
+    if (disabled) return;
+    const node = index(docRef.current.tables.bullets).byId.get(nodeId) as Node | undefined;
+    if (!node) return;
+    const { anchor } = readerSelection(element, event.clientX, event.clientY, node.text.length);
+    setEditingNodeId(nodeId);
+    setInlineCaret({ id: nodeId, offset: anchor });
+    setInlineEditor(null);
+  };
+  const addAnswerBullet = (after?: Node | null) => {
+    if (disabled || !source) return;
+    revealForEdit();
+    const current = docRef.current,
+      parentId = after ? after.parentId : source.node.id;
+    if (!parentId) return;
+    const siblings = index(current.tables.bullets).children.get(parentId) || [],
+      at = after ? siblings.findIndex((node: Node) => node.id === after.id) + 1 : siblings.length,
+      newId = crypto.randomUUID(),
+      next = withNodes(current, move([...current.tables.bullets, bullet(newId, { parentId })], newId, parentId, at < 0 ? siblings.length : at));
+    docRef.current = next;
+    onChange(next);
+    setEditingCard(true);
+    setEditingNodeId(newId);
+    setInlineCaret({ id: newId, offset: 0 });
+  };
+  const removeAnswerBullet = (id: string) => {
+    if (disabled || !source) return;
+    const current = docRef.current,
+      idx = index(current.tables.bullets),
+      questionId = (source.node as Node).mirrorSourceId || source.node.id,
+      targetId = (idx.byId.get(id) as Node | undefined)?.mirrorSourceId || id,
+      target = idx.byId.get(targetId) as Node | undefined;
+    if (!target || targetId === questionId) return;
+    const siblings = idx.children.get(target.parentId) || [],
+      at = siblings.findIndex((node: Node) => node.id === targetId),
+      children = idx.children.get(targetId) || [],
+      rowIds = answerRows.map((row: any) => row.node.id as string),
+      from = rowIds.indexOf(id),
+      neighbour = [...rowIds.slice(from >= 0 ? from + 1 : 0), ...(from > 0 ? rowIds.slice(0, from).reverse() : [])].find(candidate => candidate !== id);
+    let nodes = current.tables.bullets.filter(node => node.id !== targetId) as Node[];
+    for (const [offset, child] of children.entries()) nodes = move(nodes, child.id, target.parentId, at + offset);
+    const next = withNodes(current, nodes);
+    docRef.current = next;
+    onChange(next);
+    if (neighbour && next.tables.bullets.some((node: RecordData) => node.id === neighbour)) activateInlineRowAtEnd(neighbour);
+    else endInlineEditing();
+  };
+  const focusInlineRow = (direction: -1 | 1) => {
+    const ids = [source?.node.id, ...answerRows.map((row: any) => row.node.id)].filter(Boolean) as string[],
+      at = ids.indexOf(editingNodeId || ""),
+      nextId = ids[at + direction];
+    if (nextId) activateInlineRowAtEnd(nextId);
+  };
+  const runInlineCommand = (action: string, id: string, start: number) => {
+    if (action === "stop") { endInlineEditing(); return; }
+    if (action === "previous") { focusInlineRow(-1); return; }
+    if (action === "next") { focusInlineRow(1); return; }
+    if (action === "merge") {
+      const node = docRef.current.tables.bullets.find(item => item.id === id) as Node | undefined,
+        questionId = source ? (source.node as Node).mirrorSourceId || source.node.id : null;
+      if (!node || (node.mirrorSourceId || node.id) === questionId || node.text) return;
+      removeAnswerBullet(id);
+      return;
+    }
+    if (action !== "enter") return;
+    const node = docRef.current.tables.bullets.find(item => item.id === id) as Node | undefined;
+    if (!node) return;
+    if (start < node.text.length) { inlineEditorRef.current?.commands.setHardBreak(); return; }
+    addAnswerBullet(id === source?.node.id ? null : node);
+  };
+  const pasteInline = (_id: string, _start: number, _end: number, input: ClipboardInput) => {
+    const editor = inlineEditorRef.current,
+      lines = (typeof input === "string" ? input : input.text || "").replace(/\r\n?/g, "\n").split("\n");
+    if (!editor || !lines.some((line: string) => line.length)) return;
+    const nodes = lines.flatMap((line: string, i: number) => [
+      ...(i ? [{ type: "hardBreak" }] : []),
+      ...(line ? [{ type: "text", text: line }] : []),
+    ]);
+    editor.chain().focus().insertContent(nodes).run();
+  };
+  const inlineField = (node: Node, label: string) => inlineEditing
+    ? (editingNodeId === node.id
+      ? <div className="study-inline-editor-wrap"><BulletEditor node={node} caret={inlineCaret?.id === node.id ? inlineCaret.offset : null} onChange={updateInlineNode} onCommand={runInlineCommand} onOutlinePaste={pasteInline} onReady={handleInlineReady} disabled={disabled} study /></div>
+      : <div className="flashcard-edit-hit" role="button" tabIndex={disabled ? -1 : 0} aria-label={label} onClick={event => activateInlineRow(node.id, event.currentTarget, event)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activateInlineRowAtEnd(node.id); } }}>{node.text ? <RichRead node={node} /> : <span className="study-inline-placeholder">Click to edit</span>}</div>)
+    : <RichRead node={node} />;
 
   if (screen === "session" && session) {
     const done = session.cursor >= queue.length,
@@ -323,31 +460,38 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
       <progress className="study-progress" value={session.cursor} max={Math.max(1, queue.length)} />
       {done ? <div className="study-finished"><div className="study-success"><Icon name="check" size={30} /></div><h2>{queue.length ? "Session complete" : "You’re caught up"}</h2><p>{queue.length ? `You reviewed ${session.reviewed} cards.` : session.mode === "SPACED" ? "No cards are due within your daily limits right now." : "There are no available cards in this selection."}</p>{results.answered > 0 && <div className="mcq-score"><strong>{results.correct} / {results.answered}</strong><span>MCQs correct on the first attempt</span>{results.missedIds.length > 0 && <button disabled={disabled} onClick={practiceMissed}>Practice {results.missedIds.length} missed questions</button>}</div>}<p>{session.mode === "NORMAL" ? "Cram practice leaves your review schedule unchanged." : "Your next reviews have been saved. Learning cards return when due; start another review to continue."}</p>{nextLearning&&<p>Next learning review: {new Date(nextLearning.dueAtEpochMillis).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}. You can leave and return; your place is saved.</p>}</div> : !valid ? <div className="study-finished"><h2>This card is no longer available</h2><p>{currentMcq?.error || "Its source may have changed, or the card may be suspended or hidden."}</p></div> : <>
         <div className="study-question-layout">
-        <article className="flashcard" aria-label="Flashcard">
-{editingCard && !occlusion ? <StudyCardEditor key={card.id} doc={doc} id={card.id} disabled={disabled} startWithBullet={editingAdd} onSave={onChange} onClose={()=>{setEditingCard(false);setEditingAdd(false);shownAt.current=Date.now();}}/> : <>           <div className="flashcard-label"><span>QUESTION</span><div className="study-card-tools"><button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(false);setEditingCard(true);}}><Icon name="edit" size={13}/>Edit card</button>{source && !currentMcq && !occlusion && <button className="study-text-button" disabled={disabled} onClick={()=>{setEditingAdd(true);setEditingCard(true);}}><Icon name="plus" size={13}/>Add bullet</button>}{source && <button className="study-text-button" onClick={() => { exitImmersive(); onSource(card.id); }}><Icon name="link" size={13} />Open source</button>}            <div className="study-more-actions">
-              <ActionMenu open={cardMenuOpen} onOpenChange={setCardMenuOpen} trigger={<button className="study-text-button study-card-more" aria-label="Card actions" title="More card actions" disabled={disabled||done||!valid}><Icon name="more" size={18}/></button>}>
+        <article className="flashcard" aria-label="Flashcard" onKeyDown={event => {
+          if (!inlineEditing) return;
+          if (event.key === 'Escape') { event.preventDefault(); endInlineEditing(); return; }
+          if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) event.stopPropagation();
+        }}>
+{editingCard && !occlusion && !inlineEligible ? <StudyCardEditor key={card.id} doc={doc} id={card.id} disabled={disabled} onSave={onChange} onClose={()=>{setEditingCard(false);shownAt.current=Date.now();}}/> : <>           <div className="flashcard-label"><span>QUESTION</span><div className="study-card-tools"><button className="study-text-button" aria-pressed={inlineEditing} disabled={disabled} onClick={toggleCardEditing}><Icon name={inlineEditing?'check':'edit'} size={13}/>{inlineEditing?'Done editing':'Edit card'}</button>{inlineEligible && <button className="study-text-button" disabled={disabled} onClick={()=>addAnswerBullet(null)}><Icon name="plus" size={13}/>Add bullet</button>}{source && <button className="study-text-button" onClick={() => { endInlineEditing(); exitImmersive(); onSource(card.id); }}><Icon name="link" size={13} />Open source</button>}            <div className="study-more-actions">
+              <ActionMenu open={cardMenuOpen} onOpenChange={setCardMenuOpen} trigger={<button className="study-text-button study-card-more" aria-label="Card actions" title="More card actions" disabled={disabled||done||!valid||editingCard}><Icon name="more" size={18}/></button>}>
                 <div className="study-more-menu" aria-label="Card actions"><ActionMenuItem onClick={()=>{setCardMenuOpen(false);setScheduleInfo(true);}}>Review schedule</ActionMenuItem><ActionMenuItem onClick={()=>{setCardMenuOpen(false);pauseCard(false);}}>Hide until tomorrow</ActionMenuItem><ActionMenuItem onClick={()=>{setCardMenuOpen(false);pauseCard(true);}}>Suspend card</ActionMenuItem></div>
               </ActionMenu>
             </div></div></div>
-          <div className="flashcard-question">{occlusion ? <><RichRead node={source?.node as Node || idx.byId.get(card.id) as Node}/><OcclusionStudyImage definition={occlusion} blob={assets.get("media/"+occlusion.media.fileName)} revealed={!!session.revealed}/></> : source ? content(source.node as Node) : card.question}</div>
-          {currentMcq ? <MCQCard key={`${session.tag}:${card.id}:${currentMcq.fingerprint}`} definition={currentMcq} options={options} attempt={attempt} doc={doc} assets={assets} disabled={disabled} onChoose={choose} /> : !!session.revealed && <div className="flashcard-answer">
+          <div className={`flashcard-question ${inlineEditing && editingNodeId === source?.node.id ? 'is-inline-editing' : ''}`}>{occlusion ? <><RichRead node={source?.node as Node || idx.byId.get(card.id) as Node}/><OcclusionStudyImage definition={occlusion} blob={assets.get("media/"+occlusion.media.fileName)} revealed={!!session.revealed}/></> : source ? <>{inlineField(source.node as Node, 'Edit question')}<MediaContent nodeId={source.node.id} text={source.node.text} media={doc.tables.media} assets={assets} /></> : card.question}</div>
+          {currentMcq ? <MCQCard key={`${session.tag}:${card.id}:${currentMcq.fingerprint}`} definition={currentMcq} options={options} attempt={attempt} doc={doc} assets={assets} disabled={disabled} onChoose={choose} /> : (!!session.revealed || inlineEditing) && <div className="flashcard-answer">
             <div className="flashcard-label">
               <div className="flashcard-answer-heading">
                 <span>ANSWER</span>
               </div>
               <div className="study-card-tools">
-                {hasStepBullets && revealedBullets < totalBullets && <button type="button" className="study-text-button flashcard-show-all-btn" title="Show all bullets at once · A" disabled={disabled} onClick={() => showAllBullets()}>Show full bullets</button>}
-                {isFlashcard && totalBullets > 1 && <button type="button" className="study-text-button flashcard-toggle-reveal-mode" title={bulletRevealMode === 'step' ? "Currently showing 1 by 1. Click to show full bullets at once by default" : "Currently showing full bullets. Click to show bullets 1 by 1 by default"} disabled={disabled} onClick={() => toggleBulletRevealMode()}><Icon name="notes" size={13} />{bulletRevealMode === 'step' ? "1-by-1" : "Full bullets"}</button>}
+                {!inlineEditing && hasStepBullets && revealedBullets < totalBullets && <button type="button" className="study-text-button flashcard-show-all-btn" title="Show all bullets at once · A" disabled={disabled} onClick={() => showAllBullets()}>Show full bullets</button>}
+                {!inlineEditing && isFlashcard && totalBullets > 1 && <button type="button" className="study-text-button flashcard-toggle-reveal-mode" title={bulletRevealMode === 'step' ? "Currently showing 1 by 1. Click to show full bullets at once by default" : "Currently showing full bullets. Click to show bullets 1 by 1 by default"} disabled={disabled} onClick={() => toggleBulletRevealMode()}><Icon name="notes" size={13} />{bulletRevealMode === 'step' ? "1-by-1" : "Full bullets"}</button>}
               </div>
             </div>
-            {hasStepBullets && totalBullets > 1 && totalBullets <= 16 && (
+            {!inlineEditing && hasStepBullets && totalBullets > 1 && totalBullets <= 16 && (
               <div className="flashcard-bullet-dots" role="progressbar" aria-label="Answer reveal progress" aria-valuemin={0} aria-valuemax={totalBullets} aria-valuenow={Math.min(revealedBullets,totalBullets)}>
                 {Array.from({ length: totalBullets }).map((_, i) => (
                   <span key={i} aria-hidden="true" className={`bullet-dot ${i < revealedBullets ? 'is-revealed' : ''}`} />
                 ))}
               </div>
             )}
-            {occlusion ? <div className="flashcard-plain">{occlusion.masks.find((mask:any)=>mask.id===occlusion.maskId)?.label || "Look at the revealed region above."}</div> : source ? (hasStepBullets ? source.answerRows.slice(0, revealedBullets) : source.answerRows).map(({ node, depth, ordinal }: any, index: number) => <div key={node.id} className={`flashcard-answer-row ${node.taskState === "DONE" ? "answer-done" : ""} ${hasStepBullets && index === revealedBullets - 1 && revealedBullets > 1 ? "is-newly-revealed" : ""}`} style={{ paddingLeft: Math.min(depth, 10) * 20 }}><span className="answer-dot">{node.taskState === "DONE" ? "✓" : node.taskState === "TODO" ? "☐" : node.listType === "ORDERED" ? `${ordinal}.` : "•"}</span><div>{content(node)}</div></div>) : <div className="flashcard-plain">{hasStepBullets && card.answer ? card.answer.split('\n').slice(0, revealedBullets).join('\n') : card.answer}</div>}
+            {occlusion ? <div className="flashcard-plain">{occlusion.masks.find((mask:any)=>mask.id===occlusion.maskId)?.label || "Look at the revealed region above."}</div> : source ? visibleAnswerRows.map(({ node, depth, ordinal }: any, rowIndex: number) => {
+              const active = inlineEditing && editingNodeId === node.id;
+              return <div key={node.id} data-node-id={node.id} className={`flashcard-answer-row ${node.taskState === "DONE" ? "answer-done" : ""} ${hasStepBullets && rowIndex === revealedBullets - 1 && revealedBullets > 1 ? "is-newly-revealed" : ""} ${active ? "is-inline-editing" : ""}`} style={{ paddingLeft: Math.min(depth, 10) * 20 }}><span className="answer-dot">{node.taskState === "DONE" ? "✓" : node.taskState === "TODO" ? "☐" : node.listType === "ORDERED" ? `${ordinal}.` : "•"}</span><div>{inlineField(node, `Edit answer ${rowIndex + 1}`)}<MediaContent nodeId={node.id} text={node.text} media={doc.tables.media} assets={assets} /></div>{inlineEditing && <button type="button" className="study-row-remove" aria-label={`Remove answer ${rowIndex + 1}`} title="Remove this bullet · Backspace on an empty bullet" disabled={disabled} onClick={() => removeAnswerBullet(node.id)}><Icon name="trash" size={14} /></button>}</div>;
+            }) : <div className="flashcard-plain">{hasStepBullets && card.answer ? card.answer.split('\n').slice(0, revealedBullets).join('\n') : card.answer}</div>}
           </div>}
 </>}        </article>
         {currentMcq && attempt && <aside className={`study-reaction-rail ${attempt.correct ? "reaction-left" : "reaction-right"}`} aria-label={attempt.correct ? "Correct answer reaction" : "Wrong answer reaction"}><QuizFeedback key={`${session.tag}:${currentId}:${attempt.answeredAt}`} correct={attempt.correct} seed={attempt.answeredAt} doc={doc} assets={assets} /></aside>}
@@ -368,6 +512,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         </div>
       </footer>
       {editingCard && card && occlusion?.valid && <OcclusionEditor doc={doc} item={occlusion.media} assets={assets} groupId={occlusion.groupId} disabled={disabled} onSave={next=>onChange({...next,tables:{...next.tables,study_sessions:next.tables.study_sessions.map(s=>s.id===session.id?{...s,revealed:0}:s)}})} onClose={()=>{setEditingCard(false);shownAt.current=Date.now();}}/>}
+      {inlineEditing && <SelectionFormatting editor={inlineEditor} disabled={disabled} />}
 
     </section>;
   }

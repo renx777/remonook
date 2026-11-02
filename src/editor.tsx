@@ -345,6 +345,7 @@ function MountedBulletEditor({
   onImages,
   onReady,
   disabled,
+  study,
 }: {
   node: Node;
   caret: number | null;
@@ -356,6 +357,7 @@ function MountedBulletEditor({
   onImages?: (id: string, files: File[]) => void;
   onReady: (editor: Editor | null) => void;
   disabled: boolean;
+  study?: boolean;
 }) {
   const emojiLibrary=useEmojiLibrary(),emojiLibraryRef=useRef(emojiLibrary);emojiLibraryRef.current=emojiLibrary;
   const isDivider = node.blockStyle === 'divider';
@@ -384,7 +386,7 @@ function MountedBulletEditor({
           horizontalRule: false,
           strike: false,
           link: false,
-          undoRedo: false,
+          undoRedo: study ? {} : false,
         }),
         editorEmoji(()=>emojiLibraryRef.current,()=>callbacks.current.node.codeLanguage),
         codeHighlight(() => callbacks.current.node.codeLanguage),
@@ -469,8 +471,16 @@ function MountedBulletEditor({
           else if (
             (event.ctrlKey || event.metaKey) &&
             event.key.toLowerCase() === "z"
-          )
+          ) {
+            if (study) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (event.shiftKey) e.commands.redo();
+              else e.commands.undo();
+              return true;
+            }
             command = event.shiftKey ? "redo" : "undo";
+          }
           if (command) {
             event.preventDefault();
             callbacks.current.onCommand(command, node.id, start, end);
@@ -578,8 +588,8 @@ function MountedBulletEditor({
       ) : (
         <div key="text-editor" ref={host} className="bullet-editor" />
       )}
-      {emojiEditor && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':['pane','date','image','complete','countdown','table','gallery','music','divider','diagram','drawing'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
-      {emojiEditor && <InlineConnections editor={emojiEditor} nodeId={node.id} enabled={!disabled&&!node.codeLanguage&&!unsupportedFormatting(node)} keyHandler={connectionKeys}/>}
+      {emojiEditor && !study && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':['pane','date','image','complete','countdown','table','gallery','music','divider','diagram','drawing','mindmap'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
+      {emojiEditor && !study && <InlineConnections editor={emojiEditor} nodeId={node.id} enabled={!disabled&&!node.codeLanguage&&!unsupportedFormatting(node)} keyHandler={connectionKeys}/>}
       {emojiEditor && <InlineEmojiPicker editor={emojiEditor} nodeId={node.id} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node) && !/^(?:```|\$\$|\\\[)/.test(node.text)} keyHandler={emojiKeys} />}
       {!node.codeLanguage && notationParts(node.text).length > 0 && <div className="notation-preview"><small>Preview · edit source above</small><RichRead node={node} /></div>}
       {unsupportedFormatting(node) && (

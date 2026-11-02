@@ -11,13 +11,16 @@ export function shortcutAllowed(event: KeyboardEvent, command = false, saving = 
   if(!saving&&target?.closest('.study-session.is-immersive'))return false;
   return true;
 }
-export function bindWorkspaceShortcuts(target: Window, actions: {command:()=>void;save:()=>void;sidebar:()=>void;pane:()=>void}) {
+export function bindWorkspaceShortcuts(target: Window, actions: {command:()=>void;save:()=>void;sidebar:()=>void;pane:()=>void;panePrev:()=>void;paneNext:()=>void;paneClose:()=>void}) {
   const run=(action:()=>void,command=false,saving=false)=>(event:KeyboardEvent)=>{if(!shortcutAllowed(event,command,saving))return;event.preventDefault();action();};
   return tinykeys(target, {
     '$mod+k': run(actions.command,true),
     '$mod+s': run(actions.save,false,true),
     '$mod+Backslash': run(actions.sidebar),
     'Alt+r': run(actions.pane),
+    '$mod+Alt+ArrowLeft': run(actions.panePrev),
+    '$mod+Alt+ArrowRight': run(actions.paneNext),
+    'Alt+w': run(actions.paneClose),
     ...(/Mac|iPhone|iPad/.test(navigator.platform)?{'Control+r':run(actions.pane)}:{}),
   }, {ignore:event=>event.isComposing||event.repeat});
 }

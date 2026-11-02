@@ -1,0 +1,230 @@
+.mindmap-view {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+.mindmap-view .react-flow__pane { cursor: grab; }
+.mindmap-view .react-flow__pane:active { cursor: grabbing; }
+.mind-node {
+  position: relative;
+  max-width: 240px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mind-node:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 5;
+}
+.mind-node.is-root {
+  border-color: var(--accent);
+  border-width: 1.5px;
+  font-weight: 600;
+  padding: 8px 14px;
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.mind-node-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-width: 110px;
+}
+.mind-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.mind-toggle:hover { color: var(--fg); background: var(--bg); }
+.mind-toggle svg { transition: transform 0.15s ease; }
+.mind-node:not(.is-collapsed) .mind-toggle svg { transform: rotate(90deg); }
+.mind-hidden-count {
+  font-size: 10px;
+  line-height: 15px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+}
+.mind-label {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+.mind-input {
+  flex: 1;
+  min-width: 110px;
+  padding: 3px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  outline: none;
+}
+.mind-node-actions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.mind-node:hover .mind-node-actions,
+.mind-node:focus-within .mind-node-actions,
+.mind-node.is-confirm .mind-node-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.mind-node-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+}
+.mind-node-actions button:hover { color: var(--fg); border-color: var(--accent); }
+.mind-node-actions .mind-danger {
+  background: #cc4b4b;
+  border-color: transparent;
+  color: #fff;
+}
+.mind-confirm-text {
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.mind-node .react-flow__handle {
+  width: 6px;
+  height: 6px;
+  min-width: 6px;
+  min-height: 6px;
+  border: none;
+  background: var(--muted);
+}
+.mind-node.is-root .react-flow__handle { background: var(--accent); }
+.mindmap-view .react-flow__edge-path { stroke: var(--muted); }
+.mindmap-view .react-flow__controls {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: none;
+  overflow: hidden;
+}
+.mindmap-view .react-flow__controls-button {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+}
+.mindmap-view .react-flow__controls-button:hover { background: var(--bg); }
+.mindmap-view .react-flow__controls-button svg { fill: currentColor; }
+.mindmap-view .react-flow__minimap {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.mindmap-view .react-flow__minimap-mask { fill: color-mix(in srgb, var(--bg) 40%, transparent); }
+.mindmap-toolbar {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+.mindmap-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.mindmap-toolbar button:hover { background: var(--bg); color: var(--fg); }
+.mindmap-root-label {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 40%;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.mindmap-root-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mindmap-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: var(--bg);
+}
+.mindmap-empty > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 440px;
+  text-align: center;
+}
+.mindmap-empty h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.mindmap-empty p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.mindmap-empty .primary,
+.mindmap-empty .ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

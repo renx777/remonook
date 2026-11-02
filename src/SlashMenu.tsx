@@ -24,6 +24,7 @@ export const blockCommands = [
   {id:'date',label:'Add date',detail:'Attach a date to this bullet',keys:'',terms:'date calendar due deadline',icon:'calendar'},
   {id:'countdown',label:'Countdown',detail:'Track days left to an exam or target date',keys:'',terms:'countdown target exam days left',icon:'renewal'},
   {id:'pane',label:'Open in pane',detail:'Open a separate view of this bullet',keys:'Alt+click',terms:'pane split view window',icon:'pane'},
+  {id:'mindmap',label:'Mindmap',detail:'Turn this branch into a mindmap',keys:'',terms:'mindmap map diagram branch tree visual',icon:'mindmap'},
   {id:'question',label:'Flashcard question',detail:'Child bullets form the answer',keys:'',terms:'question flashcard answer',icon:'study'},
   {id:'mcq',label:'MCQ',detail:'Multiple choice question',keys:'Ctrl Alt M',terms:'mcq quiz multiple choice question',icon:'study'},
   {id:'link',label:'Link to a bullet',detail:'Create a backlink',keys:'[[',terms:'link backlink reference',icon:'link'},

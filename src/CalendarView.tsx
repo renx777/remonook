@@ -152,6 +152,7 @@ type CalendarViewProps = {
   onOpenDate: (date: string) => void;
   onEdit: (id: string | null) => void;
   onZoom: (id: string) => void;
+  onMindmap?: (id: string) => void;
   onToggle: (id: string) => void;
   onChange: (id: string, value: { text: string; formatting: string }) => void;
   onEditorChange?: (id: string, value: { text: string; formatting: string }) => void;
@@ -661,6 +662,7 @@ export function CalendarView(props: CalendarViewProps) {
             media={props.media}
             onEdit={props.onEdit}
             onZoom={props.onZoom}
+            onMindmap={props.onMindmap}
             onToggle={props.onToggle}
             onChange={props.onChange}
             onEditorChange={props.onEditorChange}

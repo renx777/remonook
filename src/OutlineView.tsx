@@ -40,6 +40,7 @@ type Props = {
   onEdit: (id: string | null) => void;
   onZoom: (id: string) => void;
   onOpenPane?: (id:string)=>void;
+  onMindmap?: (id: string) => void;
   onToggle: (id: string) => void;
   onChange: (id: string, value: { text: string; formatting: string }) => void;
   onEditorChange?: (id: string, value: { text: string; formatting: string }) => void;
@@ -58,6 +59,14 @@ export function OutlineView(p: Props) {
   const {times}=useContext(SearchContext);
   const music=useMusic(),galleryContext=useContext(GalleryContext);
   const badges=useMemo(()=>branchMedia(p.nodes,p.media),[p.nodes,p.media]);
+  const mindmapBadges=useMemo(()=>{
+    const parents=new Map(p.nodes.map(n=>[n.id,n.parentId])),result=new Map<string,[string,number]>();
+    for(const root of p.nodes.filter(n=>n.mindmap)){
+      let hops=0,id:string|null|undefined=root.id;const seen=new Set<string>();
+      while(id&&!seen.has(id)){seen.add(id);const prev=result.get(id);if(!prev||prev[1]>hops)result.set(id,[root.id,hops]);hops++;id=parents.get(id);}
+    }
+    return result;
+  },[p.nodes]);
   const matches=useMemo(()=>p.search.trim()?searchMatcher(p.nodes,p.media,times):()=>true,[p.nodes,p.media,times,p.search]);
   const readingSize = p.readingSize || 16,
     rowHeight = readingSize * 1.5 + 4;
@@ -130,6 +139,11 @@ export function OutlineView(p: Props) {
     didDragSelect = useRef(false);
   const [readerRange, setReaderRange] = useState<{ id: string; anchor: number; head: number } | null>(null);
   const selectedRoots = [...selectedIds].filter(id => !selectedIds.has(idx.byId.get(id)?.parentId));
+  const selectedBullets = [...selectedIds].map(id => idx.byId.get(id) as Node | undefined).filter((node): node is Node => !!node);
+  const allOrdered = selectedBullets.length > 0 && selectedBullets.every(node => node.listType === "ORDERED");
+  const allUnordered = selectedBullets.length > 0 && selectedBullets.every(node => node.listType === "UNORDERED");
+  const allPlain = selectedBullets.length > 0 && selectedBullets.every(node => node.listType === "NONE");
+  const allTasks = selectedBullets.length > 0 && selectedBullets.every(node => node.taskState === "TODO" || node.taskState === "DONE");
   const selectionAnchor = useRef<string | null>(null);
   const selectBranches = (ids: string[]) => {
     const selected = new Set<string>();
@@ -450,6 +464,12 @@ export function OutlineView(p: Props) {
       .join("\n");
   };
 
+  const runOnSelection = (action: string) => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    p.onCommand(action, ids[0], 0, 0, ids);
+  };
+
   const copySelected = async () => {
     const text = getSelectedText();
     if (!text) return;
@@ -491,8 +511,10 @@ export function OutlineView(p: Props) {
 
   const deleteSelected = () => {
     if (!selectedIds.size) return;
+    const count = selectedRoots.length;
     p.onDeleteNodes?.(selectedRoots);
     setSelectedIds(new Set());
+    p.setNotice?.(`Deleted ${count} bullet${count === 1 ? "" : "s"} — use Undo to restore`);
   };
 
   useEffect(() => {
@@ -511,6 +533,20 @@ export function OutlineView(p: Props) {
         e.stopPropagation();
         const ids = [...selectedIds];
         p.onCommand(e.code === 'Digit7' || e.key === '7' ? 'block:numbered' : 'block:bulleted', ids[0], 0, 0, ids);
+        return;
+      }
+
+      if (!p.disabled && (e.ctrlKey || e.metaKey) && e.shiftKey && ['9','Digit9'].includes(e.code || e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        runOnSelection("task:toggle");
+        return;
+      }
+
+      if (!p.disabled && e.key === "Tab" && !(e.target instanceof window.Element && e.target.closest(".selection-action-bar"))) {
+        e.preventDefault();
+        e.stopPropagation();
+        runOnSelection(e.shiftKey ? "outdent" : "indent");
         return;
       }
 
@@ -870,6 +906,7 @@ export function OutlineView(p: Props) {
                         <span className="bullet-read-source"><RichRead node={n} search={p.search} /></span><span className="bullet-inline-media" onKeyDown={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>                {badges.get(n.id)?.has('image')&&<span className="bullet-media-indicator" title="Images in this branch" aria-label="Images in this branch"><Icon name="image" size={14}/></span>}
                 {badges.get(n.id)?.has('youtube')&&<span className="bullet-media-indicator youtube-indicator" title="YouTube in this branch" aria-label="YouTube in this branch"><Icon name="youtube" size={15}/></span>}
                 {badges.get(n.id)?.has('video')&&<span className="bullet-media-indicator" title="Videos in this branch" aria-label="Videos in this branch"><Icon name="play" size={14}/></span>}
+                {mindmapBadges.get(n.id)&&<button className="bullet-mindmap-open" aria-label="Open mindmap" title="Open mindmap" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();p.onMindmap?.(mindmapBadges.get(n.id)![0]);}}><Icon name="mindmap" size={14}/></button>}
                 {galleryContext?.doc.web.musicNodes?.[n.mirrorSourceId||n.id]&&<button className="bullet-music-play" aria-label={`Play music in ${n.text}`} title="Play music gallery" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();music?.play(musicItems(galleryContext.doc,n.mirrorSourceId||n.id));}}><Icon name="play" size={14}/></button>}
 </span>
                         {n.dueDate && (
@@ -945,15 +982,73 @@ export function OutlineView(p: Props) {
             {selectedRoots.length} bullet{selectedRoots.length === 1 ? "" : "s"} selected
           </span>
           <span className="separator" />
-          <select aria-label="Selected list style" disabled={p.disabled} value="" onChange={event => {
-            const ids = [...selectedIds];
-            p.onCommand('list:' + event.target.value, ids[0], 0, 0, ids);
-          }}>
-            <option value="" disabled>List style…</option>
-            <option value="ORDERED">Numbered</option>
-            <option value="UNORDERED">Bulleted</option>
-            <option value="NONE">None</option>
-          </select>
+          <div className="selection-segment" role="group" aria-label="Selected list style">
+            <button
+              type="button"
+              className="selection-btn"
+              aria-pressed={allOrdered}
+              title="Numbered list"
+              aria-label="Numbered list"
+              disabled={p.disabled}
+              onClick={() => runOnSelection("list:ORDERED")}
+            >
+              <Icon name="numbered" size={15} />
+            </button>
+            <button
+              type="button"
+              className="selection-btn"
+              aria-pressed={allUnordered}
+              title="Bulleted list"
+              aria-label="Bulleted list"
+              disabled={p.disabled}
+              onClick={() => runOnSelection("list:UNORDERED")}
+            >
+              <Icon name="notes" size={15} />
+            </button>
+            <button
+              type="button"
+              className="selection-btn"
+              aria-pressed={allPlain}
+              title="Plain text"
+              aria-label="Plain text"
+              disabled={p.disabled}
+              onClick={() => runOnSelection("list:NONE")}
+            >
+              <Icon name="format" size={15} />
+            </button>
+          </div>
+          <button
+            type="button"
+            className="selection-btn"
+            title="Indent (Tab)"
+            aria-label="Indent selected"
+            disabled={p.disabled}
+            onClick={() => runOnSelection("indent")}
+          >
+            <Icon name="indent" size={15} />
+          </button>
+          <button
+            type="button"
+            className="selection-btn"
+            title="Outdent (Shift+Tab)"
+            aria-label="Outdent selected"
+            disabled={p.disabled}
+            onClick={() => runOnSelection("outdent")}
+          >
+            <Icon name="outdent" size={15} />
+          </button>
+          <button
+            type="button"
+            className="selection-btn"
+            aria-pressed={allTasks}
+            title="Toggle task (Ctrl+Shift+9)"
+            aria-label="Toggle task"
+            disabled={p.disabled}
+            onClick={() => runOnSelection("task:toggle")}
+          >
+            <Icon name="check" size={15} />
+          </button>
+          <span className="separator" />
           <button
             className="selection-btn"
             title="Copy (Ctrl+C)"

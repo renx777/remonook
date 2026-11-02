@@ -86,6 +86,7 @@ const paths: Record<string, string> = {
   moon: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z",
   home: "m3 10 9-7 9 7M5 9v11h5v-6h4v6h5V9",
   forward: "m10 19 7-7-7-7",
+  mindmap: "M12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M9.5 9.5 4 4M4 4m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M14.5 9.5 20 4M20 4m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M9.5 14.5 4 20M4 20m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M14.5 14.5 20 20M20 20m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0",
 };
 export const Icon=memo(function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const Component=lucideIcons[name];

@@ -5,7 +5,7 @@ export default defineConfig(({mode})=>{
  resolveEnvironment({...loadEnv(mode,process.cwd(),"VITE_"),...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.startsWith("VITE_")))});
  return {
   plugins: [publicPages()],
-  server: { allowedHosts: ["terminal.local"] },
+  server: { allowedHosts: ["terminal.local", "192.168.68.104"] },
   resolve: {
     extensions: [".tsx", ".ts", ".jsx", ".js", ".mjs", ".json"],
   },

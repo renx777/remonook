@@ -19,7 +19,7 @@ function RichField({node,label,onChange,onReady}:{node:Node;label:string;onChang
  return <div ref={host} className="study-rich-field" />;
 }
 
-export function StudyCardEditor({doc,id,disabled,onSave,onClose,startWithBullet=false}:{doc:Workspace;id:string;disabled:boolean;onSave:(doc:Workspace)=>void;onClose:()=>void;startWithBullet?:boolean}) {
+export function StudyCardEditor({doc,id,disabled,onSave,onClose}:{doc:Workspace;id:string;disabled:boolean;onSave:(doc:Workspace)=>void;onClose:()=>void}) {
  const card=doc.tables.cards.find(card=>card.id===id)!, idx=index(doc.tables.bullets), definition=mcqDefinition(doc,id,idx);
  const source=flashcardSources(doc.tables.bullets,doc.tables.decks.filter(deck=>doc.web.deckTypes?.[deck.rootId]!=='MCQ'),doc.tables.media).find(source=>source.id===id);
  const initial=idx.byId.get(id) as Node|undefined;
@@ -29,7 +29,6 @@ export function StudyCardEditor({doc,id,disabled,onSave,onClose,startWithBullet=
  const [independent,setIndependent]=useState({question:card.question,answer:card.answer});
  const [correct,setCorrect]=useState(definition?.config.correctOptionId||''),[explanation,setExplanation]=useState(definition?.config.explanation||''),[shuffle,setShuffle]=useState(definition?.config.shuffle!==false);
  const [added,setAdded]=useState<string[]>([]);
- useEffect(()=>{if(startWithBullet && initial && !definition){const newId=crypto.randomUUID();setDraft(old=>new Map(old).set(newId,bullet(newId,{parentId:id,position:(idx.children.get(id)||[]).length})));setAdded([newId]);setActive(newId);}},[]);
  const update=(node:Node)=>setDraft(old=>new Map(old).set(node.id,node));
  const save=()=>{
   try {

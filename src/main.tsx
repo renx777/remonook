@@ -27,7 +27,7 @@ import {GalleryContext} from './Gallery';
 import {TableContext} from './NoteTable';
 import {tableText} from './table.mjs';
 import {SearchBox,SearchContext} from "./SearchBox";
-import {useWorkspacePanes,PaneHeader,PaneDivider} from "./WorkspacePanes";
+import {useWorkspacePanes,PaneDivider} from "./WorkspacePanes";
 import {ConnectionContext,ConnectionChooser,ConnectionPanel} from "./Connections";
 import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
@@ -114,6 +114,7 @@ const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
 const Bookshelf = React.lazy(()=>import('./Bookshelf').then(module=>({default:module.Bookshelf})));
 const Dashboard = React.lazy(()=>import('./Dashboard').then(module=>({default:module.Dashboard})));
+const MindmapView = React.lazy(()=>import('./MindmapView').then(module=>({default:module.MindmapView})));
 let recoveryDraft: () => { doc: Workspace | null; assets: Map<string, Blob> } = () => ({ doc: null, assets: new Map() });
 async function downloadRecovery() {
   const draft = recoveryDraft();
@@ -823,6 +824,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       if (['NOTE','QUESTION','ANSWER'].includes(kind)) mutate(ns => ns.map(node => targets.has(node.id) ? {...node,kind,autoHighlight:false} : node));
       return;
     }
+    if (action === 'task:toggle') {
+      mutate(ns => {
+        const selected = ns.filter(n => targets.has(n.id));
+        const allTasks = selected.length > 0 && selected.every(n => n.taskState === 'TODO' || n.taskState === 'DONE');
+        return ns.map(n => targets.has(n.id) ? { ...n, taskState: allTasks ? 'NONE' : 'TODO' } : n);
+      });
+      return;
+    }
     if(action==='action:diagram'){openDiagram({id});return;}
     if(action==='action:drawing'){openDrawing(id);return;}
     if(action==='action:pane'){openPane(id);return;}
@@ -830,6 +839,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if(action==='action:date'){const n=docRef.current!.tables.bullets.find(n=>n.id===id);setNodeDate({id,date:n?.dueDate||getLocalDateString()});setMenu(null);return;}
     if(action==='action:music'){const current=docRef.current!;commit({...current,web:{...current.web,musicNodes:{...current.web.musicNodes,[id]:!current.web.musicNodes?.[id]}}});setMenu(null);setEditing(null);return;}
     if(action==='action:gallery'){const current=docRef.current!;commit({...current,web:{...current.web,galleryNodes:{...current.web.galleryNodes,[id]:!current.web.galleryNodes?.[id]}}});setMenu(null);setEditing(null);return;}
+    if(action==='action:mindmap'){const n=docRef.current!.tables.bullets.find(n=>n.id===id);mutate(ns=>ns.map(x=>x.id===id?{...x,mindmap:!x.mindmap}:x));setMenu(null);setNotice(n?.mindmap?'Mindmap removed.':'Mindmap created. Open it from the Mindmap tab or its icon.');return;}
     if(action==='action:table'){mutate(ns=>{const n=ns.find(n=>n.id===id);if(!n)return ns;const text=tableText([['','',''],['','',''],['','','']]);return n.text.trim()?[...ns.map(x=>x.id===id?{...x,collapsed:false}:x),bullet(crypto.randomUUID(),{parentId:id,position:ns.filter(x=>x.parentId===id).length,text})]:ns.map(x=>x.id===id?{...x,text,formatting:'',codeLanguage:'',blockStyle:'paragraph'}:x);});setEditing(null);setMenu(null);return;}
     if(action==='action:image'){mediaTarget.current=id;imageInput.current?.click();return;}
     if(action==='action:complete'){command('complete',id,start,end);return;}
@@ -855,7 +865,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if(instance?.mirrorSourceId&&!['toggleCollapse','expandBranch','collapseBranch','zoomIn','zoomOut','stop','undo','redo','previous','next','moveUp','moveDown'].includes(action)){
-      if(instance.id===mirrorRoot&&['merge','indent','outdent'].includes(action)){setNotice('Open the mirror source to change its parent or merge its root.');return;}
+      if(instance.id===mirrorRoot&&['merge','indent','outdent'].includes(action)&&!selectedIds){setNotice('Open the mirror source to change its parent or merge its root.');return;}
       const rootSplitHere=action==='enter'&&instance.id===mirrorRoot&&!(start===instance.text.length&&start===end&&!instance.collapsed&&(index(docRef.current!.tables.bullets).children.get(instance.id)||[]).length);
       if(!rootSplitHere)id=instance.mirrorSourceId;
     }
@@ -1020,8 +1030,21 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if (action === "indent" || action === "outdent") {
-      if (action === "outdent" && tab === "calendar" && index(docRef.current!.tables.bullets).byId.get(id)?.parentId === outlineScope) return;
-      mutate((ns) => (action === "indent" ? indent : outdent)(ns, id));
+      const roots = [...targets].filter(target => {
+        const parent = index(docRef.current!.tables.bullets).byId.get(target)?.parentId;
+        return parent === null || parent === undefined || !targets.has(parent);
+      });
+      mutate((ns) => {
+        let out = ns;
+        for (const target of roots) {
+          const node = index(out).byId.get(target);
+          if (!node || node.mirrorRootId) continue;
+          if (action === "outdent" && tab === "calendar" && node.parentId === outlineScope) continue;
+          out = (action === "indent" ? indent : outdent)(out, target);
+        }
+        return out;
+      });
+      if (roots.some(target => index(docRef.current!.tables.bullets).byId.get(target)?.mirrorRootId)) setNotice('Mirror roots stay anchored — open the source to move them.');
       return;
     }
     if (action === "enter") {
@@ -1243,6 +1266,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     const unbind=bindWorkspaceShortcuts(window,{
       command:()=>{if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog(value=>value==='jump'?null:'jump');},
       save:()=>void flush(),sidebar:toggleSidebar,pane:()=>openPane(),
+      panePrev:()=>{if(tab!=='notes'||editing)return;setEditing(null);views.switchPane(-1);},
+      paneNext:()=>{if(tab!=='notes'||editing)return;setEditing(null);views.switchPane(1);},
+      paneClose:()=>{if(tab!=='notes'||editing||views.panes.length<2)return;setEditing(null);views.close(views.activePane);},
     });
     const undoKey=(e:KeyboardEvent)=>{
       if(!shortcutAllowed(e)||dialog||menu||editing||(e.target instanceof HTMLElement&&e.target.closest('input,textarea,select,[contenteditable="true"]')))return;
@@ -1250,7 +1276,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     };
     window.addEventListener('keydown',undoKey);
     return()=>{unbind();window.removeEventListener('keydown',undoKey);};
-  }, [editing, dialog, menu, doc, views.panes, views.activePane]);
+  }, [editing, dialog, menu, doc, views.panes, views.activePane, tab]);
   readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
   const readingSourceMap=React.useMemo(()=>doc?readingSources(doc):{},[doc?.web.readingHighlights,doc?.tables.media]);
   const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader}),[readingSourceMap,openReader]);
@@ -1284,6 +1310,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     ap = doc.preferences.appearance,
     showCompleted = doc.preferences.editor_tools?.showCompleted !== false,
     disabled = working || failed.current;
+  const paneCompleted = tab === "notes" && views.panes.length > 1 ? (views.active.completed ?? showCompleted) : showCompleted;
   const menuTargets = menuNode ? [...bulletTargets(menuNode.id)].map(id => idx.byId.get(id)).filter(Boolean) : [];
   const menuListStyle = new Set(menuTargets.map(node => node.listType)).size > 1 ? '' : menuNode?.listType;
   const menuBulletKind = new Set(menuTargets.map(node => node.kind)).size > 1 ? '' : menuNode?.kind;
@@ -1379,6 +1406,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               ["calendar", "Calendar", "calendar"],
               ["study", "Study Desk", "study"],
               ["bookshelf", "Bookshelf", "study"],
+              ["mindmap", "Mindmap", "mindmap"],
             ].map(([id, label, icon]) => (
               <button
                 key={id}
@@ -1437,8 +1465,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <Icon name={sidebarOpen ? "sidebarCollapse" : "menu"} />
           </button>
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
+          {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
           <div className="breadcrumbs">
-            {tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "calendar" ? (
+            {tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
               <>
                 <button onClick={() => navigateTo(calendarRoot?.id || null)}>
                   <Icon name="calendar" size={14} />
@@ -1491,12 +1520,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
-              className={`icon-button completed-toggle ${showCompleted ? "is-active" : ""}`}
-              title={showCompleted ? "Hide completed bullets" : "Show completed bullets"}
-              aria-label={showCompleted ? "Hide completed bullets" : "Show completed bullets"}
-              aria-pressed={showCompleted}
+              className={`icon-button completed-toggle ${paneCompleted ? "is-active" : ""}`}
+              title={paneCompleted ? "Hide completed bullets" : "Show completed bullets"}
+              aria-label={paneCompleted ? "Hide completed bullets" : "Show completed bullets"}
+              aria-pressed={paneCompleted}
               disabled={disabled}
-              onClick={() => editorPrefs("showCompleted", !showCompleted)}
+              onClick={() => tab === "notes" && views.panes.length > 1 ? views.update(views.activePane, { completed: !paneCompleted }) : editorPrefs("showCompleted", !paneCompleted)}
             >
               <Icon name="check" />
             </button>
@@ -1522,6 +1551,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <button data-guide-help className="icon-button" aria-label="Show me how" title="Show me how" onClick={()=>{setViewMenu(false);setMenu(null);setDialog("help");}}><Icon name="help" size={17}/></button>
             <DeviceSaveIndicator signal={deviceStatus} isPending={()=>!!cloudUser&&(dirty.current||persisted.current?.revision!==cloud.acknowledgedRevision)} cloud={{connected:!!cloudUser,status:cloud.status,error:cloud.error,conflict:cloud.conflict}} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
             {<button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
+            {tab==='notes'&&views.panes.length>1&&<button className="icon-button" aria-label="Close pane" title="Close pane · Alt+W" onClick={()=>{views.close(views.activePane);setEditing(null);}}><Icon name="close" size={16}/></button>}
             {tab==='notes'&&<button className="icon-button" aria-label="New pane" title="New pane · Alt+R" onClick={()=>openPane()}><Icon name="pane" size={17}/></button>}
           </div>
         </header>
@@ -1552,8 +1582,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <>
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
             <div className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
-            {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className="note-pane" data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
-              <PaneHeader pane={pane} nodes={nodes} multiple={views.panes.length>1} active={views.activePane===pane.id} onNavigate={id=>{views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);}} onHistory={forward=>{views.setActivePane(pane.id);views.history(pane.id,forward);setEditing(null);}} onSearch={q=>{views.setActivePane(pane.id);views.update(pane.id,{search:q});setEditing(null);}} onGlobal={all=>{views.setActivePane(pane.id);views.update(pane.id,{global:all});}} onClose={()=>{views.close(pane.id);setEditing(null);}} onCompleted={()=>views.update(pane.id,{completed:!(pane.completed??showCompleted)})}/>
+            {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
             <OutlineView
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
               scope={pane.global&&pane.search?null:pane.scope}
@@ -1578,6 +1607,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               onZoom={(id) => {
                 views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);
               }}
+              onMindmap={(id)=>{setTab('mindmap');setScope(id);setEditing(null);}}
               onOpenPane={openPane}
               onToggle={id=>{if(pane.id==='main')mutate(ns=>ns.map(n=>n.id===id?{...n,collapsed:!n.collapsed}:n));else views.update(pane.id,{collapsed:{...pane.collapsed,[id]:!(pane.collapsed[id]??idx.byId.get(id)?.collapsed)}});}}
               onChange={changeBulletContent}
@@ -1620,6 +1650,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
+        ) : tab === "mindmap" ? (
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView nodes={nodes} scope={scope} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>ns.map(n=>n.id===sid?{...n,text}:n));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
         ) : (
           <>
           <CalendarView
@@ -1641,6 +1673,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             onZoom={(id) => {
               setScope(id);
               setTab("notes");
+              setEditing(null);
+              setSearch("");
+            }}
+            onMindmap={(id) => {
+              setScope(id);
+              setTab("mindmap");
               setEditing(null);
               setSearch("");
             }}
@@ -1700,6 +1738,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             ["calendar", "Calendar", "calendar"],
             ["study", "Study Desk", "study"],
               ["bookshelf", "Bookshelf", "study"],
+              ["mindmap", "Mindmap", "mindmap"],
           ].map(([id, label, icon]) => (
             <button
               key={id}
@@ -1738,6 +1777,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
+            <button disabled={disabled} onClick={()=>command('action:mindmap',menuNode.id,0,0)}><Icon name="mindmap" size={16}/><span>{menuNode.mindmap?'Remove mindmap':'Mindmap'}</span></button>
             <button disabled={disabled} onClick={()=>command('action:date',menuNode.id,0,0)}><Icon name="calendar" size={16}/><span>Add date…</span></button>
             <button disabled={disabled} onClick={() => { command("complete", menuNode.id, 0, 0); setMenu(null); }}><Icon name="check" size={16} /><span>{menuNode.taskState === "DONE" ? "Uncomplete" : "Complete"}</span><kbd>Ctrl ↵</kbd></button>
             <button disabled={disabled} onClick={() => { toggleStar(menuNode.id); setMenu(null); }}><Icon name="star" size={16} /><span>{starred.includes(menuNode.id) ? "Unstar" : "Star"}</span></button>
