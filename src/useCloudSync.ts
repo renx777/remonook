@@ -2,10 +2,8 @@ import {useEffect,useRef,useState} from 'react';
 import type {User} from 'firebase/auth';
 import {authenticatedUid} from './CloudAccount';
 import {CLOUD_API} from './cloud-config';
-import {syncMetadata,cloudCheckpoint,digest,type Workspace} from './data';
-import {contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
-import {initializeOutbox,recordLocal,stageAssets,claimOutbox,receiveOutbox} from './sync-outbox.mjs';
-import {Y,openShared,vector,project,emptyShared} from './sync-crdt.mjs';
+import {syncOperation,storageAccountKey,digest,type Workspace} from './data';
+import {createUiSignal} from './ui-signal';
 type Asset={path:string;hash:string;size:number;type:string};
 type Selection={id:string;anchor:number;head:number};
 type Apply={state:string;selection?:Selection};
@@ -14,7 +12,9 @@ export function useCloudSync(options:Options){
  const latest=useRef(options);latest.current=options;
  const acknowledged=useRef<number|null>(null);
  const busy=useRef(false),queued=useRef(false),alive=useRef(true),timer=useRef<ReturnType<typeof setTimeout>|null>(null),failures=useRef(0),cache=useRef(new WeakMap<Blob,string>());
- const [status,setStatus]=useState(options.user?'Connecting…':'Device only'),[error,setError]=useState('');
+ const [signal]=useState(()=>createUiSignal({status:options.user?'Connecting…':'Device only',error:''}));
+ const setStatus=(status:string)=>{if(signal.get().status!==status)signal.set({...signal.get(),status});};
+ const setError=(error:string)=>{if(signal.get().error!==error)signal.set({...signal.get(),error});};
  async function request(path:string,init:RequestInit={}){
   const user=latest.current.user;if(!user||authenticatedUid()!==user.uid)throw Error('Sign in again to continue saving to your account.');
   const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+await user.getIdToken());
@@ -28,57 +28,49 @@ export function useCloudSync(options:Options){
    const blob=new Blob([bytes],{type:a.type});cache.current.set(blob,a.hash);files.set(a.path,blob);
   }return files;
  }
- function mappedSelection(localState:string,receivedState:string){
-  const selection=latest.current.selection?.();if(!selection)return undefined;
-  const a=openShared(localState),b=openShared(receivedState),name='text:'+JSON.stringify(['bullets',selection.id]);
-  try{const text=a.getText(name),out=b.getText(name);const map=(pos:number)=>{const relative=Y.createRelativePositionFromTypeIndex(text,Math.max(0,Math.min(pos,text.length)));return Y.createAbsolutePositionFromRelativePosition(relative,b)?.index??Math.min(pos,out.length);};return {...selection,anchor:map(selection.anchor),head:map(selection.head)};}finally{a.destroy();b.destroy();}
- }
  async function sync(){
   if(!alive.current||!latest.current.user||!latest.current.ready)return;
   if(busy.current){queued.current=true;return;}
   if(timer.current){clearTimeout(timer.current);timer.current=null;}queued.current=false;busy.current=true;
+  const account=storageAccountKey(),work=(operation:string,args:any={})=>syncOperation(operation,args,account);
   setError('');setStatus('Syncing…');
   try{
    if(!navigator.onLine){setStatus('Saved on device · sync pending');return;}
-   await latest.current.flush();let meta=await syncMetadata();
-   if(!meta){
+   await latest.current.flush();
+   if(!(await work('status')).initialized){
     const response=await(await request('/sync/v2')).json();if(response.protocol!==2)throw Error('An app update is being prepared. Your edits are saved on this device.');
     await latest.current.flush();const current=latest.current.get();if(!current.doc)return;
-    const files=await manifest(current.assets),checkpoint=recoverCheckpoint(await cloudCheckpoint());
-    const baseline=checkpoint?.baseDoc||(hasDeviceContent(current.doc,files)?emptyShared():null);
-    meta=await syncMetadata(existing=>existing||initializeOutbox(response.update,response.revision,baseline,current.doc!,files,checkpoint?.assets||[]),current.doc.revision);
+    await work('initialize',{response,doc:current.doc,assets:await manifest(current.assets)});
    }
    await latest.current.flush();const local=latest.current.get();if(!local.doc)return;
    const stagedFiles=await manifest(local.assets);
-   meta=await syncMetadata(m=>{if(contentKey(m.mappedDoc)!==contentKey(local.doc!))recordLocal(m,local.doc!);return stageAssets(m,stagedFiles);},local.doc.revision);
-   // Persist a stable batch identity BEFORE sending. New edits append behind it.
-   meta=await syncMetadata(claimOutbox);
-   if(meta.inflight){
-    const y=openShared(meta.localState);let assets:Asset[];try{assets=project(y).assets as Asset[];}finally{y.destroy();}
-    for(const asset of assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!(meta.uploaded||[]).includes(asset.hash)){await request('/assets/'+asset.hash,{method:'PUT',body:blob});meta=await syncMetadata(m=>{m.uploaded=[...new Set([...(m.uploaded||[]),asset.hash])];return m;});}}
-    const response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(meta.inflight)})).json();
-    meta=await syncMetadata(m=>receiveOutbox(m,response));
+   await work('stage',{doc:local.doc,assets:stagedFiles});
+   // Persist the same stable operation identity before sending it over the network.
+   const network=await work('network');
+   if(network.inflight){
+    for(const asset of network.assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!network.uploaded.includes(asset.hash)){await request('/assets/'+asset.hash,{method:'PUT',body:blob});await work('uploaded',{hash:asset.hash});}}
+    const response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(network.inflight)})).json();
+    await work('receive',{response});
    }else{
-    const y=openShared(meta.receivedState);let v:string;try{v=vector(y);}finally{y.destroy();}
-    const response=await request('/sync/v2',{headers:{'X-Sync-Vector':v,'If-None-Match':String(meta.serverRevision)}});
-    // response parsing is intentionally outside IndexedDB's transaction lifetime.
-    if(response.status!==304){const body=await response.json();meta=await syncMetadata(m=>receiveOutbox(m,body));}
+    const response=await request('/sync/v2',{headers:{'X-Sync-Vector':network.vector,'If-None-Match':String(network.serverRevision)}});
+    if(response.status!==304)await work('receive',{response:await response.json()});
    }
-   await latest.current.flush();meta=await syncMetadata();const y=openShared(meta.receivedState);let shared:any;try{shared=project(y);}finally{y.destroy();}
+   await latest.current.flush();
    const current=latest.current.get(),localAssets=await manifest(current.assets);
-   const different=!current.doc||contentKey(current.doc)!==contentKey(shared.doc)||JSON.stringify(localAssets)!==JSON.stringify(shared.assets);
-   if(different||meta.localState!==meta.receivedState){
-    const files=await materialize(shared.assets);
+   const inspected=await work('inspect',{doc:current.doc,assets:localAssets});
+   if(inspected.needsApply){
+    const files=await materialize(inspected.assets);
     await latest.current.flush();
-    // Files can be restored while this request is in flight without changing
-    // note content. Stage that new local manifest before adopting a cloud view.
     const assetSnapshot=latest.current.get().assets,newestFiles=await manifest(assetSnapshot);
-    const fresh=await syncMetadata();
-    if(latest.current.get().assets!==assetSnapshot||!latest.current.canApply()||fresh.receivedState!==meta.receivedState||JSON.stringify(newestFiles)!==JSON.stringify(stagedFiles)){setStatus('Saved on device · sync pending');queued.current=true;return;}
-    await latest.current.apply(shared.doc,files,{state:meta.receivedState,selection:mappedSelection(meta.localState,meta.receivedState)});
+    if(latest.current.get().assets!==assetSnapshot||!latest.current.canApply()||JSON.stringify(newestFiles)!==JSON.stringify(stagedFiles)){setStatus('Saved on device · sync pending');queued.current=true;return;}
+    const applySnapshot=latest.current.get().doc;
+    const selection=await work('selection',{state:inspected.state,selection:latest.current.selection?.()});
+    const stillCurrent=await work('current',{state:inspected.state});
+    if(!stillCurrent||latest.current.get().doc!==applySnapshot||latest.current.get().assets!==assetSnapshot||!latest.current.canApply()){setStatus('Saved on device · sync pending');queued.current=true;return;}
+    await latest.current.apply(inspected.doc,files,{state:inspected.state,selection});
    }
-   const final=await syncMetadata(),currentDoc=latest.current.get().doc;
-   const remaining=!!final.inflight||final.pending.length>0||!currentDoc||contentKey(currentDoc)!==contentKey(shared.doc);
+   const currentDoc=latest.current.get().doc;
+   const remaining=(await work('inspect',{doc:currentDoc,assets:await manifest(latest.current.get().assets)})).remaining;
    if(!remaining)acknowledged.current=currentDoc?.revision??null;
    setStatus(remaining?'Saved on device · sync pending':'Synced');failures.current=0;
    if(remaining)queued.current=true;
@@ -95,5 +87,5 @@ export function useCloudSync(options:Options){
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;if(timer.current)clearTimeout(timer.current);};},[]);
  useEffect(()=>{if(!options.user||!options.ready)return;const t=setTimeout(()=>void run.current(),500);return()=>clearTimeout(t);},[options.user?.uid,options.revision,options.ready]);
  useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const t=setInterval(resume,2000);window.addEventListener('online',resume);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',resume);return()=>{clearInterval(t);window.removeEventListener('online',resume);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',resume);};},[options.user?.uid]);
- return {status,error,conflict:false,sync,acknowledgedRevision:acknowledged.current};
+ return {signal,get status(){return signal.get().status;},get error(){return signal.get().error;},conflict:false,sync,get acknowledgedRevision(){return acknowledged.current;}};
 }

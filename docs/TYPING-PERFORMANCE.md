@@ -75,3 +75,9 @@ real-pointer browser cycles passed.
 Blur now requests reconciliation after publishing instead of briefly resetting
 the draft to the previous parent value. This also keeps a keyboard-focused Clear
 button mounted. Native Tab/Enter activation passed alongside the pointer cycles.
+
+# Signed-in persistence follow-up
+
+See [Account typing performance](ACCOUNT-TYPING-PERFORMANCE.md) for the signed-in
+worker fix and measurements. Guest-only comparisons do not exercise cloud saves
+and cannot establish signed-in performance parity.
