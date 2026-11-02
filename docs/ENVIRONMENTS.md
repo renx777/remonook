@@ -2,9 +2,13 @@
 
 ## Current state
 
-GitHub `main` is the source for every environment. Release `2026-10-31.1` aligns local, staging and production on the application changes through `3d332fe` (including Research removal). The previous production application matches GitHub commit `86ab010`; no production-only source changes need importing. `/release.json` identifies the release on each frontend. Sites uses a separate source-repository commit, whose application files must match GitHub byte for byte. Environment-specific build configuration, Firebase accounts, database contents and attachment buckets remain separate.
+GitHub `main` is the source for every environment. Release `2026-11-02.3` includes the flashcard editing, interactive mindmap, bulk actions and pane improvements from `678e82c`, plus an update notice for older open app sessions. `/release.json` identifies the release on each frontend. Sites uses a separate source-repository commit, whose application files must match GitHub byte for byte. Environment-specific build configuration, Firebase accounts, database contents and attachment buckets remain separate.
 
 Do not publish changes only from the Sites checkout. Implement and test in the development checkout, commit to GitHub, wait for the staging workflow to succeed, then publish those exact source files through Sites. Before publishing, compare all tracked application files against the selected GitHub commit; exclude only generated `dist/` output and the Sites hosting manifest. After any emergency production edit, reconcile it into GitHub and the local checkout immediately, then wait for staging deployment before declaring the release complete.
+
+Build production into a clean `dist/` using the production environment configuration; do not overlay individual new bundles onto an older build. The Sites archive and source commit must contain the complete matching build, including new generated files ignored by the canonical repository. In the Sites checkout, explicitly stage generated output with `git add -f dist .openai/hosting.json`. A release marker alone does not validate JavaScript dependencies: test a fresh production browser session, flashcard editing and the lazy-loaded mindmap after publishing.
+
+Open app sessions check the deployed HTML entry on focus, reconnect and once per minute while visible. A changed entry displays **Save & update**; it never reloads automatically. Updating waits for durable device saves and refuses to reload while a dialog, composition, upload or cloud adoption is in progress or saving has failed. Pending cloud uploads survive reload through the existing outbox. No user storage is cleared. Tabs opened before this notice was introduced need one ordinary reload to receive it.
 
 | Environment | Frontend | Authentication | Sync and attachments |
 | --- | --- | --- | --- |
