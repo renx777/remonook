@@ -9,3 +9,5 @@
 .article-image-unavailable{display:block;padding:16px;border:1px dashed currentColor;border-radius:8px;opacity:.65;font-size:.85em}
 
 .web-selection{position:fixed;bottom:auto;max-height:min(340px,calc(100dvh - 24px));overflow:auto;z-index:130}.web-capture-preview{z-index:141}.web-capture-preview>div{display:flex;gap:12px;justify-content:flex-end;margin-top:16px}
+
+.web-reader-tools{flex-shrink:0}.web-reader-tools>summary{display:none}@media(max-width:650px){.web-reader-tools>summary{display:list-item;cursor:pointer;padding:8px 16px;font-size:13px;color:var(--muted)}.web-reader-options{border-bottom:1px solid var(--line)}}
