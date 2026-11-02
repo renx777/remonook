@@ -2061,3 +2061,8 @@ hr {
 .diagram-canvas { display:block; min-width:0; --pele-bg:var(--panel); --pele-fg:var(--text); --pele-muted:var(--muted); --pele-line:var(--text); --pele-surface:var(--soft); --pele-surface-alt:var(--hover); --pele-border:var(--line); --pele-accent:var(--accent); --pele-font:var(--reading-font); --pele-radius:6px; }
 .diagram-canvas:empty { display:none; }
 .diagram-canvas > svg { display:block; }
+.release-update{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:90;width:min(380px,calc(100vw - 32px));padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--text);box-shadow:0 8px 32px #0003}
+.release-update p{margin:0 0 10px;font-size:14px;line-height:1.5}
+.release-update-actions{display:flex;gap:12px;align-items:center}
+.release-update [role=alert]{margin:10px 0 0;color:var(--text)}
+@media(max-width:650px){.release-update{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}

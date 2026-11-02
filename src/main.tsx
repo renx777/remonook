@@ -14,6 +14,7 @@ import {useSidebarMotion} from './useSidebarMotion';
 import {restoreDeviceState,historyAfterSync} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
+import {ReleaseUpdate} from './ReleaseUpdate';
 import {CloudDeviceSaveIndicator,CloudAccountStatus} from './SaveIndicator';
 import {FlowNumber} from './FlowNumber';
 import {useEntranceMotion} from './useEntranceMotion';
@@ -2301,6 +2302,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {diagramTarget&&<VisualToolLoader title="Diagram workspace" onClose={()=>setDiagramTarget(null)}><DiagramEditor source={diagramTarget.source} editing={!!diagramTarget.original} disabled={disabled} onClose={()=>setDiagramTarget(null)} onSave={source=>{if(disabled)throw Error('Saving is unavailable.');const next=saveDiagram(docRef.current!.tables.bullets,diagramTarget,source);commit(withNodes(docRef.current!,next));setDiagramTarget(null);setNotice('Diagram saved to your note.');}}/></VisualToolLoader>}
       {drawingTarget&&<VisualToolLoader title="Drawing workspace" onClose={()=>setDrawingTarget(null)}><DrawingEditor blob={drawingTarget.mediaId?assets.get('media/'+doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.fileName):undefined} title={drawingTarget.mediaId?doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.credit:undefined} theme={['Light','Catppuccin Latte'].includes(theme)?'light':'dark'} disabled={disabled} onClose={()=>setDrawingTarget(null)} onSave={saveDrawing}/></VisualToolLoader>}
       {occlusionImage && doc.tables.media.some(item=>item.id===occlusionImage) && <OcclusionEditor groupId={(Object.values(doc.web.occlusions||{}) as any[]).find(config=>config.mediaId===occlusionImage)?.groupId} doc={doc} item={doc.tables.media.find(item=>item.id===occlusionImage)!} assets={assets} disabled={disabled} onSave={next=>{commit(next);setNotice('Image occlusion cards saved to Study Desk.');}} onClose={()=>setOcclusionImage(null)}/>}
+      <ReleaseUpdate enabled={import.meta.env.PROD} onApply={async()=>{
+        if(working||cloudApplying.current||activeEditor?.view.composing||document.querySelector('dialog[open],[role="dialog"],[data-composing="true"]'))throw Error('Finish the open editor or dialog before updating.');
+        await flush();
+        if(failed.current||dirty.current||pendingAssets.current.size||cloudApplying.current||docRef.current!==persisted.current)throw Error('Your latest changes need to finish saving before updating.');
+        location.reload();
+      }}/>
       {notice && (
         <div className="toast" role="status">
           <Icon name="check" size={16} />
