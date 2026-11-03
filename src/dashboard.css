@@ -264,7 +264,8 @@
 .dash-clock-analog .dash-clock-date{order:2;margin:0}
 .dash-clock-dial{fill:transparent}
 .dash-focus{align-items:stretch;min-height:0;gap:7px}
-.dash-focus>.dash-segments{order:2;max-width:none;width:max-content;border:0;background:transparent;padding:0;gap:4px}
+.dash-focus>.dash-segments{order:2;max-width:none;width:100%;padding:3px;gap:4px}
+.dash-focus>.dash-segments>button{flex:1 1 0}
 .dash-segments>button{min-height:34px;padding:5px 8px;font-size:11px}
 .dash-segments>button[aria-pressed=true]{box-shadow:none;background:var(--soft);color:var(--text)}
 .dash-timer-ring{order:1;width:auto;height:auto;border-radius:0;background:none!important;margin:0;display:flex;align-items:flex-start;gap:1px}
