@@ -1,7 +1,8 @@
-import {useEffect,useState,type ReactNode} from 'react';import * as Dialog from '@radix-ui/react-dialog';
-export function ArticleNotesPanel({children,onClose}:{children:ReactNode;onClose:()=>void}){
- const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width:650px)').matches);
- useEffect(()=>{const media=window.matchMedia('(max-width:650px)'),change=()=>setMobile(media.matches);media.addEventListener('change',change);return()=>media.removeEventListener('change',change);},[]);
- const heading=<div className="web-notes-heading"><h2>Article notes</h2><button aria-label="Close article notes" onClick={onClose}>×</button></div>;
- return mobile?<Dialog.Root open onOpenChange={open=>{if(!open)onClose();}}><Dialog.Portal container={document.querySelector('.app')||document.body}><Dialog.Overlay className="web-notes-overlay"/><Dialog.Content className="web-notes web-notes-mobile" aria-describedby={undefined}><Dialog.Title className="sr-only">Article notes</Dialog.Title>{heading}{children}</Dialog.Content></Dialog.Portal></Dialog.Root>:<aside className="web-notes">{heading}{children}</aside>;
+import {useEffect,useState,type ReactNode} from 'react';import * as Dialog from '@radix-ui/react-dialog';import {Icon} from './icons';
+export function ArticleNotesPanel({children,onClose,count,onAdd,disabled}:{children:ReactNode;onClose:()=>void;count:number;onAdd:()=>void;disabled:boolean}){
+ const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width:760px)').matches);
+ useEffect(()=>{const media=window.matchMedia('(max-width:760px)'),change=()=>setMobile(media.matches);media.addEventListener('change',change);return()=>media.removeEventListener('change',change);},[]);
+ const heading=<header className="web-notes-heading"><div>{mobile?<Dialog.Title>Article notes</Dialog.Title>:<h2>Article notes</h2>}<p>{count} saved {count===1?'note':'notes'} · linked to this article</p></div><button className="article-icon-button" aria-label="Close article notes" onClick={onClose}><Icon name="close" size={20}/></button></header>;
+ const content=<>{mobile&&<div className="article-sheet-handle" aria-hidden="true"/>}{heading}<div className="article-notes-content"><button className="article-add-note" disabled={disabled} onClick={onAdd}><Icon name="plus" size={17}/>Write a note</button>{count===0&&<div className="article-notes-empty"><Icon name="notes" size={28}/><h3>Keep what stays with you</h3><p>Highlight a passage or write a thought. Everything is saved to your notes.</p></div>}{children}</div></>;
+ return mobile?<Dialog.Root open onOpenChange={open=>{if(!open)onClose();}}><Dialog.Portal container={document.querySelector('.app')||document.body}><Dialog.Overlay className="web-notes-overlay"/><Dialog.Content className="web-notes web-notes-mobile" aria-describedby={undefined}>{content}</Dialog.Content></Dialog.Portal></Dialog.Root>:<aside className="web-notes">{content}</aside>;
 }

@@ -4,6 +4,8 @@ Bookmarks saves public URLs and immutable article snapshots, with a searchable l
 
 The library uses a quiet, serif article list with optional cached thumbnails, source/reading-time metadata and source-linked note counts. Secondary actions live in an accessible overflow menu. Mobile navigation scrolls horizontally with four tabs visible and reveals the active tab. Side notes reuse the Notes rich-text editor, colour/highlight palettes, rough annotations, headings, quotes, mask, code and undo/redo; rich formatting survives reload and sync. Only the active side note mounts an editor. Thumbnails are derived from privately embedded article images in the account-local cache, never remote tracking URLs or the shared sync document.
 
+Mobile reading uses a full-screen, width-constrained serif article with compact controls. Floating UI anchors selection tools on desktop; the mobile selection toolbar is docked clear of native selection handles, with highlight swatches and an optional comment. Radix provides the accessible mobile notes sheet, with a single title and one source-linked card per note; highlight navigation/removal is integrated rather than duplicated in a separate quote list.
+
 ## Capture and storage
 
 The authenticated staging sync API exposes `POST /bookmarks/capture`, plus authenticated `GET`, `PUT` and `DELETE /bookmarks/snapshots/:sha256`. Capture requires `ARTICLE_CAPTURE` and `ARTICLE_RATE_LIMITER` bindings. The rate limiter allows 10 capture requests per 60 seconds per account. Invalid or unsupported pages remain saved links with Retry reader and Open original.
