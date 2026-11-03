@@ -1,3 +1,4 @@
+import {updateWorkdaysV2} from '../src/workdays-v2.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
@@ -138,4 +139,15 @@ test('many local saves reuse a session actor instead of growing one state-vector
  const base=initial(),m=initializeOutbox(sharedState(seed(base)),1,null,base,[]);
  for(let i=0;i<50;i++){const next=structuredClone(m.mappedDoc);next.tables.bullets[0].text='Edit '+i;recordLocal(m,next);}
  const entries=Y.decodeStateVector(unpack(vector(openShared(m.localState))));assert.ok(entries.size<=3,`Unexpected actor count: ${entries.size}`);
+});
+
+test('Workdays v2 capability gates reads, conditional reads, writes and legacy downloads without discarding outbox data',async()=>{
+ const {env,base,server}=await started(),changed=edit(server.update,base,d=>{d.web.workdays=updateWorkdaysV2(d,w=>({...w,enabled:true})).web.workdays;}),body={operationId:crypto.randomUUID(),update:changed.update,vector:changed.vector};
+ await assert.rejects(call(env,'POST','/sync/v2',body),e=>e.status===426);
+ const response=await call(env,'POST','/sync/v2',body,'alice',{'X-Remo-Capabilities':'workdays-v2'});assert.equal(response.status,200);const result=await response.json();
+ await assert.rejects(call(env,'GET','/sync/v2'),e=>e.status===426);
+ await assert.rejects(call(env,'GET','/sync/v2',null,'alice',{'If-None-Match':String(result.revision)}),e=>e.status===426);
+ await assert.rejects(call(env,'GET','/workspace'),e=>e.status===426);
+ await assert.rejects(call(env,'POST','/sync/v2',{...body,operationId:crypto.randomUUID()}),e=>e.status===426);
+ assert.equal((await call(env,'GET','/sync/v2',null,'alice',{'X-Remo-Capabilities':'workdays-v2','If-None-Match':String(result.revision)})).status,304);
 });

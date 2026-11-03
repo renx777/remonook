@@ -18,7 +18,8 @@ const plain=o=>o!==null&&typeof o==='object'&&!Array.isArray(o);
 const safe=p=>p.every(k=>typeof k==='string'&&!['__proto__','constructor','prototype'].includes(k));
 export function emptyShared(){return {tables:Object.fromEntries(Object.keys(schema).map(k=>[k,[]])),columns:structuredClone(schema),preferences:{appearance:{theme:'System',font:'Sans',size:16},editor_tools:{},study_preferences:{mode:'NORMAL'}},web:{contract:'1.0.0'}};}
 function leaves(value,path=[],out=new Map()){
- if(plain(value)&&Object.keys(value).length){for(const k of Object.keys(value))leaves(value[k],[...path,k],out);}
+ if(path[0]==='web'&&path[1]==='workdays'&&((path[2]==='entries'&&path.length===6)||(['leaveTypes','targets','schedules'].includes(path[2])&&path.length===4))){if(!safe(path))throw Error('Invalid sync field');out.set(JSON.stringify(path),value);}
+ else if(plain(value)&&Object.keys(value).length){for(const k of Object.keys(value))leaves(value[k],[...path,k],out);}
  else if(value!==undefined){if(!safe(path))throw Error('Invalid sync field');out.set(JSON.stringify(path),value);}
  return out;
 }
@@ -77,7 +78,7 @@ function documentLeaves(doc){
  const root=Object.fromEntries(Object.entries(doc).filter(([k])=>k!=='tables'));
  root.web={...root.web};
  for(const name of ['calendarEvents','studyFolders'])if(Array.isArray(root.web[name]))root.web[name]=Object.fromEntries(root.web[name].map(row=>[row.id,row]));
- if(root.web.workdays){root.web.workdays={...root.web.workdays};if(Array.isArray(root.web.workdays.policies))root.web.workdays.policies=Object.fromEntries(root.web.workdays.policies.map(row=>[row.effectiveFrom,row]));}
+ if(root.web.workdays){root.web.workdays={...root.web.workdays};if(Array.isArray(root.web.workdays.schedules))root.web.workdays.schedules=Object.fromEntries(root.web.workdays.schedules.map(row=>[row.effectiveFrom,row]));if(Array.isArray(root.web.workdays.policies))root.web.workdays.policies=Object.fromEntries(root.web.workdays.policies.map(row=>[row.effectiveFrom,row]));}
  return leaves(root);
 }
 export function applyIntent(d,before,after,assetsBefore=[],assetsAfter=[],rebase=false){
@@ -135,6 +136,7 @@ export function project(d){
   (doc.tables[table]||=[]).push(row);
  }
  for(const name of ['calendarEvents','studyFolders'])if(plain(doc.web[name]))doc.web[name]=Object.values(doc.web[name]).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+ if(plain(doc.web.workdays?.schedules))doc.web.workdays.schedules=Object.values(doc.web.workdays.schedules).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
  if(plain(doc.web.workdays?.policies))doc.web.workdays.policies=Object.values(doc.web.workdays.policies).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
  for(const list of Object.values(doc.tables))list.sort((a,b)=>String(a.id??a.rootId??a.token??a.deckId).localeCompare(String(b.id??b.rootId??b.token??b.deckId)));
  return {doc,assets:[...d.getMap('assets').values()].sort((a,b)=>a.path.localeCompare(b.path))};

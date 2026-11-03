@@ -17,7 +17,7 @@ export function useCloudSync(options:Options){
  const setError=(error:string)=>{if(signal.get().error!==error)signal.set({...signal.get(),error});};
  async function request(path:string,init:RequestInit={}){
   const user=latest.current.user;if(!user||authenticatedUid()!==user.uid)throw Error('Sign in again to continue saving to your account.');
-  const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+await user.getIdToken());
+  const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+await user.getIdToken());headers.set('X-Remo-Capabilities','workdays-v2');
   const r=await fetch(CLOUD_API+path,{...init,headers,signal:AbortSignal.timeout(30000),cache:'no-store'});
   if(!r.ok&&r.status!==304){const data=await r.json().catch(()=>({}));throw Object.assign(Error(data.error||'Your changes are saved on this device. Reconnecting…'),{status:r.status});}return r;
  }

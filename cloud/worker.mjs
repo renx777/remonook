@@ -38,7 +38,7 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID)) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,bookmarkReader:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,workdaysSchema:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,bookmarkReader:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
   const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
@@ -50,6 +50,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
     if(request.method==='GET'){
       const row=await env.DB.prepare('SELECT revision, body FROM workspaces WHERE uid=?').bind(uid).first();
       if(!row)return json({revision:0,doc:null,assets:[]});
+      if(JSON.parse(row.body).doc?.web?.workdays?.version===2&&!request.headers.get('X-Remo-Capabilities')?.split(',').map(v=>v.trim()).includes('workdays-v2'))fail('Update RemoNook to sync Workdays. Pending edits remain saved on this device.',426);
       if(request.headers.get('If-None-Match')===String(row.revision))return new Response(null,{status:304});
       return json({revision:row.revision,...JSON.parse(row.body)});
     }
@@ -93,7 +94,7 @@ export default {
     if(!project||project.startsWith('REPLACE_')||!allowed.length)return json({error:'Environment is not configured.'},503);
     const origin=request.headers.get('Origin');if(origin&&!allowed.includes(origin))return json({error:'Origin not allowed.'},403);
     let response;try{response=await route(request,env);}catch(error){const status=error.status||500;response=json({error:status===500?'Cloud sync is temporarily unavailable.':error.message},status);if(status===500)console.error(JSON.stringify({event:'sync_error',message:String(error)}));}
-    const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match, X-Sync-Vector');headers.set('Access-Control-Allow-Methods','GET, PUT, POST, DELETE, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
+    const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match, X-Sync-Vector, X-Remo-Capabilities');headers.set('Access-Control-Allow-Methods','GET, PUT, POST, DELETE, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
     return new Response(response.body,{status:response.status,headers});
   }
 };

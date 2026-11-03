@@ -96,7 +96,8 @@ import { EmojiProvider } from './AnimatedEmoji';
 import {BulletMenuBody} from './BulletMenuBody';
 import {useEmojiAssetRepair} from './useEmojiAssetRepair';
 import { EmojiPicker } from './EmojiPicker';
-import {WorkdaysCalendar} from './WorkdaysCalendar';
+import {WorkdayMarker} from './WorkMode';
+import {workdaysV2} from './workdays-v2.mjs';
 import {workdays,validateWorkdays} from './workdays.mjs';
 import { decodeAnimation, insertEmoji } from './emoji.mjs';
 import { downloadCatalogEmoji, getCatalogEmoji, isCatalogEmoji, catalogAssetPaths } from './emoji-catalog.mjs';
@@ -437,6 +438,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   // Publish to the authoritative model immediately; only passive React views wait
   // for a typing pause. Saving and structural commands always read docRef.
   const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
+  const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
     const h = history.current,
@@ -1666,10 +1668,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <>
           <CalendarView
             autoOpen={false}
-            trackers={<CalendarTrackers doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
+            workdayMarker={calendarWorkdays.enabled?date=><WorkdayMarker w={calendarWorkdays} date={date}/>:undefined}
+            trackers={<CalendarTrackers onDate={date=>{setCalendarDate(date);setEditing(null);}} doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
             onCreateNote={(date,value,id)=>mutate(ns=>{const prepared=ensureCalendarHierarchy(ns,date);return move([...prepared.nodes,bullet(id,{parentId:prepared.dayId,...value})],id,prepared.dayId,(index(prepared.nodes).children.get(prepared.dayId)||[]).length);})}
             monthView={false}
-            workdays={workdays(doc).enabled?<details className="calendar-workdays-advanced"><summary>Planning &amp; goals</summary><WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(idx.children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarReminders,date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/></details>:undefined}
             hasReminder={date=>eventsOnDate(calendarReminders,date).length>0}
             reminders={<CalendarReminders doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onOpenDate={date=>{setCalendarDate(date);setEditing(null);}}/>}
             nodes={nodes}

@@ -142,6 +142,7 @@ const WEEKDAY_NAMES_2 = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 type CalendarViewProps = {
   workdays?: React.ReactNode;
+  workdayMarker?:(date:string)=>React.ReactNode;
   trackers?: React.ReactNode;
   onCreateNote?:(date:string,value:{text:string;formatting:string},id:string)=>void;
   monthView?: boolean;
@@ -488,7 +489,7 @@ export function CalendarView(props: CalendarViewProps) {
                         setPopoverOpen(false);
                       }}
                     >
-                      <span className="mini-day-num">{item.dayNum}</span>
+                      <span className="mini-day-num">{item.dayNum}</span>{props.workdayMarker?.(item.dateStr)}
                       {(hasNotes||props.hasReminder?.(item.dateStr)) && <span className={`mini-day-dot ${props.hasReminder?.(item.dateStr)?'has-reminder':''}`} title={props.hasReminder?.(item.dateStr)?'Calendar reminders':''}/>}
                     </button>
                   );
@@ -548,7 +549,7 @@ export function CalendarView(props: CalendarViewProps) {
                   onClick={() => onSelectDate(d.dateStr)}
                 >
                   <span className="strip-weekday">{d.weekday}</span>
-                  <span className="strip-day-num">{d.dayNum}</span>
+                  <span className="strip-day-num">{d.dayNum}</span>{props.workdayMarker?.(d.dateStr)}
                   <span className={`strip-dot ${hasNotes||props.hasReminder?.(d.dateStr) ? "visible" : ""} ${props.hasReminder?.(d.dateStr)?'has-reminder':''}`} title={props.hasReminder?.(d.dateStr)?'Calendar reminders':''}/>
                 </button>
               </div>
