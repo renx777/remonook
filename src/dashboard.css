@@ -222,7 +222,6 @@
  .dashboard .dash-widget-more { min-width:34px; min-height:34px; }
  .dash-widget-menu { width:205px; }
  .dash-widget-menu>button { min-height:40px; }
- .app .mobile-nav>button { flex:1; min-width:0; padding-inline:4px; }
  .dash-library-grid { gap:9px; }
  .dash-library-card { padding:15px; }
  .dash-library-card>small { font-size:10px; }

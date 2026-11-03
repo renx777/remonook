@@ -2,6 +2,8 @@
 
 ## Current state
 
+The Bookmarks preview (`feature/bookmarks`, release `2026-11-04.1`) is intentionally limited to local development and staging at the owner’s request. Production stays on its existing deployed release. Do not publish this preview through Sites. See [BOOKMARKS.md](BOOKMARKS.md) for staging-only backend bindings, migration and local cloud development.
+
 GitHub `main` is the source for every environment. Release `2026-11-02.3` includes the flashcard editing, interactive mindmap, bulk actions and pane improvements from `678e82c`, plus an update notice for older open app sessions. `/release.json` identifies the release on each frontend. Sites uses a separate source-repository commit, whose application files must match GitHub byte for byte. Environment-specific build configuration, Firebase accounts, database contents and attachment buckets remain separate.
 
 Do not publish changes only from the Sites checkout. Implement and test in the development checkout, commit to GitHub, wait for the staging workflow to succeed, then publish those exact source files through Sites. Before publishing, compare all tracked application files against the selected GitHub commit; exclude only generated `dist/` output and the Sites hosting manifest. After any emergency production edit, reconcile it into GitHub and the local checkout immediately, then wait for staging deployment before declaring the release complete.

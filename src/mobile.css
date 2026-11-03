@@ -14,8 +14,10 @@
  .topbar-search input{width:0;opacity:0;font-size:16px}
  .topbar-search:focus-within{position:absolute;left:8px;right:8px;width:auto;background:var(--bg);z-index:7;border:1px solid var(--line);padding:8px 10px}
  .topbar-search:focus-within input{width:100%;opacity:1}
- .mobile-nav{display:flex;justify-content:space-around;border-top:1px solid var(--line);padding:3px 8px max(4px,env(safe-area-inset-bottom));background:var(--bg);flex-shrink:0}
- .mobile-nav button{flex:1;flex-direction:column;gap:3px;font-size:10px;background:transparent;min-width:0;padding:8px 2px}
+ /* Bottom navigation: four destinations are visible at once; the rest scroll horizontally inside the bar. */
+ .mobile-nav{position:relative;display:flex;justify-content:flex-start;align-items:stretch;gap:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-top:1px solid var(--line);padding:3px 0 max(4px,env(safe-area-inset-bottom));background:var(--bg);flex-shrink:0}
+ .mobile-nav::-webkit-scrollbar{display:none}
+ .mobile-nav button{flex:0 0 25%;min-width:0;scroll-snap-align:start;flex-direction:column;gap:3px;font-size:10px;background:transparent;padding:8px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .outline-scroll{margin:10px 4px 0;scroll-padding-bottom:110px}
  .notes-panes,.note-pane{min-width:0}
  .app[data-editing=true] .outline-scroll{padding-bottom:100px}
@@ -97,4 +99,6 @@
  .topbar .search-box.is-open .topbar-search-clear { display:inline-flex; min-width:32px!important; min-height:36px!important; }
  .topbar .search-box.is-open .search-close { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:36px; height:36px; border:0; background:transparent; padding:0; }
  .topbar .search-options { width:100%; max-width:none; left:0; right:0; border-radius:10px; }
+}
+@media(max-width:760px){
 }

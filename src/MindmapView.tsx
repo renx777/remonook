@@ -6,10 +6,12 @@ import type {Node} from './data';
 import {index} from './domain.mjs';
 import {displayText} from './relations.mjs';
 import {Icon} from './icons';
+import {MindmapStylePanel} from './MindmapStylePanel';
+import {mindmapStyle,contrastText} from './mindmap-style.mjs';
 import './mindmap.css';
 
 type MindData={
-  id:string;text:string;root:boolean;hasChildren:boolean;collapsed:boolean;hidden:number;editing:boolean;confirm:boolean;selected:boolean;
+  style:any;id:string;text:string;root:boolean;hasChildren:boolean;collapsed:boolean;hidden:number;editing:boolean;confirm:boolean;selected:boolean;
   onSelect:(id:string)=>void;onOpen:(id:string)=>void;onToggle:(id:string)=>void;onEditStart:(id:string)=>void;onEditCommit:(id:string,text:string)=>void;onEditCancel:()=>void;
   onAddChild:(id:string)=>void;onAddSibling:(id:string)=>void;onDeleteRequest:(id:string)=>void;onDeleteConfirm:(id:string)=>void;onDeleteCancel:()=>void;
 };
@@ -17,6 +19,7 @@ const MindNode=({id,data}:{id:string;data:MindData})=>{
   const down=useRef({x:0,y:0});
   return <div
     className={`mind-node ${data.root?'is-root':''} ${data.collapsed&&data.hasChildren?'is-collapsed':''} ${data.confirm?'is-confirm':''} ${data.selected?'is-selected':''}`}
+    style={{background:data.style.fill,color:data.style.text||(data.style.fill&&data.style.shape!=='underline'?contrastText(data.style.fill):undefined),borderColor:data.style.border,fontSize:data.style.size,fontWeight:data.style.bold?700:undefined,fontStyle:data.style.italic?'italic':undefined,borderRadius:data.style.shape==='pill'?40:undefined,...(data.style.shape==='underline'?{background:'transparent',borderWidth:'0 0 2px',borderRadius:0}:{})}}
     title={data.text||'Untitled'}
     onPointerDown={e=>{down.current={x:e.clientX,y:e.clientY};}}
     onClick={e=>{ if(data.confirm||data.editing)return; if(Math.abs(e.clientX-down.current.x)>5||Math.abs(e.clientY-down.current.y)>5)return; data.onSelect(data.id); }}
@@ -50,6 +53,7 @@ const MindNode=({id,data}:{id:string;data:MindData})=>{
   </div>;
 };
 
+const nodeTypes={mind:MindNode};
 const resolveRoot=(nodes:Node[],scope:string|null):Node|null=>{const byId=index(nodes).byId;let n=scope?byId.get(scope):undefined;while(n){if(n.mindmap)return n;n=n.parentId?byId.get(n.parentId):undefined;}return null;};
 
 const Fitter=({nodes,edges}:{nodes:FlowNode<MindData>[];edges:Edge[]})=>{
@@ -59,13 +63,16 @@ const Fitter=({nodes,edges}:{nodes:FlowNode<MindData>[];edges:Edge[]})=>{
   return null;
 };
 
-export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollapse,onExpandBranch,onCollapseBranch,onAddChild,onAddSibling,onRename,onDelete,onReorder,disabled}:{
-  nodes:Node[];scope:string|null;onOpen:(id:string)=>void;onConvert:(id:string)=>void;onNotes:()=>void;
+export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollapse,onExpandBranch,onCollapseBranch,onAddChild,onAddSibling,onRename,onDelete,onReorder,disabled,styles={},onStyle}:{
+  styles?:Record<string,any>;onStyle:(id:string,patch:any,branch:boolean)=>void;nodes:Node[];scope:string|null;onOpen:(id:string)=>void;onConvert:(id:string)=>void;onNotes:()=>void;
   onToggleCollapse:(id:string)=>void;onExpandBranch:(id:string)=>void;onCollapseBranch:(id:string)=>void;
   onAddChild:(parentId:string,newId:string)=>void;onAddSibling:(id:string,newId:string)=>void;
   onRename:(id:string,text:string)=>void;onDelete:(id:string)=>void;onReorder:(id:string,index:number)=>void;disabled?:boolean;
 }){
- const root=resolveRoot(nodes,scope);
+ const [activeMap,setActiveMap]=useState<string|null>(()=>resolveRoot(nodes,scope)?.id||null),[query,setQuery]=useState('');
+ useEffect(()=>{setActiveMap(resolveRoot(nodes,scope)?.id||null);},[scope]);
+ const maps=useMemo(()=>nodes.filter(n=>n.mindmap&&!n.mirrorSourceId),[nodes]);
+ const root=activeMap?nodes.find(n=>n.id===activeMap&&n.mindmap)||null:null;
  const [editingId,setEditingId]=useState<string|null>(null);
  const [confirmId,setConfirmId]=useState<string|null>(null);
  const [selectedId,setSelectedId]=useState<string|null>(null);
@@ -83,21 +90,23 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
  const model=useMemo(()=>{ if(!root)return null;
   const counts=new Map<string,number>();
   const count=(id:string):number=>{ const cached=counts.get(id); if(cached!==undefined)return cached; const total=((children.get(id)||[]) as Node[]).reduce((sum,c)=>sum+1+count(c.id),0); counts.set(id,total); return total; };
-  nodes.forEach(n=>count(n.id));
+  count(root.id);
   type MindTree={id:string;children:MindTree[]};
   const build=(n:Node):MindTree=>({id:n.id,children:n.collapsed&&!scopePath.has(n.id)?[]:(children.get(n.id)||[]).map(build)});
-  const layout=tree<MindTree>().nodeSize([96,240])(hierarchy(build(root),d=>d.children));
+  const graph=hierarchy(build(root),d=>d.children);
+  const rowHeight=Math.max(96,...graph.descendants().map(n=>(mindmapStyle(styles[n.data.id]).size||13)*1.35*3+40));
+  const layout=tree<MindTree>().nodeSize([rowHeight,280])(graph);
   const flowNodes:FlowNode<MindData>[]=layout.descendants().map(d=>{
-    const n=nodes.find(x=>x.id===d.data.id) as Node,kids=children.get(n.id)||[];
+    const n=byId.get(d.data.id) as Node,kids=children.get(n.id)||[];
     return {id:d.data.id,position:{x:d.y,y:d.x},type:'mind',data:{
-      id:n.id,text:displayText(n.text),root:n.id===root.id,hasChildren:kids.length>0,collapsed:!!n.collapsed,hidden:counts.get(n.id)||0,
+      style:mindmapStyle(styles[n.id]),id:n.id,text:displayText(n.text),root:n.id===root.id,hasChildren:kids.length>0,collapsed:!!n.collapsed,hidden:counts.get(n.id)||0,
       editing:editingId===n.id,confirm:confirmId===n.id,selected:selectedId===n.id,
       onSelect:setSelectedId,onOpen,onToggle:onToggleCollapse,onEditStart:startEdit,onEditCommit:commitEdit,onEditCancel:cancelEdit,
       onAddChild:addChild,onAddSibling:addSibling,onDeleteRequest:setConfirmId,onDeleteConfirm:confirmDelete,onDeleteCancel:()=>setConfirmId(null)}};
   });
-  const flowEdges:Edge[]=layout.links().map(l=>({id:`e-${l.source.data.id}-${l.target.data.id}`,source:l.source.data.id,target:l.target.data.id,style:{stroke:'var(--muted)',strokeWidth:1.4}}));
+  const flowEdges:Edge[]=layout.links().map(l=>({id:`e-${l.source.data.id}-${l.target.data.id}`,source:l.source.data.id,target:l.target.data.id,style:{stroke:mindmapStyle(styles[l.target.data.id]).border||mindmapStyle(styles[l.target.data.id]).fill||'var(--muted)',strokeWidth:1.8}}));
   return {flowNodes,flowEdges};
- },[nodes,root,children,scopePath,editingId,confirmId,selectedId,disabled,onOpen,onToggleCollapse,onRename,onDelete]);
+ },[nodes,root,children,scopePath,editingId,confirmId,selectedId,disabled,onOpen,onToggleCollapse,onRename,onDelete,styles]);
  const [rfNodes,setRfNodes,onNodesChange]=useNodesState<FlowNode<MindData>>(model?.flowNodes??[]);
  useEffect(()=>{ if(model)setRfNodes(model.flowNodes); },[model,setRfNodes]);
  const onNodeDragStop=(_:unknown,node:FlowNode<MindData>,all:FlowNode<MindData>[])=>{
@@ -109,15 +118,16 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
   const at=ordered.indexOf(node.id);
   if(at>=0)onReorder(node.id,at);
  };
- if(!root)return <section className="mindmap-empty"><div><Icon name="mindmap" size={36}/><h2>{scope?'No mindmap for this branch':'Mindmap'}</h2><p>{scope?'Convert this branch into a mindmap, or open a branch that already has one.':'Zoom into a branch in Notes, then choose Mindmap from its bullet actions (or type / and pick Mindmap) to convert it.'}</p>{scope&&<button className="primary" onClick={()=>onConvert(scope)}><Icon name="mindmap" size={16}/>Convert this branch to a mindmap</button>}<button className="ghost" onClick={onNotes}>Back to notes</button></div></section>;
+ if(!root)return <section className="mindmap-library"><header><div><p className="mindmap-eyebrow">YOUR CONNECTED IDEAS</p><h1>Mindmaps <small>{maps.length}</small></h1><p>Every branch you turn into a mindmap, together in one place.</p></div><button onClick={onNotes}><Icon name="plus" size={16}/>Create from Notes</button></header>{maps.length>0&&<input type="search" aria-label="Search mindmaps" placeholder="Find a mindmap…" value={query} onChange={e=>setQuery(e.target.value)}/>}<div className="mindmap-library-grid">{maps.filter(n=>displayText(n.text).toLowerCase().includes(query.toLowerCase())).map(n=><button key={n.id} onClick={()=>{setSelectedId(null);setActiveMap(n.id);}}><span className="mindmap-library-preview" style={{color:styles[n.id]?.border||'var(--accent)'}}><Icon name="mindmap" size={40}/><i/><i/></span><strong>{displayText(n.text)||'Untitled mindmap'}</strong><span>{(children.get(n.id)||[]).length} main branches{n.parentId?' · Nested in Notes':''}</span></button>)}</div>{!maps.length&&<div className="mindmap-empty"><div><Icon name="mindmap" size={36}/><h2>Give your ideas room to connect</h2><p>Choose Mindmap from any bullet’s actions in Notes. Its children become branches here.</p>{scope&&<button disabled={disabled} onClick={()=>{onConvert(scope);setActiveMap(scope);}}>Convert this branch</button>}</div></div>}{maps.length>0&&!maps.some(n=>displayText(n.text).toLowerCase().includes(query.toLowerCase()))&&<p>No mindmaps match your search.</p>}</section>;
  return <div className="mindmap-view" aria-label="Mindmap">
-  <ReactFlow key={root.id} nodes={rfNodes} edges={model!.flowEdges} onNodesChange={onNodesChange} nodeTypes={{mind:MindNode}} fitView fitViewOptions={{padding:0.15}} minZoom={0.15} maxZoom={2.5} nodesDraggable={!disabled} nodesConnectable={false} elementsSelectable={false} zoomOnDoubleClick={false} zoomOnScroll panOnScroll={false} panOnDrag nodeDragThreshold={5} onNodeDragStop={onNodeDragStop} onPaneClick={()=>setSelectedId(null)} onInit={instance=>{rf.current=instance;}} proOptions={{hideAttribution:true}}>
+  <ReactFlow key={root.id} nodes={rfNodes} edges={model!.flowEdges} onNodesChange={onNodesChange} nodeTypes={nodeTypes} fitView fitViewOptions={{padding:0.15}} minZoom={0.15} maxZoom={2.5} nodesDraggable={!disabled} nodesConnectable={false} elementsSelectable={false} zoomOnDoubleClick={false} zoomOnScroll panOnScroll={false} panOnDrag nodeDragThreshold={5} onNodeDragStop={onNodeDragStop} onPaneClick={()=>setSelectedId(null)} onInit={instance=>{rf.current=instance;}} proOptions={{hideAttribution:true}}>
    <Background variant={BackgroundVariant.Dots} gap={24} size={1.1} color="var(--line)"/>
-   <MiniMap pannable zoomable nodeColor="var(--accent)" nodeStrokeColor="var(--line)" maskColor="rgb(0 0 0 / 0.12)"/>
+   <MiniMap pannable zoomable nodeColor={node=>mindmapStyle(styles[node.id]).fill||'var(--accent)'} nodeStrokeColor="var(--line)" maskColor="rgb(0 0 0 / 0.12)"/>
    <Controls/>
    <Fitter nodes={rfNodes} edges={model!.flowEdges}/>
   </ReactFlow>
-  <div className="mindmap-root-label"><Icon name="mindmap" size={14}/><span>{displayText(root.text)||'Untitled'}</span></div>
+  <div className="mindmap-root-label"><button aria-label="All mindmaps" onClick={()=>{setActiveMap(null);setSelectedId(null);}}><Icon name="back" size={14}/>All mindmaps</button><Icon name="mindmap" size={14}/><span>{displayText(root.text)||'Untitled'}</span></div>
+  {selectedId&&<div className="mindmap-selection-toolbar"><span>{displayText(byId.get(selectedId)?.text||'Untitled')}</span><MindmapStylePanel key={selectedId} value={styles[selectedId]||{}} disabled={disabled} onChange={(patch,branch)=>onStyle(selectedId,patch,branch)}/><button aria-label="Edit selected topic" disabled={disabled} onClick={()=>startEdit(selectedId)}><Icon name="edit" size={17}/></button></div>}
   <div className="mindmap-toolbar" role="toolbar" aria-label="Mindmap controls">
    <button title="Expand all" aria-label="Expand all" onClick={()=>onExpandBranch(root.id)}><Icon name="expand" size={14}/></button>
    <button title="Collapse all" aria-label="Collapse all" onClick={()=>onCollapseBranch(root.id)}><Icon name="collapse" size={14}/></button>

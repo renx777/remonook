@@ -1,0 +1,10 @@
+import {diffChars} from 'diff';
+import {marks,encode} from './domain.mjs';
+export const mindmapColors=['#FCE7F3','#EDE9FE','#DBEAFE','#CCFBF1','#DCFCE7','#FEF3C7','#FFEDD5','#F1F5F9'];
+/** @returns {Record<string, any>} */
+export function mindmapStyle(value={}){/** @type {Record<string, any>} */const out={};for(const key of ['fill','text','border'])if(/^#[a-f0-9]{6}$/i.test(value[key]||''))out[key]=value[key];for(const key of ['bold','italic'])if(typeof value[key]==='boolean')out[key]=value[key];if([13,16,19,22].includes(value.size))out.size=value.size;if(['card','pill','underline'].includes(value.shape))out.shape=value.shape;return out;}
+export function contrastText(fill){const rgb=fill.slice(1).match(/../g).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722>.179?'#17212F':'#FFFFFF';}
+export function patchMindmapStyle(doc,id,patch,branch=false){const ids=new Set([id]);if(branch){const children=new Map();for(const n of doc.tables.bullets){const rows=children.get(n.parentId)||[];rows.push(n.id);children.set(n.parentId,rows);}const queue=[id];for(let i=0;i<queue.length;i++)for(const child of children.get(queue[i])||[])if(!ids.has(child)){ids.add(child);queue.push(child);}}
+ const styles={...doc.web.mindmapStyles};for(const key of ids)styles[key]=patch===null?{}:mindmapStyle({...styles[key],...patch});return{...doc,web:{...doc.web,mindmapStyles:styles}};}
+
+export function renameMindmapBullet(nodes,id,text){return nodes.map(n=>{if(n.id!==id)return n;let before=0,after=0;const ranges=[],old=marks(n.formatting||'',n.text.length);for(const part of diffChars(n.text,text)){if(part.added)after+=part.value.length;else if(part.removed)before+=part.value.length;else{for(const m of old){const start=Math.max(m.start,before),end=Math.min(m.end,before+part.value.length);if(end>start)ranges.push({...m,start:after+start-before,end:after+end-before});}before+=part.value.length;after+=part.value.length;}}return {...n,text,formatting:encode(ranges)};});}

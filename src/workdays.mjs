@@ -1,3 +1,4 @@
+import {validateWorkdaysV2} from './workdays-v2.mjs';
 import { validEventDate, localDate } from "./calendar-events.mjs";
 
 export const LEAVE_TYPES = ["Sick", "Casual", "Planned", "Annual"];
@@ -49,6 +50,7 @@ export const emptyWorkdays = () => ({
 export const workdays = (doc) => doc.web.workdays || emptyWorkdays();
 export function validateWorkdays(w) {
   if (w === undefined) return;
+  if(w?.version===2)return validateWorkdaysV2(w);
   if (
     !w ||
     w.version !== 1 ||

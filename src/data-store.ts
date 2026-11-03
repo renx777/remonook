@@ -1,3 +1,5 @@
+import {cachedArticle,cacheArticle} from './article-cache.mjs';
+import {validateBookmarks,articleSnapshotHashes} from './bookmarks.mjs';
 import {validateFsrs} from './fsrs-scheduler.mjs';
 import {validateReading} from './reading.mjs';
 import {validateReadingBooks} from './book-storage.mjs';
@@ -9,6 +11,7 @@ import {validateOcclusions} from "./occlusion.mjs";
 import {validateStudyLibrary,studyFolders} from './study-library.mjs';
 import {validateCalendarEvents} from './calendar-events.mjs';
 import {validateDashboard} from './dashboard.mjs';
+import {validateDailyTrackers} from './daily-trackers.mjs';
 import {validateWorkdays} from './workdays.mjs';
 import JSZip from "jszip";
 import { inspectZip } from "./zip-safety";
@@ -97,7 +100,7 @@ export function withNodes(doc: Workspace, nodes: Node[]): Workspace {
     ...doc,
     columns: { ...doc.columns,
       media: media.some(item=>item.displayWidth!==undefined) && !doc.columns.media.includes("displayWidth") ? [...doc.columns.media,"displayWidth"] : doc.columns.media,
-      bullets: [...new Set([...doc.columns.bullets.filter(field=>nodes.some(n=>n.mirrorSourceId)||!['mirrorSourceId','mirrorRootId'].includes(field)), ...nodes.flatMap(node => node.mirrorSourceId ? ['mirrorSourceId','mirrorRootId'] : []), ...(nodes.some(node=>node.blockStyle&&node.blockStyle!=='paragraph')?['blockStyle']:[]), ...(nodes.some(node=>node.dividerStyle)?['dividerStyle']:[]), ...(nodes.some(node=>node.dividerColor)?['dividerColor']:[])])],
+      bullets: [...new Set([...doc.columns.bullets.filter(field=>nodes.some(n=>n.mirrorSourceId)||!['mirrorSourceId','mirrorRootId'].includes(field)), ...nodes.flatMap(node => node.mirrorSourceId ? ['mirrorSourceId','mirrorRootId'] : []), ...(nodes.some(node=>node.mindmap)?['mindmap']:[]), ...(nodes.some(node=>node.blockStyle&&node.blockStyle!=='paragraph')?['blockStyle']:[]), ...(nodes.some(node=>node.dividerStyle)?['dividerStyle']:[]), ...(nodes.some(node=>node.dividerColor)?['dividerColor']:[])])],
       decks: doc.tables.decks.some(deck => deck.layout) && !doc.columns.decks.includes('layout') ? [...doc.columns.decks, 'layout'] : doc.columns.decks,
     },
     tables: {
@@ -154,8 +157,11 @@ export function tableManifest(doc: Workspace) {
 }
 export function androidBlockers(doc: Workspace) {
   const reasons = [];
+  if(doc.web.bookmarks)reasons.push("Web bookmarks require a full web backup");
   if(doc.tables.bullets.some(node=>node.mirrorSourceId))reasons.push("Mirrors require a full web backup");
   if(doc.web.calendarEvents?.length)reasons.push('Calendar reminders require a full web backup');
+  if(doc.web.dailyTrackers)reasons.push("Daily trackers require a full web backup");
+  if(doc.web.mindmapStyles)reasons.push("Mindmap styles require a full web backup");
   if(doc.web.workdays)reasons.push('Workdays require a full web backup');
   if(doc.web.readingHighlights)reasons.push('Book highlight sources require a full web backup');
   if(doc.web.readingBooks)reasons.push('Reading book metadata requires a full web backup');
@@ -229,8 +235,8 @@ export async function load(name?: string): Promise<Workspace | null> {
       m.tableNames.map((n: string) => [n, []]),
     );
     for (const r of all) tables[r.table].push(r.value);
-    validateWorkdays(m.web?.workdays);
-    validateDashboard(m.web?.dashboard);validateReadingBooks(m.web?.readingBooks);validateReading(m.web||{});
+    validateWorkdays(m.web?.workdays);validateDailyTrackers(m.web?.dailyTrackers);
+    validateDashboard(m.web?.dashboard);validateReadingBooks(m.web?.readingBooks);validateReading(m.web||{});validateBookmarks(m.web||{});
     return { ...m, tables };
   } finally {
     db.close();
@@ -256,8 +262,8 @@ export async function save(
   account=storageName,
 ): Promise<Workspace> {
   validateFsrs(after);
-  validateWorkdays(after.web.workdays);
-  validateDashboard(after.web.dashboard);validateReadingBooks(after.web.readingBooks);validateReading(after.web);
+  validateWorkdays(after.web.workdays);validateDailyTrackers(after.web.dailyTrackers);
+  validateDashboard(after.web.dashboard);validateReadingBooks(after.web.readingBooks);validateReading(after.web);validateBookmarks(after.web);
   const db = await openDb(account);
   try {
     const tx = db.transaction(
@@ -448,7 +454,7 @@ export function references(doc: Workspace) {
   return paths;
 }
 const safe = (p: string) =>
-  /^(media|emoji)\/[A-Za-z0-9._-]+$/.test(p) &&
+  (/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(p)||/^articles\/[a-f0-9]{64}\.json$/.test(p)) &&
   ![".", ".."].includes(p.split("/")[1]);
 export async function archive(
   doc: Workspace,
@@ -460,6 +466,10 @@ export async function archive(
     if (reasons.length)
       throw Error("Android export would lose data: " + reasons.join("; "));
   }
+  assets=new Map(assets);
+  const articleHashes=articleSnapshotHashes(doc);
+  if(!android)for(const hash of articleHashes){const path='articles/'+hash+'.json';if(!assets.has(path)){const local=await cachedArticle(storageName,hash);if(local)assets.set(path,local.blob);}}
+  const missingSnapshots=[...articleHashes].filter(hash=>!assets.has('articles/'+hash+'.json'));
   const zip = new JSZip(),
     declared = [];
   let total = 0;
@@ -485,7 +495,7 @@ export async function archive(
     tables: tableManifest(doc),
     preferences: doc.preferences,
     assets: declared,
-    ...(!android ? { web: doc.web } : {}),
+    ...(!android ? { web: {...doc.web,bookmarkBackupMissing:missingSnapshots} } : {}),
   };
   const json = JSON.stringify(manifest);
   if (new TextEncoder().encode(json).length > 64 * 1024 * 1024)
@@ -704,10 +714,11 @@ export async function parseArchive(
   validateOcclusions(doc.web.occlusions);
   validateStudyLibrary(doc.web);
   validateCalendarEvents(doc.web.calendarEvents);
-  validateDashboard(doc.web.dashboard);validateReadingBooks(doc.web.readingBooks);validateReading(doc.web);
-  validateWorkdays(doc.web.workdays);
+  validateDashboard(doc.web.dashboard);validateReadingBooks(doc.web.readingBooks);validateReading(doc.web);validateBookmarks(doc.web);
+  validateWorkdays(doc.web.workdays);validateDailyTrackers(doc.web.dailyTrackers);
   for(const item of doc.tables.media)if(item.displayWidth!=null&&(!Number.isFinite(item.displayWidth)||item.displayWidth<15||item.displayWidth>100))throw Error("Invalid image display width");
   const warnings = androidBlockers(doc);
+  if(doc.web.bookmarkBackupMissing?.length)warnings.push("Some article snapshots were not cached on the exporting device. Their URLs and notes are included.");
   return { doc, assets, warnings };
 }
 export function download(blob: Blob, name: string) {

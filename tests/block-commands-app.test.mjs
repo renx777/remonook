@@ -57,7 +57,9 @@ test('slash commands convert blocks, highlight code, preserve text and open MCQs
     });
     assert.equal(document.querySelector('[aria-label="Code language"]').value, 'python');
     await act(async () => document.querySelector('.tiptap').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })));
-    await wait(() => document.querySelectorAll('.outline-row').length === 2);
+    // The outline count can publish before the old editor is destroyed and its
+    // replacement mounts. Wait for the new live editor before issuing commands.
+    await wait(() => document.querySelectorAll('.outline-row').length === 2 && document.querySelector('.tiptap')?.editor && document.querySelector('.tiptap').editor !== editor && !document.querySelector('.tiptap').editor.isDestroyed);
     editor = document.querySelector('.tiptap').editor;
     await type('/number'); await key('Enter');
     await type('First item'); await key('Escape');

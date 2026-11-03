@@ -1,899 +1,660 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import type { Workspace } from "./data";
-import { LibraryDialog } from "./StudyFolders";
-import { Icon } from "./icons";
-import { FlowNumber, NumberGroup } from "./FlowNumber";
-import { localDate, validEventDate } from "./calendar-events.mjs";
+import { localDate } from "./calendar-events.mjs";
 import {
-  LEAVE_TYPES,
-  workdays,
-  enableWorkdays,
-  updateWorkdays,
+  workdaysV2,
+  periodRange,
   dayAfter,
-  monthStart,
-  monthEnd,
-  dateRange,
+  datesBetween,
   weekday,
-  dayState,
-  policyOn,
-  defaultPolicy,
-  setWorkdays,
-  workSummary,
-  leaveSummary,
-  saveWorkPolicy,
-  parseHolidayText,
-  holidayConflicts,
-  importWorkHolidays,
-} from "./workdays.mjs";
-import "./workdays.css";
-
+  workdayState,
+  scheduled,
+  setAllocations,
+  confirmPlans,
+  clearWorkday,
+  targetProgress,
+  targetWarnings,
+  summarizeWorkdays,
+  routinePreview,
+  applyRoutine,
+  leaveBalances,
+} from "./workdays-v2.mjs";
+import { WorkdayDialog } from "./WorkdayDialog";
+import { WorkdayMarker, LeaveEntry } from "./WorkMode";
+import { WorkdaySettings, LeaveSettings } from "./WorkdaySettings";
+import { Icon } from "./icons";
+import "./workdays-v2.css";
+const Insights = lazy(() => import("./WorkdayInsights"));
+const HolidayImport = lazy(() => import("./WorkdayHolidayImport"));
 type Props = {
   doc: Workspace;
   date: string;
   disabled: boolean;
-  hasNotes: (date: string) => boolean;
-  hasReminder: (date: string) => boolean;
   onDate: (date: string) => void;
-  onChange: (doc: Workspace) => void;
+  onChange: (fn: (d: Workspace) => Workspace) => void;
+  onClose: () => void;
 };
-const dateLabel = (date: string) =>
-  new Date(date + "T12:00:00").toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-const shortStatus = (s: string) =>
-  s === "Leave" ? "Leave" : s === "Holiday" ? "Off" : s;
-const runError = (e: unknown) =>
-  e instanceof Error ? e.message : "Could not update Workdays.";
 export function WorkdaysCalendar({
   doc,
   date,
   disabled,
-  hasNotes,
-  hasReminder,
   onDate,
   onChange,
+  onClose,
 }: Props) {
-  const w = workdays(doc) as any;
-  const [today, setToday] = useState(localDate),
-    [selecting, setSelecting] = useState(false),
+  const w = workdaysV2(doc, date),
+    [tab, setTab] = useState("overview"),
+    [period, setPeriod] = useState("month"),
+    [anchor, setAnchor] = useState(date),
     [selected, setSelected] = useState<string[]>([]),
     [dialog, setDialog] = useState(""),
-    [detail, setDetail] = useState(""),
     [error, setError] = useState("");
+  const [today, setToday] = useState(localDate);
   useEffect(() => {
     const tick = () => setToday(localDate());
-    const timer = setInterval(tick, 30000);
     window.addEventListener("focus", tick);
+    const t = setInterval(tick, 30000);
     return () => {
-      clearInterval(timer);
       window.removeEventListener("focus", tick);
+      clearInterval(t);
     };
   }, []);
-  useEffect(() => {
-    setSelected([]);
-    setSelecting(false);
-  }, [date.slice(0, 7)]);
-  const summary = useMemo(
-    () => workSummary(w, validEventDate(date) ? date : today, today),
-    [w, date, today],
-  );
-  const monthDates = useMemo(() => {
-    if (!validEventDate(date)) return [];
-    const first = monthStart(date);
-    return dateRange(
-      [dayAfter(first, -((weekday(first) + 6) % 7)), "1900-01-01"]
-        .sort()
-        .at(-1)!,
-      [
-        dayAfter(monthEnd(date), (7 - weekday(monthEnd(date))) % 7),
-        "2199-12-31",
-      ].sort()[0],
-    );
-  }, [date.slice(0, 7)]);
-  const state = dayState(w, date, today),
-    targets = selecting ? selected : [date];
-  const change = (fn: () => Workspace) => {
+  const range = periodRange(anchor, tab === "plan" ? "month" : period),
+    month = periodRange(anchor, "month"),
+    summary = useMemo(
+      () => summarizeWorkdays(w, range.start, range.end, today),
+      [w, range.start, range.end, today],
+    ),
+    warnings = targetWarnings(w, anchor, today);
+  const change = (fn: (d: Workspace) => Workspace) => {
     try {
-      onChange(fn());
+      onChange(fn);
       setError("");
     } catch (e) {
-      setError(runError(e));
+      setError((e as Error).message);
     }
   };
-  const mark = (status: string, extra = "") =>
-    change(() => setWorkdays(doc, targets, status, extra, today));
-  const shiftMonth = (n: number) => {
-    const d = new Date(date + "T12:00:00Z");
-    d.setUTCDate(1);
-    d.setUTCMonth(d.getUTCMonth() + n);
-    const next = d.toISOString().slice(0, 10);
-    if (validEventDate(next)) onDate(next);
+  const jump = (n: number) => {
+    if (tab === "leave") {
+      const start = leaveBalances(w, anchor).start,
+        d = new Date(start + "T12:00:00Z");
+      d.setUTCFullYear(d.getUTCFullYear() + n);
+      const next = d.toISOString().slice(0, 10);
+      if (next >= "1900-01-01" && next <= "2199-12-31") setAnchor(next);
+      return;
+    }
+    const next = n < 0 ? dayAfter(range.start, -1) : dayAfter(range.end);
+    if (next >= "1900-01-01" && next <= "2199-12-31") {
+      setAnchor(next);
+      setSelected([]);
+    }
   };
+  const grid = datesBetween(
+    [dayAfter(month.start, -((weekday(month.start) + 6) % 7)), "1900-01-01"]
+      .sort()
+      .at(-1)!,
+    [dayAfter(month.end, (7 - weekday(month.end)) % 7), "2199-12-31"].sort()[0],
+  );
   return (
-    <section
-      className={`workdays ${w.enabled ? "is-enabled" : ""}`}
-      aria-label="Workdays calendar"
-    >
-      <div className="wd-toolbar">
-        <button
-          className="wd-toggle"
-          role="switch"
-          aria-checked={w.enabled}
-          aria-label="Workdays layer"
-          disabled={disabled || !validEventDate(date)}
-          onClick={() => change(() => enableWorkdays(doc, !w.enabled, date))}
-        >
-          <Icon name="calendar" size={15} />
-          <span>Workdays</span>
-          <span
-            className={`wd-switch ${w.enabled ? "on" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-        {w.enabled && (
-          <div className="wd-toolbar-actions">
-            <div
-              className="wd-view-switch"
-              role="group"
-              aria-label="Calendar view"
-            >
-              {["day", "month"].map((view) => (
+    <>
+      <WorkdayDialog title="Workdays" wide onClose={onClose}>
+        <div className="wd2-workspace">
+          <div className="wd2-workspace-nav">
+            <nav aria-label="Workdays views">
+              {["overview", "plan", "leave"].map((t) => (
                 <button
-                  key={view}
-                  aria-pressed={w.view === view}
-                  onClick={() =>
-                    change(() => updateWorkdays(doc, { ...w, view }))
-                  }
+                  key={t}
+                  aria-pressed={tab === t}
+                  onClick={() => {
+                    setTab(t);
+                    setSelected([]);
+                  }}
                 >
-                  {view === "day" ? "Day" : "Month"}
+                  {t[0].toUpperCase() + t.slice(1)}
                 </button>
               ))}
+            </nav>
+            <div>
+              <button
+                className="icon-button"
+                title="Import holidays"
+                aria-label="Import holidays"
+                onClick={() => setDialog("import")}
+              >
+                <Icon name="upload" size={17} />
+              </button>
+              <button
+                className="icon-button"
+                aria-label="Workday settings"
+                onClick={() => setDialog("settings")}
+              >
+                <Icon name="settings" size={17} />
+              </button>
             </div>
+          </div>
+          <div className="wd2-period">
             <button
-              className="wd-tool"
-              aria-label="Workday settings"
-              title="Workday settings"
-              onClick={() => setDialog("settings")}
+              className="icon-button"
+              aria-label="Previous work period"
+              onClick={() => jump(-1)}
             >
-              <Icon name="settings" size={16} />
+              <Icon name="back" size={16} />
+            </button>
+            <label className="wd2-period-label">
+              {tab === "leave" ? "Leave year" : "Period"}
+              <input
+                aria-label="Workdays date"
+                type="date"
+                value={anchor}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setAnchor(e.target.value);
+                    setSelected([]);
+                  }
+                }}
+              />
+            </label>
+            {tab === "overview" && (
+              <select
+                aria-label="Statistics period"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+              >
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+                <option value="quarter">Quarter</option>
+              </select>
+            )}
+            <button
+              className="icon-button"
+              aria-label="Next work period"
+              onClick={() => jump(1)}
+            >
+              <Icon name="forward" size={16} />
             </button>
           </div>
-        )}
-      </div>
-      {w.enabled && validEventDate(date) && (
-        <>
-          <div className="wd-summary" aria-label="Monthly office goal">
-            <div className="wd-summary-copy" key={date.slice(0, 7)}>
-              <NumberGroup>
-                <strong>
-                  {!summary.eligible
-                    ? "No eligible workdays"
-                    : summary.met
-                      ? "Office goal met"
-                      : <><FlowNumber value={summary.completed} /> of <FlowNumber value={summary.target} /> office days</>}
-                </strong>
-                <span>
-                  <FlowNumber value={summary.planned} /> planned
-                  {summary.remaining
-                    ? <> · <FlowNumber value={summary.remaining} /> still to plan</>
-                    : summary.met
-                      ? ""
-                      : " · covered by plans"}
-                </span>
-              </NumberGroup>
-            </div>
-            <div
-              className="wd-goal-track"
-              role="progressbar"
-              aria-label="Confirmed office days"
-              aria-valuemin={0}
-              aria-valuemax={Math.max(1, summary.target)}
-              aria-valuenow={Math.min(
-                summary.completed,
-                Math.max(1, summary.target),
+          {tab === "overview" && (
+            <>
+              <p className="wd2-muted">
+                {range.start} – {range.end} · Scheduled workdays only
+              </p>
+              <div className="wd2-metrics">
+                {[
+                  ["Home", summary.home],
+                  ["Office", summary.office],
+                  ["Leave", summary.leave],
+                  ["Unrecorded", summary.missing],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <strong>{value}</strong>
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+              <Suspense fallback={<p role="status">Loading chart…</p>}>
+                <Insights
+                  rows={summary.rows}
+                  period={period}
+                  onDate={(d) => {
+                    setAnchor(d);
+                    setTab("plan");
+                    setSelected([d]);
+                  }}
+                />
+              </Suspense>
+              <div className="wd2-section-title">
+                <h3>Targets</h3>
+                <button
+                  className="wd2-link"
+                  onClick={() => setDialog("settings")}
+                >
+                  Edit targets
+                </button>
+              </div>
+              {!Object.keys(w.targets).length && (
+                <p className="wd2-muted">
+                  Set an office minimum or a home-working limit.
+                </p>
               )}
-              aria-valuetext={`${summary.completed} confirmed, ${summary.planned} planned, target ${summary.target}`}
-            >
-              <span
-                style={{
-                  width: `${Math.min(100, (summary.completed / Math.max(1, summary.target)) * 100)}%`,
-                }}
-              />
-              <i
-                style={{
-                  width: `${Math.min(100 - Math.min(100, (summary.completed / Math.max(1, summary.target)) * 100), (summary.planned / Math.max(1, summary.target)) * 100)}%`,
-                }}
-              />
-            </div>
-            <small>
-              Confirmed + planned are shown separately ·{" "}
-              {new Date(date + "T12:00:00").toLocaleDateString(undefined, {
-                month: "short",
-                year: "numeric",
-              })}
-            </small>
-          </div>
-          {w.view === "month" && (
-            <div className="wd-month">
-              <div className="wd-month-heading">
-                <div className="wd-month-nav">
+              {Object.values(w.targets).map((t: any) => {
+                const p = targetProgress(w, t, anchor, today);
+                if (!p) return null;
+                return (
                   <button
-                    className="wd-tool"
-                    aria-label="Previous work month"
-                    onClick={() => shiftMonth(-1)}
-                  >
-                    <Icon name="back" size={16} />
-                  </button>
-                  <strong>
-                    {new Date(date + "T12:00:00").toLocaleDateString(
-                      undefined,
-                      { month: "long", year: "numeric" },
-                    )}
-                  </strong>
-                  <button
-                    className="wd-tool"
-                    aria-label="Next work month"
-                    onClick={() => shiftMonth(1)}
-                  >
-                    <Icon name="chevron" size={16} />
-                  </button>
-                </div>
-                <div className="wd-month-controls">
-                  <button
-                    className="wd-text-button"
-                    onClick={() => onDate(today)}
-                  >
-                    Today
-                  </button>
-                  <button
-                    className="wd-text-button"
-                    aria-pressed={selecting}
+                    className="wd2-target"
+                    key={t.id}
                     onClick={() => {
-                      setSelecting(!selecting);
+                      setTab("plan");
                       setSelected([]);
+                      setAnchor(p.start);
                     }}
                   >
-                    {selecting ? "Done selecting" : "Select dates"}
+                    <div>
+                      <strong>
+                        {t.mode === "WFH" ? "Home" : "Office"} ·{" "}
+                        {t.comparison === "min" ? "At least" : "At most"}{" "}
+                        {t.value}
+                        {t.unit === "percent" ? "%" : " days"} / {t.period}
+                      </strong>
+                      <span>
+                        {p.noDays
+                          ? "No eligible workdays"
+                          : `${p.actual} recorded · ${p.projected} projected · ${p.projectedTarget} ${t.comparison === "min" ? "needed" : "limit"}`}
+                      </span>
+                    </div>
+                    <div className="wd2-progress" aria-hidden="true">
+                      <i
+                        style={{
+                          width:
+                            Math.min(
+                              100,
+                              p.target ? (p.actual / p.target) * 100 : 0,
+                            ) + "%",
+                        }}
+                      />
+                      <i
+                        className="projected"
+                        style={{
+                          width:
+                            Math.min(
+                              100,
+                              p.projectedTarget
+                                ? (p.projected / p.projectedTarget) * 100
+                                : 0,
+                            ) + "%",
+                        }}
+                      />
+                    </div>
+                    <small>
+                      {p.eligible} eligible days · {p.projectedEligible} after
+                      planned leave · {p.missing} unrecorded
+                      {t.comparison === "max" && p.end >= today
+                        ? " · provisional until period ends"
+                        : ""}
+                    </small>
                   </button>
-                </div>
-              </div>
-              <div
-                className="wd-grid"
-                role="group"
-                aria-label="Work month dates"
-              >
-                <div className="wd-weekdays" aria-hidden="true">
-                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
-                    (d) => (
-                      <span key={d}>{d}</span>
-                    ),
+                );
+              })}
+              {warnings.map((warning) => (
+                <p className="wd2-warning" key={warning}>
+                  {warning}
+                </p>
+              ))}
+              {!!summary.exceptions && (
+                <p className="wd2-muted">
+                  {summary.exceptions} recorded days on holidays/nonworking days
+                  · kept as exceptions, excluded from targets.
+                </p>
+              )}
+              {!!summary.pending.length && (
+                <section className="wd2-pending">
+                  <div className="wd2-section-title">
+                    <h3>{summary.pending.length} plans to confirm</h3>
+                    <button
+                      disabled={disabled}
+                      className="wd2-link"
+                      onClick={() =>
+                        change((d) => confirmPlans(d, summary.pending))
+                      }
+                    >
+                      Confirm these plans
+                    </button>
+                  </div>
+                  {summary.pending.slice(0, 7).map((d) => (
+                    <button
+                      className="wd2-pending-date"
+                      key={d}
+                      onClick={() => {
+                        setAnchor(d);
+                        setTab("plan");
+                        setSelected([d]);
+                      }}
+                    >
+                      {d}
+                      <span>{workdayState(w, d, today).label}</span>
+                      <Icon name="forward" size={14} />
+                    </button>
+                  ))}
+                </section>
+              )}
+            </>
+          )}
+          {tab === "plan" && (
+            <>
+              <div className="wd2-section-title">
+                <h3>
+                  {new Date(anchor + "T12:00:00").toLocaleDateString(
+                    undefined,
+                    { month: "long", year: "numeric" },
                   )}
-                </div>
-                {monthDates.map((d) => {
-                  const s = dayState(w, d, today),
-                    p = policyOn(w, d);
-                  const off = !p?.weekdays.includes(weekday(d));
-                  const isSelected = selecting
-                    ? selected.includes(d)
-                    : d === date;
+                </h3>
+                <button
+                  className="wd2-link"
+                  disabled={disabled}
+                  onClick={() => setDialog("routine")}
+                >
+                  Weekly routine
+                </button>
+              </div>
+              <p className="wd2-muted">
+                Select dates to record or plan. Outlined markers are plans.
+              </p>
+              <div
+                className="wd2-month"
+                role="group"
+                aria-label="Workdays month"
+              >
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                  <span className="wd2-weekday" key={d}>
+                    {d}
+                  </span>
+                ))}
+                {grid.map((d) => {
+                  const s = workdayState(w, d, today);
                   return (
                     <button
                       key={d}
-                      data-date={d}
-                      className={`wd-day ${d.slice(0, 7) !== date.slice(0, 7) ? "outside" : ""} ${off ? "nonwork" : ""} ${isSelected ? "selected" : ""} ${d === today ? "today" : ""}`}
-                      aria-label={`${dateLabel(d)}${s.status ? `, ${s.planned ? (s.pending ? "Unconfirmed plan: " : "Planned ") : "Confirmed "}${s.status}` : ""}${s.holiday ? `: ${s.holiday}` : ""}${hasNotes(d) ? ", has notes" : ""}${hasReminder(d) ? ", has reminders" : ""}`}
-                      aria-pressed={isSelected}
-                      onClick={() => {
-                        if (selecting)
-                          setSelected((v) =>
-                            v.includes(d)
-                              ? v.filter((x) => x !== d)
-                              : [...v, d],
-                          );
-                        else onDate(d);
-                      }}
+                      aria-label={
+                        d +
+                        " · " +
+                        (s.holiday || s.label) +
+                        (s.planned ? " · planned" : "")
+                      }
+                      aria-pressed={selected.includes(d)}
+                      className={
+                        (d.slice(0, 7) !== anchor.slice(0, 7)
+                          ? "outside "
+                          : "") + (!scheduled(w, d) ? "nonworking " : "")
+                      }
+                      onClick={() =>
+                        setSelected((prev) =>
+                          prev.includes(d)
+                            ? prev.filter((x) => x !== d)
+                            : [...prev, d],
+                        )
+                      }
                     >
-                      <span className="wd-day-number">
-                        {Number(d.slice(-2))}
-                      </span>
-                      {s.status && (
-                        <span
-                          className={`wd-badge status-${s.status.toLowerCase()} ${s.planned ? "planned" : ""} ${s.pending ? "pending" : ""}`}
-                          title={
-                            s.holiday || s.actual?.detail || s.plan?.detail
-                          }
-                        >
-                          {s.pending ? "? " : ""}
-                          {shortStatus(s.status)}
-                        </span>
-                      )}
-                      <span className="wd-day-dots" aria-hidden="true">
-                        {hasNotes(d) && <i />}
-                        {hasReminder(d) && <i className="reminder" />}
-                      </span>
+                      <span>{+d.slice(8)}</span>
+                      <WorkdayMarker w={w} date={d} />
+                      <small>
+                        {s.holiday
+                          ? "Holiday"
+                          : s.label === "Unrecorded"
+                            ? ""
+                            : s.label}
+                      </small>
                     </button>
                   );
                 })}
               </div>
-              <div className="wd-legend">
-                <span>
-                  <i />
-                  Confirmed
-                </span>
-                <span>
-                  <i className="planned" />
-                  Planned
-                </span>
-                <span>? Needs confirmation</span>
-              </div>
-            </div>
-          )}
-          <div className="wd-day-details">
-            <div className="wd-day-heading">
-              <span>
-                {selecting
-                  ? `${selected.length} dates selected`
-                  : dateLabel(date)}
-              </span>
-              {!selecting && (
-                <span className="wd-record-label">
-                  {state.holiday
-                    ? state.holiday
-                    : state.actual
-                      ? `Confirmed ${state.actual.status}${state.actual.detail ? " · " + state.actual.detail : ""}`
-                      : state.plan
-                        ? `${state.pending ? "Unconfirmed plan" : "Planned"} · ${state.plan.status}${state.plan.detail ? " · " + state.plan.detail : ""}`
-                        : date > today
-                          ? "Plan this day"
-                          : "Not recorded"}
-                </span>
-              )}
-            </div>
-            {!selecting && state.pending && (
-              <div className="wd-confirm-plan">
-                <span>Did this plan happen?</span>
-                <button
-                  disabled={disabled}
-                  onClick={() =>
-                    change(() =>
-                      setWorkdays(
-                        doc,
-                        [date],
-                        state.plan.status,
-                        state.plan.detail,
-                        today,
-                        "confirm",
-                      ),
-                    )
-                  }
-                >
-                  Confirm {state.plan.status}
-                </button>
-              </div>
-            )}
-            <div className="wd-quick-actions" aria-label="Set workday status">
-              {["WFH", "WFO"].map((s) => (
-                <button
-                  key={s}
-                  disabled={disabled || !targets.length}
-                  onClick={() => mark(s)}
-                >
-                  {date > today && !selecting ? "Plan " : ""}
-                  {s}
-                </button>
-              ))}
-              <button
-                disabled={disabled || !targets.length}
-                onClick={() => {
-                  setDetail("Sick");
-                  setDialog("leave");
-                }}
-              >
-                Leave
-              </button>
-              <button
-                disabled={disabled || !targets.length}
-                onClick={() => {
-                  setDetail("");
-                  setDialog("holiday");
-                }}
-              >
-                Holiday
-              </button>
-              <button
-                className="wd-clear"
-                disabled={disabled || !targets.length}
-                onClick={() => mark("Clear")}
-              >
-                Clear
-              </button>
-            </div>
-            {selecting && (
-              <p className="wd-hint">
-                Past and today’s dates are recorded; future dates become plans.
-                Changes can be undone from the top bar.
-              </p>
-            )}
-            {!policyOn(w, date) && (
-              <p className="wd-hint">
-                No work policy covers this date yet. Set its effective date in
-                Workday settings.
-              </p>
-            )}
-          </div>
-          <details className="wd-leave">
-            <summary>Leave balances · {date.slice(0, 4)}</summary>
-            <div className="wd-leave-balances">
-              {Object.entries(leaveSummary(w, date.slice(0, 4), today)).map(
-                ([type, v]: [string, any]) => (
-                  <div key={type}>
-                    <strong>{type}</strong>
-                    <span>
-                      {v.used} used · {v.planned} planned
-                    </span>
-                    <small>
-                      {v.allowance === null
-                        ? "Allowance not set"
-                        : `${v.allowance - v.used} remaining${v.planned ? ` · ${v.allowance - v.used - v.planned} after plans` : ""}`}
-                    </small>
+              {selected.length > 0 && (
+                <div className="wd2-bulk">
+                  <strong>{selected.length} selected</strong>
+                  <div>
+                    {["WFH", "WFO"].map((mode) => (
+                      <button
+                        key={mode}
+                        disabled={disabled}
+                        onClick={() =>
+                          change((d) => setAllocations(d, selected, { mode }))
+                        }
+                      >
+                        {mode === "WFH" ? "Home" : "Office"}
+                      </button>
+                    ))}
+                    <button
+                      disabled={disabled}
+                      onClick={() => setDialog("leave")}
+                    >
+                      Leave
+                    </button>
+                    <button
+                      disabled={
+                        disabled ||
+                        selected.some((d) => d > today) ||
+                        !selected.some((d) => w.entries[d]?.plan)
+                      }
+                      onClick={() => change((d) => confirmPlans(d, selected))}
+                    >
+                      Confirm plans
+                    </button>
                   </div>
-                ),
+                  <div>
+                    {["actual", "plan", "holiday"].map((kind) => (
+                      <button
+                        key={kind}
+                        disabled={disabled}
+                        onClick={() =>
+                          change((d) =>
+                            selected.reduce(
+                              (next, date) => clearWorkday(next, date, kind),
+                              d,
+                            ),
+                          )
+                        }
+                      >
+                        {kind === "holiday"
+                          ? "Remove holiday"
+                          : "Clear " + kind}
+                      </button>
+                    ))}
+                    {selected.length === 1 && (
+                      <button
+                        onClick={() => {
+                          onDate(selected[0]);
+                          onClose();
+                        }}
+                      >
+                        Open day
+                      </button>
+                    )}
+                    <button onClick={() => setSelected([])}>Deselect</button>
+                  </div>
+                </div>
               )}
-            </div>
-          </details>
-          <div className="wd-footer">
-            <button
-              className="wd-text-button"
-              onClick={() => setDialog("import")}
-            >
-              Import holidays
-            </button>
-            {summary.pending.length > 0 && (
-              <button
-                className="wd-text-button"
-                onClick={() => {
-                  onDate(summary.pending[0]);
-                  setSelecting(false);
-                }}
-              >
-                {summary.pending.length} plan
-                {summary.pending.length === 1 ? "" : "s"} to confirm
-              </button>
-            )}
-            <span>
-              {summary.home} WFH · {summary.leave} leave confirmed
-            </span>
-          </div>
-        </>
-      )}
-      {error && (
-        <p role="alert" className="wd-error">
-          {error}
-        </p>
-      )}
+            </>
+          )}
+          {tab === "leave" && (
+            <LeaveSettings
+              doc={doc}
+              date={anchor}
+              disabled={disabled}
+              onChange={onChange}
+            />
+          )}
+          {error && <p role="alert">{error}</p>}
+        </div>
+      </WorkdayDialog>
       {dialog === "settings" && (
         <WorkdaySettings
           doc={doc}
-          date={date}
-          today={today}
+          date={anchor}
           disabled={disabled}
           onChange={onChange}
           onClose={() => setDialog("")}
         />
-      )}
+      )}{" "}
       {dialog === "import" && (
-        <HolidayImport
+        <Suspense fallback={<p role="status">Loading holiday import…</p>}>
+          <HolidayImport
+            doc={doc}
+            date={anchor}
+            disabled={disabled}
+            onChange={onChange}
+            onClose={() => setDialog("")}
+          />
+        </Suspense>
+      )}
+      {dialog === "leave" && (
+        <LeaveEntry
           doc={doc}
-          year={date.slice(0, 4)}
+          dates={selected}
+          disabled={disabled}
+          onChange={onChange}
+          onClose={() => setDialog("")}
+        />
+      )}{" "}
+      {dialog === "routine" && (
+        <Routine
+          doc={doc}
+          date={anchor}
           disabled={disabled}
           onChange={onChange}
           onClose={() => setDialog("")}
         />
       )}
-      {(dialog === "leave" || dialog === "holiday") && (
-        <LibraryDialog
-          title={dialog === "leave" ? "Set leave" : "Set holiday"}
-          onClose={() => setDialog("")}
-        >
-          <form
-            className="wd-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              try {
-                onChange(
-                  setWorkdays(
-                    doc,
-                    targets,
-                    dialog === "leave" ? "Leave" : "Holiday",
-                    detail,
-                    today,
-                  ),
-                );
-                setError("");
-                setDialog("");
-              } catch (e) {
-                setError(runError(e));
-              }
-            }}
-          >
-            <p>
-              {targets.length} date{targets.length === 1 ? "" : "s"} · Future
-              leave stays planned until confirmed.
-            </p>
-            {dialog === "leave" ? (
-              <label>
-                Leave type
-                <select
-                  aria-label="Leave type"
-                  value={detail}
-                  onChange={(e) => setDetail(e.target.value)}
-                >
-                  {LEAVE_TYPES.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label>
-                Holiday name
-                <input
-                  aria-label="Holiday name"
-                  required
-                  maxLength={160}
-                  value={detail}
-                  onChange={(e) => setDetail(e.target.value)}
-                  autoFocus
-                />
-              </label>
-            )}
-            {dialog === "holiday" && (
-              <p className="wd-hint">
-                This replaces attendance and plans on the selected dates. Your
-                notes and reminders stay intact. Use Undo to restore.
-              </p>
-            )}
-            <footer>
-              <button type="button" onClick={() => setDialog("")}>
-                Cancel
-              </button>
-              <button className="wd-primary" disabled={disabled}>
-                Apply to {targets.length} date{targets.length === 1 ? "" : "s"}
-              </button>
-            </footer>
-          </form>
-        </LibraryDialog>
-      )}
-    </section>
+    </>
   );
 }
-
-function WorkdaySettings({
+function Routine({
   doc,
   date,
-  today,
   disabled,
   onChange,
   onClose,
-}: {
-  doc: Workspace;
-  date: string;
-  today: string;
-  disabled: boolean;
-  onChange: (doc: Workspace) => void;
-  onClose: () => void;
-}) {
-  const w = workdays(doc) as any;
-  const prior = policyOn(w, date) || defaultPolicy(date);
-  const [p, setP] = useState({
-      ...prior,
-      effectiveFrom: w.policies.length ? today : monthStart(date),
+}: Omit<Props, "onDate">) {
+  const w = workdaysV2(doc),
+    [start, setStart] = useState(date < localDate() ? localDate() : date),
+    [end, setEnd] = useState(periodRange(start).end),
+    [pattern, setPattern] = useState<Record<number, string>>({
+      1: "WFO",
+      2: "WFO",
+      3: "WFO",
+      4: "WFH",
+      5: "WFH",
     }),
-    [allowance, setAllowance] = useState<any>(
-      w.allowances[date.slice(0, 4)] ||
-        Object.fromEntries(LEAVE_TYPES.map((t) => [t, 0])),
-    ),
+    [preview, setPreview] = useState<any[] | null>(null),
+    [replace, setReplace] = useState<string[]>([]),
     [error, setError] = useState("");
-  const set = (key: string, value: any) =>
-    setP((old: any) => ({ ...old, [key]: value }));
   return (
-    <LibraryDialog title="Workday settings" onClose={onClose}>
+    <WorkdayDialog title="Weekly routine" onClose={onClose}>
       <form
-        className="wd-form"
         onSubmit={(e) => {
           e.preventDefault();
           try {
-            onChange(saveWorkPolicy(doc, p, date.slice(0, 4), allowance));
-            onClose();
+            setPreview(routinePreview(w, start, end, pattern));
+            setError("");
           } catch (e) {
-            setError(runError(e));
+            setError((e as Error).message);
           }
         }}
       >
-        <fieldset>
-          <legend>Your workweek</legend>
-          <div className="wd-week-picker">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => (
-              <button
-                key={d}
-                type="button"
-                aria-pressed={p.weekdays.includes(i)}
-                onClick={() =>
-                  set(
-                    "weekdays",
-                    p.weekdays.includes(i)
-                      ? p.weekdays.filter((v: number) => v !== i)
-                      : [...p.weekdays, i],
-                  )
-                }
-              >
-                {d}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        <div className="wd-form-row">
+        <div className="wd2-form-grid">
           <label>
-            Office goal
-            <select
-              aria-label="Office goal type"
-              value={p.goalMode}
+            From
+            <input
+              type="date"
+              required
+              min={localDate()}
+              value={start}
               onChange={(e) => {
-                set("goalMode", e.target.value);
-                set(
-                  "goalValue",
-                  e.target.value === "percentage"
-                    ? 60
-                    : e.target.value === "monthly"
-                      ? 12
-                      : 3,
-                );
+                setStart(e.target.value);
+                setPreview(null);
+              }}
+            />
+          </label>
+          <label>
+            Through
+            <input
+              type="date"
+              required
+              min={start}
+              value={end}
+              onChange={(e) => {
+                setEnd(e.target.value);
+                setPreview(null);
+              }}
+            />
+          </label>
+        </div>
+        {[
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ].map((name, day) => (
+          <label className="wd2-routine-day" key={day}>
+            <span>{name}</span>
+            <select
+              value={pattern[day] || ""}
+              onChange={(e) => {
+                setPattern({ ...pattern, [day]: e.target.value });
+                setPreview(null);
               }}
             >
-              <option value="weekly">Days per week</option>
-              <option value="monthly">Days per month</option>
-              <option value="percentage">Percentage of eligible days</option>
+              <option value="">No plan</option>
+              <option value="WFH">Home</option>
+              <option value="WFO">Office</option>
             </select>
           </label>
-          <label>
-            {p.goalMode === "percentage" ? "Percentage" : "Days"}
-            <input
-              aria-label="Office goal value"
-              type="number"
-              min={0}
-              max={
-                p.goalMode === "percentage"
-                  ? 100
-                  : p.goalMode === "monthly"
-                    ? 31
-                    : 7
-              }
-              required
-              value={p.goalValue}
-              onChange={(e) => set("goalValue", Number(e.target.value))}
-            />
-          </label>
-        </div>
-        <label className="wd-check">
-          <input
-            type="checkbox"
-            checked={p.excludeLeave}
-            onChange={(e) => set("excludeLeave", e.target.checked)}
-          />
-          Exclude leave from eligible days
-        </label>
-        <div className="wd-form-row">
-          <label>
-            Policy effective from
-            <input
-              aria-label="Policy effective date"
-              type="date"
-              min="1900-01-01"
-              max="2199-12-31"
-              required
-              value={p.effectiveFrom}
-              onChange={(e) => set("effectiveFrom", e.target.value)}
-            />
-          </label>
-          <label>
-            Employment starts (optional)
-            <input
-              aria-label="Employment start date"
-              type="date"
-              min="1900-01-01"
-              max="2199-12-31"
-              value={p.startDate}
-              onChange={(e) => set("startDate", e.target.value)}
-            />
-          </label>
-        </div>
-        <p className="wd-hint">
-          Earlier policy versions are retained. Saving the same effective date
-          replaces that version. Holidays are excluded. Partial weeks and months
-          are prorated by scheduled days; targets are capped to eligible days
-          and rounded up.
+        ))}
+        <p className="wd2-muted">
+          Holidays, nonworking dates and actual records are skipped. Existing
+          plans stay unless selected below.
         </p>
-        <fieldset>
-          <legend>Leave allowances · {date.slice(0, 4)}</legend>
-          <div className="wd-form-row">
-            {LEAVE_TYPES.map((t) => (
-              <label key={t}>
-                {t}
-                <input
-                  aria-label={`${t} leave allowance`}
-                  type="number"
-                  min={0}
-                  max={366}
-                  required
-                  value={allowance[t]}
-                  onChange={(e) =>
-                    setAllowance((a: any) => ({
-                      ...a,
-                      [t]: Number(e.target.value),
-                    }))
-                  }
-                />
-              </label>
+        <button disabled={disabled}>Preview routine</button>
+        {preview && (
+          <div className="wd2-routine-preview">
+            <p>
+              {
+                preview.filter(
+                  (r) => !r.actual && (!r.conflict || replace.includes(r.date)),
+                ).length
+              }{" "}
+              plans to apply
+            </p>
+            {preview.map((r) => (
+              <div key={r.date}>
+                {r.date} · {r.mode}
+                {r.actual ? (
+                  " · actual kept"
+                ) : r.conflict ? (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={replace.includes(r.date)}
+                      onChange={(e) =>
+                        setReplace((v) =>
+                          e.target.checked
+                            ? [...v, r.date]
+                            : v.filter((d) => d !== r.date),
+                        )
+                      }
+                    />
+                    Replace existing plan
+                  </label>
+                ) : (
+                  " · new"
+                )}
+              </div>
             ))}
           </div>
-          <p className="wd-hint">
-            Full-day leave only. Planned leave is reserved separately from
-            confirmed usage.
-          </p>
-        </fieldset>
-        {error && (
-          <p role="alert" className="wd-error">
-            {error}
-          </p>
         )}
+        {error && <p role="alert">{error}</p>}
         <footer>
           <button type="button" onClick={onClose}>
             Cancel
           </button>
           <button
-            className="wd-primary"
-            disabled={disabled || !p.weekdays.length}
-          >
-            Save workday settings
-          </button>
-        </footer>
-      </form>
-    </LibraryDialog>
-  );
-}
-
-function HolidayImport({
-  doc,
-  year,
-  disabled,
-  onChange,
-  onClose,
-}: {
-  doc: Workspace;
-  year: string;
-  disabled: boolean;
-  onChange: (doc: Workspace) => void;
-  onClose: () => void;
-}) {
-  const [text, setText] = useState(""),
-    [preview, setPreview] = useState<any>(null),
-    [replace, setReplace] = useState(false),
-    [error, setError] = useState("");
-  const conflicts = preview
-    ? holidayConflicts(workdays(doc), preview.rows)
-    : [];
-  return (
-    <LibraryDialog title="Import company holidays" onClose={onClose}>
-      <form
-        className="wd-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          try {
-            if (!preview) {
-              const result = parseHolidayText(text, year);
-              setPreview(result);
-              if (!result.rows.length)
-                setError(
-                  "No valid holidays found. Check the date formats below.",
-                );
-              else setError("");
-            } else {
-              onChange(importWorkHolidays(doc, preview.rows, replace));
-              onClose();
-            }
-          } catch (e) {
-            setError(runError(e));
-          }
-        }}
-      >
-        <label>
-          Paste your holiday list
-          <textarea
-            aria-label="Holiday list"
-            rows={6}
-            maxLength={100000}
-            value={text}
-            placeholder={
-              "2027-01-01 New Year\n26/01/2027 Republic Day\n14-Jan-2027 Makar Sankranti"
-            }
-            onChange={(e) => {
-              setText(e.target.value);
-              setPreview(null);
-              setError("");
-              setReplace(false);
+            type="button"
+            className="wd2-primary"
+            disabled={disabled || !preview?.length}
+            onClick={() => {
+              try {
+                onChange((d) => applyRoutine(d, preview!, replace));
+                onClose();
+              } catch (e) {
+                setError((e as Error).message);
+              }
             }}
-          />
-        </label>
-        <p className="wd-hint">
-          ISO dates, DD/MM/YYYY, DD-Mon-YYYY or Month D, YYYY. Missing years use{" "}
-          {year}. Duplicate or invalid rows are skipped and listed below.
-        </p>
-        {preview && (
-          <>
-            <strong>
-              {preview.rows.length} valid · {preview.errors.length} skipped ·{" "}
-              {conflicts.length} conflicting
-            </strong>
-            <div className="wd-import-preview">
-              {preview.rows.map((r: any) => (
-                <div key={r.date}>
-                  <time>{r.date}</time>
-                  <span>{r.name}</span>
-                  {conflicts.some((c: any) => c.date === r.date) && (
-                    <small>Conflict</small>
-                  )}
-                </div>
-              ))}
-            </div>
-            {preview.errors.length > 0 && (
-              <details>
-                <summary>Review skipped rows</summary>
-                {preview.errors.map((r: any) => (
-                  <p key={r.line} className="wd-hint">
-                    Line {r.line}: {r.text}
-                  </p>
-                ))}
-              </details>
-            )}
-            {conflicts.length > 0 && (
-              <label className="wd-check">
-                <input
-                  type="checkbox"
-                  checked={replace}
-                  onChange={(e) => setReplace(e.target.checked)}
-                />
-                Replace attendance, plans and holiday names on{" "}
-                {conflicts.length} conflicting date
-                {conflicts.length === 1 ? "" : "s"}. Otherwise skip them.
-              </label>
-            )}
-            <p className="wd-hint">
-              Notes and reminders are preserved. The import can be undone from
-              the top bar.
-            </p>
-          </>
-        )}
-        {error && (
-          <p role="alert" className="wd-error">
-            {error}
-          </p>
-        )}
-        <footer>
-          <button type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="wd-primary"
-            disabled={
-              disabled || !text.trim() || (!!preview && !preview.rows.length)
-            }
           >
-            {preview ? "Import holidays" : "Preview import"}
+            Apply plans
           </button>
         </footer>
       </form>
-    </LibraryDialog>
+    </WorkdayDialog>
   );
 }

@@ -20,3 +20,5 @@ cloud/config.*.local.json
 
 # Generated, self-hosted Excalidraw fonts
 /public/excalidraw/
+
+/public/ocr/
