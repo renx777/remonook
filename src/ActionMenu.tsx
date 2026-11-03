@@ -6,7 +6,7 @@ export function ActionMenu({open,onOpenChange,trigger,children}:{open:boolean;on
   const anchor=useRef<HTMLButtonElement>(null);
   return <Menu.Root open={open} onOpenChange={onOpenChange} modal={false}>
     <Menu.Trigger asChild ref={anchor}>{trigger}</Menu.Trigger>
-    <Menu.Portal container={anchor.current?.closest('dialog[open], .study-session') || anchor.current?.closest('.app') || document.body}>
+    <Menu.Portal container={anchor.current?.closest('dialog[open], [role="dialog"], .study-session') || anchor.current?.closest('.app') || document.body}>
       <Menu.Content asChild sideOffset={6} align="end" collisionPadding={8} loop onEscapeKeyDown={event=>event.stopPropagation()}>{children}</Menu.Content>
     </Menu.Portal>
   </Menu.Root>;

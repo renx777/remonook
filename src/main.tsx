@@ -1667,7 +1667,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <CalendarView
             autoOpen={false}
             trackers={<CalendarTrackers doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
-            onCreateNote={(date,text)=>addCalendarBullet(date,text,false)}
+            onCreateNote={(date,value,id)=>mutate(ns=>{const prepared=ensureCalendarHierarchy(ns,date);return move([...prepared.nodes,bullet(id,{parentId:prepared.dayId,...value})],id,prepared.dayId,(index(prepared.nodes).children.get(prepared.dayId)||[]).length);})}
             monthView={false}
             workdays={workdays(doc).enabled?<details className="calendar-workdays-advanced"><summary>Planning &amp; goals</summary><WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(idx.children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarReminders,date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/></details>:undefined}
             hasReminder={date=>eventsOnDate(calendarReminders,date).length>0}

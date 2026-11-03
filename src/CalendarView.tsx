@@ -143,7 +143,7 @@ const WEEKDAY_NAMES_2 = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 type CalendarViewProps = {
   workdays?: React.ReactNode;
   trackers?: React.ReactNode;
-  onCreateNote?:(date:string,text:string)=>string;
+  onCreateNote?:(date:string,value:{text:string;formatting:string},id:string)=>void;
   monthView?: boolean;
   autoOpen?: boolean;
   reminders?: React.ReactNode;
@@ -189,10 +189,12 @@ export function CalendarView(props: CalendarViewProps) {
   const pillBtnRef = useRef<HTMLButtonElement>(null);
   const stripScrollRef = useRef<HTMLDivElement>(null);
 
-  const [draft,setDraft]=useState(''),[drafting,setDrafting]=useState(false),draftId=useRef<string|null>(null);
-  useEffect(()=>{setDraft('');setDrafting(false);draftId.current=null;},[selectedDate]);
-  const saveDraft=()=>{setDrafting(false);draftId.current=null;};
-  const updateDraft=(text:string,composing=false)=>{setDraft(text);if(composing)return;if(!draftId.current&&text.trim()&&props.onCreateNote)draftId.current=props.onCreateNote(selectedDate,text);else if(draftId.current)(props.onEditorChange||props.onChange)(draftId.current,{text,formatting:''});};
+  const draftSlot=useRef<{date:string;node:Node}|null>(null),created=useRef(false);
+  if(draftSlot.current?.date!==selectedDate||created.current&&!nodes.some(n=>n.parentId===`journal-${selectedDate}`)){draftSlot.current={date:selectedDate,node:bullet(crypto.randomUUID(),{parentId:`journal-${selectedDate}`}) as Node};created.current=false;}
+  const draft=draftSlot.current.node,draftValue=useRef(draft);
+  if(draftValue.current.id!==draft.id)draftValue.current=draft;
+  const materializeDraft=()=>{if(!created.current&&!props.readCurrentNode?.(draft.id)){created.current=true;props.onCreateNote?.(selectedDate,{text:draftValue.current.text,formatting:draftValue.current.formatting},draft.id);}};
+  const changeNote=(id:string,value:{text:string;formatting:string})=>{if(id===draft.id&&!created.current&&!props.readCurrentNode?.(id)){draftValue.current={...draft,...value};if(value.text.trim()){created.current=true;props.onCreateNote?.(selectedDate,value,id);}}else (props.onEditorChange||props.onChange)(id,value);};
   useLayoutEffect(()=>{const el=stripScrollRef.current,selected=el?.querySelector<HTMLElement>('.strip-day-btn.selected');if(el&&selected){const box=el.getBoundingClientRect(),day=selected.getBoundingClientRect();el.scrollTo({left:el.scrollLeft+day.left-box.left-(el.clientWidth-day.width)/2,behavior:'auto'});}},[selectedDate,props.monthView]);
   // Picker month navigation state
   const [pickerYear, setPickerYear] = useState(() => parseLocalDate(selectedDate).getFullYear());
@@ -238,6 +240,7 @@ export function CalendarView(props: CalendarViewProps) {
   const dailyRoot = idx.byId.get(rootId);
   const dailyBullets = dailyRoot ? idx.children.get(rootId) || [] : [];
   const hasBulletsForDay = dailyBullets.length > 0;
+  const noteNodes=hasBulletsForDay?nodes:[...nodes,...(!dailyRoot?[bullet(rootId,{text:formatDatePill(selectedDate),journalDate:selectedDate}) as Node]:[]),draftValue.current];
 
   // Generate 45 days for horizontal date strip centered around selectedDate
   const stripDays = useMemo(() => {
@@ -605,16 +608,16 @@ export function CalendarView(props: CalendarViewProps) {
       {props.workdays}
       {props.reminders}
       <div className="calendar-notes-section">
-        {hasBulletsForDay&&!drafting ? (
+        <div className="calendar-notes-label">Daily notes</div>
           <OutlineView
             key={rootId}
             hideTitle
-            nodes={nodes}
+            nodes={noteNodes}
             scope={rootId}
             search={props.search}
             showCompleted={props.showCompleted}
             readingSize={props.readingSize}
-            onImages={props.onImages}
+            onImages={(id,files)=>{if(id===draft.id&&files.length)materializeDraft();props.onImages?.(id,files);}}
             onRemoveMedia={props.onRemoveMedia}
             onResizeMedia={props.onResizeMedia}
             onOccludeMedia={props.onOccludeMedia}
@@ -624,25 +627,23 @@ export function CalendarView(props: CalendarViewProps) {
             assets={props.assets}
             media={props.media}
             onEdit={props.onEdit}
-            onZoom={props.onZoom}
+            onZoom={id=>id===draft.id&&!created.current?props.onEdit(id):props.onZoom(id)}
             onMindmap={props.onMindmap}
             onToggle={props.onToggle}
-            onChange={props.onChange}
-            onEditorChange={props.onEditorChange}
-            readCurrentNode={props.readCurrentNode}
+            onChange={changeNote}
+            onEditorChange={changeNote}
+            readCurrentNode={id=>props.readCurrentNode?.(id)||(id===draft.id?draftValue.current:undefined)}
             onCommand={props.onCommand}
-            onOutlinePaste={props.onOutlinePaste}
+            onOutlinePaste={(id,start,end,text)=>{if(id===draft.id)materializeDraft();props.onOutlinePaste(id,start,end,text);}}
             onReady={props.onReady}
             onMove={props.onMove}
             onTask={props.onTask}
             onMenu={props.onMenu}
-            onAdd={() => props.onAddBullet(props.selectedDate)}
+            onAdd={() => hasBulletsForDay||created.current?props.onAddBullet(props.selectedDate):props.onEdit(draft.id)}
             onDeleteNodes={props.onDeleteNodes}
             setNotice={props.setNotice}
           />
-        ) : (
-          <div className="calendar-empty-day-outline">{drafting?<><textarea className="calendar-draft" autoFocus aria-label="Write a daily note" placeholder="What would you like to remember?" value={draft} onChange={e=>updateDraft(e.target.value,(e.nativeEvent as InputEvent).isComposing)} onCompositionEnd={e=>updateDraft(e.currentTarget.value)} onBlur={saveDraft} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();saveDraft();}}}/><div className="calendar-draft-actions"><button disabled={!draft.trim()||props.disabled} onClick={saveDraft}>Done</button></div></>:<><button className="calendar-write-note" disabled={props.disabled} onClick={()=>{draftId.current=null;setDraft('');setDrafting(true);}}><Icon name="plus" size={16}/>Write a note…</button></>}</div>
-        )}
+
       </div>
     </div></Popover.Root>
   );
