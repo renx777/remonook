@@ -103,7 +103,7 @@ export default function WorkdayHolidayImport({
   );
   const edit = (id: string, patch: any) =>
     setRows((v) =>
-      v.map((r) => (r.id === id ? { ...r, ...patch, issue: "" } : r)),
+      v.map((r) => (r.id === id ? { ...r, ...patch, issue: ("date" in patch || "name" in patch) ? "" : r.issue } : r)),
     );
   return (
     <WorkdayDialog title="Import holidays" wide onClose={onClose}>
@@ -124,6 +124,7 @@ export default function WorkdayHolidayImport({
             }}
           />
         </label>
+        {file && <button disabled={!!busy} onClick={()=>{setFile(null);setRows([]);setError("");}}>Use pasted text instead</button>}
         {!file && (
           <label>
             Or paste the list
@@ -235,6 +236,7 @@ export default function WorkdayHolidayImport({
             </button>
           </div>
         )}
+        <button disabled={disabled||!!busy||rows.length>=1000} onClick={()=>setRows(v=>[...v,{id:crypto.randomUUID(),date:"",name:"",original:"",source:"Manual row "+(v.length+1),selected:true,issue:"Check date and name"}])}>Add holiday row</button>
         {rows.length > 0 && (
           <>
             <p className="wd2-muted">
