@@ -60,7 +60,15 @@ Publish the tested GitHub commit through the retained Sites workflow during tran
 
 ## Workflow and costs
 
-Use short-lived feature branches and PRs into `main`. CI runs Node 24, `npm ci`, a local-only build and the full tests. Staging frontend deployment is enabled; production is an explicit release. Branch protection and deployment-review features depend on the GitHub plan and are not configured by these files.
+The working flow is local → staging → production:
+
+1. Develop on a feature branch and verify locally (`npm run build`, `npm test`).
+2. Push the branch and run the **Staging frontend** workflow on that branch (`workflow_dispatch`) so it can be tested on phones and other devices. Staging may run an unmerged branch during testing; record which branch and commit are live there.
+3. Open a PR into `main` once testing passes. CI runs Node 24, `npm ci`, a local-only build and the full tests.
+4. Merge to `main`. A push to `main` also deploys staging automatically.
+5. Release production explicitly from `main`. Before doing so, confirm `main` contains everything staging has been running, so the release and staging match.
+
+Several AI tools work on this repository; see the multi-agent section of [AGENTS.md](../AGENTS.md). Branch protection and deployment-review features depend on the GitHub plan and are not configured by these files.
 
 Free-tier build and usage quotas apply across the account. Staging does not multiply those allowances. R2 and any other metered resources can generate charges beyond their included usage; no zero-cost guarantee is implied.
 
