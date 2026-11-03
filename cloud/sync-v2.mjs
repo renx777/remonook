@@ -1,3 +1,4 @@
+import {workdaysLegacyIntent,upgradeWorkdaysIntent} from './workdays-upgrade.mjs';
 import {validateBookmarks} from '../src/bookmarks.mjs';
 import {validateDashboard} from '../src/dashboard.mjs';
 import {validateReading} from '../src/reading.mjs';
@@ -74,7 +75,7 @@ export async function syncV2(request,env,uid,{readLimited,validatePayload,NOTE_L
   if(prior){if(prior.request_hash!==requestHash)error('Operation identity was reused with different content');break;}
   row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();requireWorkdaysCapability(request,row.state);const y=openShared(row.state);
   let state,value,journalUpdate;const beforeVector=Y.encodeStateVector(y);
-  try{Y.applyUpdate(y,update);requireWorkdaysCapability(request,sharedState(y));value=snapshot(y);state=sharedState(y);journalUpdate=pack(Y.encodeStateAsUpdate(y,beforeVector));}catch(e){y.destroy();if(e.status)throw e;error('Invalid shared document');}y.destroy();
+  try{const legacy=workdaysLegacyIntent(y,update);if(legacy&&!input.workdaysContext)throw Object.assign(Error('Updating pending Workdays edits…'),{status:409,code:'WORKDAYS_CONTEXT_REQUIRED'});Y.applyUpdate(y,update);if(legacy){const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,input.workdaysContext);applyIntent(y,before,next);}requireWorkdaysCapability(request,sharedState(y));value=snapshot(y);state=sharedState(y);journalUpdate=pack(Y.encodeStateAsUpdate(y,beforeVector));}catch(e){y.destroy();if(e.status)throw e;error('Invalid shared document');}y.destroy();
   if(state.length>STATE_LIMIT)error('Shared workspace storage limit reached.',413);
   validatePayload({baseRevision:row.revision,...value});const body=JSON.stringify(value);
   if(new TextEncoder().encode(body).length>NOTE_LIMIT)error('Workspace exceeds the note storage limit.',413);

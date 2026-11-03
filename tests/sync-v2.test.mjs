@@ -1,3 +1,5 @@
+import {enableWorkdays,setWorkdays} from '../src/workdays.mjs';
+import {workdaysV2} from '../src/workdays-v2.mjs';
 import {updateWorkdaysV2} from '../src/workdays-v2.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -150,4 +152,15 @@ test('Workdays v2 capability gates reads, conditional reads, writes and legacy d
  await assert.rejects(call(env,'GET','/workspace'),e=>e.status===426);
  await assert.rejects(call(env,'POST','/sync/v2',{...body,operationId:crypto.randomUUID()}),e=>e.status===426);
  assert.equal((await call(env,'GET','/sync/v2',null,'alice',{'X-Remo-Capabilities':'workdays-v2','If-None-Match':String(result.revision)})).status,304);
+});
+
+test('an upgraded offline client retries its immutable v1 outbox without overwriting unrelated v2 workdays or notes',async()=>{
+ for(const clear of [false,true]){
+  const env=database(),date='2026-11-02';let base=enableWorkdays(initial(),true,'2026-11-01');base=setWorkdays(base,[date],'WFO','','2026-11-03');await call(env,'PUT','/workspace',{baseRevision:0,doc:base,assets:[]});const server=await(await call(env,'GET','/sync/v2')).json();
+  const old=edit(server.update,base,d=>{d.tables.bullets[0].text='Offline note kept.';d.web.workdays=setWorkdays(d,[date],clear?'Clear':'WFH','','2026-11-03').web.workdays;}),modern=edit(server.update,base,d=>{d.web.workdays=workdaysV2(d);d.web.workdays.entries['2026-11-04']={plan:{am:{mode:'WFO',updatedAt:1},pm:{mode:'WFO',updatedAt:1}}};});
+  const headers={'X-Remo-Capabilities':'workdays-v2'},modernResponse=await call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:modern.update,vector:modern.vector},'alice',headers);assert.equal(modernResponse.status,200);
+  const body={operationId:crypto.randomUUID(),update:old.update,vector:old.vector};await assert.rejects(call(env,'POST','/sync/v2',body,'alice',headers),e=>e.code==='WORKDAYS_CONTEXT_REQUIRED');
+  const recovered=await call(env,'POST','/sync/v2',{...body,workdaysContext:workdaysV2(old.doc)},'alice',headers);assert.equal(recovered.status,200);const ack=await recovered.json(),result=await(await call(env,'GET','/sync/v2',null,'alice',headers)).json(),y=openShared(result.update),doc=project(y).doc;y.destroy();assert.equal(doc.web.workdays.version,2);assert.equal(doc.web.workdays.entries['2026-11-04'].plan.am.mode,'WFO');assert.equal(doc.tables.bullets.find(n=>n.id==='a').text,'Offline note kept.');if(clear)assert.equal(doc.web.workdays.entries[date],undefined);else assert.equal(doc.web.workdays.entries[date].actual.am.mode,'WFH');
+  const retry=await(await call(env,'POST','/sync/v2',{...body,workdaysContext:workdaysV2(old.doc)},'alice',headers)).json();assert.equal(retry.revision,ack.revision);
+ }
 });

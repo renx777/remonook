@@ -11,6 +11,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build-and-test:
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

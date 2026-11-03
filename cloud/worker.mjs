@@ -93,7 +93,7 @@ export default {
     const project=env.FIREBASE_PROJECT_ID,allowed=(env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);
     if(!project||project.startsWith('REPLACE_')||!allowed.length)return json({error:'Environment is not configured.'},503);
     const origin=request.headers.get('Origin');if(origin&&!allowed.includes(origin))return json({error:'Origin not allowed.'},403);
-    let response;try{response=await route(request,env);}catch(error){const status=error.status||500;response=json({error:status===500?'Cloud sync is temporarily unavailable.':error.message},status);if(status===500)console.error(JSON.stringify({event:'sync_error',message:String(error)}));}
+    let response;try{response=await route(request,env);}catch(error){const status=error.status||500;response=json({error:status===500?'Cloud sync is temporarily unavailable.':error.message,...(error.code==='WORKDAYS_CONTEXT_REQUIRED'?{code:error.code}:{})},status);if(status===500)console.error(JSON.stringify({event:'sync_error',message:String(error)}));}
     const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match, X-Sync-Vector, X-Remo-Capabilities');headers.set('Access-Control-Allow-Methods','GET, PUT, POST, DELETE, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
     return new Response(response.body,{status:response.status,headers});
   }

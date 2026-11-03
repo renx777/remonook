@@ -122,7 +122,7 @@ export function project(d){
   const path=JSON.parse(key);if(path[0]==='row'){if(!allRows.has(path[1]))allRows.set(path[1],{});if(!safe([path[2]]))throw Error('Invalid row field');allRows.get(path[1])[path[2]]=value;}
   else rootFields.push({path,value});
  }
- rootFields.sort((a,b)=>a.path.length-b.path.length);for(const {path,value}of rootFields)putPath(doc,path,value);
+ rootFields.sort((a,b)=>a.path.length-b.path.length);for(const {path,value}of rootFields)putPath(doc,path,structuredClone(value));
  for(const [id,exists]of rows){const [table]=JSON.parse(id),row=allRows.get(id)||{},deleted=row._syncDeletedValue;delete row._syncDeletedValue;
   if(table==='bullets'){
    if(row._syncLocation)Object.assign(row,row._syncLocation);delete row._syncLocation;
