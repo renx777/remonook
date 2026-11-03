@@ -1,5 +1,5 @@
 import {cachedArticle,cacheArticle} from './article-cache.mjs';
-import {validateBookmarks} from './bookmarks.mjs';
+import {validateBookmarks,articleSnapshotHashes} from './bookmarks.mjs';
 import {validateFsrs} from './fsrs-scheduler.mjs';
 import {validateReading} from './reading.mjs';
 import {validateReadingBooks} from './book-storage.mjs';
@@ -467,8 +467,9 @@ export async function archive(
       throw Error("Android export would lose data: " + reasons.join("; "));
   }
   assets=new Map(assets);
-  if(!android)for(const bookmark of Object.values(doc.web.bookmarks||{}) as any[]){if(!bookmark.snapshotHash)continue;const path='articles/'+bookmark.snapshotHash+'.json';if(!assets.has(path)){const local=await cachedArticle(storageName,bookmark.snapshotHash);if(local)assets.set(path,local.blob);}}
-  const missingSnapshots=Object.values(doc.web.bookmarks||{}).filter((b:any)=>b.snapshotHash&&!assets.has('articles/'+b.snapshotHash+'.json')).map((b:any)=>b.id);
+  const articleHashes=articleSnapshotHashes(doc);
+  if(!android)for(const hash of articleHashes){const path='articles/'+hash+'.json';if(!assets.has(path)){const local=await cachedArticle(storageName,hash);if(local)assets.set(path,local.blob);}}
+  const missingSnapshots=[...articleHashes].filter(hash=>!assets.has('articles/'+hash+'.json'));
   const zip = new JSZip(),
     declared = [];
   let total = 0;

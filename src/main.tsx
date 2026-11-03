@@ -36,6 +36,7 @@ import {ConnectionContext,ConnectionChooser,ConnectionPanel} from "./Connections
 import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
 import {CalendarReminders,ReminderTabs,ReminderEditor,type ReminderTarget} from './CalendarReminders';
+import {articleSnapshotHashes} from './bookmarks.mjs';
 import {CalendarTrackers} from './CalendarTrackers';
 import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
 import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
@@ -204,7 +205,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [editing, setEditingState] = useState<string | null>(null),
     [caret, setCaret] = useState<number | null>(null),
     [tab, setTab] = useState("notes"),
-    [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string}|null>(null),
+    [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string;snapshotHash?:string}|null>(null),
     [mindmapTarget,setMindmapTarget]=useState<string|null>(null),
     [calendarDate, setCalendarDate] = useState(() => getLocalDateString()),
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
@@ -1181,7 +1182,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       if (failed.current) throw Error("Current changes could not be saved");
       const restoredAssets=new Map(prepared.assets);
       for(const [path,blob]of prepared.assets){const match=path.match(/^articles\/([a-f0-9]{64})\.json$/);if(match){await cacheArticle(articleAccount(cloudUser?.uid),match[1],blob,!!cloudUser);restoredAssets.delete(path);}}
-      if(cloudUser){if(!navigator.onLine)throw Error('Reconnect to restore saved webpages to your account. Your backup and current notes are unchanged.');await uploadCachedArticles(cloudUser,new Set(Object.values(prepared.doc.web.bookmarks||{}).map((b:any)=>b.snapshotHash).filter(Boolean) as string[]));}
+      if(cloudUser){if(!navigator.onLine)throw Error('Reconnect to restore saved webpages to your account. Your backup and current notes are unchanged.');await uploadCachedArticles(cloudUser,articleSnapshotHashes(prepared.doc));}
       const restoredDoc = {
         ...prepared.doc,
         web: { ...prepared.doc.web, deviceId: persisted.current!.web.deviceId },
@@ -1280,8 +1281,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   }, [editing, dialog, menu, doc, views.panes, views.activePane, tab]);
   useEffect(()=>{document.querySelector<HTMLElement>('.mobile-nav .nav-active')?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'auto'});},[tab]);
   readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
-  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
-  const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader,openWeb:(id:string,highlight:string)=>{setEditing(null);setBookmarkTarget({id,highlight});setTab("bookmarks");}}),[readingSourceMap,openReader]);
+  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,snapshotHash:s.snapshotHash,label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
+  const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader,openWeb:(id:string,highlight:string,snapshotHash?:string)=>{setEditing(null);setBookmarkTarget({id,highlight,snapshotHash});setTab("bookmarks");}}),[readingSourceMap,openReader]);
   if (!doc)
     return (
       <div className="startup">
@@ -1668,7 +1669,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             trackers={<CalendarTrackers doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
             onCreateNote={(date,text)=>addCalendarBullet(date,text,false)}
             monthView={false}
-            workdays={workdays(doc).enabled?<details className="calendar-workdays-advanced"><summary>Workdays planning &amp; goals</summary><WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(idx.children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarReminders,date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/></details>:undefined}
+            workdays={workdays(doc).enabled?<details className="calendar-workdays-advanced"><summary>Planning &amp; goals</summary><WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(idx.children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarReminders,date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/></details>:undefined}
             hasReminder={date=>eventsOnDate(calendarReminders,date).length>0}
             reminders={<CalendarReminders doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onOpenDate={date=>{setCalendarDate(date);setEditing(null);}}/>}
             nodes={nodes}

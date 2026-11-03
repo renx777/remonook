@@ -1,6 +1,6 @@
 import * as Popover from "@radix-ui/react-popover";
 import type { ClipboardInput } from "./clipboard";
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { Editor } from "@tiptap/core";
 import { Icon } from "./icons";
 import { OutlineView } from "./OutlineView";
@@ -193,6 +193,7 @@ export function CalendarView(props: CalendarViewProps) {
   useEffect(()=>{setDraft('');setDrafting(false);draftId.current=null;},[selectedDate]);
   const saveDraft=()=>{setDrafting(false);draftId.current=null;};
   const updateDraft=(text:string,composing=false)=>{setDraft(text);if(composing)return;if(!draftId.current&&text.trim()&&props.onCreateNote)draftId.current=props.onCreateNote(selectedDate,text);else if(draftId.current)(props.onEditorChange||props.onChange)(draftId.current,{text,formatting:''});};
+  useLayoutEffect(()=>{const el=stripScrollRef.current,selected=el?.querySelector<HTMLElement>('.strip-day-btn.selected');if(el&&selected){const box=el.getBoundingClientRect(),day=selected.getBoundingClientRect();el.scrollTo({left:el.scrollLeft+day.left-box.left-(el.clientWidth-day.width)/2,behavior:'auto'});}},[selectedDate,props.monthView]);
   // Picker month navigation state
   const [pickerYear, setPickerYear] = useState(() => parseLocalDate(selectedDate).getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => parseLocalDate(selectedDate).getMonth());
@@ -345,7 +346,7 @@ export function CalendarView(props: CalendarViewProps) {
       {/* Top Heading */}
       <div className="calendar-header-row">
         <div className="calendar-title-wrap">
-          <span className="calendar-prefix">{relativePrefix}</span>
+          <span className="calendar-prefix">{relativePrefix.replace(/,\s*$/,'')}</span>
           <Popover.Trigger asChild><button
             ref={pillBtnRef}
             className={`calendar-date-pill ${popoverOpen ? "active" : ""}`}
@@ -500,7 +501,6 @@ export function CalendarView(props: CalendarViewProps) {
       )}
 
       {/* Horizontal Date Strip (Timeline) */}
-      {props.workdays}
       {!props.monthView && <div className="calendar-strip-container">
         <div className="calendar-strip-nav-left">
           <button
@@ -602,6 +602,7 @@ export function CalendarView(props: CalendarViewProps) {
       }
       {/* Daily Notes Content Area */}
       {props.trackers}
+      {props.workdays}
       {props.reminders}
       <div className="calendar-notes-section">
         {hasBulletsForDay&&!drafting ? (
@@ -640,7 +641,7 @@ export function CalendarView(props: CalendarViewProps) {
             setNotice={props.setNotice}
           />
         ) : (
-          <div className="calendar-empty-day-outline">{drafting?<><textarea className="calendar-draft" autoFocus aria-label="Write a daily note" placeholder="What would you like to remember?" value={draft} onChange={e=>updateDraft(e.target.value,(e.nativeEvent as InputEvent).isComposing)} onCompositionEnd={e=>updateDraft(e.currentTarget.value)} onBlur={saveDraft} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();saveDraft();}}}/><div className="calendar-draft-actions"><button disabled={!draft.trim()||props.disabled} onClick={saveDraft}>Done</button></div></>:<><h3>Your day, a fresh page</h3><p>Browse freely. A daily note is created only when you write something.</p><button className="calendar-write-note" disabled={props.disabled} onClick={()=>{draftId.current=null;setDraft('');setDrafting(true);}}><Icon name="plus" size={17}/>Write a note</button></>}</div>
+          <div className="calendar-empty-day-outline">{drafting?<><textarea className="calendar-draft" autoFocus aria-label="Write a daily note" placeholder="What would you like to remember?" value={draft} onChange={e=>updateDraft(e.target.value,(e.nativeEvent as InputEvent).isComposing)} onCompositionEnd={e=>updateDraft(e.currentTarget.value)} onBlur={saveDraft} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();saveDraft();}}}/><div className="calendar-draft-actions"><button disabled={!draft.trim()||props.disabled} onClick={saveDraft}>Done</button></div></>:<><button className="calendar-write-note" disabled={props.disabled} onClick={()=>{draftId.current=null;setDraft('');setDrafting(true);}}><Icon name="plus" size={16}/>Write a note…</button></>}</div>
         )}
       </div>
     </div></Popover.Root>
