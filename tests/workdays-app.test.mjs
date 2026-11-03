@@ -1,3 +1,4 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -31,6 +32,7 @@ for (const key of [
         : dom.window[key],
     configurable: true,
   });
+installOverlayGlobals(dom);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.ResizeObserver = undefined;
 globalThis.IntersectionObserver = class {
@@ -136,8 +138,7 @@ test("Workdays calendar saves plans, bulk changes, leave, holidays and policy wi
     });
     await wait(() => document.querySelector(".outline-row"));
     await textClick("Calendar");
-    await wait(() => document.querySelector(".workdays"));
-    await click('[aria-label="Workdays layer"]');
+    await wait(()=>document.querySelector('.calendar-trackers'));await click('.calendar-trackers-heading button');await click('[aria-label="Enable Workdays tracker"]');await click('[aria-label="Close daily tracker settings"]');await click('.calendar-workdays-advanced summary');await wait(()=>document.querySelector('.workdays'));
     assert.equal(
       document
         .querySelector('[aria-label="Workdays layer"]')

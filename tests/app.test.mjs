@@ -191,25 +191,22 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await click(datePill);
   assert.equal(document.querySelector(".calendar-popover"), null);
 
-  // The daily view is immediately editable, without a placeholder click or
-  // a second editable date heading.
-  await wait(() => document.querySelector(".calendar-notes-section .tiptap"));
-  assert.ok(document.querySelector(".calendar-notes-section .tiptap"));
-  assert.equal(document.querySelector(".calendar-notes-section .zoomed-title-input"), null);
-  const firstDailyId = document.querySelector(".calendar-notes-section .outline-row.selected").dataset.nodeId;
-  for (const [key, shiftKey] of [["Backspace", false], ["Tab", true], ["Enter", false], ["ArrowUp", false]]) {
-    await act(async () => document.querySelector(".calendar-notes-section .tiptap").dispatchEvent(new window.KeyboardEvent("keydown", { key, shiftKey, bubbles: true })));
-    assert.equal(document.querySelector(".calendar-notes-section .outline-row.selected").dataset.nodeId, firstDailyId);
-  }
-  await click(document.querySelector(".calendar-notes-section [aria-label='Add bullet']"));
-  const secondDailyId = document.querySelector(".calendar-notes-section .outline-row.selected").dataset.nodeId;
-  assert.notEqual(secondDailyId, firstDailyId);
-  await act(async () => { await new Promise(r => setTimeout(r, 250)); });
-  stored = await load();
-  const firstDaily = stored.tables.bullets.find(n => n.id === firstDailyId);
-  assert.match(firstDaily.parentId, /^journal-\d{4}-\d{2}-\d{2}$/);
-  assert.equal(stored.tables.bullets.find(n => n.id === secondDailyId).parentId, firstDaily.parentId);
-  assert.equal(stored.tables.bullets.find(n => n.id === secondDailyId).position, 1);
+  // Date browsing and an untouched composer must not create notes.
+  assert.equal(document.querySelector('.calendar-notes-section .tiptap'),null);
+  await click(document.querySelector('[aria-label="Next day"]'));
+  await act(async()=>new Promise(r=>setTimeout(r,300)));
+  stored=await load();assert.equal(stored.tables.bullets.filter(n=>n.journalDate).length,0);
+  await click(document.querySelector('.calendar-write-note'));
+  const draft=document.querySelector('.calendar-draft');
+  assert.ok(draft);assert.equal((await load()).tables.bullets.filter(n=>n.journalDate).length,0);
+  await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(draft,'A meaningful daily note');draft.dispatchEvent(new window.Event('input',{bubbles:true}));});
+  await act(async()=>new Promise(r=>setTimeout(r,350)));
+  stored=await load();const firstDaily=stored.tables.bullets.find(n=>n.text==='A meaningful daily note');assert.ok(firstDaily,'typing durably saves before blur');assert.match(firstDaily.parentId,/^journal-\d{4}-\d{2}-\d{2}$/);
+  await click(document.querySelector('.calendar-draft-actions button'));
+  await click(document.querySelector('.calendar-notes-section [aria-label="Add bullet"]'));
+  const secondDailyId=document.querySelector('.calendar-notes-section .outline-row.selected').dataset.nodeId;
+  await act(async()=>new Promise(r=>setTimeout(r,300)));
+  stored=await load();assert.equal(stored.tables.bullets.find(n=>n.id===secondDailyId).parentId,firstDaily.parentId);
 
   // Year picker popover
   const yearShortcutBtn = document.querySelector(".shortcut-year-btn");

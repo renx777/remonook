@@ -1,3 +1,4 @@
+import * as Popover from "@radix-ui/react-popover";
 import type { ClipboardInput } from "./clipboard";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import type { Editor } from "@tiptap/core";
@@ -141,6 +142,8 @@ const WEEKDAY_NAMES_2 = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 type CalendarViewProps = {
   workdays?: React.ReactNode;
+  trackers?: React.ReactNode;
+  onCreateNote?:(date:string,text:string)=>string;
   monthView?: boolean;
   autoOpen?: boolean;
   reminders?: React.ReactNode;
@@ -186,17 +189,16 @@ export function CalendarView(props: CalendarViewProps) {
   const pillBtnRef = useRef<HTMLButtonElement>(null);
   const stripScrollRef = useRef<HTMLDivElement>(null);
 
-  // A day opens with a real editable child, using the same editor as Notes.
-  useEffect(() => {
-    if (!props.disabled && props.autoOpen !== false) props.onOpenDate(selectedDate);
-  }, [selectedDate, props.disabled, props.autoOpen]);
-
+  const [draft,setDraft]=useState(''),[drafting,setDrafting]=useState(false),draftId=useRef<string|null>(null);
+  useEffect(()=>{setDraft('');setDrafting(false);draftId.current=null;},[selectedDate]);
+  const saveDraft=()=>{setDrafting(false);draftId.current=null;};
+  const updateDraft=(text:string,composing=false)=>{setDraft(text);if(composing)return;if(!draftId.current&&text.trim()&&props.onCreateNote)draftId.current=props.onCreateNote(selectedDate,text);else if(draftId.current)(props.onEditorChange||props.onChange)(draftId.current,{text,formatting:''});};
   // Picker month navigation state
   const [pickerYear, setPickerYear] = useState(() => parseLocalDate(selectedDate).getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => parseLocalDate(selectedDate).getMonth());
 
   // Popover mode: "month" | "year"
-  const [popoverMode, setPopoverMode] = useState<"month" | "year">("year");
+  const [popoverMode, setPopoverMode] = useState<"month" | "year">("month");
 
   // Year range start for 12-year window (e.g. 2019 for 2019 - 2030)
   const [yearRangeStart, setYearRangeStart] = useState(() => {
@@ -221,33 +223,13 @@ export function CalendarView(props: CalendarViewProps) {
     return list;
   }, [yearRangeStart]);
 
-  // Click outside to close popover
-  useEffect(() => {
-    if (!popoverOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as globalThis.Node) &&
-        pillBtnRef.current &&
-        !pillBtnRef.current.contains(e.target as globalThis.Node)
-      ) {
-        setPopoverOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", handleClick);
-    return () => window.removeEventListener("mousedown", handleClick);
-  }, [popoverOpen]);
-
   // Find all dates that have notes
   const datesWithNotes = useMemo(() => {
     const set = new Set<string>();
-    for (const n of nodes) {
-      if (n.journalDate) {
-        set.add(n.journalDate);
-      }
-    }
+    const idx=index(nodes);
+    for(const n of nodes)if(n.journalDate&&(idx.children.get(n.id)||[]).some((child:Node)=>child.text.trim()||props.media?.some(m=>m.bulletId===child.id)))set.add(n.journalDate);
     return set;
-  }, [nodes]);
+  }, [nodes,props.media]);
 
   // Find daily root for currently selected date
   const rootId = `journal-${selectedDate}`;
@@ -359,29 +341,25 @@ export function CalendarView(props: CalendarViewProps) {
   };
 
   return (
-    <div className={`calendar-view ${props.autoOpen===false?'has-workdays':''}`}>
+    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}><div className={`calendar-view ${props.autoOpen===false?'has-workdays':''}`}>
       {/* Top Heading */}
       <div className="calendar-header-row">
-        <button className="icon-button calendar-more-btn" title="More options" aria-label="More options">
-          <Icon name="more" size={18} />
-        </button>
         <div className="calendar-title-wrap">
           <span className="calendar-prefix">{relativePrefix}</span>
-          <button
+          <Popover.Trigger asChild><button
             ref={pillBtnRef}
             className={`calendar-date-pill ${popoverOpen ? "active" : ""}`}
-            onClick={() => setPopoverOpen((v) => !v)}
             aria-label="Toggle calendar picker"
             aria-expanded={popoverOpen}
           >
             {datePillText}
-          </button>
+          </button></Popover.Trigger>
         </div>
       </div>
 
       {/* Date Picker Popover Dropdown */}
       {popoverOpen && (
-        <div ref={popoverRef} className="calendar-popover" role="dialog" aria-label="Date picker">
+        <Popover.Portal container={document.querySelector(".app")||document.body}><Popover.Content ref={popoverRef} className="calendar-popover" sideOffset={8} align="start" collisionPadding={12} aria-label="Date picker">
           <div className="calendar-popover-header">
             <span>{datePillText}</span>
           </div>
@@ -500,7 +478,7 @@ export function CalendarView(props: CalendarViewProps) {
                   return (
                     <button
                       key={item.dateStr}
-                      className={`calendar-mini-day ${item.isCurrentMonth ? "in-month" : "out-month"} ${isSelected ? "selected" : ""}`}
+                      aria-pressed={isSelected} aria-label={item.dateStr} className={`calendar-mini-day ${item.isCurrentMonth ? "in-month" : "out-month"} ${isSelected ? "selected" : ""}`}
                       onClick={() => {
                         onSelectDate(item.dateStr);
                         setPopoverOpen(false);
@@ -516,26 +494,9 @@ export function CalendarView(props: CalendarViewProps) {
           )}
 
           <div className="calendar-popover-footer">
-            <button className="popover-action-item">
-              <span className="radio-circle" />
-              <span>Range</span>
-            </button>
-            <button className="popover-action-item">
-              <Icon name="settings" size={15} />
-              <span>Format</span>
-            </button>
-            <button
-              className="popover-action-item"
-              onClick={() => {
-                onSelectDate(getLocalDateString());
-                setPopoverOpen(false);
-              }}
-            >
-              <Icon name="close" size={15} />
-              <span>Remove date</span>
-            </button>
+            <button className="popover-action-item" onClick={()=>setPopoverOpen(false)}>Done</button>
           </div>
-        </div>
+        </Popover.Content></Popover.Portal>
       )}
 
       {/* Horizontal Date Strip (Timeline) */}
@@ -580,7 +541,7 @@ export function CalendarView(props: CalendarViewProps) {
                   <span className="strip-month-label-placeholder" />
                 )}
                 <button
-                  className={`strip-day-btn ${isSelected ? "selected" : ""}`}
+                  aria-pressed={isSelected} aria-label={d.dateStr} className={`strip-day-btn ${isSelected ? "selected" : ""}`}
                   onClick={() => onSelectDate(d.dateStr)}
                 >
                   <span className="strip-weekday">{d.weekday}</span>
@@ -640,9 +601,10 @@ export function CalendarView(props: CalendarViewProps) {
 
       }
       {/* Daily Notes Content Area */}
+      {props.trackers}
       {props.reminders}
       <div className="calendar-notes-section">
-        {hasBulletsForDay ? (
+        {hasBulletsForDay&&!drafting ? (
           <OutlineView
             key={rootId}
             hideTitle
@@ -678,33 +640,9 @@ export function CalendarView(props: CalendarViewProps) {
             setNotice={props.setNotice}
           />
         ) : (
-          <div className="calendar-empty-day-outline">
-            <div
-              className="calendar-empty-bullet-row"
-              onClick={() => onAddBullet(selectedDate)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onAddBullet(selectedDate);
-                }
-              }}
-            >
-              <span className="empty-bullet-dot">•</span>
-              <span className="empty-bullet-cursor" />
-            </div>
-            <button
-              className="icon-button calendar-add-bullet-btn"
-              title="Add bullet"
-              aria-label="Add bullet"
-              onClick={() => onAddBullet(selectedDate)}
-            >
-              <Icon name="plus" size={18} />
-            </button>
-          </div>
+          <div className="calendar-empty-day-outline">{drafting?<><textarea className="calendar-draft" autoFocus aria-label="Write a daily note" placeholder="What would you like to remember?" value={draft} onChange={e=>updateDraft(e.target.value,(e.nativeEvent as InputEvent).isComposing)} onCompositionEnd={e=>updateDraft(e.currentTarget.value)} onBlur={saveDraft} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();saveDraft();}}}/><div className="calendar-draft-actions"><button disabled={!draft.trim()||props.disabled} onClick={saveDraft}>Done</button></div></>:<><h3>Your day, a fresh page</h3><p>Browse freely. A daily note is created only when you write something.</p><button className="calendar-write-note" disabled={props.disabled} onClick={()=>{draftId.current=null;setDraft('');setDrafting(true);}}><Icon name="plus" size={17}/>Write a note</button></>}</div>
         )}
       </div>
-    </div>
+    </div></Popover.Root>
   );
 }

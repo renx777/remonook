@@ -59,13 +59,13 @@ test('mindmap converts branches, renders a read-only tree, navigates back to not
     await wait(() => document.querySelector('.zoomed-title'));
     assert.equal(document.querySelector('.zoomed-title').value, 'Beta', 'Open in Notes opens its bullet in Notes');
     assert.equal(navButton('Notes').getAttribute('aria-current'), 'page');
-    await click(navButton('Mindmap')); await wait(() => document.querySelector('.mindmap-view'));
+    await click(navButton('Mindmap')); await wait(() => document.querySelector('.mindmap-library'));await click([...document.querySelectorAll('.mindmap-library-grid button')].find(b=>b.querySelector('strong').textContent==='Plan'));await wait(()=>document.querySelector('.mindmap-view'));
     assert.equal(document.querySelectorAll('.mind-node').length, 3, 'a child scope resolves to its mindmap root');
     await click(navButton('Notes')); await wait(() => document.querySelector('[data-node-id="other"]'));
     await click('[data-node-id="other"] .bullet-dot-btn'); await wait(() => document.querySelector('.zoomed-title'));
-    await click(navButton('Mindmap')); await wait(() => document.querySelector('.mindmap-empty'));
-    assert.match(document.querySelector('.mindmap-empty').textContent, /Convert this branch/);
-    await click(textButton('.mindmap-empty button', 'Convert this branch to a mindmap')); await wait(() => document.querySelector('.mindmap-view'));
+    await click(navButton('Mindmap'));await wait(()=>document.querySelector('.mindmap-library'));assert.equal(document.querySelectorAll('.mindmap-library-grid>button').length,1,'all maps are listed regardless of note scope');
+    await click(navButton('Notes'));await wait(()=>document.querySelector('[data-node-id="other"] .row-end [aria-label="Bullet actions"]'));
+    await click('[data-node-id="other"] .row-end [aria-label="Bullet actions"]');await wait(()=>document.querySelector('.bullet-actions-menu'));await click(textButton('.bullet-actions-menu button','Mindmap'));await wait(()=>document.querySelector('[data-node-id="other"] .bullet-mindmap-open'));await click('[data-node-id="other"] .bullet-mindmap-open');await wait(()=>document.querySelector('.mindmap-view'));
     assert.equal(document.querySelectorAll('.mind-node').length, 1);
     assert.equal(document.querySelector('.mindmap-root-label span').textContent, 'Other');
     await click(navButton('Notes')); await wait(() => document.querySelector('[data-node-id="other"] .bullet-mindmap-open'));

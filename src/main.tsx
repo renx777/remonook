@@ -36,6 +36,8 @@ import {ConnectionContext,ConnectionChooser,ConnectionPanel} from "./Connections
 import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
 import {CalendarReminders,ReminderTabs,ReminderEditor,type ReminderTarget} from './CalendarReminders';
+import {CalendarTrackers} from './CalendarTrackers';
+import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
 import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
 import {enableStudyBranch,saveStudyFolder} from './study-library.mjs';
 import type {FolderDraft} from './StudyFolders';
@@ -203,6 +205,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [caret, setCaret] = useState<number | null>(null),
     [tab, setTab] = useState("notes"),
     [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string}|null>(null),
+    [mindmapTarget,setMindmapTarget]=useState<string|null>(null),
     [calendarDate, setCalendarDate] = useState(() => getLocalDateString()),
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
     [nodeDate,setNodeDate]=useState<{id:string;date:string}|null>(null),
@@ -336,10 +339,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const cloud = useCloudSync({user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
     get:()=>({doc:docRef.current,assets:assetsRef.current}),flush,
-    canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"]')&&!working&&!failed.current&&!cloudApplying.current,
+    canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus')&&!working&&!failed.current&&!cloudApplying.current,
     selection:()=>editing&&activeEditor?.isFocused?{id:editing,anchor:Math.max(0,activeEditor.state.selection.anchor-1),head:Math.max(0,activeEditor.state.selection.head-1)}:null,
     apply:async(remote,remoteAssets,sync)=>{
-      if(dirty.current||activeEditor?.view.composing||document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"]')||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
+      if(dirty.current||activeEditor?.view.composing||document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus')||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
       validate(remote.tables.bullets);validateWorkdays(remote.web.workdays);
       const previous=docRef.current!;
       const incoming={...restoreDeviceState(remote,previous),revision:previous.revision+1} as Workspace;
@@ -675,31 +678,20 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     });
     focus(mirrorContext?(docRef.current!.tables.bullets.find(n=>n.mirrorRootId===mirrorContext&&n.mirrorSourceId===id)?.id||id):id, 0);
   };
-  const addCalendarBullet = (date: string) => {
+  const addCalendarBullet = (date: string, text = "", edit = true) => {
     const bulletId = crypto.randomUUID();
     mutate((ns) => {
       const { nodes: updatedNodes, dayId } = ensureCalendarHierarchy(ns, date);
       const child = bullet(bulletId, {
         parentId: dayId,
-        text: "",
+        text,
       });
       return move([...updatedNodes, child], bulletId, dayId, (index(updatedNodes).children.get(dayId) || []).length);
     });
-    focus(bulletId, 0);
+    if(edit)focus(bulletId, text.length);
+    return bulletId;
   };
-  const openCalendarDate = (date: string) => {
-    const current = docRef.current!.tables.bullets as Node[];
-    const prepared = ensureCalendarHierarchy(current, date);
-    const children = index(prepared.nodes).children.get(prepared.dayId) || [];
-    if (!children.length) {
-      addCalendarBullet(date);
-    } else {
-      if (prepared.nodes.some((node, i) => node !== current[i]) || prepared.nodes.length !== current.length) {
-        mutate(() => prepared.nodes);
-      }
-      focus(children[0].id, 0);
-    }
-  };
+  const openCalendarDate = (date:string) => {setCalendarDate(date);setEditing(null);};
   const remove = (id: string) => {
     removeMultiple([id]);
   };
@@ -1424,7 +1416,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                 className={tab === id ? "nav-active" : ""}
                 aria-current={tab === id ? "page" : undefined}
                 onClick={() => {
-                  setTab(id);
+                  if(id==='mindmap')setMindmapTarget(null);setTab(id);
                   if (id === "notes") { setScope(null); setSearch(""); }
                   setEditing(null);
                   void flush();
@@ -1622,7 +1614,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               onZoom={(id) => {
                 views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);
               }}
-              onMindmap={(id)=>{setTab('mindmap');setScope(id);setEditing(null);}}
+              onMindmap={(id)=>{setMindmapTarget(id);setTab('mindmap');setScope(id);setEditing(null);}}
               onOpenPane={openPane}
               onToggle={id=>{if(pane.id==='main')mutate(ns=>ns.map(n=>n.id===id?{...n,collapsed:!n.collapsed}:n));else views.update(pane.id,{collapsed:{...pane.collapsed,[id]:!(pane.collapsed[id]??idx.byId.get(id)?.collapsed)}});}}
               onChange={changeBulletContent}
@@ -1668,18 +1660,20 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : tab === "mindmap" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView nodes={nodes} scope={scope} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>ns.map(n=>n.id===sid?{...n,text}:n));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
         ) : (
           <>
           <CalendarView
-            autoOpen={!workdays(doc).enabled}
-            monthView={workdays(doc).enabled&&workdays(doc).view==='month'}
-            workdays={<WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(idx.children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarReminders,date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/>}
+            autoOpen={false}
+            trackers={<CalendarTrackers doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
+            onCreateNote={(date,text)=>addCalendarBullet(date,text,false)}
+            monthView={false}
+            workdays={workdays(doc).enabled?<details className="calendar-workdays-advanced"><summary>Workdays planning &amp; goals</summary><WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(idx.children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarReminders,date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/></details>:undefined}
             hasReminder={date=>eventsOnDate(calendarReminders,date).length>0}
             reminders={<CalendarReminders doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onOpenDate={date=>{setCalendarDate(date);setEditing(null);}}/>}
             nodes={nodes}
             selectedDate={calendarDate}
-            onSelectDate={setCalendarDate}
+            onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}
             onAddBullet={addCalendarBullet}
             onOpenDate={openCalendarDate}
             onEdit={(id) => {
@@ -1694,7 +1688,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               setSearch("");
             }}
             onMindmap={(id) => {
-              setScope(id);
+              setMindmapTarget(id);setScope(id);
               setTab("mindmap");
               setEditing(null);
               setSearch("");
@@ -1747,7 +1741,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style => command('dividerStyle:' + style, selected.id, 0, 0)} onDividerColor={color => command('dividerColor:' + color, selected.id, 0, 0)} />}
           </>
         )}
-        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
+        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
         <nav className="mobile-nav" aria-label="Mobile navigation">
           {[
             ["dashboard", "Dashboard", "dashboard"],
@@ -1763,7 +1757,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               aria-current={tab===id?"page":undefined}
               className={tab === id ? "nav-active" : ""}
               onClick={() => {
-                setTab(id);
+                if(id==='mindmap')setMindmapTarget(null);setTab(id);
                 setEditing(null);
               }}
             >
@@ -1985,7 +1979,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         commit(withNodes(result.doc,result.doc.tables.bullets as Node[]));await flush();if(failed.current)throw Error('The capture is in your notes, but saving needs attention. Open Account settings to retry.');
       }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
-        ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
+        ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
         {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
         {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},
         {id:'settings',label:'Open settings & backups',icon:'settings',run:()=>setDialog('settings')},
