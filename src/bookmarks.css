@@ -28,3 +28,5 @@
 }
 
 .article-mobile-action{display:none}@media(max-width:760px){.article-mobile-action{display:inline-flex;align-items:center;min-height:40px;font:13px system-ui;color:inherit}.web-reader-options{max-height:40dvh;overflow:auto}}
+
+.article-note-thought{margin-left:14px;border-left:2px solid var(--line)}
