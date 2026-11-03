@@ -1,3 +1,4 @@
+import {planTrashPurge} from './trash-purge';
 import {cacheArticle,articleAccount} from './article-cache.mjs';
 import {uploadCachedArticles} from './article-api';
 import {createUiSignal} from './ui-signal';
@@ -438,6 +439,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   // Publish to the authoritative model immediately; only passive React views wait
   // for a typing pause. Saving and structural commands always read docRef.
   const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
+  const [emptyTrashIds,setEmptyTrashIds]=React.useState<string[]>([]);
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
@@ -2196,6 +2198,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <p className="dialog-muted">
             Deleted branches keep their original IDs and attachments.
           </p>
+          {!!doc.tables.trash.length&&<div className="trash-summary"><span>{doc.tables.trash.length} deleted {doc.tables.trash.length===1?'item':'items'} · {doc.tables.trash.reduce((n,t)=>n+t.nodeCount,0)} bullets</span><button className="danger" disabled={disabled} onClick={()=>{setEmptyTrashIds(docRef.current!.tables.trash.map(t=>t.id));setDialog('purge:all');}}>Empty trash</button></div>}
           {!doc.tables.trash.length ? (
             <p className="dialog-muted">Trash is empty.</p>
           ) : (
@@ -2229,12 +2232,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       )}
       {dialog?.startsWith("purge:") && (
         <Dialog
-          title="Permanently delete branch?"
+          title={dialog==='purge:all'?"Empty trash?":"Permanently delete branch?"}
           onClose={() => setDialog("trash")}
         >
           <p>
-            This removes the branch from Trash. Its previous backups will remain
-            available.
+            {dialog==='purge:all'?`Permanently delete ${emptyTrashIds.length} selected deleted ${emptyTrashIds.length===1?'item':'items'} and their unused attachments? This cannot be undone.`:'Permanently delete this branch and its unused attachments? This cannot be undone.'} Live notes and existing backups are kept.
           </p>
           <div className="dialog-buttons">
             <button onClick={() => setDialog("trash")}>Cancel</button>
@@ -2247,23 +2249,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                   await flush();
                   if (failed.current)
                     throw Error("Current edits could not be saved");
-                  const id = dialog.slice(6),
-                    current = docRef.current!,
-                    entry = current.tables.trash.find((t) => t.id === id)!,
-                    payload = JSON.parse(entry.payload),
-                    next = {
-                      ...current,
-                      tables: {
-                        ...current.tables,
-                        trash: current.tables.trash.filter((t) => t.id !== id),
-                      },
-                    };
-                  const refs = references(next),
-                    removed = androidBlockers(current).length
-                      ? []
-                      : payload.media
-                          .map((m: any) => "media/" + m.fileName)
-                          .filter((path: string) => !refs.has(path));
+                  const ids=dialog==='purge:all'?emptyTrashIds:[dialog.slice(6)],current=docRef.current!,purged=planTrashPurge(current,ids),next=purged.next,removed=purged.removed;
+                  if(!purged.count){setDialog('trash');setNotice('These items are no longer in Trash.');return;}
                   const written = await save(
                     persisted.current,
                     next,
@@ -2277,14 +2264,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                   setDoc(written);
                   history.current = { undo: [], redo: [] };
                   setHistoryTick((x) => x + 1);
-                  setAssets(
-                    (a) =>
-                      new Map(
-                        [...a].filter(([path]) => !removed.includes(path)),
-                      ),
-                  );
+                  const nextAssets=new Map([...assetsRef.current].filter(([path])=>!removed.includes(path)));assetsRef.current=nextAssets;setAssets(nextAssets);for(const path of removed)pendingAssets.current.delete(path);
                   setDialog("trash");
-                  setNotice("Branch permanently deleted");
+                  setNotice(purged.count===1?"Item permanently deleted":`${purged.count} items permanently deleted`);
                 } catch (e) {
                   showError(e);
                 } finally {
@@ -2292,7 +2274,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                 }
               }}
             >
-              Delete permanently
+              {working?'Deleting…':dialog==='purge:all'?'Empty trash permanently':'Delete permanently'}
             </button>
           </div>
         </Dialog>
