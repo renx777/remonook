@@ -1,3 +1,6 @@
+import {planTrashPurge} from './trash-purge';
+import {cacheArticle,articleAccount} from './article-cache.mjs';
+import {uploadCachedArticles} from './article-api';
 import {createUiSignal} from './ui-signal';
 import {KeyboardShortcuts} from './KeyboardShortcuts';
 import {CommandPalette} from './CommandPalette';
@@ -34,6 +37,9 @@ import {ConnectionContext,ConnectionChooser,ConnectionPanel} from "./Connections
 import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
 import {CalendarReminders,ReminderTabs,ReminderEditor,type ReminderTarget} from './CalendarReminders';
+import {articleSnapshotHashes} from './bookmarks.mjs';
+import {CalendarTrackers} from './CalendarTrackers';
+import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
 import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
 import {enableStudyBranch,saveStudyFolder} from './study-library.mjs';
 import type {FolderDraft} from './StudyFolders';
@@ -91,7 +97,8 @@ import { EmojiProvider } from './AnimatedEmoji';
 import {BulletMenuBody} from './BulletMenuBody';
 import {useEmojiAssetRepair} from './useEmojiAssetRepair';
 import { EmojiPicker } from './EmojiPicker';
-import {WorkdaysCalendar} from './WorkdaysCalendar';
+import {WorkdayMarker} from './WorkMode';
+import {workdaysV2} from './workdays-v2.mjs';
 import {workdays,validateWorkdays} from './workdays.mjs';
 import { decodeAnimation, insertEmoji } from './emoji.mjs';
 import { downloadCatalogEmoji, getCatalogEmoji, isCatalogEmoji, catalogAssetPaths } from './emoji-catalog.mjs';
@@ -112,6 +119,7 @@ import "./outline-chrome.css";
 import "./study.css";
 import "./mcq.css";
 import "./mobile.css";
+const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
 const Bookshelf = React.lazy(()=>import('./Bookshelf').then(module=>({default:module.Bookshelf})));
@@ -199,6 +207,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [editing, setEditingState] = useState<string | null>(null),
     [caret, setCaret] = useState<number | null>(null),
     [tab, setTab] = useState("notes"),
+    [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string;snapshotHash?:string}|null>(null),
+    [mindmapTarget,setMindmapTarget]=useState<string|null>(null),
     [calendarDate, setCalendarDate] = useState(() => getLocalDateString()),
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
     [nodeDate,setNodeDate]=useState<{id:string;date:string}|null>(null),
@@ -341,10 +351,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const cloud = useCloudSync({user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
     get:()=>({doc:docRef.current,assets:assetsRef.current}),flush,
-    canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!document.querySelector('.zoomed-title-input[data-composing="true"]')&&!working&&!failed.current&&!cloudApplying.current,
+    canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus,.mind-input:focus')&&!working&&!failed.current&&!cloudApplying.current,
     selection:()=>editing&&activeEditor?.isFocused?{id:editing,anchor:Math.max(0,activeEditor.state.selection.anchor-1),head:Math.max(0,activeEditor.state.selection.head-1)}:null,
     apply:async(remote,remoteAssets,sync)=>{
-      if(dirty.current||activeEditor?.view.composing||document.querySelector('.zoomed-title-input[data-composing="true"]')||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
+      if(dirty.current||activeEditor?.view.composing||document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus,.mind-input:focus')||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
       validate(remote.tables.bullets);validateWorkdays(remote.web.workdays);
       const previous=docRef.current!;
       const incoming={...restoreDeviceState(remote,previous),revision:previous.revision+1} as Workspace;
@@ -438,6 +448,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   // Publish to the authoritative model immediately; only passive React views wait
   // for a typing pause. Saving and structural commands always read docRef.
   const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
+  const [emptyTrashIds,setEmptyTrashIds]=React.useState<string[]>([]);
+  const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
     const h = history.current,
@@ -680,31 +692,20 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     });
     focus(mirrorContext?(docRef.current!.tables.bullets.find(n=>n.mirrorRootId===mirrorContext&&n.mirrorSourceId===id)?.id||id):id, 0);
   };
-  const addCalendarBullet = (date: string) => {
+  const addCalendarBullet = (date: string, text = "", edit = true) => {
     const bulletId = crypto.randomUUID();
     mutate((ns) => {
       const { nodes: updatedNodes, dayId } = ensureCalendarHierarchy(ns, date);
       const child = bullet(bulletId, {
         parentId: dayId,
-        text: "",
+        text,
       });
       return move([...updatedNodes, child], bulletId, dayId, (index(updatedNodes).children.get(dayId) || []).length);
     });
-    focus(bulletId, 0);
+    if(edit)focus(bulletId, text.length);
+    return bulletId;
   };
-  const openCalendarDate = (date: string) => {
-    const current = docRef.current!.tables.bullets as Node[];
-    const prepared = ensureCalendarHierarchy(current, date);
-    const children = index(prepared.nodes).children.get(prepared.dayId) || [];
-    if (!children.length) {
-      addCalendarBullet(date);
-    } else {
-      if (prepared.nodes.some((node, i) => node !== current[i]) || prepared.nodes.length !== current.length) {
-        mutate(() => prepared.nodes);
-      }
-      focus(children[0].id, 0);
-    }
-  };
+  const openCalendarDate = (date:string) => {setCalendarDate(date);setEditing(null);};
   const remove = (id: string) => {
     removeMultiple([id]);
   };
@@ -1192,6 +1193,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     try {
       await flush();
       if (failed.current) throw Error("Current changes could not be saved");
+      const restoredAssets=new Map(prepared.assets);
+      for(const [path,blob]of prepared.assets){const match=path.match(/^articles\/([a-f0-9]{64})\.json$/);if(match){await cacheArticle(articleAccount(cloudUser?.uid),match[1],blob,!!cloudUser);restoredAssets.delete(path);}}
+      if(cloudUser){if(!navigator.onLine)throw Error('Reconnect to restore saved webpages to your account. Your backup and current notes are unchanged.');await uploadCachedArticles(cloudUser,articleSnapshotHashes(prepared.doc));}
       const restoredDoc = {
         ...prepared.doc,
         web: { ...prepared.doc.web, deviceId: persisted.current!.web.deviceId },
@@ -1200,15 +1204,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         persisted.current,
         restoredDoc,
         "restore",
-        prepared.assets,
+        restoredAssets,
         true,
       );
       persisted.current = next;
       docRef.current = next;
       dirty.current = false;
       setDoc(next);
-      setAssets(prepared.assets);
-      assetsRef.current = prepared.assets;
+      setAssets(restoredAssets);
+      assetsRef.current = restoredAssets;
       pendingAssets.current.clear();
       history.current = { undo: [], redo: [] };
       setScope(null);
@@ -1289,8 +1293,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     return()=>{unbind();window.removeEventListener('keydown',undoKey);};
   }, [editing, dialog, menu, doc, views.panes, views.activePane, tab]);
   readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
-  const readingSourceMap=React.useMemo(()=>doc?readingSources(doc):{},[doc?.web.readingHighlights,doc?.tables.media]);
-  const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader}),[readingSourceMap,openReader]);
+  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,snapshotHash:s.snapshotHash,label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
+  const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader,openWeb:(id:string,highlight:string,snapshotHash?:string)=>{setEditing(null);setBookmarkTarget({id,highlight,snapshotHash});setTab("bookmarks");}}),[readingSourceMap,openReader]);
   if (!doc)
     return (
       <div className="startup">
@@ -1418,13 +1422,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               ["study", "Study Desk", "study"],
               ["bookshelf", "Bookshelf", "study"],
               ["mindmap", "Mindmap", "mindmap"],
+              ["bookmarks", "Bookmarks", "link"],
             ].map(([id, label, icon]) => (
               <button
                 key={id}
                 className={tab === id ? "nav-active" : ""}
                 aria-current={tab === id ? "page" : undefined}
                 onClick={() => {
-                  setTab(id);
+                  if(id==='mindmap')setMindmapTarget(null);setTab(id);
                   if (id === "notes") { setScope(null); setSearch(""); }
                   setEditing(null);
                   void flush();
@@ -1478,7 +1483,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
           <div className="breadcrumbs">
-            {tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
+            {tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
               <>
                 <button onClick={() => navigateTo(calendarRoot?.id || null)}>
                   <Icon name="calendar" size={14} />
@@ -1622,7 +1627,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               onZoom={(id) => {
                 views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);
               }}
-              onMindmap={(id)=>{setTab('mindmap');setScope(id);setEditing(null);}}
+              onMindmap={(id)=>{setMindmapTarget(id);setTab('mindmap');setScope(id);setEditing(null);}}
               onOpenPane={openPane}
               onToggle={id=>{if(pane.id==='main')mutate(ns=>ns.map(n=>n.id===id?{...n,collapsed:!n.collapsed}:n));else views.update(pane.id,{collapsed:{...pane.collapsed,[id]:!(pane.collapsed[id]??idx.byId.get(id)?.collapsed)}});}}
               onChange={changeBulletContent}
@@ -1661,23 +1666,27 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             const current=docRef.current!,id=crypto.randomUUID(),position=current.tables.bullets.filter(node=>!node.parentId).reduce((max,node)=>Math.max(max,node.position+1),0);
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
+        ) : tab === "bookmarks" ? (
+          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : tab === "mindmap" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView nodes={nodes} scope={scope} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>ns.map(n=>n.id===sid?{...n,text}:n));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
         ) : (
           <>
           <CalendarView
-            autoOpen={!workdays(doc).enabled}
-            monthView={workdays(doc).enabled&&workdays(doc).view==='month'}
-            workdays={<WorkdaysCalendar doc={doc} date={calendarDate} disabled={disabled} hasNotes={date=>nodes.some(n=>n.journalDate===date&&(idx.children.get(n.id)||[]).some((c:Node)=>c.text.trim()||doc.tables.media.some(m=>m.bulletId===c.id)))} hasReminder={date=>eventsOnDate(calendarReminders,date).length>0} onDate={date=>{setCalendarDate(date);setEditing(null);}} onChange={next=>commit(next)}/>}
+            autoOpen={false}
+            workdayMarker={calendarWorkdays.enabled?date=><WorkdayMarker w={calendarWorkdays} date={date}/>:undefined}
+            trackers={<CalendarTrackers onDate={date=>{setCalendarDate(date);setEditing(null);}} doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
+            onCreateNote={(date,value,id)=>mutate(ns=>{const prepared=ensureCalendarHierarchy(ns,date);return move([...prepared.nodes,bullet(id,{parentId:prepared.dayId,...value})],id,prepared.dayId,(index(prepared.nodes).children.get(prepared.dayId)||[]).length);})}
+            monthView={false}
             hasReminder={date=>eventsOnDate(calendarReminders,date).length>0}
             reminders={<CalendarReminders doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onOpenDate={date=>{setCalendarDate(date);setEditing(null);}}/>}
             nodes={nodes}
             selectedDate={calendarDate}
-            onSelectDate={setCalendarDate}
+            onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}
             onAddBullet={addCalendarBullet}
             onOpenDate={openCalendarDate}
             onEdit={(id) => {
@@ -1692,7 +1701,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               setSearch("");
             }}
             onMindmap={(id) => {
-              setScope(id);
+              setMindmapTarget(id);setScope(id);
               setTab("mindmap");
               setEditing(null);
               setSearch("");
@@ -1745,7 +1754,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style => command('dividerStyle:' + style, selected.id, 0, 0)} onDividerColor={color => command('dividerColor:' + color, selected.id, 0, 0)} />}
           </>
         )}
-        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
+        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
         <nav className="mobile-nav" aria-label="Mobile navigation">
           {[
             ["dashboard", "Dashboard", "dashboard"],
@@ -1754,12 +1763,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             ["study", "Study Desk", "study"],
               ["bookshelf", "Bookshelf", "study"],
               ["mindmap", "Mindmap", "mindmap"],
+              ["bookmarks", "Bookmarks", "link"],
           ].map(([id, label, icon]) => (
             <button
               key={id}
+              aria-current={tab===id?"page":undefined}
               className={tab === id ? "nav-active" : ""}
               onClick={() => {
-                setTab(id);
+                if(id==='mindmap')setMindmapTarget(null);setTab(id);
                 setEditing(null);
               }}
             >
@@ -1981,7 +1992,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         commit(withNodes(result.doc,result.doc.tables.bullets as Node[]));await flush();if(failed.current)throw Error('The capture is in your notes, but saving needs attention. Open Account settings to retry.');
       }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
-        ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
+        ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
         {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
         {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},
         {id:'settings',label:'Open settings & backups',icon:'settings',run:()=>setDialog('settings')},
@@ -2195,6 +2206,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <p className="dialog-muted">
             Deleted branches keep their original IDs and attachments.
           </p>
+          {!!doc.tables.trash.length&&<div className="trash-summary"><span>{doc.tables.trash.length} deleted {doc.tables.trash.length===1?'item':'items'} · {doc.tables.trash.reduce((n,t)=>n+t.nodeCount,0)} bullets</span><button className="danger" disabled={disabled} onClick={()=>{setEmptyTrashIds(docRef.current!.tables.trash.map(t=>t.id));setDialog('purge:all');}}>Empty trash</button></div>}
           {!doc.tables.trash.length ? (
             <p className="dialog-muted">Trash is empty.</p>
           ) : (
@@ -2228,12 +2240,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       )}
       {dialog?.startsWith("purge:") && (
         <Dialog
-          title="Permanently delete branch?"
+          title={dialog==='purge:all'?"Empty trash?":"Permanently delete branch?"}
           onClose={() => setDialog("trash")}
         >
           <p>
-            This removes the branch from Trash. Its previous backups will remain
-            available.
+            {dialog==='purge:all'?`Permanently delete ${emptyTrashIds.length} selected deleted ${emptyTrashIds.length===1?'item':'items'} and their unused attachments? This cannot be undone.`:'Permanently delete this branch and its unused attachments? This cannot be undone.'} Live notes and existing backups are kept.
           </p>
           <div className="dialog-buttons">
             <button onClick={() => setDialog("trash")}>Cancel</button>
@@ -2246,23 +2257,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                   await flush();
                   if (failed.current)
                     throw Error("Current edits could not be saved");
-                  const id = dialog.slice(6),
-                    current = docRef.current!,
-                    entry = current.tables.trash.find((t) => t.id === id)!,
-                    payload = JSON.parse(entry.payload),
-                    next = {
-                      ...current,
-                      tables: {
-                        ...current.tables,
-                        trash: current.tables.trash.filter((t) => t.id !== id),
-                      },
-                    };
-                  const refs = references(next),
-                    removed = androidBlockers(current).length
-                      ? []
-                      : payload.media
-                          .map((m: any) => "media/" + m.fileName)
-                          .filter((path: string) => !refs.has(path));
+                  const ids=dialog==='purge:all'?emptyTrashIds:[dialog.slice(6)],current=docRef.current!,purged=planTrashPurge(current,ids),next=purged.next,removed=purged.removed;
+                  if(!purged.count){setDialog('trash');setNotice('These items are no longer in Trash.');return;}
                   const written = await save(
                     persisted.current,
                     next,
@@ -2276,14 +2272,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                   setDoc(written);
                   history.current = { undo: [], redo: [] };
                   setHistoryTick((x) => x + 1);
-                  setAssets(
-                    (a) =>
-                      new Map(
-                        [...a].filter(([path]) => !removed.includes(path)),
-                      ),
-                  );
+                  const nextAssets=new Map([...assetsRef.current].filter(([path])=>!removed.includes(path)));assetsRef.current=nextAssets;setAssets(nextAssets);for(const path of removed)pendingAssets.current.delete(path);
                   setDialog("trash");
-                  setNotice("Branch permanently deleted");
+                  setNotice(purged.count===1?"Item permanently deleted":`${purged.count} items permanently deleted`);
                 } catch (e) {
                   showError(e);
                 } finally {
@@ -2291,7 +2282,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                 }
               }}
             >
-              Delete permanently
+              {working?'Deleting…':dialog==='purge:all'?'Empty trash permanently':'Delete permanently'}
             </button>
           </div>
         </Dialog>

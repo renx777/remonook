@@ -1,31 +1,39 @@
-# Workdays in Calendar — phase 1
+# Workdays in Calendar
 
-Enable **Workdays** in Calendar. The optional layer provides Day/Month views, a compact monthly office goal, attendance and future plans, multi-date actions, holiday import and annual leave balances. Turning it off preserves its data.
+Workdays is an optional, personal work planner. Enable it in Calendar → Daily trackers → Edit/Set up. Disabling it preserves records. This preview is local/staging only; production stays unchanged.
 
-## Records and plans
+## Daily use and workspace
 
-- Marking today or a past date records confirmed attendance. Marking a future date creates a plan.
-- A plan never becomes confirmed automatically. On or after its date, use **Confirm** or mark what actually happened. The original plan is retained separately.
-- Planned office days contribute to projected coverage, never completed progress. Unconfirmed past plans contribute to neither.
-- Work status, note content and reminders are independent. Navigating dates with this layer enabled does not create note bullets. Use the daily note area to write.
-- **Select dates** applies WFH, WFO, Leave, Holiday or Clear to a group. The top-bar Undo/Redo includes Workdays changes.
+The daily Work mode row offers Home, Office and Leave. Past/today selections record actuals; future selections create plans. Leave supports custom types, full days and morning/afternoon leave, with Home/Office for the other half. The date strip and picker show solid actual markers and outlined plans; split markers represent half days. Notes remain ordinary inline bullets, independent of Workdays.
 
-## Policy and calculation rules
+Open **Workdays** for Overview, Plan and Leave. Overview separates actual totals from future projections, shows week/month/quarter charts with a keyboard-accessible data table, target progress, missing records and plans awaiting confirmation. Plan supports multi-date actions and a weekly routine preview over up to a year. Existing plans are skipped unless individually selected for replacement; actuals, holidays and nonworking days are kept. A routine creates explicit plans, not an invisible background recurrence.
 
-Settings configure working weekdays, an optional employment start date, office targets and whether leave is excluded. Policies are effective-dated; a newer policy does not rewrite earlier dates. Saving an existing effective date explicitly replaces that policy version.
+Plans never mature into actuals automatically. Confirm one or multiple past/today plans; existing actual halves are preserved. Clear actual, Clear plan and Remove holiday are separate actions. Holidays coexist with work records. Recorded work on holidays/nonworking days remains visible as an exception and does not inflate scheduled-work targets or spend leave.
 
-Only scheduled days on or after employment starts and covered by a policy qualify. Holidays are always excluded. Confirmed leave and future planned leave are excluded when configured; an unconfirmed past leave plan does not reduce the denominator.
+## Leave and targets
 
-Percentage targets are the ceiling of eligible days multiplied by the configured percentage. Fixed weekly/monthly targets are prorated for partial periods or policy segments using scheduled days, capped to eligible days. Full periods retain their fixed target even when holidays or leave reduce the available days, until that cap is reached. Contributions are summed and rounded up once for the selected month. The monthly view reports aggregate coverage, not a guarantee that every individual week meets a separate company requirement.
+Leave types have stable IDs, editable names/colours and archival. Default legacy Sick, Casual, Planned and Annual categories stay distinct. Quotas and manual carry-over/adjustments are per leave year, in half-day increments. Blank quotas mean not tracked. Balances separate used leave from future reservations and show availability after plans. Exceeding a quota warns without preventing personal record keeping.
 
-Leave balances distinguish confirmed usage from future reservations. Holidays, unscheduled weekdays, dates before employment starts and unconfirmed plans do not spend leave. Allowances are per calendar year; this release supports full days without accrual, half days or carry-over.
+Leave-year changes are effective at the beginning of the cycle containing the schedule's effective date. Earlier cycles retain their previous start month/day; transition years end at the new boundary. No automatic accrual, expiration, approvals or carry-over calculations are included.
+
+Targets independently specify Home/Office, minimum/maximum, days/percentage and week/month/quarter. Weeks start Monday; quarters start January/April/July/October. Work schedules are effective-dated and define working weekdays, employment start and whether leave is excluded. Holidays are always excluded. Half-day allocations contribute 0.5; percentage minimums round up to a half day and limits round down. New fixed goals are not silently capped to availability: impossible combinations show warnings. Actual/projection denominators are shown separately, because future planned leave can reduce projected availability. Missing past records are never inferred as Home. Maximum-goal status remains provisional until the period ends. Empty periods do not report a goal met.
+
+Migrated targets retain whole-day rounding, effective dates and legacy proration. Changing a target creates an effective-dated replacement; explicitly selecting a current/past period requires confirmation. Removing a target is undoable and changes reporting only.
 
 ## Holiday import
 
-Paste ISO dates, DD/MM/YYYY, DD-Mon-YYYY or Month D, YYYY with names. A bare year heading changes the default year; otherwise missing years use the selected calendar year. The preview lists invalid/duplicate lines and conflicts. Existing attendance, plans and different holiday names are skipped unless replacement is explicitly selected. Replacement affects Workdays records only and can be undone. Imports are limited to 366 valid rows per operation.
+Sources: quoted/delimited CSV, text/paste and PDF. Choose numeric date order for ambiguous dates; CSV allows date/name column selection. PDFs reuse PDF.js positional text extraction. Scans offer optional English OCR through Tesseract.js; originals remain on-device and only accepted dates/names sync.
 
-## Storage and compatibility
+All imports require an editable preview. Invalid/uncertain rows start unchecked. Users can fix dates/names, exclude unrelated headings, resolve duplicate dates and explicitly replace different holiday names. Attendance/plans are never erased by holiday import.
 
-Versioned structured metadata lives in `web.workdays`, so existing account-scoped IndexedDB, cloud workspace sync, folder saving and full web backups retain it. Metadata is validated on local load/save, cloud download and backup restore. No new backend service or D1 migration is required. Android-format note export is blocked when Workdays metadata exists to prevent silent loss; use a full web backup.
+Limits: CSV/text 1 MB, PDF 10 MB, 1–10 selected PDF pages and 366 accepted holiday dates per import. OCR runs sequentially with progress/cancellation and bounded render resolution. It downloads same-origin, versioned worker/WASM/English assets on first use, reuses one worker and cleans up after completion. Service-worker runtime caching supports later offline reuse; unavailable assets or extraction failures leave paste/manual review available. Scanned multi-column/low-quality documents may need corrections; there is no claim of automatic perfect extraction.
 
-This phase does not include background location detection, push notifications while closed, native widgets, Workday backup import, trend reports or long-weekend suggestions. These remain later phases.
+Papa Parse (CSV), Recharts (accessible statistics), Tesseract.js/English model (OCR) are lazily loaded; existing PDF.js, Radix and app icons are reused. OCR assets are generated by `scripts/build-workdays-assets.mjs` during postinstall and excluded from shell precache.
+
+## Storage, compatibility and rollout
+
+`web.workdays.version: 2` stores stable-ID types/targets, effective-dated schedules and leave-year policies, per-year half-unit quotas/adjustments, holidays and per-date plan/actual AM/PM allocations. Version 1 is still accepted and migrated deterministically on the first Workdays write; merely browsing never persists a migration. Separate CRDT allocation values keep independent dates/halves mergeable without combining incompatible leave/location fields. The durable outbox, full backups and Undo remain intact. Android note-only export remains blocked to avoid silently losing Workdays metadata.
+
+Clients send `X-Remo-Capabilities: workdays-v2`. The staging sync backend supports both versions and returns 426 to older clients before serving or accepting incompatible data on migrated accounts, including conditional and legacy reads. Pending local edits remain durable and resume after updating. An upgraded client with a frozen v1 batch automatically retries the same operation ID with validated Workdays context when requested. The backend recovers only dates/policies/quota fields explicitly touched by that batch; it never replaces the workspace or unrelated Workdays records. Conditional reads and legacy clears are covered by regression tests. The frontend pipeline gates publication on backend capability; `/health` reports `workdaysSchema: 2`. No D1 migration or production resource change is required.
+
+Tests cover migration, half units, custom years/quotas, target boundaries/projections, routine conflicts, parsing, independent-half CRDT merges, backups and old-client gates. `qa/bookmarks/workdays.mjs` checks actual desktop/mobile flows and real OCR using synthetic PDF fixtures; see the QA README for setup. Physical Android/iOS keyboard and screen-reader checks remain separate.

@@ -100,3 +100,5 @@
  .topbar .search-box.is-open .search-close { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:36px; height:36px; border:0; background:transparent; padding:0; }
  .topbar .search-options { width:100%; max-width:none; left:0; right:0; border-radius:10px; }
 }
+@media(max-width:760px){
+}

@@ -1,3 +1,4 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -31,6 +32,7 @@ for (const key of [
         : dom.window[key],
     configurable: true,
   });
+installOverlayGlobals(dom);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.ResizeObserver = undefined;
 globalThis.IntersectionObserver = class {
@@ -122,96 +124,16 @@ test("Workdays calendar saves plans, bulk changes, leave, holidays and policy wi
     await act(async () => new Promise((r) => setTimeout(r, 270)));
     return load();
   };
-  const submit = async () =>
-    act(async () =>
-      document
-        .querySelector(".wd-form")
-        .dispatchEvent(
-          new window.Event("submit", { bubbles: true, cancelable: true }),
-        ),
-    );
   try {
-    await act(async () => {
-      app = await import("./.build/app.mjs");
-    });
-    await wait(() => document.querySelector(".outline-row"));
-    await textClick("Calendar");
-    await wait(() => document.querySelector(".workdays"));
-    await click('[aria-label="Workdays layer"]');
-    assert.equal(
-      document
-        .querySelector('[aria-label="Workdays layer"]')
-        .getAttribute("aria-checked"),
-      "true",
-    );
-    await textClick("Month");
-    const initial = await stored(),
-      nodes = structuredClone(initial.tables.bullets);
-    await click('[aria-label="Next work month"]');
-    const future = [...document.querySelectorAll(".wd-day:not(.outside)")]
-      .map((e) => e.dataset.date)
-      .filter((d) => ![0, 6].includes(new Date(d + "T12:00:00Z").getUTCDay()));
-    const [a, b, c] = future;
-    await click(`[data-date="${a}"]`);
-    await textClick("Plan WFO");
-    let state = await stored();
-    assert.equal(state.web.workdays.entries[a].plan.status, "WFO");
-    assert.equal(state.web.workdays.entries[a].actual, undefined);
-    await textClick("Select dates");
-    await click(`[data-date="${a}"]`);
-    await click(`[data-date="${b}"]`);
-    await textClick("WFH");
-    state = await stored();
-    assert.equal(state.web.workdays.entries[a].plan.status, "WFH");
-    assert.equal(state.web.workdays.entries[b].plan.status, "WFH");
-    await textClick("Leave");
-    await change('[aria-label="Leave type"]', "Annual");
-    await submit();
-    state = await stored();
-    assert.equal(state.web.workdays.entries[a].plan.detail, "Annual");
-    await click('[aria-label="Undo"]');
-    state = await stored();
-    assert.equal(state.web.workdays.entries[a].plan.status, "WFH");
-    await textClick("Done selecting");
-    await textClick("Import holidays");
-    await change(
-      '[aria-label="Holiday list"]',
-      a + " Office closure\n" + c + " Festival",
-    );
-    await submit();
-    assert.match(
-      document.querySelector(".wd-form").textContent,
-      /1 conflicting/,
-    );
-    await submit();
-    state = await stored();
-    assert.equal(state.web.workdays.entries[a].plan.status, "WFH");
-    assert.equal(state.web.workdays.holidays[c], "Festival");
-    await click('[aria-label="Workday settings"]');
-    await change('[aria-label="Office goal type"]', "percentage");
-    await change('[aria-label="Office goal value"]', "60");
-    await change('[aria-label="Policy effective date"]', a.slice(0, 7) + "-01");
-    await change('[aria-label="Sick leave allowance"]', "8");
-    await submit();
-    state = await stored();
-    assert.equal(state.web.workdays.policies.at(-1).goalValue, 60);
-    assert.equal(state.web.workdays.allowances[a.slice(0, 4)].Sick, 8);
-    assert.deepEqual(
-      state.tables.bullets,
-      nodes,
-      "Workday operations and navigation do not add or alter notes",
-    );
-    assert.equal(state.web.workdays.view, "month");
-    await click('[aria-label="Workdays layer"]');
-    state = await stored();
-    assert.equal(state.web.workdays.enabled, false);
-    assert.equal(
-      state.web.workdays.holidays[c],
-      "Festival",
-      "Turning the layer off preserves records",
-    );
-  } finally {
-    if (app) await act(async () => app.appRoot.unmount());
-    dom.window.close();
-  }
+    await act(async()=>{app=await import('./.build/app.mjs');});
+    await wait(()=>document.querySelector('.outline-row'));await textClick('Calendar');
+    await click('.calendar-trackers-heading button');await click('[aria-label="Enable Workdays tracker"]');await click('[aria-label="Close daily tracker settings"]');
+    await wait(()=>document.querySelector('.wd2-daily'));const initial=await stored(),notes=structuredClone(initial.tables.bullets);
+    await click('[aria-label="Work from home"]');let state=await stored();assert.equal(state.web.workdays.version,2);const date=Object.keys(state.web.workdays.entries)[0];assert.equal(state.web.workdays.entries[date].actual.am.mode,'WFH');assert.deepEqual(state.tables.bullets,notes);
+    await click('[aria-label="Take leave"]');await wait(()=>document.querySelector('[role="dialog"]'));const radios=[...document.querySelectorAll('input[name="leave-duration"]')];await act(async()=>radios[1].click());await textClick('Save leave');state=await stored();assert.equal(state.web.workdays.entries[date].actual.am.mode,'Leave');assert.equal(state.web.workdays.entries[date].actual.pm.mode,'WFH');
+    await textClick('Workdays');await wait(()=>document.querySelector('.wd2-workspace'));await act(async()=>[...document.querySelectorAll('[aria-label="Workdays views"] button')].find(b=>b.textContent==='Plan').click());await wait(()=>document.querySelector('.wd2-month'));
+    const cell=[...document.querySelectorAll('.wd2-month button')].find(b=>b.getAttribute('aria-label').startsWith(date));await act(async()=>cell.click());await act(async()=>[...document.querySelectorAll('.wd2-bulk button')].find(b=>b.textContent==='Office').click());state=await stored();assert.equal(state.web.workdays.entries[date].actual.pm.mode,'WFO');
+    await act(async()=>[...document.querySelectorAll('[aria-label="Workdays views"] button')].find(b=>b.textContent==='Leave').click());await wait(()=>document.querySelector('.wd2-add-type'));await change('.wd2-add-type input[placeholder="e.g. Medical leave"]','Medical leave');await act(async()=>document.querySelector('.wd2-add-type').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));state=await stored();assert.ok(Object.values(state.web.workdays.leaveTypes).some(t=>t.name==='Medical leave'));assert.deepEqual(state.tables.bullets,notes);
+    await click('[aria-label="Close Workdays"]');await click('.calendar-trackers-heading button');await click('[aria-label="Enable Workdays tracker"]');await click('[aria-label="Close daily tracker settings"]');state=await stored();assert.equal(state.web.workdays.enabled,false);assert.equal(state.web.workdays.entries[date].actual.am.mode,'WFO');
+  } finally {if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
 });

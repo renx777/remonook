@@ -1,3 +1,4 @@
+import {workdaysV2} from './workdays-v2.mjs';
 import {useEffect,useRef,useState} from 'react';
 import type {User} from 'firebase/auth';
 import {authenticatedUid} from './CloudAccount';
@@ -17,9 +18,9 @@ export function useCloudSync(options:Options){
  const setError=(error:string)=>{if(signal.get().error!==error)signal.set({...signal.get(),error});};
  async function request(path:string,init:RequestInit={}){
   const user=latest.current.user;if(!user||authenticatedUid()!==user.uid)throw Error('Sign in again to continue saving to your account.');
-  const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+await user.getIdToken());
+  const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+await user.getIdToken());headers.set('X-Remo-Capabilities','workdays-v2');
   const r=await fetch(CLOUD_API+path,{...init,headers,signal:AbortSignal.timeout(30000),cache:'no-store'});
-  if(!r.ok&&r.status!==304){const data=await r.json().catch(()=>({}));throw Object.assign(Error(data.error||'Your changes are saved on this device. Reconnecting…'),{status:r.status});}return r;
+  if(!r.ok&&r.status!==304){const data=await r.json().catch(()=>({}));throw Object.assign(Error(data.error||'Your changes are saved on this device. Reconnecting…'),{status:r.status,code:data.code});}return r;
  }
  async function manifest(files:Map<string,Blob>){const out:Asset[]=[];for(const [path,blob]of files){let hash=cache.current.get(blob);if(!hash){hash=await digest(await blob.arrayBuffer());cache.current.set(blob,hash);}out.push({path,hash,size:blob.size,type:blob.type});}return out.sort((a,b)=>a.path.localeCompare(b.path));}
  async function materialize(assets:Asset[]){const local=latest.current.get(),known=await manifest(local.assets),byPath=new Map(known.map(a=>[a.path,a])),files=new Map<string,Blob>();
@@ -49,7 +50,7 @@ export function useCloudSync(options:Options){
    const network=await work('network');
    if(network.inflight){
     for(const asset of network.assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!network.uploaded.includes(asset.hash)){await request('/assets/'+asset.hash,{method:'PUT',body:blob});await work('uploaded',{hash:asset.hash});}}
-    const response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(network.inflight)})).json();
+    let response;try{response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(network.inflight)})).json();}catch(e){if((e as any).code!=='WORKDAYS_CONTEXT_REQUIRED')throw e;const context=latest.current.get().doc;if(!context)throw e;response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,workdaysContext:workdaysV2(context)})})).json();}
     await work('receive',{response});
    }else{
     const response=await request('/sync/v2',{headers:{'X-Sync-Vector':network.vector,'If-None-Match':String(network.serverRevision)}});

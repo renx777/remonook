@@ -1,3 +1,5 @@
+import {workdaysLegacyIntent,upgradeWorkdaysIntent} from './workdays-upgrade.mjs';
+import {validateBookmarks} from '../src/bookmarks.mjs';
 import {validateDashboard} from '../src/dashboard.mjs';
 import {validateReading} from '../src/reading.mjs';
 import {validateReadingBooks} from '../src/book-storage.mjs';
@@ -39,17 +41,23 @@ function snapshot(y){
  // Invalid mirror references can arise when a source is deleted concurrently.
  // Detaching keeps the note text; the journal retains the original link.
  try{validateMirrors(value.doc.tables.bullets);}catch{for(const n of value.doc.tables.bullets){delete n.mirrorSourceId;delete n.mirrorRootId;}}
- validateReadingBooks(value.doc.web.readingBooks);validateReading(value.doc.web);validateDashboard(value.doc.web.dashboard);validateWorkdays(value.doc.web.workdays);validateCalendarEvents(value.doc.web.calendarEvents);validateStudyLibrary(value.doc.web);validateOcclusions(value.doc.web.occlusions);
+ validateReadingBooks(value.doc.web.readingBooks);validateReading(value.doc.web);validateBookmarks(value.doc.web);validateDashboard(value.doc.web.dashboard);validateWorkdays(value.doc.web.workdays);validateCalendarEvents(value.doc.web.calendarEvents);validateStudyLibrary(value.doc.web);validateOcclusions(value.doc.web.occlusions);
  applyIntent(y,before,value.doc,value.assets,value.assets);
  return value;
+}
+function requireWorkdaysCapability(request,state){
+ if((request.headers.get('X-Remo-Capabilities')||'').split(',').map(s=>s.trim()).includes('workdays-v2'))return;
+ const y=openShared(state);try{if(y.getMap('fields').get(JSON.stringify(['web','workdays','version']))===2)error('Update RemoNook to continue syncing Workdays. Pending edits remain saved on this device.',426);}finally{y.destroy();}
 }
 export async function syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT}){
  const url=new URL(request.url);
  if(request.method==='GET'&&request.headers.has('If-None-Match')){
-  const head=await env.DB.prepare('SELECT revision FROM sync_documents WHERE uid=?').bind(uid).first();
+  const head=await env.DB.prepare('SELECT revision,state FROM sync_documents WHERE uid=?').bind(uid).first();
+  if(head)requireWorkdaysCapability(request,head.state);
   if(head&&String(head.revision)===request.headers.get('If-None-Match'))return new Response(null,{status:304});
  }
  let row=await initialize(env,uid);
+ requireWorkdaysCapability(request,row.state);
  if(request.method==='GET'){
   if(request.headers.get('If-None-Match')===String(row.revision))return new Response(null,{status:304});
   const y=openShared(row.state);try{
@@ -65,9 +73,9 @@ export async function syncV2(request,env,uid,{readLimited,validatePayload,NOTE_L
  for(let attempt=0;attempt<8;attempt++){
   const prior=await env.DB.prepare('SELECT request_hash FROM sync_journal WHERE uid=? AND operation_id=?').bind(uid,input.operationId).first();
   if(prior){if(prior.request_hash!==requestHash)error('Operation identity was reused with different content');break;}
-  row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();const y=openShared(row.state);
+  row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();requireWorkdaysCapability(request,row.state);const y=openShared(row.state);
   let state,value,journalUpdate;const beforeVector=Y.encodeStateVector(y);
-  try{Y.applyUpdate(y,update);value=snapshot(y);state=sharedState(y);journalUpdate=pack(Y.encodeStateAsUpdate(y,beforeVector));}catch(e){y.destroy();if(e.status)throw e;error('Invalid shared document');}y.destroy();
+  try{const legacy=workdaysLegacyIntent(y,update);if(legacy&&!input.workdaysContext)throw Object.assign(Error('Updating pending Workdays edits…'),{status:409,code:'WORKDAYS_CONTEXT_REQUIRED'});Y.applyUpdate(y,update);if(legacy){const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,input.workdaysContext);applyIntent(y,before,next);}requireWorkdaysCapability(request,sharedState(y));value=snapshot(y);state=sharedState(y);journalUpdate=pack(Y.encodeStateAsUpdate(y,beforeVector));}catch(e){y.destroy();if(e.status)throw e;error('Invalid shared document');}y.destroy();
   if(state.length>STATE_LIMIT)error('Shared workspace storage limit reached.',413);
   validatePayload({baseRevision:row.revision,...value});const body=JSON.stringify(value);
   if(new TextEncoder().encode(body).length>NOTE_LIMIT)error('Workspace exceeds the note storage limit.',413);
@@ -84,6 +92,6 @@ export async function syncV2(request,env,uid,{readLimited,validatePayload,NOTE_L
   if(accepted){if(accepted.request_hash!==requestHash)error('Operation identity was reused');break;}
   if(attempt===7)error('Sync is retrying. Your edits remain saved on this device.',503);
  }
- row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();const y=openShared(row.state);
+ row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();requireWorkdaysCapability(request,row.state);const y=openShared(row.state);
  try{return Response.json({protocol:2,acked:input.operationId,revision:row.revision,update:pack(Y.encodeStateAsUpdate(y,v))});}finally{y.destroy();}
 }

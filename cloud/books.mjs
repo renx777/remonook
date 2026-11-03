@@ -7,7 +7,8 @@ export async function storageUsage(env,uid){
  return env.DB.prepare(`SELECT
  (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?) AS attachments,
  (SELECT COALESCE(SUM(size),0) FROM books WHERE uid=? AND state!='deleted') AS books,
- (SELECT COUNT(*) FROM books WHERE uid=? AND state!='deleted') AS count`).bind(uid,uid,uid).first();
+ (SELECT COALESCE(SUM(size),0) FROM article_snapshots WHERE uid=? AND state!='deleted') AS articles,
+ (SELECT COUNT(*) FROM books WHERE uid=? AND state!='deleted') AS count`).bind(uid,uid,uid,uid).first();
 }
 export async function cleanupBooks(env,now=Date.now(),uid=null){
  if(!env.FILES)return;
@@ -24,7 +25,7 @@ export async function booksRoute(request,env,uid,{readLimited}){
  if(url.pathname==='/storage'&&request.method==='GET'){
   await cleanupBooks(env,Date.now(),uid);
   const usage=await storageUsage(env,uid);
-  return json({...usage,total:usage.attachments+usage.books,limit:STORAGE_LIMIT,bookLimit:BOOK_LIMIT,uploadsEnabled:env.BOOK_UPLOADS_ENABLED==='true'});
+  return json({...usage,total:usage.attachments+usage.books+usage.articles,limit:STORAGE_LIMIT,bookLimit:BOOK_LIMIT,uploadsEnabled:env.BOOK_UPLOADS_ENABLED==='true'});
  }
  if(!env.FILES)fail('Book storage is unavailable.',503);
  if(url.pathname==='/books'&&request.method==='GET'){
@@ -45,8 +46,8 @@ export async function booksRoute(request,env,uid,{readLimited}){
   const now=Date.now();
   const reserved=await env.DB.prepare(`INSERT OR IGNORE INTO books(uid,id,name,format,size,hash,state,created_at,expires_at)
    SELECT ?,?,?,?,?,?,'pending',?,? WHERE
-   (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?)+(SELECT COALESCE(SUM(size),0) FROM books WHERE uid=? AND state!='deleted')+?<=?
-   AND (SELECT COUNT(*) FROM books WHERE uid=? AND state!='deleted')<? RETURNING *`).bind(uid,body.id,body.name,format,body.size,body.hash,now,now+15*60000,uid,uid,body.size,STORAGE_LIMIT,uid,BOOK_COUNT_LIMIT).first();
+   (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?)+(SELECT COALESCE(SUM(size),0) FROM books WHERE uid=? AND state!='deleted')+(SELECT COALESCE(SUM(size),0) FROM article_snapshots WHERE uid=? AND state!='deleted')+?<=?
+   AND (SELECT COUNT(*) FROM books WHERE uid=? AND state!='deleted')<? RETURNING *`).bind(uid,body.id,body.name,format,body.size,body.hash,now,now+15*60000,uid,uid,uid,body.size,STORAGE_LIMIT,uid,BOOK_COUNT_LIMIT).first();
   if(!reserved){
    const raced=await env.DB.prepare("SELECT * FROM books WHERE uid=? AND hash=? AND state='ready'").bind(uid,body.hash).first();
    if(raced&&raced.size===body.size)return json({book:fields(raced),state:'ready'});

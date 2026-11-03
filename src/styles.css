@@ -2066,3 +2066,5 @@ hr {
 .release-update-actions{display:flex;gap:12px;align-items:center}
 .release-update [role=alert]{margin:10px 0 0;color:var(--text)}
 @media(max-width:650px){.release-update{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+
+.trash-summary{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:18px 0;padding-bottom:18px;border-bottom:1px solid var(--line)}.trash-summary>span{font-size:12px;color:var(--muted)}.trash-summary button{font-size:12px;white-space:nowrap}

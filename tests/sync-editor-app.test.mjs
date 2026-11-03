@@ -38,7 +38,7 @@ test('the real focused Tiptap editor receives remote text, keeps its caret, and 
   await act(async()=>{app=await import('./.build/sync-app.mjs');});
   await until(()=>document.querySelector('.save-status')?.title.includes('Cloud: Synced'));
   await act(async()=>document.querySelector('[data-node-id="a"] .text-button').dispatchEvent(new window.MouseEvent('click',{bubbles:true})));
-  await until(()=>document.querySelector('.tiptap'));const editor=document.querySelector('.tiptap').editor;
+  await until(()=>document.querySelector('.tiptap')?.editor?.isFocused);const editor=document.querySelector('.tiptap').editor;
   await act(async()=>editor.commands.setTextSelection(6));assert.equal(editor.isFocused,true);
   const response=await(await send('GET','/sync/v2')).json(),y=openShared(response.update),before=project(y).doc,next=structuredClone(before),v=vector(y),prefix='From laptop: ';
   next.tables.bullets[0].text=prefix+next.tables.bullets[0].text;applyIntent(y,before,next);

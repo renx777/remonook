@@ -1,5 +1,6 @@
+import * as Popover from "@radix-ui/react-popover";
 import type { ClipboardInput } from "./clipboard";
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { Editor } from "@tiptap/core";
 import { Icon } from "./icons";
 import { OutlineView } from "./OutlineView";
@@ -141,6 +142,9 @@ const WEEKDAY_NAMES_2 = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 type CalendarViewProps = {
   workdays?: React.ReactNode;
+  workdayMarker?:(date:string)=>React.ReactNode;
+  trackers?: React.ReactNode;
+  onCreateNote?:(date:string,value:{text:string;formatting:string},id:string)=>void;
   monthView?: boolean;
   autoOpen?: boolean;
   reminders?: React.ReactNode;
@@ -186,17 +190,19 @@ export function CalendarView(props: CalendarViewProps) {
   const pillBtnRef = useRef<HTMLButtonElement>(null);
   const stripScrollRef = useRef<HTMLDivElement>(null);
 
-  // A day opens with a real editable child, using the same editor as Notes.
-  useEffect(() => {
-    if (!props.disabled && props.autoOpen !== false) props.onOpenDate(selectedDate);
-  }, [selectedDate, props.disabled, props.autoOpen]);
-
+  const draftSlot=useRef<{date:string;node:Node}|null>(null),created=useRef(false);
+  if(draftSlot.current?.date!==selectedDate||created.current&&!nodes.some(n=>n.parentId===`journal-${selectedDate}`)){draftSlot.current={date:selectedDate,node:bullet(crypto.randomUUID(),{parentId:`journal-${selectedDate}`}) as Node};created.current=false;}
+  const draft=draftSlot.current.node,draftValue=useRef(draft);
+  if(draftValue.current.id!==draft.id)draftValue.current=draft;
+  const materializeDraft=()=>{if(!created.current&&!props.readCurrentNode?.(draft.id)){created.current=true;props.onCreateNote?.(selectedDate,{text:draftValue.current.text,formatting:draftValue.current.formatting},draft.id);}};
+  const changeNote=(id:string,value:{text:string;formatting:string})=>{if(id===draft.id&&!created.current&&!props.readCurrentNode?.(id)){draftValue.current={...draft,...value};if(value.text.trim()){created.current=true;props.onCreateNote?.(selectedDate,value,id);}}else (props.onEditorChange||props.onChange)(id,value);};
+  useLayoutEffect(()=>{const el=stripScrollRef.current,selected=el?.querySelector<HTMLElement>('.strip-day-btn.selected');if(el&&selected){const box=el.getBoundingClientRect(),day=selected.getBoundingClientRect();el.scrollTo({left:el.scrollLeft+day.left-box.left-(el.clientWidth-day.width)/2,behavior:'auto'});}},[selectedDate,props.monthView]);
   // Picker month navigation state
   const [pickerYear, setPickerYear] = useState(() => parseLocalDate(selectedDate).getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => parseLocalDate(selectedDate).getMonth());
 
   // Popover mode: "month" | "year"
-  const [popoverMode, setPopoverMode] = useState<"month" | "year">("year");
+  const [popoverMode, setPopoverMode] = useState<"month" | "year">("month");
 
   // Year range start for 12-year window (e.g. 2019 for 2019 - 2030)
   const [yearRangeStart, setYearRangeStart] = useState(() => {
@@ -221,33 +227,13 @@ export function CalendarView(props: CalendarViewProps) {
     return list;
   }, [yearRangeStart]);
 
-  // Click outside to close popover
-  useEffect(() => {
-    if (!popoverOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as globalThis.Node) &&
-        pillBtnRef.current &&
-        !pillBtnRef.current.contains(e.target as globalThis.Node)
-      ) {
-        setPopoverOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", handleClick);
-    return () => window.removeEventListener("mousedown", handleClick);
-  }, [popoverOpen]);
-
   // Find all dates that have notes
   const datesWithNotes = useMemo(() => {
     const set = new Set<string>();
-    for (const n of nodes) {
-      if (n.journalDate) {
-        set.add(n.journalDate);
-      }
-    }
+    const idx=index(nodes);
+    for(const n of nodes)if(n.journalDate&&(idx.children.get(n.id)||[]).some((child:Node)=>child.text.trim()||props.media?.some(m=>m.bulletId===child.id)))set.add(n.journalDate);
     return set;
-  }, [nodes]);
+  }, [nodes,props.media]);
 
   // Find daily root for currently selected date
   const rootId = `journal-${selectedDate}`;
@@ -255,6 +241,7 @@ export function CalendarView(props: CalendarViewProps) {
   const dailyRoot = idx.byId.get(rootId);
   const dailyBullets = dailyRoot ? idx.children.get(rootId) || [] : [];
   const hasBulletsForDay = dailyBullets.length > 0;
+  const noteNodes=hasBulletsForDay?nodes:[...nodes,...(!dailyRoot?[bullet(rootId,{text:formatDatePill(selectedDate),journalDate:selectedDate}) as Node]:[]),draftValue.current];
 
   // Generate 45 days for horizontal date strip centered around selectedDate
   const stripDays = useMemo(() => {
@@ -359,29 +346,25 @@ export function CalendarView(props: CalendarViewProps) {
   };
 
   return (
-    <div className={`calendar-view ${props.autoOpen===false?'has-workdays':''}`}>
+    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}><div className={`calendar-view ${props.autoOpen===false?'has-workdays':''}`}>
       {/* Top Heading */}
       <div className="calendar-header-row">
-        <button className="icon-button calendar-more-btn" title="More options" aria-label="More options">
-          <Icon name="more" size={18} />
-        </button>
         <div className="calendar-title-wrap">
-          <span className="calendar-prefix">{relativePrefix}</span>
-          <button
+          <span className="calendar-prefix">{relativePrefix.replace(/,\s*$/,'')}</span>
+          <Popover.Trigger asChild><button
             ref={pillBtnRef}
             className={`calendar-date-pill ${popoverOpen ? "active" : ""}`}
-            onClick={() => setPopoverOpen((v) => !v)}
             aria-label="Toggle calendar picker"
             aria-expanded={popoverOpen}
           >
             {datePillText}
-          </button>
+          </button></Popover.Trigger>
         </div>
       </div>
 
       {/* Date Picker Popover Dropdown */}
       {popoverOpen && (
-        <div ref={popoverRef} className="calendar-popover" role="dialog" aria-label="Date picker">
+        <Popover.Portal container={document.querySelector(".app")||document.body}><Popover.Content ref={popoverRef} className="calendar-popover" sideOffset={8} align="start" collisionPadding={12} aria-label="Date picker">
           <div className="calendar-popover-header">
             <span>{datePillText}</span>
           </div>
@@ -500,13 +483,13 @@ export function CalendarView(props: CalendarViewProps) {
                   return (
                     <button
                       key={item.dateStr}
-                      className={`calendar-mini-day ${item.isCurrentMonth ? "in-month" : "out-month"} ${isSelected ? "selected" : ""}`}
+                      aria-pressed={isSelected} aria-label={item.dateStr} className={`calendar-mini-day ${item.isCurrentMonth ? "in-month" : "out-month"} ${isSelected ? "selected" : ""}`}
                       onClick={() => {
                         onSelectDate(item.dateStr);
                         setPopoverOpen(false);
                       }}
                     >
-                      <span className="mini-day-num">{item.dayNum}</span>
+                      <span className="mini-day-num">{item.dayNum}</span>{props.workdayMarker?.(item.dateStr)}
                       {(hasNotes||props.hasReminder?.(item.dateStr)) && <span className={`mini-day-dot ${props.hasReminder?.(item.dateStr)?'has-reminder':''}`} title={props.hasReminder?.(item.dateStr)?'Calendar reminders':''}/>}
                     </button>
                   );
@@ -516,30 +499,12 @@ export function CalendarView(props: CalendarViewProps) {
           )}
 
           <div className="calendar-popover-footer">
-            <button className="popover-action-item">
-              <span className="radio-circle" />
-              <span>Range</span>
-            </button>
-            <button className="popover-action-item">
-              <Icon name="settings" size={15} />
-              <span>Format</span>
-            </button>
-            <button
-              className="popover-action-item"
-              onClick={() => {
-                onSelectDate(getLocalDateString());
-                setPopoverOpen(false);
-              }}
-            >
-              <Icon name="close" size={15} />
-              <span>Remove date</span>
-            </button>
+            <button className="popover-action-item" onClick={()=>setPopoverOpen(false)}>Done</button>
           </div>
-        </div>
+        </Popover.Content></Popover.Portal>
       )}
 
       {/* Horizontal Date Strip (Timeline) */}
-      {props.workdays}
       {!props.monthView && <div className="calendar-strip-container">
         <div className="calendar-strip-nav-left">
           <button
@@ -580,11 +545,11 @@ export function CalendarView(props: CalendarViewProps) {
                   <span className="strip-month-label-placeholder" />
                 )}
                 <button
-                  className={`strip-day-btn ${isSelected ? "selected" : ""}`}
+                  aria-pressed={isSelected} aria-label={d.dateStr} className={`strip-day-btn ${isSelected ? "selected" : ""}`}
                   onClick={() => onSelectDate(d.dateStr)}
                 >
                   <span className="strip-weekday">{d.weekday}</span>
-                  <span className="strip-day-num">{d.dayNum}</span>
+                  <span className="strip-day-num">{d.dayNum}</span>{props.workdayMarker?.(d.dateStr)}
                   <span className={`strip-dot ${hasNotes||props.hasReminder?.(d.dateStr) ? "visible" : ""} ${props.hasReminder?.(d.dateStr)?'has-reminder':''}`} title={props.hasReminder?.(d.dateStr)?'Calendar reminders':''}/>
                 </button>
               </div>
@@ -640,18 +605,20 @@ export function CalendarView(props: CalendarViewProps) {
 
       }
       {/* Daily Notes Content Area */}
+      {props.trackers}
+      {props.workdays}
       {props.reminders}
       <div className="calendar-notes-section">
-        {hasBulletsForDay ? (
+        <div className="calendar-notes-label">Daily notes</div>
           <OutlineView
             key={rootId}
             hideTitle
-            nodes={nodes}
+            nodes={noteNodes}
             scope={rootId}
             search={props.search}
             showCompleted={props.showCompleted}
             readingSize={props.readingSize}
-            onImages={props.onImages}
+            onImages={(id,files)=>{if(id===draft.id&&files.length)materializeDraft();props.onImages?.(id,files);}}
             onRemoveMedia={props.onRemoveMedia}
             onResizeMedia={props.onResizeMedia}
             onOccludeMedia={props.onOccludeMedia}
@@ -661,50 +628,24 @@ export function CalendarView(props: CalendarViewProps) {
             assets={props.assets}
             media={props.media}
             onEdit={props.onEdit}
-            onZoom={props.onZoom}
+            onZoom={id=>id===draft.id&&!created.current?props.onEdit(id):props.onZoom(id)}
             onMindmap={props.onMindmap}
             onToggle={props.onToggle}
-            onChange={props.onChange}
-            onEditorChange={props.onEditorChange}
-            readCurrentNode={props.readCurrentNode}
+            onChange={changeNote}
+            onEditorChange={changeNote}
+            readCurrentNode={id=>props.readCurrentNode?.(id)||(id===draft.id?draftValue.current:undefined)}
             onCommand={props.onCommand}
-            onOutlinePaste={props.onOutlinePaste}
+            onOutlinePaste={(id,start,end,text)=>{if(id===draft.id)materializeDraft();props.onOutlinePaste(id,start,end,text);}}
             onReady={props.onReady}
             onMove={props.onMove}
             onTask={props.onTask}
             onMenu={props.onMenu}
-            onAdd={() => props.onAddBullet(props.selectedDate)}
+            onAdd={() => hasBulletsForDay||created.current?props.onAddBullet(props.selectedDate):props.onEdit(draft.id)}
             onDeleteNodes={props.onDeleteNodes}
             setNotice={props.setNotice}
           />
-        ) : (
-          <div className="calendar-empty-day-outline">
-            <div
-              className="calendar-empty-bullet-row"
-              onClick={() => onAddBullet(selectedDate)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onAddBullet(selectedDate);
-                }
-              }}
-            >
-              <span className="empty-bullet-dot">•</span>
-              <span className="empty-bullet-cursor" />
-            </div>
-            <button
-              className="icon-button calendar-add-bullet-btn"
-              title="Add bullet"
-              aria-label="Add bullet"
-              onClick={() => onAddBullet(selectedDate)}
-            >
-              <Icon name="plus" size={18} />
-            </button>
-          </div>
-        )}
+
       </div>
-    </div>
+    </div></Popover.Root>
   );
 }
