@@ -259,6 +259,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);setEditingState(value);};
   const queueView=()=>{cancelView();viewTimer.current=setTimeout(()=>publishView(),220);};
   useEffect(()=>()=>{if(viewTimer.current)clearTimeout(viewTimer.current);},[]);
+  // Keep the active mobile destination visible by scrolling only the bottom bar, never the page.
+  useEffect(()=>{
+    const nav=document.querySelector<HTMLElement>('.mobile-nav');
+    const active=nav?.querySelector<HTMLElement>('.nav-active');
+    if(!nav||!active||nav.scrollWidth<=nav.clientWidth)return;
+    const left=active.offsetLeft,right=left+active.offsetWidth;
+    if(left>=nav.scrollLeft&&right<=nav.scrollLeft+nav.clientWidth)return;
+    nav.scrollTo({left:left<nav.scrollLeft?left:right-nav.clientWidth,behavior:'smooth'});
+  },[tab]);
   const sidebarMotion=useSidebarMotion(sidebarOpen);
   recoveryDraft = () => ({ doc: docRef.current, assets });
   useEffect(() => {
