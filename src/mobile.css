@@ -101,7 +101,4 @@
  .topbar .search-options { width:100%; max-width:none; left:0; right:0; border-radius:10px; }
 }
 @media(max-width:760px){
- .mobile-nav{justify-content:flex-start;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-padding-inline:8px;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;gap:0}
- .mobile-nav::-webkit-scrollbar{display:none}
- .mobile-nav button{flex:0 0 25%;min-width:0;scroll-snap-align:start;font-size:11px;padding:8px 3px;white-space:nowrap}
 }

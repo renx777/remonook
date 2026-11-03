@@ -1292,7 +1292,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     window.addEventListener('keydown',undoKey);
     return()=>{unbind();window.removeEventListener('keydown',undoKey);};
   }, [editing, dialog, menu, doc, views.panes, views.activePane, tab]);
-  useEffect(()=>{document.querySelector<HTMLElement>('.mobile-nav .nav-active')?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'auto'});},[tab]);
   readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
   const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,snapshotHash:s.snapshotHash,label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
   const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader,openWeb:(id:string,highlight:string,snapshotHash?:string)=>{setEditing(null);setBookmarkTarget({id,highlight,snapshotHash});setTab("bookmarks");}}),[readingSourceMap,openReader]);
