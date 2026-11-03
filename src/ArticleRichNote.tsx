@@ -1,0 +1,17 @@
+import {useState} from 'react';import type {Editor} from '@tiptap/core';import type {Node} from './data';
+import {RichRead,unsupportedFormatting} from './editor';
+import {NoteField} from './ReaderBookNotes';import {FormattingPalette} from './FormattingPalette';import {RoughAnnotationPicker} from './RoughAnnotationPicker';import {useEditorToolbarState} from './editor-toolbar-state';import {Icon} from './icons';
+export function ArticleRichNote({node,disabled,readCurrentNode,onText,onPatch,onUndo,editing,onEdit,onDone}:{editing:boolean;onEdit:()=>void;onDone:()=>void;node:Node;disabled:boolean;readCurrentNode:(id:string)=>Node|undefined;onText:(id:string,value:{text:string;formatting:string})=>void;onPatch:(patch:Partial<Node>)=>void;onUndo:(redo:boolean)=>void}){
+ node=readCurrentNode(node.id)||node;
+ disabled=disabled||unsupportedFormatting(node);
+ const [editor,setEditor]=useState<Editor|null>(null);useEditorToolbarState(editor);
+ return <div className="article-rich-note" data-article-editing={editing?'true':undefined} data-block-style={node.blockStyle||'paragraph'}>
+ {editing?<><div className="article-note-toolbar" role="toolbar" aria-label="Article note formatting" onMouseDown={e=>{if(!(e.target as Element).closest('input,select,option,summary'))e.preventDefault();}}>
+ {(['bold','italic','underline'] as const).map((mark,i)=><button type="button" key={mark} aria-label={['Bold','Italic','Underline'][i]} aria-pressed={editor?.isActive(mark)||false} disabled={disabled||!editor} onClick={()=>editor?.chain().focus().toggleMark(mark).run()}><Icon name={mark} size={17}/></button>)}
+ <FormattingPalette allowCaret editor={editor} disabled={disabled}/><FormattingPalette allowCaret editor={editor} disabled={disabled} mode="highlight"/><RoughAnnotationPicker editor={editor} disabled={disabled}/>
+ <select aria-label="Article note text style" disabled={disabled} value={node.blockStyle||'paragraph'} onChange={e=>onPatch({blockStyle:e.target.value})}>{[['paragraph','Text'],['h1','H1'],['h2','H2'],['h3','H3'],['quote','Quote']].map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
+ {(['remoMask','code'] as const).map((mark,i)=><button type="button" key={mark} aria-label={['Mask text','Inline code'][i]} aria-pressed={editor?.isActive(mark)||false} disabled={disabled||!editor} onClick={()=>editor?.chain().focus().toggleMark(mark).run()}><Icon name={i?'code':'mask'} size={17}/></button>)}
+ <button aria-label="Clear formatting" disabled={disabled||!editor} onClick={()=>editor?.chain().focus().unsetAllMarks().run()}><Icon name="clearFormat" size={17}/></button><button aria-label="Undo article note edit" disabled={disabled} onClick={()=>onUndo(false)}><Icon name="undo" size={17}/></button><button aria-label="Redo article note edit" disabled={disabled} onClick={()=>onUndo(true)}><Icon name="redo" size={17}/></button>
+ <button aria-label="Finish article note editing" onClick={onDone}><Icon name="check" size={17}/></button></div><NoteField node={node} label="Edit article note" disabled={disabled} onText={onText} readCurrentNode={readCurrentNode} onReady={setEditor} onUndo={onUndo}/></>:<div className="article-note-preview" role="button" tabIndex={disabled?-1:0} aria-label={'Edit article note: '+(node.text.slice(0,60)||'Untitled')} onClick={()=>{if(!disabled)onEdit();}} onKeyDown={e=>{if(!disabled&&['Enter',' '].includes(e.key)){e.preventDefault();onEdit();}}}><RichRead node={node} connected={false}/>{!node.text&&<span>Write a thought…</span>}</div>}
+ </div>;
+}

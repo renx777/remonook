@@ -2,6 +2,8 @@
 
 Bookmarks saves public URLs and immutable article snapshots, with a searchable library, tags, read/favourite/archive filters, a reader, source-linked quote notes, editable side notes, article search/outline, reading position and screenshot crop/preview/save. Removing a library item keeps source-linked notes readable. Bookmarks and article libraries are distinct from Bookshelf.
 
+The library uses a quiet, serif article list with optional cached thumbnails, source/reading-time metadata and source-linked note counts. Secondary actions live in an accessible overflow menu. Mobile navigation scrolls horizontally with four tabs visible and reveals the active tab. Side notes reuse the Notes rich-text editor, colour/highlight palettes, rough annotations, headings, quotes, mask, code and undo/redo; rich formatting survives reload and sync. Only the active side note mounts an editor. Thumbnails are derived from privately embedded article images in the account-local cache, never remote tracking URLs or the shared sync document.
+
 ## Capture and storage
 
 The authenticated staging sync API exposes `POST /bookmarks/capture`, plus authenticated `GET`, `PUT` and `DELETE /bookmarks/snapshots/:sha256`. Capture requires `ARTICLE_CAPTURE` and `ARTICLE_RATE_LIMITER` bindings. The rate limiter allows 10 capture requests per 60 seconds per account. Invalid or unsupported pages remain saved links with Retry reader and Open original.

@@ -1,3 +1,3 @@
 export type ArticleSnapshot={schema:1;url:string;title:string;html:string;text:string;byline?:string;excerpt?:string;capturedAt:number};
-export type Bookmark={id:string;url:string;title:string;createdAt:number;tags:string[];read:boolean;favourite:boolean;archived:boolean;deleted:boolean;snapshotHash?:string;snapshotSize?:number;capturedAt?:number;excerpt?:string};
+export type Bookmark={id:string;url:string;title:string;createdAt:number;tags:string[];read:boolean;favourite:boolean;archived:boolean;deleted:boolean;snapshotHash?:string;snapshotSize?:number;capturedAt?:number;excerpt?:string;readingMinutes?:number};
 export type WebHighlight={id:string;bookmarkId:string;hash:string;bulletId:string;start:number;end:number;exact:string;prefix:string;suffix:string;color:'yellow'|'green'|'blue'|'rose';deleted:boolean};
