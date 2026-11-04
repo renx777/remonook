@@ -925,3 +925,33 @@
     flex-basis: 110px;
   }
 }
+/* A page's own thumbnail fills its site tile, so titles keep the full row width. */
+.bl-site-tile {
+  position: relative;
+  overflow: hidden;
+}
+.bl-site-tile > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bl-view-tabs {
+  scrollbar-width: none;
+}
+.bl-view-tabs::-webkit-scrollbar {
+  display: none;
+}
+@media (max-width: 760px) {
+  .bookmarks .bl-open h2 {
+    -webkit-line-clamp: 3;
+    font-size: 20px;
+  }
+  .bl-item-head {
+    gap: 4px;
+  }
+  .bl-details {
+    gap: 4px 8px;
+  }
+}

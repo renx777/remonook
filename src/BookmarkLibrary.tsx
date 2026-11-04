@@ -443,6 +443,16 @@ export function BookmarkLibrary({
                 style={{ background: tile.bg, color: tile.fg }}
               >
                 {tile.letter}
+                {thumb && (
+                  <img
+                    src={thumb}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
               </span>
               <div className="bl-item-content">
                 <div className="bl-item-head">
@@ -455,17 +465,6 @@ export function BookmarkLibrary({
                       <h2>{b.title}</h2>
                       {b.excerpt && <p>{b.excerpt}</p>}
                     </div>
-                    {thumb && (
-                      <img
-                        className="bl-thumbnail"
-                        src={thumb}
-                        alt=""
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    )}
                   </button>
                   <div className="bl-row-actions">
                     <button
