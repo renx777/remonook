@@ -44,7 +44,7 @@ export async function aiRoute(request,env,uid,{readLimited,waitUntil=p=>p.catch(
   await reserveAi(env,uid,raw.requestId,prompt.reserved);
   const encoder=new TextEncoder(),stream=new TransformStream(),writer=stream.writable.getWriter();let disconnected=false;
   const send=async value=>{if(disconnected)return;try{await writer.write(encoder.encode(JSON.stringify(value)+'\n'));}catch{disconnected=true;}};
-  const work=(async()=>{let reader;const timeout=AbortSignal.any([request.signal,AbortSignal.timeout(90000)]);let rejectDeadline;const deadline=new Promise((_,reject)=>{rejectDeadline=()=>reject(Error('AI timed out or was cancelled.'));timeout.addEventListener('abort',rejectDeadline,{once:true});});deadline.catch(()=>{});try{
+  const work=(async()=>{let reader,success=false;const started=Date.now();const timeout=AbortSignal.any([request.signal,AbortSignal.timeout(90000)]);let rejectDeadline;const deadline=new Promise((_,reject)=>{rejectDeadline=()=>reject(Error('AI timed out or was cancelled.'));timeout.addEventListener('abort',rejectDeadline,{once:true});});deadline.catch(()=>{});try{
    await send({type:'progress',message:'Preparing your preview…'});
    const upstream=await Promise.race([env.AI.run(AI_MODEL,{messages:prompt.messages,max_completion_tokens:AI_OUTPUT_TOKENS,max_tokens:AI_OUTPUT_TOKENS,chat_template_kwargs:{enable_thinking:false},temperature:.2,store:false,stream:true,...(prompt.structured?{response_format:{type:'json_object'}}:{})},{signal:timeout}),deadline]);
    reader=upstream.getReader();let buffer='',output='',finished=false;const decoder=new TextDecoder();
@@ -54,9 +54,9 @@ export async function aiRoute(request,env,uid,{readLimited,waitUntil=p=>p.catch(
    }
    if(!finished||!output.trim())throw Error('The response was interrupted. Generate again to retry.');
    const result=validateAiResult(input.operation,prompt.structured?JSON.parse(output):{text:output,supported:true,citations:[]},sources);
-   await send({type:'done',result,sources});
+   await send({type:'done',result,sources});success=true;
   }catch{await send({type:'error',error:'AI could not complete a valid preview. Your draft is kept. Generate again to retry.'});}
-  finally{timeout.removeEventListener('abort',rejectDeadline);try{await reader?.cancel();}catch{}try{await env.DB.prepare("UPDATE ai_requests SET state='finished' WHERE uid=? AND id=?").bind(uid,raw.requestId).run();}catch{}try{await writer.close();}catch{}}})();
+  finally{timeout.removeEventListener('abort',rejectDeadline);try{await reader?.cancel();}catch{}try{await env.DB.prepare("UPDATE ai_requests SET state=?,finished_at=? WHERE uid=? AND id=?").bind(success?'succeeded':'failed',Date.now(),uid,raw.requestId).run();}catch{}console.log(JSON.stringify({event:'ai_request',operation:input.operation,result:success?'completed':'failed',durationMs:Date.now()-started,reserved:prompt.reserved,version:AI_VERSION}));try{await writer.close();}catch{}}})();
   waitUntil(work);return new Response(stream.readable,{headers:{'Content-Type':'application/x-ndjson','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
  }catch(e){return json({error:e.status?e.message:'AI could not be reached. Try again later.'},e.status||503);}
 }

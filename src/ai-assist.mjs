@@ -9,7 +9,7 @@ export function aiContext(nodes,id,selected=[]){
  for(const id of ids)visit(id,0);const context=parts.join('\n');if(byteLength(context)>6000)throw Error('Select fewer notes. AI assist accepts up to 6 KB of context.');return {id:root,context,sourceIds:[...seen]};
 }
 export const aiSourceCurrent=(doc,ai)=>ai.reader?!!readingBook(doc,ai.reader.hash):ai.sourceIds.every(id=>doc.tables.bullets.some(n=>n.id===id));
-export const aiSourceChanged=(doc,ai)=>!ai.reader&&ai.sourceIds.some((id,i)=>doc.tables.bullets.find(n=>n.id===id)?.text!==ai.sourceTexts[i]);
+export const aiSourceChanged=(doc,ai)=>{if(ai.reader)return false;try{return aiContext(doc.tables.bullets,ai.sourceIds[0],ai.selectionIds||[]).context!==ai.context;}catch{return true;}};
 export function insertAi(doc,draft){
  const ai=draft.ai;if(!ai?.complete)throw Error('Finish generating a preview first.');
  const insertion=draft.insertedId;if(!insertion)throw Error('Missing insertion identity.');if(doc.tables.bullets.some(n=>n.id===insertion))return doc;

@@ -790,13 +790,14 @@ export async function syncOperation(operation:string,args:any={},account=storage
 }
 
 // Device-local research is deliberately outside workspace records and exports.
-export type AiDraft={operation:'answer'|'explain'|'summarize'|'flashcards'|'mcqs';mode:'general'|'web';context:string;sourceIds:string[];sourceTexts:string[];complete:boolean;candidates?:any[];selected?:number[];sources?:{id:number;title:string;text:string;url:string;source:string}[];title?:string;reader?:{hash:string;selection:any;fingerprint:string};supported?:boolean};
+export type AiDraft={operation:'answer'|'explain'|'summarize'|'flashcards'|'mcqs';mode:'general'|'web';context:string;sourceIds:string[];sourceTexts:string[];selectionIds?:string[];complete:boolean;candidates?:any[];selected?:number[];sources?:{id:number;title:string;text:string;url:string;source:string}[];title?:string;reader?:{hash:string;selection:any;fingerprint:string};supported?:boolean};
 export type ResearchDraft={id:string;query:string;answer:string;updatedAt:number;insertedId?:string;ai?:AiDraft};
 export type ResearchState={generation:string;drafts:Record<string,ResearchDraft>};
 export async function researchStore(change?: (value:ResearchState)=>ResearchState, expectedGeneration?:string, name=storageName):Promise<ResearchState>{
  const db=await openDb(name);try{
   const tx=db.transaction('meta','readwrite'),finished=done(tx),store=tx.objectStore('meta');
   let value=await request<ResearchState|undefined>(store.get('ai-drafts'));
+  if(!value){const legacy=await request<ResearchState|undefined>(store.get('research-drafts'));if(legacy)value={generation:legacy.generation,drafts:Object.fromEntries(Object.entries(legacy.drafts).map(([id,d])=>[id,{...d,ai:{operation:'answer',mode:'web',context:d.query,sourceIds:[id],sourceTexts:[d.query],complete:false}}]))};}
   value=value||{generation:uuid(),drafts:{}};
   if(expectedGeneration&&value.generation!==expectedGeneration){tx.abort();await finished.catch(()=>{});throw Error('The workspace changed. Reopen research to continue.');}
   if(change)value=change(value);

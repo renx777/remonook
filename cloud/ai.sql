@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS ai_requests (
  uid TEXT NOT NULL, id TEXT NOT NULL, day TEXT NOT NULL, minute INTEGER NOT NULL,
  reserved INTEGER NOT NULL CHECK(reserved>0), state TEXT NOT NULL DEFAULT 'active',
- created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+ created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, finished_at INTEGER,
  PRIMARY KEY(uid,id)
 );
 CREATE INDEX IF NOT EXISTS ai_requests_day ON ai_requests(day);

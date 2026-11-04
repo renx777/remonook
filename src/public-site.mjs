@@ -6,6 +6,12 @@ const steps=items=>`<ol class="guide-steps">${items.map(text=>`<li>${text}</li>`
 const note=text=>`<aside class="guide-note"><strong>Good to know</strong><p>${text}</p></aside>`;
 
 export const guides=[
+ {slug:'ai-assist',title:'AI assist for notes and study',category:'LEARN',minutes:4,description:'Get an editable explanation, answer, summary, flashcard or MCQ preview inside RemoNook.',sections:[
+  {id:'generate',title:'1. Choose what to work with',html:'<p>Open a bullet’s menu and choose <strong>AI assist…</strong>, or select several bullets first. Choose Answer, Explain, Summarize, Flashcards or MCQs. Review the context before clicking <strong>Generate</strong>. Opening the panel does not send your notes. Sign in to generate.</p>'},
+  {id:'review',title:'2. Review the preview',html:'<p>General answers use model knowledge and can contain mistakes. Web excerpts mode retrieves snippets and shows source links; it does not read full pages or guarantee correctness. If the snippets cannot support an answer, try a different question or explicitly switch to General knowledge. Edit the text, or review each study question and its correct answer.</p>'},
+  {id:'save',title:'3. Add what you want to keep',html:'<p><strong>Add answer</strong> appends a child bullet. For study cards, name a new child set, select candidates, and choose <strong>Add selected cards</strong>. Flashcards and MCQs stay separate. In the book reader, select text and use <strong>Explain with AI</strong>; accepting saves the passage note and explanation together. One Undo restores the previous outline. Unfinished drafts stay on this device and can be resumed from <strong>Outline options → AI drafts</strong>.</p>'},
+  {id:'limits',title:'Daily allowance and privacy',html:'<p>Each signed-in user can make up to ten generation attempts per UTC day, subject to the shared free allowance. Failed or stopped generations may count. The panel shows availability and the reset time. Only the displayed context is sent on Generate; in web mode the question is also sent to search. AI is optional and does not run while you type. Existing notes remain available if AI is paused.</p>'}
+ ]},
  {
   slug:'getting-started',title:'Your first outline',category:'START HERE',minutes:4,
   description:'Capture your first notes, nest ideas, add tasks, and find your way around RemoNook.',
