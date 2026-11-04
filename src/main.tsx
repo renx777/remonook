@@ -505,13 +505,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       closeReader();setResearchTarget(id);
     }catch(e){showError(e);}
   };
-  const insertAiDraft=async(draft:ResearchDraft)=>{
+  const insertAiDraft=async(draft:ResearchDraft,acknowledgedContext:string)=>{
     if(researchBusy.current)return;researchBusy.current=true;const account=storageAccountKey();
     try{if(failed.current)throw Error('Saving is paused. Your draft is kept.');
       const insertion=draft.insertedId||crypto.randomUUID(),saved={...draft,insertedId:insertion};await research.put(saved,draft.id);
       if(account!==storageAccountKey())throw Error('Your account changed. Reopen the draft in its original account.');
       if(failed.current)throw Error('Saving is paused. Your draft is kept.');
-      const current=docRef.current!,next=insertAi(current,saved);if(next!==current)commit(withNodes(next,next.tables.bullets as Node[]));
+      const current=docRef.current!;if(!draft.ai?.reader&&aiContext(current.tables.bullets,draft.ai!.sourceIds[0],draft.ai!.selectionIds||[]).context!==acknowledgedContext)throw Error('The source changed again. Review the context before adding.');const next=insertAi(current,saved);if(next!==current)commit(withNodes(next,next.tables.bullets as Node[]));
       await flush();if(account!==storageAccountKey())throw Error('Your account changed. The draft is kept in its original account.');if(failed.current||!persisted.current?.tables.bullets.some(n=>n.id===insertion))throw Error('Your insertion could not be saved. The draft is kept; retry saving.');
       await research.put(null,draft.id);setResearchTarget(null);navigateAiResult(insertion);setNotice('Added to your notes. Undo restores the previous outline.');
     }finally{researchBusy.current=false;}

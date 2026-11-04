@@ -15,7 +15,7 @@ export function insertAi(doc,draft){
  const insertion=draft.insertedId;if(!insertion)throw Error('Missing insertion identity.');if(doc.tables.bullets.some(n=>n.id===insertion))return doc;
  if(!aiSourceCurrent(doc,ai))throw Error('The source is no longer available. Your draft is kept for copying.');
  let target=draft.id,next=doc;
- if(ai.reader){const book=readingBook(doc,ai.reader.hash),captured=captureReadingHighlight(doc,book,ai.reader.selection,ai.reader.fingerprint,{color:'yellow'});next=captured.doc;target=captured.bulletId;}
+ if(ai.reader){const book=readingBook(doc,ai.reader.hash),existing=doc.web.readingHighlights?.['annotation-'+ai.reader.fingerprint],captured=captureReadingHighlight(doc,book,ai.reader.selection,ai.reader.fingerprint,{color:existing?.color||'yellow'});next=captured.doc;target=captured.bulletId;}
  const parent=next.tables.bullets.find(n=>n.id===target);if(!parent)throw Error('This destination no longer exists.');
  const position=Math.max(-1,...next.tables.bullets.filter(n=>n.parentId===target).map(n=>n.position))+1;
  let nodes=next.tables.bullets.map(n=>n.id===target?{...n,collapsed:false}:n);
