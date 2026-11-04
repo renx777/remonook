@@ -7,9 +7,9 @@ export const widgetCatalog=[
  {kind:'agenda',title:'Today',icon:'calendar',description:'Your note tasks and upcoming reminders, together at a glance.',w:4,h:7},
  {kind:'habits',title:'Habits',icon:'sprout',description:'Small steps, repeated. Track your habits through the week.',w:8,h:7},
  {kind:'capture',title:'Quick capture',icon:'pencil',description:'Catch a thought before it goes. Send it straight to your notes.',w:4,h:5},
- {kind:'googleTasks',title:'Google Tasks',icon:'check',description:'Your Google task lists, with room to plan and finish.',w:4,h:7},
- {kind:'reading',title:'Daily reading',icon:'notes',description:'A page or passage each day. Keep your place and your best ideas.',w:6,h:5},
- {kind:'quotes',title:'Quotes',icon:'quote',description:'Words worth keeping. Explore the classics and your own #quote notes.',w:6,h:6},
+ {kind:'googleTasks',title:'Google Tasks',icon:'check',description:'Your Google task lists, with room to plan and finish.',w:4,h:5},
+ {kind:'reading',title:'Daily reading',icon:'notes',description:'A page or passage each day. Keep your place and your best ideas.',w:8,h:5},
+ {kind:'quotes',title:'Quotes',icon:'quote',description:'Words worth keeping. Explore the classics and your own #quote notes.',w:8,h:6},
  {kind:'study',title:'Study snapshot',icon:'study',description:'See what is ready to review and keep your learning moving.',w:4,h:5},
 ];
 export const dashboardCols={lg:12,md:8,sm:4};
