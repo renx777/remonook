@@ -100,8 +100,11 @@ export function applyIntent(d,before,after,assetsBefore=[],assetsAfter=[],rebase
      if(!same(old?.[key],n[key])){const path=JSON.stringify(['row',id,key]);if(n[key]===undefined)fields.delete(path);else fields.set(path,n[key]);}
     }
     if(name==='bullets'&&(!old||old.parentId!==n.parentId||old.position!==n.position))fields.set(JSON.stringify(['row',id,'_syncLocation']),{parentId:n.parentId,position:n.position});
-    if(name==='bullets'&&(!old||old.text!==n.text||old.formatting!==n.formatting)){
-      editText(d.getText('text:'+id),old,n,rebase);
+    // Undo/Trash restore retains the Y.Text for concurrent edits. Use its
+    // deletion baseline so making the row visible does not insert a second copy.
+    const textBefore=old||fields.get(JSON.stringify(['row',id,'_syncDeletedValue']));
+    if(name==='bullets'&&(!textBefore||textBefore.text!==n.text||textBefore.formatting!==n.formatting)){
+      editText(d.getText('text:'+id),textBefore,n,rebase||!old&&!!textBefore);
       const raw=n.formatting||'',parsed=marks(raw,n.text.length),path=JSON.stringify(['row',id,'_syncLegacyFormatting']);
       if(raw.split(';').filter(Boolean).length!==parsed.length)fields.set(path,{text:n.text,formatting:raw});else fields.delete(path);
     }

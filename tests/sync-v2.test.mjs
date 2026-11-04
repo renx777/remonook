@@ -13,6 +13,22 @@ import {bullet} from '../src/domain.mjs';
 import {route} from '../cloud/worker.mjs';
 const copy=structuredClone;
 const initial=()=>{const d=empty();d.tables.bullets=[bullet('a',{text:'Learn SQL.'}),bullet('b',{text:'Other',position:1})];return d;};
+test('restoring a removed note reuses retained text and preserves concurrent text edits',()=>{
+ const base=initial(),seeded=seed(base),state=sharedState(seeded),removed=copy(base);removed.tables.bullets=removed.tables.bullets.filter(n=>n.id!=='a');
+ const local=openShared(state),remote=openShared(state);try{
+  applyIntent(local,base,removed);assert.equal(project(local).doc.tables.bullets.some(n=>n.id==='a'),false);
+  applyIntent(local,removed,base);assert.equal(project(local).doc.tables.bullets.find(n=>n.id==='a').text,'Learn SQL.');
+  applyIntent(local,base,removed);const changed=copy(base);changed.tables.bullets[0].text='Learn SQL from another device.';applyIntent(remote,base,changed);Y.applyUpdate(local,Y.encodeStateAsUpdate(remote));
+  applyIntent(local,removed,base);assert.equal(project(local).doc.tables.bullets.find(n=>n.id==='a').text,'Learn SQL from another device.');
+ }finally{seeded.destroy();local.destroy();remote.destroy();}
+});
+test('durable outbox add, acknowledged undo and redo do not duplicate accepted answer text',async()=>{
+ const f=await started();try{let meta=initializeOutbox(f.server.update,f.server.revision,f.base,f.base,[]);const added=copy(f.base);added.tables.bullets.push(bullet('ai-answer',{parentId:'a',text:'One reviewed answer.\nReviewed on staging.'}));
+  const sync=async()=>{meta=claimOutbox(meta);const response=await(await call(f.env,'POST','/sync/v2',meta.inflight)).json();meta=receiveOutbox(meta,response);};
+  recordLocal(meta,added);await sync();recordLocal(meta,f.base);await sync();recordLocal(meta,added);await sync();
+  const response=await(await call(f.env,'GET','/sync/v2')).json(),y=openShared(response.update);try{assert.equal(project(y).doc.tables.bullets.find(n=>n.id==='ai-answer').text,'One reviewed answer.\nReviewed on staging.');}finally{y.destroy();}
+ }finally{f.env.sqlite.close();}
+});
 export function database(){const sqlite=new DatabaseSync(':memory:');sqlite.exec(readFileSync('cloud/schema.sql','utf8'));const DB={prepare(sql){let params=[];return {bind(...p){params=p;return this;},async first(){return sqlite.prepare(sql).get(...params)||null;},run(){const r=sqlite.prepare(sql).run(...params);return {success:true,meta:{changes:r.changes}};}};},async batch(statements){sqlite.exec('BEGIN');try{const out=[];for(const s of statements)out.push(s.run());sqlite.exec('COMMIT');return out;}catch(e){sqlite.exec('ROLLBACK');throw e;}}};return {DB,sqlite};}
 const call=(env,method,path,body,uid='alice',headers={})=>route(new Request('https://sync.test'+path,{method,headers:{Authorization:'Bearer '+uid,...headers},...(body?{body:JSON.stringify(body)}:{})}),env,async t=>t);
 async function started(){const env=database(),base=initial();await call(env,'PUT','/workspace',{baseRevision:0,doc:base,assets:[]});const server=await(await call(env,'GET','/sync/v2')).json();return {env,base,server};}
