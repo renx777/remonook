@@ -30,6 +30,8 @@ test('slash commands convert blocks, highlight code, preserve text and open MCQs
     await wait(() => document.querySelector('[data-node-id="command"] .text-button'));
     await act(async () => document.querySelector('[data-node-id="command"] .text-button').click());
     await wait(() => document.querySelector('.tiptap'));
+    // The .tiptap element can exist before its editor instance is attached; wait for both.
+    await wait(() => document.querySelector('.tiptap')?.editor);
     let editor = document.querySelector('.tiptap').editor;
     const type = async text => act(async () => { editor.commands.focus(); editor.commands.insertContent(text); });
     await type('/h2'); await key('Enter');
