@@ -34,3 +34,9 @@ Local validation includes authentication, atomic quotas, completed versus
 interrupted streams, account changes, invalid citations/options, source changes,
 reader capture reuse, actual-app duplicate acceptance and one-step undo. The
 existing typing, study, reader, persistence and sync regressions remain required.
+
+Live acceptance also exposed retained Y.Text being inserted a second time during
+note resurrection. The fix uses the deletion baseline for restored text, while
+preserving concurrent text changes. Regression tests cover local restoration,
+concurrent edits, and add → acknowledged undo → redo through the durable outbox
+and real sync route. Existing note contents are not automatically deduplicated.
