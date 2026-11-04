@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { ActionMenu, ActionMenuItem } from "./ActionMenu";
 import { queryBookmarks } from "./bookmarks.mjs";
+import { progressLabel, savedLabel, siteTile } from "./bookmark-progress";
 import "./bookmark-library.css";
 type Bookmark = {
   id: string;
@@ -37,6 +38,7 @@ type Bookmark = {
 type Props = {
   bookmarks: Bookmark[];
   noteCounts: Record<string, number>;
+  progress: Record<string, number>;
   offline: Set<string>;
   thumbnails: Map<string, string>;
   assets: Map<string, Blob>;
@@ -51,6 +53,7 @@ type Props = {
 export function BookmarkLibrary({
   bookmarks,
   noteCounts,
+  progress,
   offline,
   thumbnails,
   assets,
@@ -103,6 +106,37 @@ export function BookmarkLibrary({
           names.set(t.toLocaleLowerCase(), t);
     return [...names.values()].sort((a, b) => a.localeCompare(b));
   }, [bookmarks]);
+  // The most used tags become one-tap filters; the rest stay in "More tags".
+  const tagCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of bookmarks)
+      if (!b.archived)
+        for (const t of new Set(b.tags.map((x) => x.toLocaleLowerCase())))
+          counts.set(t, (counts.get(t) || 0) + 1);
+    return counts;
+  }, [bookmarks]);
+  const topTags = useMemo(
+    () =>
+      [...tags]
+        .sort(
+          (a, b) =>
+            (tagCounts.get(b.toLocaleLowerCase()) || 0) -
+              (tagCounts.get(a.toLocaleLowerCase()) || 0) || a.localeCompare(b),
+        )
+        .slice(0, 8),
+    [tags, tagCounts],
+  );
+  const [quickUrl, setQuickUrl] = useState(""),
+    [quickSaving, setQuickSaving] = useState(false);
+  const quickSave = async () => {
+    if (!quickUrl.trim() || quickSaving) return;
+    setQuickSaving(true);
+    try {
+      if (await onSave(quickUrl.trim())) setQuickUrl("");
+    } finally {
+      setQuickSaving(false);
+    }
+  };
   useEffect(() => {
     setSelected([]);
     setNotice("");
@@ -143,15 +177,42 @@ export function BookmarkLibrary({
     <div className="bookmark-library">
       <header className="bl-heading">
         <div>
-          <h1>
-            Bookmarks <span>{bookmarks.length}</span>
-          </h1>
+          <h1>Bookmarks</h1>
           <p>
-            {counts.unread
-              ? `${counts.unread} unread · a little room for a good read`
+            {counts.all + counts.archived
+              ? [
+                  `${counts.all} saved`,
+                  counts.unread ? `${counts.unread} unread` : "all read",
+                  counts.archived ? `${counts.archived} archived` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               : "Your reading list, ready when you are"}
           </p>
         </div>
+        <form
+          className="bl-quick-save"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void quickSave();
+          }}
+        >
+          <label className="bl-sr" htmlFor="bl-quick-url">
+            Paste a link to save
+          </label>
+          <input
+            id="bl-quick-url"
+            type="url"
+            required
+            placeholder="Paste a link to save…"
+            value={quickUrl}
+            disabled={disabled || !!busy || quickSaving}
+            onChange={(e) => setQuickUrl(e.target.value)}
+          />
+          <button disabled={disabled || !!busy || quickSaving || !quickUrl.trim()}>
+            {quickSaving ? "Saving…" : "Save"}
+          </button>
+        </form>
         <button
           className="bl-save"
           aria-label="Add bookmark"
@@ -159,7 +220,7 @@ export function BookmarkLibrary({
           onClick={() => setAdding(true)}
         >
           <Plus size={17} />
-          <span>Save a page</span>
+          <span>Save link</span>
         </button>
       </header>
       <nav className="bl-views" aria-label="Bookmark views">
@@ -223,12 +284,12 @@ export function BookmarkLibrary({
               <option value="domain">Website A–Z</option>
             </select>
           </label>
-          {tags.length > 0 && (
+          {tags.length > topTags.length && (
             <label className="bl-tag-filter">
               <Tag size={15} />
               <span className="bl-sr">Filter by tag</span>
               <select value={tag} onChange={(e) => setTag(e.target.value)}>
-                <option value="">All tags</option>
+                <option value="">More tags</option>
                 {tags.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -239,6 +300,24 @@ export function BookmarkLibrary({
           )}
         </div>
       </div>
+      {topTags.length > 0 && (
+        <div className="bl-tag-chips" role="group" aria-label="Filter by tag">
+          <span aria-hidden="true">Tags</span>
+          {topTags.map((t) => {
+            const on = tag.toLocaleLowerCase() === t.toLocaleLowerCase();
+            return (
+              <button
+                key={t}
+                aria-pressed={on}
+                onClick={() => setTag(on ? "" : t)}
+              >
+                #{t}
+                <span>{tagCounts.get(t.toLocaleLowerCase()) || 0}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {(query || tag) && (
         <div className="bl-results">
           <span>
@@ -331,7 +410,14 @@ export function BookmarkLibrary({
               (offline.has(b.snapshotHash) ||
                 (!!b.snapshotPath && assets.has(b.snapshotPath))),
             source = new URL(b.url).hostname.replace(/^www\./, ""),
-            thumb = b.snapshotHash && thumbnails.get(b.snapshotHash);
+            thumb = b.snapshotHash && thumbnails.get(b.snapshotHash),
+            tile = siteTile(source),
+            reading = progress[b.id] || 0,
+            availability = cached
+              ? "offline"
+              : b.snapshotHash
+                ? "article"
+                : "link";
           return (
             <li
               key={b.id}
@@ -351,96 +437,36 @@ export function BookmarkLibrary({
                   />
                 </label>
               )}
+              <span
+                className="bl-site-tile"
+                aria-hidden="true"
+                style={{ background: tile.bg, color: tile.fg }}
+              >
+                {tile.letter}
+              </span>
               <div className="bl-item-content">
-                <button
-                  className="bookmark-open bl-open"
-                  data-bookmark-url={b.url}
-                  onClick={() => (selecting ? toggle(b.id) : onOpen(b.id))}
-                >
-                  <div className="bl-item-copy">
-                    <div className="bl-source">
-                      <span>{source}</span>
-                      {b.readingMinutes && (
-                        <>
-                          <i>·</i>
-                          <span>{b.readingMinutes} min</span>
-                        </>
-                      )}
-                      {b.read && (
-                        <span className="bl-read-label">
-                          <Check size={11} />
-                          Read
-                        </span>
-                      )}
+                <div className="bl-item-head">
+                  <button
+                    className="bookmark-open bl-open"
+                    data-bookmark-url={b.url}
+                    onClick={() => (selecting ? toggle(b.id) : onOpen(b.id))}
+                  >
+                    <div className="bl-item-copy">
+                      <h2>{b.title}</h2>
+                      {b.excerpt && <p>{b.excerpt}</p>}
                     </div>
-                    <h2>{b.title}</h2>
-                    {b.excerpt && <p>{b.excerpt}</p>}
-                  </div>
-                  {thumb && (
-                    <img
-                      className="bl-thumbnail"
-                      src={thumb}
-                      alt=""
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  )}
-                </button>
-                <div className="bl-item-footer">
-                  <div className="bl-details">
-                    <span
-                      className="bl-availability"
-                      title={
-                        cached
-                          ? "Saved copy available on this device"
-                          : b.snapshotHash
-                            ? "Open once to download the saved copy"
-                            : "Link saved; open to prepare reader mode"
-                      }
-                    >
-                      {cached ? (
-                        <Download size={12} />
-                      ) : b.snapshotHash ? (
-                        <BookOpen size={12} />
-                      ) : (
-                        <LinkIcon size={12} />
-                      )}
-                      <span>
-                        {cached
-                          ? "Offline"
-                          : b.snapshotHash
-                            ? "Saved article"
-                            : "Saved link"}
-                      </span>
-                    </span>
-                    {(noteCounts[b.id] || 0) > 0 && (
-                      <button
-                        className="bl-note-count"
-                        aria-label={`Open ${noteCounts[b.id]} article notes for ${b.title}`}
-                        onClick={() => onOpen(b.id, true)}
-                      >
-                        {noteCounts[b.id]}{" "}
-                        {noteCounts[b.id] === 1 ? "note" : "notes"}
-                      </button>
+                    {thumb && (
+                      <img
+                        className="bl-thumbnail"
+                        src={thumb}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
                     )}
-                    {b.tags.slice(0, 2).map((t) => (
-                      <button
-                        className="bl-tag"
-                        key={t}
-                        title={"Filter by " + t}
-                        onClick={() => setTag(t)}
-                      >
-                        #{t}
-                      </button>
-                    ))}
-                    {b.tags.length > 2 && (
-                      <span className="bl-more-tags" title={b.tags.join(", ")}>
-                        +{b.tags.length - 2}
-                      </span>
-                    )}
-                  </div>
+                  </button>
                   <div className="bl-row-actions">
                     <button
                       aria-label={
@@ -482,6 +508,26 @@ export function BookmarkLibrary({
                       }
                     >
                       <div className="bookmark-action-menu bl-action-menu">
+                        <ActionMenuItem
+                          disabled={disabled}
+                          onClick={() => {
+                            onPatch([b.id], { favourite: !b.favourite });
+                            setMenu(null);
+                          }}
+                        >
+                          <Star size={16} />
+                          {b.favourite ? "Remove from favourites" : "Add to favourites"}
+                        </ActionMenuItem>
+                        <ActionMenuItem
+                          disabled={disabled}
+                          onClick={() => {
+                            onPatch([b.id], { read: !b.read });
+                            setMenu(null);
+                          }}
+                        >
+                          <Check size={16} />
+                          {b.read ? "Mark unread" : "Mark read"}
+                        </ActionMenuItem>
                         <ActionMenuItem
                           disabled={disabled}
                           onClick={() => {
@@ -531,6 +577,79 @@ export function BookmarkLibrary({
                     </ActionMenu>
                   </div>
                 </div>
+                <div className="bl-details">
+                  {b.favourite && (
+                    <Star
+                      className="bl-fav-mark"
+                      size={13}
+                      fill="currentColor"
+                      aria-label="Favourite"
+                    />
+                  )}
+                  <span className="bl-meta">
+                    {source}
+                    {b.readingMinutes ? ` · ${b.readingMinutes} min` : ""}
+                    {" · " + savedLabel(b.createdAt)}
+                  </span>
+                  <span
+                    className={"bl-availability is-" + availability}
+                    title={
+                      availability === "offline"
+                        ? "Saved copy available on this device"
+                        : availability === "article"
+                          ? "Open once to download the saved copy"
+                          : "Link saved; open to prepare reader mode"
+                    }
+                  >
+                    {availability === "offline" ? (
+                      <Download size={12} />
+                    ) : availability === "article" ? (
+                      <BookOpen size={12} />
+                    ) : (
+                      <LinkIcon size={12} />
+                    )}
+                    <span>
+                      {availability === "offline"
+                        ? "Offline"
+                        : availability === "article"
+                          ? "Saved article"
+                          : "Link only"}
+                    </span>
+                  </span>
+                  {(noteCounts[b.id] || 0) > 0 && (
+                    <button
+                      className="bl-note-count"
+                      aria-label={`Open ${noteCounts[b.id]} article notes for ${b.title}`}
+                      onClick={() => onOpen(b.id, true)}
+                    >
+                      {noteCounts[b.id]}{" "}
+                      {noteCounts[b.id] === 1 ? "note" : "notes"}
+                    </button>
+                  )}
+                  {b.tags.slice(0, 3).map((t) => (
+                    <button
+                      className="bl-tag"
+                      key={t}
+                      title={"Filter by " + t}
+                      onClick={() => setTag(t)}
+                    >
+                      #{t}
+                    </button>
+                  ))}
+                  {b.tags.length > 3 && (
+                    <span className="bl-more-tags" title={b.tags.join(", ")}>
+                      +{b.tags.length - 3}
+                    </span>
+                  )}
+                </div>
+                {!b.read && reading > 0.02 && reading < 0.98 && (
+                  <div className="bl-progress">
+                    <span aria-hidden="true">
+                      <i style={{ width: Math.round(reading * 100) + "%" }} />
+                    </span>
+                    {progressLabel(reading, b.readingMinutes)}
+                  </div>
+                )}
               </div>
             </li>
           );

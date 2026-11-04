@@ -268,7 +268,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if(left>=nav.scrollLeft&&right<=nav.scrollLeft+nav.clientWidth)return;
     nav.scrollTo({left:left<nav.scrollLeft?left:right-nav.clientWidth,behavior:'smooth'});
   },[tab]);
-  const sidebarMotion=useSidebarMotion(sidebarOpen);
+  // While an article is open the sidebar steps aside without changing the saved preference.
+  const [readerFocus,setReaderFocus]=useState(false),sidebarShown=sidebarOpen&&!(readerFocus&&tab==="bookmarks");
+  const sidebarMotion=useSidebarMotion(sidebarShown);
   recoveryDraft = () => ({ doc: docRef.current, assets });
   useEffect(() => {
     (async () => {
@@ -308,6 +310,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setError(e instanceof Error ? e.message : String(e));
   const toggleSidebar = () => {
     sidebarMotion.capture();
+    if (readerFocus && tab === "bookmarks" && sidebarOpen) {
+      setReaderFocus(false);
+      return;
+    }
     setSidebarOpen((prev) => {
       const next = !prev;
       try {
@@ -1386,9 +1392,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     }}>
     <div className="app" data-theme={theme} data-page={tab} data-editing={!!selected && (tab==='notes'||tab==='calendar')} style={style}>
       <aside
-        className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}
-        aria-hidden={!sidebarOpen}
-        inert={!sidebarOpen}
+        className={`sidebar ${sidebarShown ? "" : "collapsed"}`}
+        aria-hidden={!sidebarShown}
+        inert={!sidebarShown}
       >
         <div className="sidebar-inner">
           <div className="sidebar-header">
@@ -1473,12 +1479,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       <main ref={sidebarMotion.mainRef}>
         <header className="topbar">
           <button
-            className={`icon-button sidebar-toggle-btn topbar-sidebar-toggle ${sidebarOpen ? "is-open" : "is-collapsed"}`}
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            title={sidebarOpen ? "Collapse sidebar (Ctrl+\\)" : "Expand sidebar (Ctrl+\\)"}
+            className={`icon-button sidebar-toggle-btn topbar-sidebar-toggle ${sidebarShown ? "is-open" : "is-collapsed"}`}
+            aria-label={sidebarShown ? "Collapse sidebar" : "Expand sidebar"}
+            title={sidebarShown ? "Collapse sidebar (Ctrl+\\)" : "Expand sidebar (Ctrl+\\)"}
             onClick={toggleSidebar}
           >
-            <Icon name={sidebarOpen ? "sidebarCollapse" : "menu"} />
+            <Icon name={sidebarShown ? "sidebarCollapse" : "menu"} />
           </button>
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
@@ -1533,7 +1539,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
           <div className="topbar-right">
             <button className="icon-button reminders-toggle" aria-label={remindersVisible?'Hide reminders':'Show reminders'} title={remindersVisible?'Hide reminders':'Show reminders'} aria-expanded={remindersVisible} aria-controls="topbar-reminders" onClick={()=>setRemindersVisible(visible=>!visible)}><Icon name="bell" size={18}/></button>
-            <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>
+            {tab !== "bookmarks" && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
               className={`icon-button completed-toggle ${paneCompleted ? "is-active" : ""}`}
@@ -1667,7 +1673,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
         ) : tab === "bookmarks" ? (
-          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
+          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
@@ -1973,7 +1979,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <div className="popover-quick-actions">
           <button disabled={disabled} onClick={() => editorPrefs("showCompleted", !showCompleted)}><Icon name="check" size={16} /><span>{showCompleted ? "Hide completed" : "Show completed"}</span></button>
           {[false, true].map(collapsed => <button key={String(collapsed)} disabled={disabled} onClick={() => { mutate(ns => { const ids = new Set(rows(ns, scope, true).map((row: any) => row.bullet.id)); return ns.map(n => ids.has(n.id) ? { ...n, collapsed } : n); }); setViewMenu(false); }}><Icon name={collapsed ? "collapse" : "expand"} size={16} /><span>{collapsed ? "Collapse all" : "Expand all"}</span></button>)}
-          <button onClick={() => { toggleSidebar(); setViewMenu(false); }}><Icon name="sidebar" size={16} /><span>{sidebarOpen ? "Hide sidebar" : "Show sidebar"}</span><kbd>Ctrl \</kbd></button>
+          <button onClick={() => { toggleSidebar(); setViewMenu(false); }}><Icon name="sidebar" size={16} /><span>{sidebarShown ? "Hide sidebar" : "Show sidebar"}</span><kbd>Ctrl \</kbd></button>
           <button onClick={() => { setDialog("settings"); setViewMenu(false); }}><Icon name="settings" size={16}/><span>Settings & backups</span></button>
           {cloudUser && <button onClick={() => { setViewMenu(false); void accountAction(true); }}><Icon name="logout" size={16}/><span>Sign out</span></button>}
           <button onClick={()=>{setDialog("help");setViewMenu(false);}}><Icon name="learn" size={16}/><span>Show me how</span></button>
