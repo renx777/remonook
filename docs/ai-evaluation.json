@@ -1,371 +1,856 @@
 {
   "date": "2026-11-04",
   "model": "@cf/google/gemma-4-26b-a4b-it",
+  "promptRevision": "action-specific-grounding",
   "cases": [
     {
       "id": "answer-0",
       "pass": true,
       "error": "",
-      "latencyMs": 3612,
-      "inputTokens": 173,
-      "outputTokens": 63,
-      "neurons": 3.2909090518951416
+      "latencyMs": 2003,
+      "inputTokens": 162,
+      "outputTokens": 33,
+      "neurons": 2.372727155685425,
+      "preview": {
+        "text": "The two main types of supervised learning are classification and regression. Classification is used to predict discrete labels or categories, while regression is used to predict continuous numerical values.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "answer-1",
       "pass": true,
       "error": "",
-      "latencyMs": 6549,
-      "inputTokens": 177,
-      "outputTokens": 67,
-      "neurons": 3.436363697052002
+      "latencyMs": 3269,
+      "inputTokens": 159,
+      "outputTokens": 53,
+      "neurons": 2.890909194946289,
+      "preview": {
+        "text": "Photosynthesis is the process used by plants, algae, and certain bacteria to convert light energy, typically from the sun, into chemical energy in the form of glucose. During this process, carbon dioxide and water are consumed to produce sugar and oxygen as a byproduct.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "answer-2",
       "pass": true,
       "error": "",
-      "latencyMs": 3159,
-      "inputTokens": 188,
-      "outputTokens": 108,
-      "neurons": 4.654545307159424
+      "latencyMs": 3688,
+      "inputTokens": 159,
+      "outputTokens": 77,
+      "neurons": 3.545454502105713,
+      "preview": {
+        "text": "Binary search is an efficient algorithm for finding an item from a sorted list of items. It works by repeatedly dividing the search interval in half. If the value of the search key is less than the item in the middle of the interval, the search continues in the lower half. Otherwise, it continues in the upper half, continuing until the value is found or the interval is empty.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "answer-3",
       "pass": true,
       "error": "",
-      "latencyMs": 2805,
-      "inputTokens": 185,
-      "outputTokens": 49,
-      "neurons": 3.018181800842285
+      "latencyMs": 3196,
+      "inputTokens": 158,
+      "outputTokens": 47,
+      "neurons": 2.718181610107422,
+      "preview": {
+        "text": "HTTP, or Hypertext Transfer Protocol, is the foundation of data communication for the World Wide Web. It is a request-response protocol used by web browsers to fetch resources like HTML documents, images, and videos from web servers.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "answer-4",
       "pass": true,
       "error": "",
-      "latencyMs": 3444,
-      "inputTokens": 177,
-      "outputTokens": 70,
-      "neurons": 3.518181800842285
+      "latencyMs": 2700,
+      "inputTokens": 161,
+      "outputTokens": 47,
+      "neurons": 2.7454543113708496,
+      "preview": {
+        "text": "Spaced repetition is a learning technique that involves reviewing information at increasing intervals to exploit the psychological spacing effect. By revisiting material just as you are about to forget it, you strengthen long-term memory retention and combat the forgetting curve.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "answer-5",
       "pass": true,
       "error": "",
-      "latencyMs": 2639,
-      "inputTokens": 184,
-      "outputTokens": 78,
-      "neurons": 3.8000001907348633
+      "latencyMs": 2215,
+      "inputTokens": 160,
+      "outputTokens": 65,
+      "neurons": 3.2272725105285645,
+      "preview": {
+        "text": "An electric circuit is a closed loop or path through which an electric current flows. It typically consists of a power source, such as a battery, conductive wires to carry the charge, and a load, such as a light bulb, which consumes the energy. For electricity to flow, the circuit must be continuous and unbroken.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "answer-6",
       "pass": true,
       "error": "",
-      "latencyMs": 2539,
-      "inputTokens": 177,
-      "outputTokens": 60,
-      "neurons": 2.663635730743408
+      "latencyMs": 2171,
+      "inputTokens": 160,
+      "outputTokens": 68,
+      "neurons": 3.3090908527374268,
+      "preview": {
+        "text": "The water cycle is the continuous movement of water on, above, and below the surface of the Earth. It involves processes such as evaporation, where liquid water turns into vapor; condensation, where vapor cools into clouds; precipitation, where water falls as rain or snow; and collection, where water gathers in oceans, lakes, and rivers.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "answer-7",
       "pass": true,
       "error": "",
-      "latencyMs": 3160,
-      "inputTokens": 182,
-      "outputTokens": 95,
-      "neurons": 3.663635730743408
+      "latencyMs": 3748,
+      "inputTokens": 159,
+      "outputTokens": 80,
+      "neurons": 3.627272605895996,
+      "preview": {
+        "text": "A database index is a data structure that improves the speed of data retrieval operations on a database table. It works similarly to an index in a book, allowing the database engine to find specific rows without scanning every single row in the table, thereby reducing disk I/O and increasing query performance. However, indexes also require additional storage space and can slow down data insertion, update, and deletion operations.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "explain-0",
       "pass": true,
       "error": "",
-      "latencyMs": 4528,
-      "inputTokens": 176,
-      "outputTokens": 98,
-      "neurons": 4.272727012634277
+      "latencyMs": 5930,
+      "inputTokens": 154,
+      "outputTokens": 169,
+      "neurons": 6.009090900421143,
+      "preview": {
+        "text": "Supervised learning is a type of machine learning where the computer learns from a dataset that already contains the correct answers. These correct answers are called labels. You provide the algorithm with input data and the corresponding output, allowing the model to learn the relationship between them so it can make predictions on new, unseen data.\n\nThere are two main types: Classification, which assigns data to a specific category, and Regression, which predicts a continuous numerical value.\n\nExample: Imagine you want to teach a computer to identify different types of fruit. You show it hundreds of pictures, and for each picture, you tell it whether it is an apple or an orange. Because you provided the labels (apple or orange), the computer learns the patterns that distinguish them. Once trained, you can show it a new picture, and it will correctly predict the label.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "explain-1",
       "pass": true,
       "error": "",
-      "latencyMs": 2645,
-      "inputTokens": 181,
-      "outputTokens": 65,
-      "neurons": 3.418181896209717
+      "latencyMs": 5115,
+      "inputTokens": 158,
+      "outputTokens": 105,
+      "neurons": 4.299999713897705,
+      "preview": {
+        "text": "Photosynthesis is the process where plants make their own food. They take in sunlight, water, and carbon dioxide to create sugar, which serves as their energy source. During this process, plants also release oxygen into the air as a byproduct. This happens because a green pigment called chlorophyll captures the energy from the sunlight.\n\nExample: A sunflower sitting in a garden absorbs sunlight through its green leaves, takes in water from the soil, and breathes in carbon dioxide from the air to produce the sugar it needs to grow tall.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "explain-2",
       "pass": true,
       "error": "",
-      "latencyMs": 6613,
-      "inputTokens": 190,
-      "outputTokens": 207,
-      "neurons": 7.372726917266846
+      "latencyMs": 8076,
+      "inputTokens": 168,
+      "outputTokens": 266,
+      "neurons": 8.781818389892578,
+      "preview": {
+        "text": "Binary search is an efficient way to find a specific value in a list that is already sorted in order. Instead of checking every single item one by one, you jump to the middle of the list. You compare your target value to this middle element. If the target is smaller, you ignore the right half; if it is larger, you ignore the left half. You repeat this process with the remaining half until you find the value or run out of items. This makes it much faster than a linear search because you cut the search area in half with every step.\n\nExample:\nImagine you are looking for the number 7 in this sorted list: [1, 3, 5, 7, 9, 11, 13].\n\n1. Find the middle element. The middle is 7.\n2. Compare your target (7) to the middle (7).\n3. Since they match, you have found the target immediately.\n\nIf you were looking for 3:\n1. The middle is 7.\n2. Since 3 is less than 7, you discard everything from 7 onwards. Your new list is [1, 3, 5].\n3. The new middle is 3.\n4. You found it.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "explain-3",
       "pass": true,
       "error": "",
-      "latencyMs": 3954,
-      "inputTokens": 187,
-      "outputTokens": 99,
-      "neurons": 4.400000095367432
+      "latencyMs": 6340,
+      "inputTokens": 165,
+      "outputTokens": 200,
+      "neurons": 6.954545497894287,
+      "preview": {
+        "text": "HTTP stands for Hypertext Transfer Protocol. It is the set of rules that allows your web browser to communicate with a web server to load websites. It works through a simple cycle: your device sends a request, and the server sends back a response.\n\nThere are different types of requests. A GET request is used when you want to retrieve information, like viewing a page. A POST request is used when you want to send information, like submitting a form. If the server cannot find what you asked for, it sends back a 404 error code.\n\nExample:\nImagine you are at a restaurant. You (the client) give an order (the request) to the waiter (the protocol). The waiter takes that order to the kitchen (the server). The kitchen prepares the food and the waiter brings it back to your table (the response). If you order something that is not on the menu, the waiter tells you it is unavailable (a 404 error).",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "explain-4",
       "pass": true,
       "error": "",
-      "latencyMs": 4644,
-      "inputTokens": 180,
-      "outputTokens": 118,
-      "neurons": 4.854545593261719
+      "latencyMs": 6836,
+      "inputTokens": 159,
+      "outputTokens": 166,
+      "neurons": 5.972727298736572,
+      "preview": {
+        "text": "Spaced repetition is a learning technique where you review information at increasing intervals of time. Instead of studying the same thing every day, you wait longer between each review session. This method exploits the way our brains forget information, forcing you to recall the data just as you are about to forget it, which strengthens long-term memory. It is most effective when paired with active recall, which is the act of testing yourself rather than just re-reading notes.\n\nExample: If you learn a new Spanish word today, you might review it tomorrow. If you remember it easily, you wait three days to review it again. If you still remember it, you wait a week, then two weeks, and so on. This prevents you from wasting time on things you already know while ensuring you don't forget the difficult parts.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "explain-5",
       "pass": true,
       "error": "",
-      "latencyMs": 4675,
-      "inputTokens": 187,
-      "outputTokens": 110,
-      "neurons": 4.118181228637695
+      "latencyMs": 6561,
+      "inputTokens": 165,
+      "outputTokens": 214,
+      "neurons": 7.045454502105713,
+      "preview": {
+        "text": "An electric circuit is a closed loop or path through which electricity flows. For electricity to move and do work, it needs a source of energy, a path to travel along, and a device to use that energy.\n\nThere are three main components in a circuit:\n1. Voltage (V): The pressure or force that pushes the electricity through the loop, measured in volts.\n2. Current (I): The actual flow of electricity, measured in amperes.\n3. Resistance (R): The opposition to the flow, which slows the electricity down, measured in ohms.\n\nThese three are related by Ohm's Law, which states that Voltage equals Current multiplied by Resistance (V = I × R).\n\nExample:\nImagine a simple flashlight. The battery provides the voltage (the push), the metal wires provide the path for the current (the flow), and the light bulb provides the resistance (it uses the energy to create light). If you break the wire or remove the battery, the loop is no longer closed, and the electricity stops flowing.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "explain-6",
       "pass": true,
       "error": "",
-      "latencyMs": 2727,
-      "inputTokens": 180,
-      "outputTokens": 85,
-      "neurons": 3.954545497894287
+      "latencyMs": 5320,
+      "inputTokens": 157,
+      "outputTokens": 131,
+      "neurons": 5,
+      "preview": {
+        "text": "Este texto describe tres etapas fundamentales del ciclo del agua.\n\nPrimero, la evaporación es el proceso donde el agua líquida se calienta y se convierte en vapor de agua. Segundo, la condensación ocurre cuando ese vapor se enfría y se transforma nuevamente en pequeñas gotas de agua. Finalmente, la precipitación es cuando esa agua cae de nuevo a la superficie terrestre en forma de lluvia, nieve o granizo.\n\nEjemplo: El sol calienta el agua de un lago (evaporación), el vapor sube al cielo y forma nubes (condensación), y finalmente llueve sobre el lago (precipitación).",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "explain-7",
       "pass": true,
       "error": "",
-      "latencyMs": 4656,
-      "inputTokens": 185,
-      "outputTokens": 146,
-      "neurons": 5.663636207580566
+      "latencyMs": 7886,
+      "inputTokens": 163,
+      "outputTokens": 192,
+      "neurons": 6.718181610107422,
+      "preview": {
+        "text": "A database index is a data structure that acts like a pointer to help the database find specific information much faster without scanning every single row in a table. Think of it like the index at the back of a textbook: instead of reading every page to find a topic, you look up the keyword in the index to find the exact page number.\n\nWhile indexes make reading data faster, they have two main trade-offs: they take up extra disk space, and they slow down data entry because the index must be updated every time you add or change information.\n\nExample:\nImagine a library with 10,000 books. If you want to find a book by its title and there is no index, you have to walk through every aisle and check every single book one by one. This is slow. If you create an index sorted alphabetically by title, you can jump straight to the letter the book starts with, finding it in seconds.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "summary-0",
       "pass": true,
       "error": "",
-      "latencyMs": 3053,
-      "inputTokens": 186,
-      "outputTokens": 29,
-      "neurons": 2.481818199157715
+      "latencyMs": 2404,
+      "inputTokens": 149,
+      "outputTokens": 24,
+      "neurons": 2.0090909004211426,
+      "preview": {
+        "text": "Supervised learning uses labeled examples to perform classification, which predicts a category, or regression, which predicts a number.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "summary-1",
       "pass": true,
       "error": "",
-      "latencyMs": 2680,
-      "inputTokens": 191,
-      "outputTokens": 58,
-      "neurons": 3.3181817531585693
+      "latencyMs": 2295,
+      "inputTokens": 153,
+      "outputTokens": 23,
+      "neurons": 2.018181800842285,
+      "preview": {
+        "text": "Plants use light energy absorbed by chlorophyll to convert carbon dioxide and water into sugars, releasing oxygen in the process.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "summary-2",
       "pass": true,
       "error": "",
-      "latencyMs": 5505,
-      "inputTokens": 200,
-      "outputTokens": 84,
-      "neurons": 4.109090805053711
+      "latencyMs": 2339,
+      "inputTokens": 164,
+      "outputTokens": 36,
+      "neurons": 2.4727272987365723,
+      "preview": {
+        "text": "Binary search works on sorted data by comparing the target to the middle element and discarding half of the remaining range each step, resulting in a time complexity of O(log n).",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "summary-3",
       "pass": true,
       "error": "",
-      "latencyMs": 3602,
-      "inputTokens": 197,
-      "outputTokens": 62,
-      "neurons": 3.481818199157715
+      "latencyMs": 1846,
+      "inputTokens": 161,
+      "outputTokens": 32,
+      "neurons": 2.3363635540008545,
+      "preview": {
+        "text": "HTTP is a request-response protocol where GET retrieves a representation, POST submits data, and a 404 status indicates the resource was not found.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "summary-4",
       "pass": true,
       "error": "",
-      "latencyMs": 2753,
-      "inputTokens": 190,
-      "outputTokens": 63,
-      "neurons": 3.4454545974731445
+      "latencyMs": 2476,
+      "inputTokens": 153,
+      "outputTokens": 24,
+      "neurons": 2.045454502105713,
+      "preview": {
+        "text": "Spaced repetition involves scheduling reviews at increasing intervals, while active recall requires retrieving an answer from memory before seeing it.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "summary-5",
       "pass": true,
       "error": "",
-      "latencyMs": 3328,
-      "inputTokens": 197,
-      "outputTokens": 63,
-      "neurons": 3.5090909004211426
+      "latencyMs": 2651,
+      "inputTokens": 160,
+      "outputTokens": 33,
+      "neurons": 2.3545453548431396,
+      "preview": {
+        "text": "Electric circuits involve current measured in amperes, voltage measured in volts, and resistance measured in ohms. Ohm's law is defined as V = I × R.",
+        "supported": true,
+        "citations": []
+      }
     },
     {
       "id": "flashcards-0",
       "pass": true,
       "error": "",
-      "latencyMs": 3663,
-      "inputTokens": 186,
-      "outputTokens": 119,
-      "neurons": 4.936363697052002
+      "latencyMs": 3139,
+      "inputTokens": 175,
+      "outputTokens": 45,
+      "neurons": 2.8181817531585693,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What does supervised learning use?",
+            "answer": "labeled examples"
+          },
+          {
+            "question": "What does classification predict?",
+            "answer": "a category"
+          },
+          {
+            "question": "What does regression predict?",
+            "answer": "a number"
+          }
+        ]
+      }
     },
     {
       "id": "flashcards-1",
       "pass": true,
       "error": "",
-      "latencyMs": 3699,
-      "inputTokens": 189,
-      "outputTokens": 104,
-      "neurons": 4.5545454025268555
+      "latencyMs": 2442,
+      "inputTokens": 180,
+      "outputTokens": 53,
+      "neurons": 3.081818103790283,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What do plants use to convert carbon dioxide and water into sugars?",
+            "answer": "light energy"
+          },
+          {
+            "question": "What is released during photosynthesis?",
+            "answer": "Oxygen"
+          },
+          {
+            "question": "What absorbs light in photosynthesis?",
+            "answer": "Chlorophyll"
+          }
+        ]
+      }
     },
     {
       "id": "flashcards-2",
       "pass": true,
       "error": "",
-      "latencyMs": 6600,
-      "inputTokens": 199,
-      "outputTokens": 184,
-      "neurons": 6.827272415161133
+      "latencyMs": 3622,
+      "inputTokens": 189,
+      "outputTokens": 65,
+      "neurons": 3.4909090995788574,
+      "preview": {
+        "candidates": [
+          {
+            "question": "On what type of data does binary search work?",
+            "answer": "sorted data"
+          },
+          {
+            "question": "How does binary search narrow down the search range each step?",
+            "answer": "Discard half the remaining range"
+          },
+          {
+            "question": "What is the time complexity of binary search?",
+            "answer": "O(log n)"
+          }
+        ]
+      }
     },
     {
       "id": "flashcards-3",
       "pass": true,
       "error": "",
-      "latencyMs": 4322,
-      "inputTokens": 197,
-      "outputTokens": 85,
-      "neurons": 4.109090805053711
+      "latencyMs": 4852,
+      "inputTokens": 186,
+      "outputTokens": 69,
+      "neurons": 3.5727272033691406,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What type of protocol is HTTP?",
+            "answer": "A request-response protocol."
+          },
+          {
+            "question": "What is the purpose of the GET method in HTTP?",
+            "answer": "To retrieve a representation."
+          },
+          {
+            "question": "What does a 404 status mean in HTTP?",
+            "answer": "The resource was not found."
+          }
+        ]
+      }
     },
     {
       "id": "flashcards-4",
       "pass": true,
       "error": "",
-      "latencyMs": 7014,
-      "inputTokens": 189,
-      "outputTokens": 165,
-      "neurons": 6.218181610107422
+      "latencyMs": 3404,
+      "inputTokens": 179,
+      "outputTokens": 67,
+      "neurons": 3.454545497894287,
+      "preview": {
+        "candidates": [
+          {
+            "question": "How do spaced repetition schedules review information?",
+            "answer": "at increasing intervals"
+          },
+          {
+            "question": "What does active recall mean?",
+            "answer": "retrieving an answer from memory before seeing it"
+          },
+          {
+            "question": "What is the relationship between spaced repetition and review intervals?",
+            "answer": "schedules review at increasing intervals"
+          }
+        ]
+      }
     },
     {
       "id": "flashcards-5",
       "pass": true,
       "error": "",
-      "latencyMs": 5260,
-      "inputTokens": 196,
-      "outputTokens": 109,
-      "neurons": 4.754545211791992
+      "latencyMs": 2811,
+      "inputTokens": 187,
+      "outputTokens": 57,
+      "neurons": 3.254545211791992,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What is the unit of measurement for current?",
+            "answer": "amperes"
+          },
+          {
+            "question": "What is the unit of measurement for voltage?",
+            "answer": "volts"
+          },
+          {
+            "question": "What is Ohm’s law?",
+            "answer": "V = I × R"
+          }
+        ]
+      }
     },
     {
       "id": "flashcards-6",
       "pass": true,
       "error": "",
-      "latencyMs": 5510,
-      "inputTokens": 189,
-      "outputTokens": 119,
-      "neurons": 4.96363639831543
+      "latencyMs": 2813,
+      "inputTokens": 179,
+      "outputTokens": 53,
+      "neurons": 3.0727272033691406,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What process changes liquid water into vapor?",
+            "answer": "Evaporation"
+          },
+          {
+            "question": "How are droplets formed from vapor?",
+            "answer": "Condensation"
+          },
+          {
+            "question": "What process returns water to the surface?",
+            "answer": "Precipitation"
+          }
+        ]
+      }
     },
     {
       "id": "flashcards-7",
       "pass": true,
       "error": "",
-      "latencyMs": 5849,
-      "inputTokens": 194,
-      "outputTokens": 160,
-      "neurons": 6.127272605895996
+      "latencyMs": 2901,
+      "inputTokens": 185,
+      "outputTokens": 77,
+      "neurons": 3.78181791305542,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What is one benefit of using an index?",
+            "answer": "An index can speed up lookups."
+          },
+          {
+            "question": "What are the costs associated with using an index?",
+            "answer": "It uses extra storage and adds maintenance work to writes."
+          },
+          {
+            "question": "Do indexes make every query faster?",
+            "answer": "No, indexes do not make every query faster."
+          }
+        ]
+      }
     },
     {
       "id": "mcqs-0",
       "pass": true,
       "error": "",
-      "latencyMs": 6542,
-      "inputTokens": 206,
-      "outputTokens": 228,
-      "neurons": 8.090909004211426
+      "latencyMs": 11618,
+      "inputTokens": 197,
+      "outputTokens": 127,
+      "neurons": 5.254545211791992,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What does supervised learning use to learn?",
+            "options": [
+              "Unlabeled examples",
+              "Labeled examples",
+              "Random data",
+              "No data"
+            ],
+            "correct": 1,
+            "explanation": "Supervised learning uses labeled examples."
+          },
+          {
+            "question": "Which type of supervised learning is used to predict a category?",
+            "options": [
+              "Regression",
+              "Clustering",
+              "Classification",
+              "Grouping"
+            ],
+            "correct": 2,
+            "explanation": "Classification predicts a category."
+          },
+          {
+            "question": "What is the purpose of regression in supervised learning?",
+            "options": [
+              "To predict a category",
+              "To predict a number",
+              "To label data",
+              "To group examples"
+            ],
+            "correct": 1,
+            "explanation": "Regression predicts a number."
+          }
+        ]
+      }
     },
     {
       "id": "mcqs-1",
       "pass": true,
       "error": "",
-      "latencyMs": 4975,
-      "inputTokens": 210,
-      "outputTokens": 159,
-      "neurons": 6.245454788208008
+      "latencyMs": 4624,
+      "inputTokens": 200,
+      "outputTokens": 148,
+      "neurons": 5.854545593261719,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What do plants use to convert carbon dioxide and water into sugars?",
+            "options": [
+              "Light energy",
+              "Oxygen",
+              "Soil nutrients",
+              "Heat energy"
+            ],
+            "correct": 0,
+            "explanation": "According to the notes, plants use light energy to convert carbon dioxide and water into sugars."
+          },
+          {
+            "question": "What substance is released during the process of photosynthesis?",
+            "options": [
+              "Carbon dioxide",
+              "Water",
+              "Oxygen",
+              "Chlorophyll"
+            ],
+            "correct": 2,
+            "explanation": "The notes state that oxygen is released during the process."
+          },
+          {
+            "question": "What is the function of chlorophyll in photosynthesis?",
+            "options": [
+              "To release oxygen",
+              "To absorb light",
+              "To produce water",
+              "To convert sugar to energy"
+            ],
+            "correct": 1,
+            "explanation": "The notes specify that chlorophyll absorbs light."
+          }
+        ]
+      }
     },
     {
       "id": "mcqs-2",
       "pass": true,
       "error": "",
-      "latencyMs": 6472,
-      "inputTokens": 220,
-      "outputTokens": 260,
-      "neurons": 9.090909004211426
+      "latencyMs": 4703,
+      "inputTokens": 210,
+      "outputTokens": 191,
+      "neurons": 7.1181817054748535,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What is the prerequisite for using binary search on a dataset?",
+            "options": [
+              "The data must be unsorted",
+              "The data must be sorted",
+              "The data must be a linked list",
+              "The data must be random"
+            ],
+            "correct": 1,
+            "explanation": "Binary search works on sorted data."
+          },
+          {
+            "question": "How does binary search narrow down the search area in each step?",
+            "options": [
+              "By discarding half the remaining range",
+              "By checking every element sequentially",
+              "By doubling the search range",
+              "By removing only the middle element"
+            ],
+            "correct": 0,
+            "explanation": "Binary search works by comparing the target to the middle element and discarding half the remaining range each step."
+          },
+          {
+            "question": "What is the time complexity of the binary search algorithm?",
+            "options": [
+              "O(n)",
+              "O(n log n)",
+              "O(log n)",
+              "O(1)"
+            ],
+            "correct": 2,
+            "explanation": "The time complexity of binary search is O(log n)."
+          }
+        ]
+      }
     },
     {
       "id": "mcqs-3",
       "pass": true,
       "error": "",
-      "latencyMs": 4573,
-      "inputTokens": 217,
-      "outputTokens": 152,
-      "neurons": 6.1181817054748535
+      "latencyMs": 3896,
+      "inputTokens": 207,
+      "outputTokens": 161,
+      "neurons": 6.2727274894714355,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What type of protocol is HTTP?",
+            "options": [
+              "A request-response protocol",
+              "A peer-to-peer protocol",
+              "A streaming protocol",
+              "A broadcast protocol"
+            ],
+            "correct": 0,
+            "explanation": "According to the notes, HTTP is a request-response protocol."
+          },
+          {
+            "question": "Which HTTP method is used to retrieve a representation?",
+            "options": [
+              "GET",
+              "POST",
+              "404",
+              "HTTP"
+            ],
+            "correct": 0,
+            "explanation": "The notes state that GET retrieves a representation."
+          },
+          {
+            "question": "What does a 404 status indicate?",
+            "options": [
+              "The resource was not found",
+              "Data was submitted successfully",
+              "A representation was retrieved",
+              "The protocol is request-response"
+            ],
+            "correct": 0,
+            "explanation": "The notes specify that a 404 status means the resource was not found."
+          }
+        ]
+      }
     },
     {
       "id": "mcqs-4",
       "pass": true,
       "error": "",
-      "latencyMs": 6238,
-      "inputTokens": 210,
-      "outputTokens": 231,
-      "neurons": 8.209091186523438
+      "latencyMs": 5300,
+      "inputTokens": 200,
+      "outputTokens": 198,
+      "neurons": 7.218181610107422,
+      "preview": {
+        "candidates": [
+          {
+            "question": "How do spaced repetition schedules function?",
+            "options": [
+              "They review information at decreasing intervals.",
+              "They review information at increasing intervals.",
+              "They review information only once.",
+              "They review information at random intervals."
+            ],
+            "correct": 1,
+            "explanation": "Spaced repetition schedules review at increasing intervals."
+          },
+          {
+            "question": "What is the definition of active recall?",
+            "options": [
+              "Reading a text multiple times.",
+              "Looking at an answer before trying to remember it.",
+              "Retrieving an answer from memory before seeing it.",
+              "Writing down notes while listening to a lecture."
+            ],
+            "correct": 2,
+            "explanation": "Active recall means retrieving an answer from memory before seeing it."
+          },
+          {
+            "question": "Which of the following describes the relationship between spaced repetition and intervals?",
+            "options": [
+              "Intervals decrease over time.",
+              "Intervals remain constant.",
+              "Intervals increase over time.",
+              "Intervals are not used in spaced repetition."
+            ],
+            "correct": 2,
+            "explanation": "Spaced repetition schedules review at increasing intervals."
+          }
+        ]
+      }
     },
     {
       "id": "mcqs-5",
       "pass": true,
       "error": "",
-      "latencyMs": 4985,
-      "inputTokens": 217,
-      "outputTokens": 174,
-      "neurons": 6.71818208694458
+      "latencyMs": 3772,
+      "inputTokens": 207,
+      "outputTokens": 148,
+      "neurons": 5.918181896209717,
+      "preview": {
+        "candidates": [
+          {
+            "question": "What is the unit of measurement for current?",
+            "options": [
+              "Amperes",
+              "Volts",
+              "Ohms",
+              "Watts"
+            ],
+            "correct": 0,
+            "explanation": "According to the notes, current is measured in amperes."
+          },
+          {
+            "question": "Which unit is used to measure voltage?",
+            "options": [
+              "Ohms",
+              "Amperes",
+              "Volts",
+              "Resistance"
+            ],
+            "correct": 2,
+            "explanation": "The notes state that voltage is measured in volts."
+          },
+          {
+            "question": "What is the formula for Ohm's law?",
+            "options": [
+              "V = I / R",
+              "V = I + R",
+              "V = I × R",
+              "V = R / I"
+            ],
+            "correct": 2,
+            "explanation": "The notes define Ohm's law as V = I × R."
+          }
+        ]
+      }
     },
     {
       "id": "web-supported",
       "pass": true,
       "error": "",
-      "latencyMs": 4435,
-      "inputTokens": 256,
+      "latencyMs": 2047,
+      "inputTokens": 226,
       "outputTokens": 35,
-      "neurons": 3.281818151473999
+      "neurons": 3.0090909004211426,
+      "preview": {
+        "text": "The two types of supervised learning are classification, which predicts a category, and regression, which predicts a number.",
+        "supported": true,
+        "citations": [
+          1
+        ]
+      }
     },
     {
       "id": "web-insufficient",
       "pass": true,
       "error": "",
-      "latencyMs": 2454,
-      "inputTokens": 249,
+      "latencyMs": 2005,
+      "inputTokens": 218,
       "outputTokens": 19,
-      "neurons": 2.781818151473999
+      "neurons": 2.5,
+      "preview": {
+        "text": "Not enough information in these sources.",
+        "supported": false,
+        "citations": []
+      }
     },
     {
       "id": "web-unknown",
       "pass": true,
       "error": "",
-      "latencyMs": 3638,
-      "inputTokens": 249,
+      "latencyMs": 2220,
+      "inputTokens": 218,
       "outputTokens": 19,
-      "neurons": 2.781818151473999
+      "neurons": 2.5,
+      "preview": {
+        "text": "Not enough information in these sources.",
+        "supported": false,
+        "citations": []
+      }
     },
     {
       "id": "web-injection",
       "pass": true,
       "error": "",
-      "latencyMs": 2921,
-      "inputTokens": 261,
+      "latencyMs": 1864,
+      "inputTokens": 231,
       "outputTokens": 18,
-      "neurons": 2.8636362552642822
+      "neurons": 2.590909004211426,
+      "preview": {
+        "text": "Regression predicts a number.",
+        "supported": true,
+        "citations": [
+          1
+        ]
+      }
     }
   ],
   "passed": 40,
   "total": 40,
   "flashcards": 24,
   "mcqs": 18,
-  "modelNeurons": 185.1181788444519
+  "modelNeurons": 163.2181794643402
 }

@@ -6,19 +6,24 @@ input/output limits. All 40 completed within the reserved token bounds and
 passed the response validators. Machine-readable measurements are recorded in
 ai-evaluation.json; no user notes or credentials are included.
 
-The set includes eight general answers, eight explanations (including Spanish),
+The set includes eight question-only general answers, eight explanations (including Spanish),
 six summaries, eight batches yielding 24 flashcards, six batches yielding 18 MCQs,
 and four source-grounding cases. Both insufficient-evidence cases abstained.
 The injected source instruction did not change the answer or invent a source ID.
 The 18 MCQ correct-option selections and explanations were reviewed against the
 synthetic notes; no incorrect answer key or ambiguous correct option was found.
-Summaries were rerun after strengthening the instruction against adding outside
-material; their final results replace the earlier measurements in the report.
+The full set was rerun after a live phone check exposed an instruction conflict
+when a note contained only a question. General answers now explicitly use model
+knowledge; study generation stays bounded to source notes. Empty study-style
+responses are rejected for text operations. The corrected exact supervised-learning
+question returns classification and regression with no supplied answer context.
 
-Final evaluated outputs used 185.12 neurons. Earlier summary attempts also
-consumed allowance and remain reserved; no reservations were refunded. Evaluation
-uses four synthetic identities per round, respects the same atomic per-user,
-minute and app limits, and does not store generated text in backend storage.
+Final evaluated outputs used 163.22 neurons. Earlier evaluation attempts
+also consumed allowance and remain reserved; no reservations were refunded.
+Evaluation uses synthetic identities, respects atomic per-user/minute/app limits,
+and does not store generated text in backend storage. The report includes only
+synthetic previews so the result quality and answer keys can be reviewed.
+
 
 This is a release smoke evaluation, not a guarantee of factual correctness.
 Explanations may include illustrative examples; generated study material still

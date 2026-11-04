@@ -790,7 +790,7 @@ export async function syncOperation(operation:string,args:any={},account=storage
 }
 
 // Device-local research is deliberately outside workspace records and exports.
-export type AiDraft={operation:'answer'|'explain'|'summarize'|'flashcards'|'mcqs';mode:'general'|'web';context:string;sourceIds:string[];sourceTexts:string[];selectionIds?:string[];complete:boolean;candidates?:any[];selected?:number[];sources?:{id:number;title:string;text:string;url:string;source:string}[];title?:string;reader?:{hash:string;selection:any;fingerprint:string};supported?:boolean};
+export type AiDraft={operation:'answer'|'explain'|'summarize'|'flashcards'|'mcqs';mode:'general'|'web';context:string;sourceIds:string[];sourceTexts:string[];selectionIds?:string[];complete:boolean;interrupted?:string;candidates?:any[];selected?:number[];sources?:{id:number;title:string;text:string;url:string;source:string}[];title?:string;reader?:{hash:string;selection:any;fingerprint:string};supported?:boolean};
 export type ResearchDraft={id:string;query:string;answer:string;updatedAt:number;insertedId?:string;ai?:AiDraft};
 export type ResearchState={generation:string;drafts:Record<string,ResearchDraft>};
 export async function researchStore(change?: (value:ResearchState)=>ResearchState, expectedGeneration?:string, name=storageName):Promise<ResearchState>{
