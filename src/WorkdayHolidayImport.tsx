@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Workspace } from "./data";
 import { WorkdayDialog } from "./WorkdayDialog";
 import { workdaysV2, importHolidaysV2 } from "./workdays-v2.mjs";
-import { parseHolidaySource, parsePdfPages } from "./workday-holidays.mjs";
+import { parseHolidaySource, parsePdfPages, misimportedHoliday } from "./workday-holidays.mjs";
 import { validEventDate } from "./calendar-events.mjs";
 export default function WorkdayHolidayImport({
   doc,
@@ -80,6 +80,12 @@ export default function WorkdayHolidayImport({
       if (next.length > 1000)
         throw Error("Review fewer than 1,000 rows; select fewer pages.");
       setRows(next);
+      // Overwrite names that an earlier, faulty import left on these dates.
+      setReplace(
+        next
+          .filter((r) => r.date && w.holidays[r.date] && misimportedHoliday(r.date, w.holidays[r.date]))
+          .map((r) => r.date),
+      );
       if (!next.length)
         setError(
           "No dates found. Try text recognition for a scanned PDF, or paste/edit the list.",

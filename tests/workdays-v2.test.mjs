@@ -24,6 +24,8 @@ import {
   holidayDate,
   positionedLines,
   parsePdfPages,
+  misimportedHoliday,
+  repairHolidays,
 } from "../src/workday-holidays.mjs";
 import {
   seed,
@@ -391,4 +393,25 @@ test("holiday tables with a row number and month column use the full date, not '
     ["2026-04-03", "Good Friday"],
     ["2026-11-08", "Diwali"],
   ]);
+});
+test("holidays saved on the wrong date by the old importer can be repaired", () => {
+  assert.deepEqual(misimportedHoliday("2026-01-02", "15-Jan-2026 Thursday Makara Sankranti/ Pongal"), {
+    date: "2026-01-15",
+    name: "Makara Sankranti / Pongal",
+  });
+  assert.equal(misimportedHoliday("2026-01-26", "Republic Day"), null);
+  assert.equal(misimportedHoliday("2026-05-01", "May Day"), null, "a month word alone is not a date");
+  const fixed = repairHolidays({
+    "2026-01-01": "01-Jan-2026 Thursday New Year Day", // right date, messy name
+    "2026-01-02": "15-Jan-2026 Thursday Makara Sankranti/ Pongal", // wrong date
+    "2026-01-03": "26-Jan-2026 Monday Republic Day", // wrong date, correct copy exists
+    "2026-01-26": "Republic Day",
+    "2026-02-14": "Team day", // untouched
+  });
+  assert.deepEqual(fixed, {
+    "2026-01-01": "New Year Day",
+    "2026-01-15": "Makara Sankranti / Pongal",
+    "2026-01-26": "Republic Day",
+    "2026-02-14": "Team day",
+  });
 });

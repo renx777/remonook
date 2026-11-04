@@ -186,3 +186,28 @@ export function parsePdfPages(text) {
   }
   return pages;
 }
+
+/** A holiday saved by the old importer carries its real date in the name,
+ * e.g. "15-Jan-2026 Thursday Makara Sankranti" saved on 2 January.
+ * Returns the date and name it should have, or null. */
+export function misimportedHoliday(date, name) {
+  const found = pickDate(String(name));
+  if (!found || found.start > 0) return null;
+  const parsed = holidayDate(found.text, String(date).slice(0, 4));
+  const clean = cleanName(String(name).slice(found.end));
+  if (!parsed.date || parsed.ambiguous || !clean) return null;
+  return { date: parsed.date, name: clean };
+}
+/** Move mis-imported holidays to the date in their name and tidy the name.
+ * Correct entries always win; a mis-imported duplicate of one is dropped. */
+export function repairHolidays(holidays) {
+  const out = {},
+    fixes = [];
+  for (const [date, name] of Object.entries(holidays)) {
+    const fix = misimportedHoliday(date, name);
+    if (fix) fixes.push(fix);
+    else out[date] = name;
+  }
+  for (const fix of fixes) if (!out[fix.date]) out[fix.date] = fix.name;
+  return out;
+}

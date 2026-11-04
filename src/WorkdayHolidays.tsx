@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Workspace } from "./data";
 import { validEventDate } from "./calendar-events.mjs";
-import { updateWorkdaysV2, scheduled, weekday } from "./workdays-v2.mjs";
+import { updateWorkdaysV2, scheduleOn, weekday } from "./workdays-v2.mjs";
+import { misimportedHoliday, repairHolidays } from "./workday-holidays.mjs";
 import { longDate } from "./workdays-stats";
 import { Icon } from "./icons";
 
@@ -28,6 +29,14 @@ export function editHoliday(
   });
 }
 
+/** "weekend", "day off" (outside your schedule's weekdays) or "" for a normal workday. */
+function dayKind(w: any, date: string) {
+  const wd = weekday(date);
+  if (wd === 0 || wd === 6) return "weekend";
+  const plan = scheduleOn(w, date);
+  return plan && !plan.weekdays.includes(wd) ? "day off" : "";
+}
+
 function HolidayRow({
   w,
   date,
@@ -43,14 +52,14 @@ function HolidayRow({
 }) {
   const [draft, setDraft] = useState(name);
   useEffect(() => setDraft(name), [name]);
-  const workday = scheduled(w, date),
-    weekend = weekday(date) === 0 || weekday(date) === 6;
+  const kind = dayKind(w, date),
+    wrong = misimportedHoliday(date, name);
   const saveName = () => {
     if (draft.trim() === name) return;
     if (!change((d) => editHoliday(d, date, { date, name: draft }))) setDraft(name);
   };
   return (
-    <li className="wd2-holiday">
+    <li className={"wd2-holiday" + (wrong ? " is-wrong" : "")}>
       <input
         type="date"
         aria-label={`Date of ${name}`}
@@ -63,7 +72,7 @@ function HolidayRow({
       />
       <span className="wd2-holiday-day">
         {longDate(date, { weekday: "short" })}
-        {!workday && <small>{weekend ? "weekend" : "day off"}</small>}
+        {kind && <small>{kind}</small>}
       </span>
       <input
         aria-label={`Name of holiday on ${date}`}
@@ -86,6 +95,11 @@ function HolidayRow({
       >
         <Icon name="trash" size={15} />
       </button>
+      {wrong && (
+        <small className="wd2-holiday-wrong">
+          Name says {longDate(wrong.date, { weekday: "short", day: "numeric", month: "short" })}
+        </small>
+      )}
     </li>
   );
 }
@@ -112,7 +126,9 @@ export function WorkdayHolidays({
   const list = (Object.entries(w.holidays) as [string, string][])
       .filter(([d]) => d.startsWith(year))
       .sort(([a], [b]) => a.localeCompare(b)),
-    onWorkdays = list.filter(([d]) => scheduled(w, d)).length,
+    weekends = list.filter(([d]) => dayKind(w, d) === "weekend").length,
+    fixable = (Object.entries(w.holidays) as [string, string][]).filter(([d, n]) => misimportedHoliday(d, n)),
+    [confirmClear, setConfirmClear] = useState(false),
     otherYears = Object.keys(w.holidays).filter((d) => !d.startsWith(year)).length;
   const change = (fn: (d: Workspace) => Workspace) => {
     try {
@@ -138,7 +154,7 @@ export function WorkdayHolidays({
         </span>
         <p className="wd2-muted">
           {list.length
-            ? `${list.length} ${list.length === 1 ? "holiday" : "holidays"} · ${onWorkdays} on workdays, which don't count towards targets`
+            ? `${list.length} ${list.length === 1 ? "holiday" : "holidays"}${weekends ? ` · ${weekends} on a weekend` : ""}`
             : "No holidays this year."}
           {otherYears ? ` · ${otherYears} in other years` : ""}
         </p>
@@ -147,12 +163,65 @@ export function WorkdayHolidays({
           Import list
         </button>
       </div>
+      {fixable.length > 0 && (
+        <div className="wd2-holiday-fix" role="status">
+          <p>
+            <b>
+              {fixable.length} {fixable.length === 1 ? "holiday was" : "holidays were"} saved wrongly
+            </b>{" "}
+            by an earlier import: the real date and weekday ended up in the name, for example “{fixable[0][1]}”.
+            Fixing moves each one to the date in its name and keeps just the holiday name. If that date already has the holiday, the extra copy is removed.
+          </p>
+          <button
+            className="wd2-primary"
+            disabled={disabled}
+            onClick={() =>
+              change((d) => updateWorkdaysV2(d, (x: any) => ({ ...x, holidays: repairHolidays(x.holidays) })))
+            }
+          >
+            Fix {fixable.length} {fixable.length === 1 ? "holiday" : "holidays"}
+          </button>
+        </div>
+      )}
       {list.length > 0 && (
         <ul className="wd2-holiday-list">
           {list.map(([date, name]) => (
             <HolidayRow key={date} w={w} date={date} name={name} disabled={disabled} change={change} />
           ))}
         </ul>
+      )}
+      {list.length > 1 && (
+        <p className="wd2-holiday-clear">
+          {confirmClear ? (
+            <>
+              Remove all {list.length} holidays in {year}?{" "}
+              <button
+                className="wd2-link wd2-danger"
+                disabled={disabled}
+                onClick={() => {
+                  if (
+                    change((d) =>
+                      updateWorkdaysV2(d, (x: any) => ({
+                        ...x,
+                        holidays: Object.fromEntries(Object.entries(x.holidays).filter(([k]) => !k.startsWith(year))),
+                      })),
+                    )
+                  )
+                    setConfirmClear(false);
+                }}
+              >
+                Remove all
+              </button>{" "}
+              <button className="wd2-link" onClick={() => setConfirmClear(false)}>
+                Keep them
+              </button>
+            </>
+          ) : (
+            <button className="wd2-link" disabled={disabled} onClick={() => setConfirmClear(true)}>
+              Remove all holidays in {year}…
+            </button>
+          )}
+        </p>
       )}
       <form
         className="wd2-holiday wd2-holiday-add"

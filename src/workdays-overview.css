@@ -717,3 +717,52 @@
     grid-area: name;
   }
 }
+.wd2-holiday.is-wrong input:not([type="date"]) {
+  color: var(--muted);
+}
+.wd2-holiday-wrong {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--wd-now);
+}
+.wd2-holiday-fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--wd-now) 40%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--wd-now) 7%, transparent);
+}
+.wd2-holiday-fix p {
+  flex: 1;
+  min-width: 220px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.wd2-holiday-clear {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.app .wd2-dialog .wd2-holiday-clear .wd2-link {
+  min-height: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.app .wd2-dialog .wd2-danger {
+  color: var(--wd-now);
+}
+@media (max-width: 760px) {
+  .wd2-holiday-wrong {
+    grid-area: auto;
+  }
+  .wd2-holiday {
+    grid-template-areas: "date day del" "name name name" "warn warn warn";
+  }
+  .wd2-holiday-wrong {
+    grid-area: warn;
+  }
+}
