@@ -1,3 +1,6 @@
+import {aiContext,insertAi} from './ai-assist.mjs';
+import {useResearchDrafts} from './ai-drafts';
+import type {ResearchDraft} from './data';
 import {planTrashPurge} from './trash-purge';
 import {cacheArticle,articleAccount} from './article-cache.mjs';
 import {uploadCachedArticles} from './article-api';
@@ -121,6 +124,7 @@ import "./mcq.css";
 import "./mobile.css";
 const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
+const AiAssist = React.lazy(()=>import('./AiAssist'));
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
 const Bookshelf = React.lazy(()=>import('./Bookshelf').then(module=>({default:module.Bookshelf})));
 const Dashboard = React.lazy(()=>import('./Dashboard').then(module=>({default:module.Dashboard})));
@@ -183,6 +187,9 @@ function Dialog({
 const DiagramEditor=React.lazy(()=>import('./DiagramEditor').then(m=>({default:m.DiagramEditor})));
 const DrawingEditor=React.lazy(()=>import('./DrawingEditor').then(m=>({default:m.DrawingEditor})));
 export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
+  const research=useResearchDrafts(storageAccountKey());
+  const [researchTarget,setResearchTarget]=useState<string|null>(null);
+  const researchBusy=useRef(false),researchOrigin=useRef<HTMLElement|null>(null);
   const [readerTarget,setReaderTarget]=useState<{hash:string;unit?:number;id?:string}|null>(null);
   const readerOrigin=useRef<HTMLElement|null>(null);
   const closeReader=React.useCallback(()=>{if(viewTimer.current)publishView(true);setReaderTarget(null);requestAnimationFrame(()=>{const element=readerOrigin.current?.isConnected?readerOrigin.current:document.querySelector<HTMLElement>('.topbar button');element?.focus();});},[]);
@@ -482,6 +489,33 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setViewMenu(false);
     setMenu(id);
   };
+  const openAi=async(id:string,mode:'general'|'web'='general')=>{
+    if(!research.state)return;try{
+      const current=docRef.current!,context=aiContext(current.tables.bullets,id,menuSelection.current.includes(id)?menuSelection.current:[]),node=current.tables.bullets.find(n=>n.id===context.id);
+      researchOrigin.current=menuAnchor.current;setMenu(null);setEditing(null);
+      const prior=research.state.drafts[context.id];
+      if(!prior?.ai)await research.put({id:context.id,query:node?.text||'',answer:prior?.answer||'',updatedAt:Date.now(),ai:{operation:'answer',mode,context:context.context,sourceIds:context.sourceIds,sourceTexts:context.sourceIds.map(id=>current.tables.bullets.find(n=>n.id===id)?.text||''),complete:false}},context.id);
+      setResearchTarget(context.id);
+    }catch(e){showError(e);}
+  };
+  const openReaderAi=async(book:any,selection:any,fingerprint:string)=>{
+    const id='reader-'+fingerprint;try{if(!research.state)throw Error('Drafts are still loading.');
+      if(!research.state.drafts[id])await research.put({id,query:'Explain this passage',answer:'',updatedAt:Date.now(),ai:{operation:'explain',mode:'general',context:selection.quote,sourceIds:[],sourceTexts:[],complete:false,reader:{hash:book.hash,selection,fingerprint}}},id);
+      closeReader();setResearchTarget(id);
+    }catch(e){showError(e);}
+  };
+  const insertAiDraft=async(draft:ResearchDraft)=>{
+    if(researchBusy.current)return;researchBusy.current=true;
+    try{if(failed.current)throw Error('Saving is paused. Your draft is kept.');
+      const insertion=draft.insertedId||crypto.randomUUID(),saved={...draft,insertedId:insertion};await research.put(saved,draft.id);
+      if(failed.current)throw Error('Saving is paused. Your draft is kept.');
+      const current=docRef.current!,next=insertAi(current,saved);if(next!==current)commit(withNodes(next,next.tables.bullets as Node[]));
+      await flush();if(failed.current||!persisted.current?.tables.bullets.some(n=>n.id===insertion))throw Error('Your insertion could not be saved. The draft is kept; retry saving.');
+      await research.put(null,draft.id);setResearchTarget(null);navigateAiResult(insertion);setNotice('Added to your notes. Undo restores the previous outline.');
+    }finally{researchBusy.current=false;}
+  };
+  const navigateAiResult=(id:string)=>{setTab('notes');setSearch('');setScope(docRef.current!.tables.bullets.find(n=>n.id===id)?.parentId||null);setEditing(id);setCaret(null);};
+  const closeResearch=()=>{setResearchTarget(null);requestAnimationFrame(()=>{if(researchOrigin.current?.isConnected)researchOrigin.current.focus();});};
   const attachImages = async (id: string, files: File[]) => {
     id=sourceId(docRef.current!.tables.bullets,id);
     if (working || failed.current || !files.length) return;
@@ -1799,9 +1833,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           setNotice("MCQ saved. Study it in Study Desk, or make an MCQ notebook from its parent branch.");
         } catch (error) { showError(error); }
       }} />}
+      {researchTarget!==null&&research.state?.drafts[researchTarget]?.ai&&<React.Suspense fallback={<div className="research-panel" role="status">Opening AI assist…</div>}><AiAssist key={researchTarget+storageAccountKey()} draft={research.state.drafts[researchTarget]} doc={doc} user={cloudUser} disabled={disabled||failed.current} error={research.error} onEdit={draft=>research.put(draft,draft.id)} onInsert={insertAiDraft} onClose={closeResearch} onDiscard={async()=>{await research.put(null,researchTarget);setResearchTarget(null);}}/></React.Suspense>}
+      {researchTarget===''&&<aside className="research-panel ai-panel" role="dialog" aria-label="AI drafts"><header><h2>AI drafts</h2><button onClick={closeResearch}>Close</button></header><div className="research-body">{Object.values(research.state?.drafts||{}).filter(d=>d.ai).map(d=><button className="research-draft-item" key={d.id} onClick={()=>setResearchTarget(d.id)}>{d.query||'Reading passage'}</button>)}{!Object.keys(research.state?.drafts||{}).length&&<p>No unfinished AI drafts.</p>}</div></aside>}
       {menuNode && (
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
+            <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>AI assist…</span></button><button disabled={!research.state} onClick={()=>void openAi(menuNode.id,'web')}><Icon name="search" size={16}/><span>Research answer…</span></button>
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
             <button disabled={disabled} onClick={()=>command('action:mindmap',menuNode.id,0,0)}><Icon name="mindmap" size={16}/><span>{menuNode.mindmap?'Remove mindmap':'Mindmap'}</span></button>
             <button disabled={disabled} onClick={()=>command('action:date',menuNode.id,0,0)}><Icon name="calendar" size={16}/><span>Add date…</span></button>
@@ -1971,6 +2008,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }}><label className="field-label">Share URL or embed code<input data-autofocus aria-label="Media share URL" placeholder="Paste a YouTube, Instagram or image link" value={embedValue} onChange={event => setEmbedValue(event.target.value)} /></label><p className="dialog-muted">Supported share links become players in your notes and flashcards. Players load when you choose to open them.</p><button className="study-primary" type="submit" disabled={disabled || !embedValue.trim()}>Insert link</button></form></Dialog>}
       {viewMenu && <OutlinePopover title="Outline options" anchor={viewAnchor.current} onClose={() => setViewMenu(false)}>
         <div className="popover-quick-actions">
+          <button disabled={!research.state} onClick={()=>{setViewMenu(false);setResearchTarget('');}}>AI drafts</button>
           <button disabled={disabled} onClick={() => editorPrefs("showCompleted", !showCompleted)}><Icon name="check" size={16} /><span>{showCompleted ? "Hide completed" : "Show completed"}</span></button>
           {[false, true].map(collapsed => <button key={String(collapsed)} disabled={disabled} onClick={() => { mutate(ns => { const ids = new Set(rows(ns, scope, true).map((row: any) => row.bullet.id)); return ns.map(n => ids.has(n.id) ? { ...n, collapsed } : n); }); setViewMenu(false); }}><Icon name={collapsed ? "collapse" : "expand"} size={16} /><span>{collapsed ? "Collapse all" : "Expand all"}</span></button>)}
           <button onClick={() => { toggleSidebar(); setViewMenu(false); }}><Icon name="sidebar" size={16} /><span>{sidebarOpen ? "Hide sidebar" : "Show sidebar"}</span><kbd>Ctrl \</kbd></button>
@@ -1982,7 +2020,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         </div>
       </OutlinePopover>}
       <GuidedTours key={cloudUser?.uid||'guest'} open={dialog==='help'} account={storageAccountKey()} signedIn={!!cloudUser} onOpenChange={open=>setDialog(open?'help':null)} onCloseMenus={()=>{setMenu(null);setViewMenu(false);}} onNavigate={async nextTab=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');if(readerTarget)closeReader();setMenu(null);setViewMenu(false);setEditing(null);setTab(nextTab);if(nextTab==='notes'){setScope(null);setSearch('');}}} onBulletMenu={()=>{document.querySelector('[data-tour-active-bullet]')?.removeAttribute('data-tour-active-bullet');const row=[...document.querySelectorAll<HTMLElement>('.outline-row[data-node-id]')].find(el=>el.getClientRects().length>0&&docRef.current?.tables.bullets.some(n=>n.id===el.dataset.nodeId&&n.blockStyle!=='divider')),button=row&&[...row.querySelectorAll<HTMLButtonElement>('[aria-label="Bullet actions"]')].find(el=>el.getClientRects().length>0);if(!button)return false;button.setAttribute('data-tour-active-bullet','');return true;}}/>
-      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader onHelp={()=>setDialog("help")} user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onNote={id=>navigateTo(id)} renderNotes={()=> <React.Suspense fallback={<p role="status">Loading book notes…</p>}><ReaderBookNotes onCommit={()=>{if(viewTimer.current)publishView(true);}} doc={doc} hash={readerTarget.hash} assets={assets} disabled={disabled||failed.current} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onFullNotes={id=>{closeReader();navigateTo(id);}} onAdd={()=>{if(failed.current)throw Error('Saving is paused. Open Account settings to retry.');const current=docRef.current!,book=readingBook(current,readerTarget.hash),id=crypto.randomUUID();const next=addReadingNote(current,book,id);commit(withNodes(next,next.tables.bullets as Node[]));return id;}}/></React.Suspense>} onScreenshot={async(unit,blob)=>{
+      {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader onHelp={()=>setDialog("help")} user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onAi={openReaderAi} onNote={id=>navigateTo(id)} renderNotes={()=> <React.Suspense fallback={<p role="status">Loading book notes…</p>}><ReaderBookNotes onCommit={()=>{if(viewTimer.current)publishView(true);}} doc={doc} hash={readerTarget.hash} assets={assets} disabled={disabled||failed.current} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onFullNotes={id=>{closeReader();navigateTo(id);}} onAdd={()=>{if(failed.current)throw Error('Saving is paused. Open Account settings to retry.');const current=docRef.current!,book=readingBook(current,readerTarget.hash),id=crypto.randomUUID();const next=addReadingNote(current,book,id);commit(withNodes(next,next.tables.bullets as Node[]));return id;}}/></React.Suspense>} onScreenshot={async(unit,blob)=>{
         if(authenticatedUid()!==cloudUser?.uid)throw Error('Your account changed. Open the book again to capture a page.');
         if(failed.current||working||!readerTarget)throw Error('Wait for saving to finish, then try again.');
         const current=docRef.current!,book=readingBook(current,readerTarget.hash);if(!book)throw Error('The original book is no longer available.');
