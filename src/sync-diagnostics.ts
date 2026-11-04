@@ -9,10 +9,12 @@ import { validateWorkdays } from './workdays.mjs';
 import { validateCalendarEvents } from './calendar-events.mjs';
 import { validateStudyLibrary } from './study-library.mjs';
 import { validateOcclusions } from './occlusion.mjs';
+import { validateMirrors } from './relations.mjs';
 
 export function sharedDocumentProblem(doc: any): string {
   const web = doc?.web || {};
   const checks: [string, () => void][] = [
+    ['Links', () => validateMirrors(doc?.tables?.bullets || [])],
     ['Books', () => validateReadingBooks(web.readingBooks)],
     ['Reading', () => validateReading(web)],
     ['Bookmarks', () => validateBookmarks(web)],
