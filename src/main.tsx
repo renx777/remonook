@@ -1856,7 +1856,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {menuNode && (
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
-            <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>AI assist…</span></button><button disabled={!research.state} onClick={()=>void openAi(menuNode.id,'web')}><Icon name="search" size={16}/><span>Research answer…</span></button>
+            <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
             <button disabled={disabled} onClick={()=>command('action:mindmap',menuNode.id,0,0)}><Icon name="mindmap" size={16}/><span>{menuNode.mindmap?'Remove mindmap':'Mindmap'}</span></button>
             <button disabled={disabled} onClick={()=>command('action:date',menuNode.id,0,0)}><Icon name="calendar" size={16}/><span>Add date…</span></button>
