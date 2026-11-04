@@ -40,3 +40,6 @@ note resurrection. The fix uses the deletion baseline for restored text, while
 preserving concurrent text changes. Regression tests cover local restoration,
 concurrent edits, and add → acknowledged undo → redo through the durable outbox
 and real sync route. Existing note contents are not automatically deduplicated.
+Undoing a generated study set also removes cards created with its removed source
+nodes, so MCQs cannot become orphan flashcards. Redo restores their saved review
+state; reviews of surviving and independent cards remain preserved.

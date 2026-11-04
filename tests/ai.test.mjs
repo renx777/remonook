@@ -3,6 +3,7 @@ import {aiRoute,aiPrompt,reserveAi,aiStatus} from '../cloud/ai.mjs';import {rout
 import {validateAiResult} from '../src/ai-contract.mjs';import {aiContext,insertAi,aiSourceChanged} from '../src/ai-assist.mjs';
 import {empty,withNodes} from './.build/data.mjs';import {bullet} from '../src/domain.mjs';import {createMirror} from '../src/relations.mjs';import {studyQueue} from '../src/study.mjs';
 import {registerBooks} from '../src/book-storage.mjs';
+import {outlineUndoState} from '../src/outline-history.mjs';
 function fixture(){const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('cloud/ai.sql','utf8'));const env={AI_ENABLED:'true',AI_FREE_TIER_CONFIRMED:'true',DB:{prepare(q){let args=[];return{bind(...v){args=v;return this;},async first(){return sql.prepare(q).get(...args);},async run(){return sql.prepare(q).run(...args);}};}},AI:{run(){return new ReadableStream({start(c){for(const v of [{choices:[{delta:{content:'A concise answer.'}}]},{choices:[{delta:{},finish_reason:'stop'}]}])c.enqueue(new TextEncoder().encode('data: '+JSON.stringify(v)+'\n\n'));c.close();}});}}};return {env,sql,close:()=>sql.close()};}
 const input={operation:'answer',mode:'general',question:'What is learning?',context:'A question.'};
 const req=(body=input)=>new Request('https://sync.test/ai/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:crypto.randomUUID(),...body})});
@@ -48,6 +49,12 @@ test('reader acceptance captures a passage and explanation together and reuses i
  const d={...draft('explain'),id:'reader-target',ai:{...draft('explain').ai,sourceIds:[],reader:{hash,fingerprint:'d'.repeat(64),selection:{unit:0,start:0,end:7,quote:'Passage',rects:[]}}}};
  const first=insertAi(before,d),quote=Object.values(first.web.readingHighlights)[0];assert.equal(first.tables.bullets.length,3);assert.equal(first.tables.bullets.find(n=>n.id==='accepted').parentId,quote.bulletId);assert.equal(before.tables.bullets.length,0);
  const second=insertAi(first,{...d,insertedId:'accepted-again'});assert.equal(Object.keys(second.web.readingHighlights).length,1);assert.equal(second.tables.bullets.filter(n=>n.parentId===quote.bulletId).length,2);
+});
+test('undoing an AI MCQ set leaves no orphan flashcards; redo preserves saved review state',()=>{
+ const before=withNodes(empty(),[bullet('source',{text:'Question'})]),n=insertAi(before,draft('mcqs')),added=withNodes(n,n.tables.bullets);
+ added.tables.cards=added.tables.cards.map(c=>({...c,dueAtEpochMillis:2000000000000,lastReviewAtEpochMillis:12345}));added.tables.review_logs=[{id:'kept-review',cardId:'accepted-q0'}];
+ const restored=withNodes(outlineUndoState(added,before),before.tables.bullets);assert.deepEqual(studyQueue(restored,null,'NORMAL'),[]);assert.deepEqual(studyQueue(restored,'__all_mcqs__','NORMAL'),[]);assert.equal(restored.tables.review_logs,added.tables.review_logs);
+ const redone=withNodes(outlineUndoState(restored,added),added.tables.bullets);assert.deepEqual(studyQueue(redone,'__all_mcqs__','NORMAL'),['accepted-q0']);assert.deepEqual(studyQueue(redone,null,'NORMAL'),[]);assert.equal(redone.tables.cards.find(c=>c.id==='accepted-q0').lastReviewAtEpochMillis,12345);
 });
 test('web synthesis fails closed on search errors or zero evidence without invoking inference',async()=>{const f=fixture(),original=globalThis.fetch;let runs=0;f.env.AI.run=()=>{runs++;throw Error('Must not run');};try{
  globalThis.fetch=async()=>new Response('<rss><channel></channel></rss>');const response=await aiRoute(req({...input,mode:'web'}),f.env,'a',{readLimited});assert.equal((await response.json()).result.supported,false);assert.equal(runs,0);assert.equal((await aiStatus(f.env,'a')).remaining,10);

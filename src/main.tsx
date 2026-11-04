@@ -1,4 +1,5 @@
 import {AiAssistBoundary} from './AiAssistBoundary';
+import {outlineUndoState} from './outline-history.mjs';
 import {aiContext,insertAi} from './ai-assist.mjs';
 import {useResearchDrafts} from './ai-drafts';
 import type {ResearchDraft} from './data';
@@ -470,7 +471,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     lastText.current = { id: "", at: 0 };
     const current = docRef.current!;
     // Outline undo must not roll back reviews completed after that outline edit.
-    commit(withNodes({ ...next, tables: { ...next.tables, cards: current.tables.cards, review_logs: current.tables.review_logs, study_sessions: current.tables.study_sessions, study_limits: current.tables.study_limits } }, next.tables.bullets as Node[]), undefined, false);
+    commit(withNodes(outlineUndoState(current,next),next.tables.bullets as Node[]),undefined,false);
     setHistoryTick((x) => x + 1);
     if (editing && !next.tables.bullets.some(n => n.id === editing)) {
       const target = next.tables.bullets.at(-1);
