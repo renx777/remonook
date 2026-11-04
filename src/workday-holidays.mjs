@@ -14,6 +14,41 @@ const months = [
   "nov",
   "dec",
 ];
+const MONTH = "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)",
+  DATE_PATTERNS = [
+    // Most specific first: anything carrying a year wins over a bare "3 January".
+    "\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}",
+    "\\d{1,2}[/.\\-]\\d{1,2}[/.\\-]\\d{4}",
+    `\\d{1,2}(?:st|nd|rd|th)?[ \\-]+${MONTH}\\.?[ ,\\-]+\\d{4}`,
+    `${MONTH}\\.?[ \\-]+\\d{1,2}(?:st|nd|rd|th)?,?[ \\-]+\\d{4}`,
+    `\\d{1,2}(?:st|nd|rd|th)?[ \\-]+${MONTH}\\.?`,
+    `${MONTH}\\.?[ \\-]+\\d{1,2}(?:st|nd|rd|th)?`,
+    "\\d{1,2}[/.\\-]\\d{1,2}",
+  ].map((p) => new RegExp(`(?:^|[\\s(|,;])(${p})(?=$|[\\s)|,;])`, "gi")),
+  WEEKDAY = /^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tues?|Wed|Thu(?:rs?)?|Fri|Sat|Sun)\.?(?=[\s,]|$)[\s,]*/i,
+  MONTH_ONLY = new RegExp(`^${MONTH}\\b\\s*`, "i");
+function pickDate(line) {
+  for (const pattern of DATE_PATTERNS) {
+    pattern.lastIndex = 0;
+    const m = pattern.exec(line);
+    if (!m) continue;
+    const start = m.index + m[0].indexOf(m[1]);
+    return {
+      text: m[1].replace(/(\d)(?:st|nd|rd|th)/i, "$1").replace(/\.(?=\s|,|$)/, ""),
+      start,
+      end: start + m[1].length,
+    };
+  }
+  return null;
+}
+function cleanName(text) {
+  return text
+    .replace(/^[\s,;|\-–:]+|[\s,;|\-–:]+$/g, "")
+    .replace(WEEKDAY, "")
+    .replace(/\s*\/\s*/g, " / ")
+    .replace(/^[\s,;|\-–:]+|[\s,;|\-–:]+$/g, "")
+    .trim();
+}
 export function holidayDate(value, year, format = "") {
   const text = String(value)
     .trim()
@@ -21,7 +56,7 @@ export function holidayDate(value, year, format = "") {
   let m,
     date,
     ambiguous = false;
-  if ((m = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/)))
+  if ((m = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/)))
     date = `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
   else if ((m = text.match(/^(\d{1,2})[/.\-](\d{1,2})(?:[/.\-](\d{4}))?$/))) {
     ambiguous = +m[1] <= 12 && +m[2] <= 12 && m[1] !== m[2] && !format;
@@ -51,7 +86,8 @@ export function parseHolidaySource(
       delimiter: csv ? undefined : "\t",
     }),
     rows = [];
-  let currentYear = String(year);
+  let currentYear = String(year),
+    skipped = 0;
   for (const [i, cols] of result.data.entries()) {
     if (rows.length >= 1000) throw Error("Review a list under 1,000 rows.");
     const raw = cols.join(" ").trim();
@@ -64,16 +100,25 @@ export function parseHolidaySource(
       name = cols[nameColumn] || "";
     if (!csv) {
       const line = raw.replace(/\s+/g, " "),
-        m = line.match(
-          /(?:^|\s)(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[/.\-]\d{1,2}(?:[/.\-]\d{4})?|\d{1,2}[ -]+(?:Jan\w*|Feb\w*|Mar\w*|Apr\w*|May|Jun\w*|Jul\w*|Aug\w*|Sep\w*|Oct\w*|Nov\w*|Dec\w*)(?:[ ,\-]+\d{4})?|(?:Jan\w*|Feb\w*|Mar\w*|Apr\w*|May|Jun\w*|Jul\w*|Aug\w*|Sep\w*|Oct\w*|Nov\w*|Dec\w*)\s+\d{1,2}(?:,?\s+\d{4})?)(?=\s|[,;|]|$)/i,
+        found = pickDate(line);
+      if (!found) {
+        // Titles, headers and addresses: remember a lone year, skip the rest.
+        const year = line.match(/\b(20\d{2})\b/);
+        if (year && !/\d{5,}/.test(line)) currentYear = year[1];
+        skipped++;
+        continue;
+      }
+      candidate = found.text;
+      // Table rows usually read "# Month Date Day Occasion": the name follows
+      // the date. Lists such as "Republic Day 26 Jan" put it first.
+      const after = cleanName(line.slice(found.end)),
+        before = cleanName(
+          line
+            .slice(0, found.start)
+            .replace(/^\d{1,3}[.)]?\s+/, "")
+            .replace(MONTH_ONLY, ""),
         );
-      if (m) {
-        candidate = m[1];
-        name = line
-          .replace(m[0], " ")
-          .replace(/^[,;|\s]+|[,;|\s]+$/g, "")
-          .replace(/^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:day)?\s+/i, "");
-      } else candidate = "";
+      name = after || before;
     }
     if (
       i === 0 &&
@@ -98,7 +143,7 @@ export function parseHolidaySource(
             : "",
     });
   }
-  return { rows, errors: result.errors.map((e) => e.message) };
+  return { rows, skipped, errors: result.errors.map((e) => e.message) };
 }
 // PDF.js/OCR words carry positions. Group by baseline and split separated columns
 // before parsing, rather than flattening an entire page into one string.

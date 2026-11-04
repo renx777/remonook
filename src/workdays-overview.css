@@ -633,3 +633,87 @@
 .app .wd2-dialog .wd2-month-head .icon-button {
   min-height: 44px;
 }
+
+/* Holidays list */
+.wd2-holidays {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.wd2-holidays-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.wd2-holidays-head .wd2-muted {
+  flex: 1;
+  min-width: 200px;
+  margin: 0;
+  font-size: 13px;
+}
+.app .wd2-dialog .wd2-import-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.wd2-holiday-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.wd2-holiday {
+  display: grid;
+  grid-template-columns: 150px 74px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.app .wd2-dialog .wd2-holiday input {
+  margin: 0;
+  min-width: 0;
+}
+.app .wd2-dialog .wd2-holiday input:not([type="date"]) {
+  border-color: transparent;
+  background: transparent;
+}
+.app .wd2-dialog .wd2-holiday input:not([type="date"]):is(:hover, :focus) {
+  border-color: var(--line);
+}
+.wd2-holiday-day {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.wd2-holiday-day small {
+  font-size: 11px;
+}
+.wd2-holiday-add {
+  border-bottom: 0;
+}
+.app .wd2-dialog .wd2-holiday-add input:not([type="date"]) {
+  border-color: var(--line);
+}
+@media (max-width: 760px) {
+  .wd2-holiday {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "date day del" "name name name";
+    row-gap: 4px;
+  }
+  .wd2-holiday > input[type="date"] {
+    grid-area: date;
+  }
+  .wd2-holiday-day {
+    grid-area: day;
+  }
+  .wd2-holiday > button {
+    grid-area: del;
+  }
+  .wd2-holiday > input:not([type="date"]) {
+    grid-area: name;
+  }
+}

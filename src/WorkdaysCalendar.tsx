@@ -18,6 +18,7 @@ import {
 } from "./workdays-v2.mjs";
 import { WorkdayDialog } from "./WorkdayDialog";
 import { WorkdaysOverview } from "./WorkdaysOverview";
+import { WorkdayHolidays } from "./WorkdayHolidays";
 import { usePhone } from "./workdays-stats";
 import { WorkdayMarker, LeaveEntry } from "./WorkMode";
 import { WorkdaySettings, LeaveSettings } from "./WorkdaySettings";
@@ -94,7 +95,7 @@ export function WorkdaysCalendar({
         <div className="wd2-workspace">
           <div className="wd2-workspace-nav">
             <nav aria-label="Workdays views">
-              {["overview", "plan", "leave"].map((t) => (
+              {["overview", "plan", "leave", "holidays"].map((t) => (
                 <button
                   key={t}
                   aria-pressed={tab === t}
@@ -125,7 +126,7 @@ export function WorkdaysCalendar({
               </button>
             </div>
           </div>
-          {tab !== "overview" && <div className="wd2-period">
+          {tab !== "overview" && tab !== "holidays" && <div className="wd2-period">
             <button
               className="icon-button"
               aria-label="Previous work period"
@@ -311,6 +312,18 @@ export function WorkdaysCalendar({
               )}
             </>
           )}
+          {tab === "holidays" && (
+            <WorkdayHolidays
+              w={w}
+              anchor={anchor}
+              disabled={disabled}
+              onAnchor={(d) => {
+                if (d >= "1900-01-01" && d <= "2199-12-31") setAnchor(d);
+              }}
+              onChange={onChange}
+              onImport={() => setDialog("import")}
+            />
+          )}
           {tab === "leave" && (
             <LeaveSettings
               doc={doc}
@@ -337,7 +350,10 @@ export function WorkdaysCalendar({
             doc={doc}
             date={anchor}
             disabled={disabled}
-            onChange={onChange}
+            onChange={(fn) => {
+              onChange(fn);
+              setTab("holidays");
+            }}
             onClose={() => setDialog("")}
           />
         </Suspense>
