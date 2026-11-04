@@ -21,14 +21,23 @@ export function CalendarTrackers({
   disabled,
   onChange,
   onDate,
+  workModeInHeader = false,
+  workspaceOpen,
+  onWorkspace,
 }: {
   doc: Workspace;
   date: string;
   disabled: boolean;
   onDate?: (date: string) => void;
+  /** The page shows the work mode switch itself. */
+  workModeInHeader?: boolean;
+  workspaceOpen?: boolean;
+  onWorkspace?: (open: boolean) => void;
   onChange: (update: (doc: Workspace) => Workspace) => void;
 }) {
-  const [workspace, setWorkspace] = useState(false),
+  const [ownWorkspace, setOwnWorkspace] = useState(false),
+    workspace = workspaceOpen ?? ownWorkspace,
+    setWorkspace = onWorkspace ?? setOwnWorkspace,
     [open, setOpen] = useState(false),
     [label, setLabel] = useState(""),
     [options, setOptions] = useState(""),
@@ -58,7 +67,7 @@ export function CalendarTrackers({
           {w.enabled || enabled.length ? "Edit" : "Set up"}
         </button>
       </div>
-      {w.enabled && (
+      {w.enabled && !workModeInHeader && (
         <WorkMode
           doc={doc}
           date={date}

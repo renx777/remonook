@@ -36,7 +36,8 @@ import {PaneSearchBar} from "./PaneSearchBar";
 import {ConnectionContext,ConnectionChooser,ConnectionPanel} from "./Connections";
 import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
-import {CalendarReminders,ReminderTabs,ReminderEditor,type ReminderTarget} from './CalendarReminders';
+import {ReminderTabs,ReminderEditor,useReminderClock,type ReminderTarget} from './CalendarReminders';
+import {CalendarAgenda,MiniMonth,WorkdaysLine} from './CalendarAgenda';
 import {articleSnapshotHashes} from './bookmarks.mjs';
 import {CalendarTrackers} from './CalendarTrackers';
 import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
@@ -97,7 +98,7 @@ import { EmojiProvider } from './AnimatedEmoji';
 import {BulletMenuBody} from './BulletMenuBody';
 import {useEmojiAssetRepair} from './useEmojiAssetRepair';
 import { EmojiPicker } from './EmojiPicker';
-import {WorkdayMarker} from './WorkMode';
+import {WorkdayMarker,WorkMode} from './WorkMode';
 import {workdaysV2} from './workdays-v2.mjs';
 import {workdays,validateWorkdays} from './workdays.mjs';
 import { decodeAnimation, insertEmoji } from './emoji.mjs';
@@ -213,6 +214,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
     [nodeDate,setNodeDate]=useState<{id:string;date:string}|null>(null),
     [reminderEditor,setReminderEditor]=useState<ReminderTarget|null>(null),
+    [workdaysOpen,setWorkdaysOpen]=useState(false),
     [remindersVisible,setRemindersVisible]=useState(true),
     [deviceStatus] = useState(()=>createUiSignal("Loading")),
     [error, setError] = useState<string | null>(null),
@@ -455,6 +457,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   // for a typing pause. Saving and structural commands always read docRef.
   const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
   const [emptyTrashIds,setEmptyTrashIds]=React.useState<string[]>([]);
+  const calendarToday=useReminderClock();
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
@@ -1685,11 +1688,16 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <CalendarView
             autoOpen={false}
             workdayMarker={calendarWorkdays.enabled?date=><WorkdayMarker w={calendarWorkdays} date={date}/>:undefined}
-            trackers={<CalendarTrackers onDate={date=>{setCalendarDate(date);setEditing(null);}} doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
+            trackers={<CalendarTrackers workModeInHeader workspaceOpen={workdaysOpen} onWorkspace={setWorkdaysOpen} onDate={date=>{setCalendarDate(date);setEditing(null);}} doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
+            headerExtra={calendarWorkdays.enabled?<WorkMode compact doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>:null}
+            aside={<>
+              <MiniMonth doc={doc} date={calendarDate} today={calendarToday} workdays={!!calendarWorkdays.enabled} onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}/>
+              {calendarWorkdays.enabled&&<WorkdaysLine doc={doc} date={calendarDate} today={calendarToday} onOpen={()=>setWorkdaysOpen(true)}/>}
+              <CalendarAgenda doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}/>
+            </>}
             onCreateNote={(date,value,id)=>mutate(ns=>{const prepared=ensureCalendarHierarchy(ns,date);return move([...prepared.nodes,bullet(id,{parentId:prepared.dayId,...value})],id,prepared.dayId,(index(prepared.nodes).children.get(prepared.dayId)||[]).length);})}
             monthView={false}
             hasReminder={date=>eventsOnDate(calendarReminders,date).length>0}
-            reminders={<CalendarReminders doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onOpenDate={date=>{setCalendarDate(date);setEditing(null);}}/>}
             nodes={nodes}
             selectedDate={calendarDate}
             onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}

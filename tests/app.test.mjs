@@ -182,7 +182,8 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await click(calendarTabBtn);
   await wait(() => document.querySelector(".calendar-view"));
   assert.ok(document.querySelector(".calendar-date-pill"));
-  assert.ok(document.querySelector(".calendar-strip-container"));
+  assert.ok(document.querySelector(".cal2-month"), "the agenda column shows a month grid");
+  assert.ok(document.querySelector(".cal2-agenda"));
 
   // Popover toggle
   const datePill = document.querySelector(".calendar-date-pill");
@@ -216,7 +217,8 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   stored=await load();const pasted=stored.tables.bullets.filter(n=>['First pasted daily bullet','Second pasted daily bullet'].includes(n.text));assert.equal(pasted.length,2);assert.equal(pasted[0].parentId,pasted[1].parentId);assert.notEqual(pasted[0].parentId,firstDaily.parentId);
 
   // Year picker popover
-  const yearShortcutBtn = document.querySelector(".shortcut-year-btn");
+  await click(datePill);
+  const yearShortcutBtn = document.querySelector(".calendar-mini-month-year-btn");
   assert.ok(yearShortcutBtn);
   await click(yearShortcutBtn);
   assert.ok(document.querySelector(".calendar-year-grid"));

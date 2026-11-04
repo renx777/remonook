@@ -12,6 +12,7 @@ import {
 } from "./workdays-v2.mjs";
 import { WorkdayDialog } from "./WorkdayDialog";
 import "./workdays-v2.css";
+import "./workdays-overview.css";
 export function WorkdayMarker({ w, date }: { w: any; date: string }) {
   const s = workdayState(w, date);
   if (!s.actual && !s.plan && !s.holiday) return null;
@@ -40,12 +41,15 @@ export function WorkMode({
   disabled,
   onChange,
   onWorkspace,
+  compact = false,
 }: {
   doc: Workspace;
   date: string;
   disabled: boolean;
   onChange: (fn: (d: Workspace) => Workspace) => void;
   onWorkspace?: () => void;
+  /** A quiet Home · Office · Leave switch for page headers. */
+  compact?: boolean;
 }) {
   const w = workdaysV2(doc, date),
     s = workdayState(w, date),
@@ -60,6 +64,91 @@ export function WorkMode({
       setError((e as Error).message);
     }
   };
+  const choose = (mode: "WFH" | "WFO" | "Leave") =>
+    mode === "Leave"
+      ? setLeave(true)
+      : change((d) => setAllocations(d, [date], { mode }));
+  const leaveDialog = leave && (
+    <LeaveEntry
+      doc={doc}
+      dates={[date]}
+      disabled={disabled}
+      onChange={onChange}
+      onClose={() => setLeave(false)}
+    />
+  );
+  if (compact) {
+    const set = !!(s.actual || s.plan),
+      split = set && s.modes[0] !== s.modes[1];
+    return (
+      <section className="wd2-daily wd2-compact" aria-label="Work mode">
+        <div
+          className="wd2-switch"
+          role="group"
+          aria-label={future ? "Planned work mode" : "Recorded work mode"}
+        >
+          {(["WFH", "WFO", "Leave"] as const).map((mode) => (
+            <button
+              key={mode}
+              disabled={disabled}
+              aria-label={
+                mode === "WFH"
+                  ? "Work from home"
+                  : mode === "WFO"
+                    ? "Work from office"
+                    : "Take leave"
+              }
+              aria-pressed={set && s.modes.every((m: string) => m === mode)}
+              data-mode={mode}
+              data-planned={s.planned || undefined}
+              onClick={() => choose(mode)}
+            >
+              {mode === "WFH" ? "Home" : mode === "WFO" ? "Office" : "Leave"}
+            </button>
+          ))}
+        </div>
+        {(s.holiday || set || s.pending || error) && (
+          <p className="wd2-compact-note">
+            {s.holiday && <span>{s.holiday} · holiday</span>}
+            {set && (split || s.planned || future) && (
+              <span>
+                {split ? s.label : future ? "Plan" : "Planned"}
+                {split && s.planned ? " · planned" : ""}
+              </span>
+            )}
+            {s.pending && (
+              <button
+                className="wd2-link"
+                disabled={disabled}
+                onClick={() => change((d) => confirmPlans(d, [date]))}
+              >
+                Confirm plan
+              </button>
+            )}
+            {set && (
+              <button
+                className="wd2-link"
+                disabled={disabled}
+                onClick={() =>
+                  change((d) =>
+                    clearWorkday(
+                      d,
+                      date,
+                      future ? "plan" : s.actual ? "actual" : "plan",
+                    ),
+                  )
+                }
+              >
+                Clear
+              </button>
+            )}
+            {error && <span role="alert">{error}</span>}
+          </p>
+        )}
+        {leaveDialog}
+      </section>
+    );
+  }
   return (
     <section className="wd2-daily" aria-label="Work mode">
       <div className="wd2-daily-heading">
@@ -90,11 +179,7 @@ export function WorkMode({
             }
             aria-pressed={s.modes.every((m: string) => m === mode)}
             data-mode={mode}
-            onClick={() =>
-              mode === "Leave"
-                ? setLeave(true)
-                : change((d) => setAllocations(d, [date], { mode }))
-            }
+            onClick={() => choose(mode)}
           >
             <Icon
               name={
@@ -148,15 +233,7 @@ export function WorkMode({
         </button>
       )}
       {error && <p role="alert">{error}</p>}
-      {leave && (
-        <LeaveEntry
-          doc={doc}
-          dates={[date]}
-          disabled={disabled}
-          onChange={onChange}
-          onClose={() => setLeave(false)}
-        />
-      )}
+      {leaveDialog}
     </section>
   );
 }

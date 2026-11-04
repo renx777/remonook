@@ -23,6 +23,8 @@ import {searchMatcher} from "./search.mjs";
 import { readerSelection } from "./outline-selection";
 type Props = {
   hideTitle?: boolean;
+  /** Size the canvas to its rows so a parent page can scroll it (short outlines only). */
+  fitContent?: boolean;
   nodes: Node[];
   scope: string | null;
   search: string;
@@ -599,7 +601,7 @@ export function OutlineView(p: Props) {
     >
       <div
         className={`outline-canvas ${boxSelect ? "is-drag-selecting" : ""}`}
-        style={{ height: Math.max(total + 100, view.height) }}
+        style={{ height: p.fitContent ? total + 24 : Math.max(total + 100, view.height) }}
         onPointerDownCapture={(e) => {
           if (p.disabled || e.button !== 0 || e.pointerType === 'touch') return;
           const target = e.target as HTMLElement;
