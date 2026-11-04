@@ -1,0 +1,371 @@
+{
+  "date": "2026-11-04",
+  "model": "@cf/google/gemma-4-26b-a4b-it",
+  "cases": [
+    {
+      "id": "answer-0",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3612,
+      "inputTokens": 173,
+      "outputTokens": 63,
+      "neurons": 3.2909090518951416
+    },
+    {
+      "id": "answer-1",
+      "pass": true,
+      "error": "",
+      "latencyMs": 6549,
+      "inputTokens": 177,
+      "outputTokens": 67,
+      "neurons": 3.436363697052002
+    },
+    {
+      "id": "answer-2",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3159,
+      "inputTokens": 188,
+      "outputTokens": 108,
+      "neurons": 4.654545307159424
+    },
+    {
+      "id": "answer-3",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2805,
+      "inputTokens": 185,
+      "outputTokens": 49,
+      "neurons": 3.018181800842285
+    },
+    {
+      "id": "answer-4",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3444,
+      "inputTokens": 177,
+      "outputTokens": 70,
+      "neurons": 3.518181800842285
+    },
+    {
+      "id": "answer-5",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2639,
+      "inputTokens": 184,
+      "outputTokens": 78,
+      "neurons": 3.8000001907348633
+    },
+    {
+      "id": "answer-6",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2539,
+      "inputTokens": 177,
+      "outputTokens": 60,
+      "neurons": 2.663635730743408
+    },
+    {
+      "id": "answer-7",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3160,
+      "inputTokens": 182,
+      "outputTokens": 95,
+      "neurons": 3.663635730743408
+    },
+    {
+      "id": "explain-0",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4528,
+      "inputTokens": 176,
+      "outputTokens": 98,
+      "neurons": 4.272727012634277
+    },
+    {
+      "id": "explain-1",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2645,
+      "inputTokens": 181,
+      "outputTokens": 65,
+      "neurons": 3.418181896209717
+    },
+    {
+      "id": "explain-2",
+      "pass": true,
+      "error": "",
+      "latencyMs": 6613,
+      "inputTokens": 190,
+      "outputTokens": 207,
+      "neurons": 7.372726917266846
+    },
+    {
+      "id": "explain-3",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3954,
+      "inputTokens": 187,
+      "outputTokens": 99,
+      "neurons": 4.400000095367432
+    },
+    {
+      "id": "explain-4",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4644,
+      "inputTokens": 180,
+      "outputTokens": 118,
+      "neurons": 4.854545593261719
+    },
+    {
+      "id": "explain-5",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4675,
+      "inputTokens": 187,
+      "outputTokens": 110,
+      "neurons": 4.118181228637695
+    },
+    {
+      "id": "explain-6",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2727,
+      "inputTokens": 180,
+      "outputTokens": 85,
+      "neurons": 3.954545497894287
+    },
+    {
+      "id": "explain-7",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4656,
+      "inputTokens": 185,
+      "outputTokens": 146,
+      "neurons": 5.663636207580566
+    },
+    {
+      "id": "summary-0",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3053,
+      "inputTokens": 186,
+      "outputTokens": 29,
+      "neurons": 2.481818199157715
+    },
+    {
+      "id": "summary-1",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2680,
+      "inputTokens": 191,
+      "outputTokens": 58,
+      "neurons": 3.3181817531585693
+    },
+    {
+      "id": "summary-2",
+      "pass": true,
+      "error": "",
+      "latencyMs": 5505,
+      "inputTokens": 200,
+      "outputTokens": 84,
+      "neurons": 4.109090805053711
+    },
+    {
+      "id": "summary-3",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3602,
+      "inputTokens": 197,
+      "outputTokens": 62,
+      "neurons": 3.481818199157715
+    },
+    {
+      "id": "summary-4",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2753,
+      "inputTokens": 190,
+      "outputTokens": 63,
+      "neurons": 3.4454545974731445
+    },
+    {
+      "id": "summary-5",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3328,
+      "inputTokens": 197,
+      "outputTokens": 63,
+      "neurons": 3.5090909004211426
+    },
+    {
+      "id": "flashcards-0",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3663,
+      "inputTokens": 186,
+      "outputTokens": 119,
+      "neurons": 4.936363697052002
+    },
+    {
+      "id": "flashcards-1",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3699,
+      "inputTokens": 189,
+      "outputTokens": 104,
+      "neurons": 4.5545454025268555
+    },
+    {
+      "id": "flashcards-2",
+      "pass": true,
+      "error": "",
+      "latencyMs": 6600,
+      "inputTokens": 199,
+      "outputTokens": 184,
+      "neurons": 6.827272415161133
+    },
+    {
+      "id": "flashcards-3",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4322,
+      "inputTokens": 197,
+      "outputTokens": 85,
+      "neurons": 4.109090805053711
+    },
+    {
+      "id": "flashcards-4",
+      "pass": true,
+      "error": "",
+      "latencyMs": 7014,
+      "inputTokens": 189,
+      "outputTokens": 165,
+      "neurons": 6.218181610107422
+    },
+    {
+      "id": "flashcards-5",
+      "pass": true,
+      "error": "",
+      "latencyMs": 5260,
+      "inputTokens": 196,
+      "outputTokens": 109,
+      "neurons": 4.754545211791992
+    },
+    {
+      "id": "flashcards-6",
+      "pass": true,
+      "error": "",
+      "latencyMs": 5510,
+      "inputTokens": 189,
+      "outputTokens": 119,
+      "neurons": 4.96363639831543
+    },
+    {
+      "id": "flashcards-7",
+      "pass": true,
+      "error": "",
+      "latencyMs": 5849,
+      "inputTokens": 194,
+      "outputTokens": 160,
+      "neurons": 6.127272605895996
+    },
+    {
+      "id": "mcqs-0",
+      "pass": true,
+      "error": "",
+      "latencyMs": 6542,
+      "inputTokens": 206,
+      "outputTokens": 228,
+      "neurons": 8.090909004211426
+    },
+    {
+      "id": "mcqs-1",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4975,
+      "inputTokens": 210,
+      "outputTokens": 159,
+      "neurons": 6.245454788208008
+    },
+    {
+      "id": "mcqs-2",
+      "pass": true,
+      "error": "",
+      "latencyMs": 6472,
+      "inputTokens": 220,
+      "outputTokens": 260,
+      "neurons": 9.090909004211426
+    },
+    {
+      "id": "mcqs-3",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4573,
+      "inputTokens": 217,
+      "outputTokens": 152,
+      "neurons": 6.1181817054748535
+    },
+    {
+      "id": "mcqs-4",
+      "pass": true,
+      "error": "",
+      "latencyMs": 6238,
+      "inputTokens": 210,
+      "outputTokens": 231,
+      "neurons": 8.209091186523438
+    },
+    {
+      "id": "mcqs-5",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4985,
+      "inputTokens": 217,
+      "outputTokens": 174,
+      "neurons": 6.71818208694458
+    },
+    {
+      "id": "web-supported",
+      "pass": true,
+      "error": "",
+      "latencyMs": 4435,
+      "inputTokens": 256,
+      "outputTokens": 35,
+      "neurons": 3.281818151473999
+    },
+    {
+      "id": "web-insufficient",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2454,
+      "inputTokens": 249,
+      "outputTokens": 19,
+      "neurons": 2.781818151473999
+    },
+    {
+      "id": "web-unknown",
+      "pass": true,
+      "error": "",
+      "latencyMs": 3638,
+      "inputTokens": 249,
+      "outputTokens": 19,
+      "neurons": 2.781818151473999
+    },
+    {
+      "id": "web-injection",
+      "pass": true,
+      "error": "",
+      "latencyMs": 2921,
+      "inputTokens": 261,
+      "outputTokens": 18,
+      "neurons": 2.8636362552642822
+    }
+  ],
+  "passed": 40,
+  "total": 40,
+  "flashcards": 24,
+  "mcqs": 18,
+  "modelNeurons": 185.1181788444519
+}

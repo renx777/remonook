@@ -1,3 +1,4 @@
+import {AiAssistBoundary} from './AiAssistBoundary';
 import {aiContext,insertAi} from './ai-assist.mjs';
 import {useResearchDrafts} from './ai-drafts';
 import type {ResearchDraft} from './data';
@@ -1835,7 +1836,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           setNotice("MCQ saved. Study it in Study Desk, or make an MCQ notebook from its parent branch.");
         } catch (error) { showError(error); }
       }} />}
-      {researchTarget!==null&&research.state?.drafts[researchTarget]?.ai&&<React.Suspense fallback={<div className="research-panel" role="status">Opening AI assist…</div>}><AiAssist key={researchTarget+storageAccountKey()} draft={research.state.drafts[researchTarget]} doc={doc} user={cloudUser} disabled={disabled||failed.current} error={research.error} onEdit={draft=>research.put(draft,draft.id)} onInsert={insertAiDraft} onClose={closeResearch} onDiscard={async()=>{await research.put(null,researchTarget);setResearchTarget(null);}}/></React.Suspense>}
+      {researchTarget!==null&&research.state?.drafts[researchTarget]?.ai&&<AiAssistBoundary key={researchTarget+storageAccountKey()} onClose={closeResearch}><React.Suspense fallback={<div className="research-panel" role="status">Opening AI assist…</div>}><AiAssist key={researchTarget+storageAccountKey()} draft={research.state.drafts[researchTarget]} doc={doc} user={cloudUser} disabled={disabled||failed.current} error={research.error} onEdit={draft=>research.put(draft,draft.id)} onInsert={insertAiDraft} onClose={closeResearch} onDiscard={async()=>{await research.put(null,researchTarget);setResearchTarget(null);}}/></React.Suspense></AiAssistBoundary>}
       {researchTarget===''&&<React.Suspense fallback={null}><AiDraftList drafts={Object.values(research.state?.drafts||{})} onChoose={setResearchTarget} onClose={closeResearch}/></React.Suspense>}
       {menuNode && (
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
