@@ -14,5 +14,6 @@ export function validateAiResult(operation,v,sources=[]){
   return {candidates:v.candidates.map(c=>operation==='flashcards'?{question:c.question,answer:c.answer}:{question:c.question,options:c.options,correct:c.correct,explanation:c.explanation})};
  }
  if(!v||typeof v.supported!=='boolean'||typeof v.text!=='string'||v.text.length>16000||!Array.isArray(v.citations)||v.citations.some(id=>!Number.isInteger(id)||!sources.some(s=>s.id===id))||(v.supported&&!v.text.trim())||(sources.length&&v.supported&&!v.citations.length))throw Error('The model returned an unsupported answer. Try again.');
+ if(v.supported&&/^\s*(?:\[\s*\]|\{\s*\}|\{\s*"candidates"\s*:\s*\[\s*\]\s*\})\s*$/.test(v.text))throw Error('The model did not return an explanatory answer. Try again.');
  return {text:v.text,supported:v.supported,citations:[...new Set(v.citations)]};
 }

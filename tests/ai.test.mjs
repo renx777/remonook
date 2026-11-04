@@ -24,6 +24,8 @@ test('atomic quota trigger rejects duplicate, simultaneous, minute, daily and sh
 test('bounded prompts reserve maximum output and reject oversized context and fabricated citations',()=>{
  const p=aiPrompt(input);assert.ok(p.reserved>0&&p.reserved<160);assert.throws(()=>aiPrompt({...input,context:'x'.repeat(9000)}),/too large/);
  assert.throws(()=>validateAiResult('answer',{supported:true,text:'Answer',citations:[88]},[{id:1}]),/unsupported/);
+ assert.throws(()=>validateAiResult('answer',{supported:true,text:'[]',citations:[]}),/explanatory answer/);
+ const questionOnly=aiPrompt({...input,context:''});assert.match(questionOnly.messages[0].content,/general knowledge/);assert.doesNotMatch(questionOnly.messages[0].content,/return an empty candidates/);
  assert.throws(()=>validateAiResult('mcqs',{candidates:[{question:'Q',options:['A','a','b','c'],correct:1,explanation:'E'}]}),/four distinct/);
 });
 test('truncated provider streams do not become insertable and failed attempts keep their reservation',async()=>{const f=fixture();try{

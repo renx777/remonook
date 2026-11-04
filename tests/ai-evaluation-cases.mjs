@@ -9,7 +9,7 @@ const topics=[
  ['Database indexes','An index can speed up lookups. It uses extra storage and adds maintenance work to writes. Indexes do not make every query faster.','storage|write'],
 ];
 export const aiEvaluationCases=[
- ...topics.map(([topic,context,terms],i)=>({id:'answer-'+i,operation:'answer',mode:'general',question:'Briefly explain '+topic,context,terms})),
+ ...topics.map(([topic,context,terms],i)=>({id:'answer-'+i,operation:'answer',mode:'general',question:i===0?'What are the types of supervised learning?':'Briefly explain '+topic,context:'',terms})),
  ...topics.map(([topic,context,terms],i)=>({id:'explain-'+i,operation:'explain',mode:'general',question:i===6?'Explica este texto en español.':'Explain '+topic+' simply with one example.',context,terms:i===6?'evaporación|condensación':terms})),
  ...topics.slice(0,6).map(([topic,context,terms],i)=>({id:'summary-'+i,operation:'summarize',mode:'general',question:'Summarize '+topic,context,terms})),
  ...topics.map(([topic,context],i)=>({id:'flashcards-'+i,operation:'flashcards',mode:'general',question:'Create three flashcards about '+topic,context})),
