@@ -1,11 +1,12 @@
 import {Y,openShared,sharedState,vector,delta,pack,unpack,applyIntent,project} from './sync-crdt.mjs';
 import {cloudDocument} from './cloud-model.mjs';
 import {catalogAssetPaths} from './emoji-catalog.mjs';
+import {migrateWorkdays} from './workdays-v2.mjs';
 const actor=new Y.Doc(),sessionClient=actor.clientID;actor.destroy();
 const localDoc=state=>{const d=openShared(state);d.clientID=sessionClient;return d;};
-function queued(meta,d,v){
+function queued(meta,d,v,w=meta.mappedDoc?.web.workdays){
  const update=delta(d,v);meta.localState=sharedState(d);
- if(unpack(update).length>2){meta.pending.push({id:crypto.randomUUID(),update});const r=openShared(meta.receivedState);Y.applyUpdate(r,unpack(update));meta.receivedState=sharedState(r);r.destroy();}
+ if(unpack(update).length>2){meta.pending.push({id:crypto.randomUUID(),update,vector:v,...(w&&w.version!==2?{workdaysContext:migrateWorkdays(w)}:{})});const r=openShared(meta.receivedState);Y.applyUpdate(r,unpack(update));meta.receivedState=sharedState(r);r.destroy();}
 }
 export function initializeOutbox(state,revision,baseline,doc,assets,baseAssets=[]){
  const meta={protocol:2,localState:state,receivedState:state,mappedDoc:cloudDocument(doc),assets:baseAssets,pending:[],inflight:null,serverRevision:revision};
@@ -14,7 +15,7 @@ export function initializeOutbox(state,revision,baseline,doc,assets,baseAssets=[
  if(baseline){applyIntent(d,baseline,doc,baseAssets,assets,true);queued(meta,d,v);}
  meta.assets=assets;d.destroy();return meta;
 }
-export function recordLocal(meta,doc){const d=localDoc(meta.localState),v=vector(d);applyIntent(d,meta.mappedDoc,doc,meta.assets,meta.assets);queued(meta,d,v);meta.mappedDoc=cloudDocument(doc);d.destroy();return meta;}
+export function recordLocal(meta,doc){const d=localDoc(meta.localState),v=vector(d);applyIntent(d,meta.mappedDoc,doc,meta.assets,meta.assets);queued(meta,d,v,doc.web.workdays);meta.mappedDoc=cloudDocument(doc);d.destroy();return meta;}
 export function stageAssets(meta,assets){
  const d=localDoc(meta.localState),v=vector(d),next=new Map(assets.map(a=>[a.path,a])),prior=new Map(meta.assets.map(a=>[a.path,a]));
  // Absence from an incomplete browser cache is not deletion of an emoji that
@@ -25,7 +26,7 @@ export function stageAssets(meta,assets){
  applyIntent(d,meta.mappedDoc,meta.mappedDoc,[...prior.values()],effective);queued(meta,d,v);meta.assets=effective;d.destroy();return meta;
 }
 export function claimOutbox(meta){
- if(!meta.inflight&&meta.pending.length){const batch=meta.pending.slice(0,64);const d=openShared(meta.receivedState);meta.inflight={operationId:crypto.randomUUID(),ids:batch.map(x=>x.id),update:pack(Y.mergeUpdates(batch.map(x=>unpack(x.update)))),vector:vector(d)};d.destroy();}
+ if(!meta.inflight&&meta.pending.length){const batch=meta.pending.slice(0,64);const d=openShared(meta.receivedState),legacy=batch.filter(x=>x.workdaysContext);meta.inflight={operationId:crypto.randomUUID(),ids:batch.map(x=>x.id),update:pack(Y.mergeUpdates(batch.map(x=>unpack(x.update)))),vector:vector(d),...(legacy.length?{workdaysVector:legacy[0].vector,workdaysContext:legacy.at(-1).workdaysContext}:{})};d.destroy();}
  return meta;
 }
 export function receiveOutbox(meta,response){

@@ -180,3 +180,32 @@ test('an upgraded offline client retries its immutable v1 outbox without overwri
   const retry=await(await call(env,'POST','/sync/v2',{...body,workdaysContext:workdaysV2(old.doc)},'alice',headers)).json();assert.equal(retry.revision,ack.revision);
  }
 });
+
+test('mixed pending pre-switch Clear and post-switch v2 updates retain the original Workdays sender vector',async()=>{
+ const env=database(),headers={'X-Remo-Capabilities':'workdays-v2'},date='2026-11-02';
+ try{
+  let base=enableWorkdays(initial(),true,'2026-11-01');base=setWorkdays(base,[date],'WFO','','2026-11-03');await call(env,'PUT','/workspace',{baseRevision:0,doc:base,assets:[]});
+  const server=await(await call(env,'GET','/sync/v2')).json(),m=initializeOutbox(server.update,server.revision,null,base,[]);
+  const clear=setWorkdays(base,[date],'Clear','','2026-11-03');recordLocal(m,clear);
+  const modern=edit(server.update,base,d=>{d.web.workdays=workdaysV2(d);d.web.workdays.entries['2026-11-04']={plan:{am:{mode:'WFO',updatedAt:8}}};});
+  await call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:modern.update,vector:modern.vector},'alice',headers);
+  // A tab can receive v2 while its older immutable deltas are still queued.
+  receiveOutbox(m,await(await call(env,'GET','/sync/v2',null,'alice',headers)).json());
+  m.localState=m.receivedState;m.mappedDoc=project(openShared(m.receivedState)).doc;
+  const latest=copy(m.mappedDoc);latest.tables.bullets[1].text='Modern edit after the switch';recordLocal(m,latest);claimOutbox(m);
+  assert.ok(m.inflight.workdaysVector);assert.ok(m.inflight.workdaysContext);
+  const ack=await(await call(env,'POST','/sync/v2',m.inflight,'alice',headers)).json();assert.ok(ack.acked);
+  const y=openShared((await(await call(env,'GET','/sync/v2',null,'alice',headers)).json()).update),doc=project(y).doc;y.destroy();
+  assert.equal(doc.web.workdays.entries[date],undefined);assert.equal(doc.web.workdays.entries['2026-11-04'].plan.am.mode,'WFO');assert.equal(doc.tables.bullets.find(n=>n.id==='b').text,'Modern edit after the switch');
+ }finally{env.sqlite.close();}
+});
+
+test('legacy Workdays conversion failures identify their step without exposing input text',async()=>{
+ const env=database(),headers={'X-Remo-Capabilities':'workdays-v2'};
+ try{
+  const base=enableWorkdays(initial(),true,'2026-11-01');await call(env,'PUT','/workspace',{baseRevision:0,doc:base,assets:[]});const server=await(await call(env,'GET','/sync/v2')).json();
+  const old=edit(server.update,base,d=>{d.web.workdays=setWorkdays(d,['2026-11-02'],'WFH','','2026-11-03').web.workdays;}),modern=edit(server.update,base,d=>{d.web.workdays=workdaysV2(d);});
+  await call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:modern.update,vector:modern.vector},'alice',headers);
+  await assert.rejects(call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:old.update,vector:old.vector,workdaysContext:{secretText:'PRIVATE CONTENT'}},'alice',headers),e=>e.status===400&&e.code==='SYNC_VALIDATION_FAILED'&&/Legacy Workdays upgrade failed/.test(e.message)&&!e.message.includes('PRIVATE'));
+ }finally{env.sqlite.close();}
+});

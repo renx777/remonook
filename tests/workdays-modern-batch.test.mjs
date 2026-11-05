@@ -44,3 +44,17 @@ test('a batch that newly removes a v1 Workdays field is still recognised as lega
   device.destroy();
   assert.ok(legacyOn(serverState, update, seen), 'a new removal of a v1 field still goes through the upgrade');
 });
+
+test('a v2-only account with no v1 history never requests legacy conversion',()=>{
+ const server=new Y.Doc();server.getMap('fields').set(VERSION,2);const state=sharedState(server);server.destroy();
+ const device=openShared(state),before=vector(device);device.getMap('fields').set(MODERN,{mode:'WFH',updatedAt:9});
+ assert.equal(legacyOn(state,delta(device,before),vector(device)),null);device.destroy();
+});
+
+test('a long-offline sender without the v2 switch retains a Clear intent even after unrelated history grows',()=>{
+ const server=new Y.Doc();server.getMap('fields').set(LEFTOVER,'WFO');const old=sharedState(server);
+ const device=openShared(old),before=vector(device);device.getMap('fields').delete(LEFTOVER);const update=delta(device,before),sender=vector(device);device.destroy();
+ server.getMap('fields').set(VERSION,2);server.getMap('fields').delete(LEFTOVER);
+ for(let i=0;i<200;i++)server.getMap('fields').set(JSON.stringify(['web','unrelated']),i);
+ const intent=legacyOn(sharedState(server),update,sender);assert.ok(intent.records.has(JSON.stringify(['2026-11-03','actual'])));server.destroy();
+});

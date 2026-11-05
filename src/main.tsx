@@ -98,6 +98,7 @@ import {
   type Workspace,
   type Node,
   storageAccountKey,
+  syncOperation,
 } from "./data";
 import { OutlineView } from "./OutlineView";
 import { OutlinePopover, OutlineSidebar } from "./OutlineChrome";
@@ -371,7 +372,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     });
     return chain.current;
   };
-  const cloud = useCloudSync({user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
+  const cloud = useCloudSync({onNotice:setNotice,user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
     get:()=>({doc:docRef.current,assets:assetsRef.current}),flush,
     canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus,.mind-input:focus')&&!working&&!failed.current&&!cloudApplying.current,
     selection:()=>editing&&activeEditor?.isFocused?{id:editing,anchor:Math.max(0,activeEditor.state.selection.anchor-1),head:Math.max(0,activeEditor.state.selection.head-1)}:null,
@@ -2140,7 +2141,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {settingsPanel==="account" && <section aria-label="Account">
           <section className="cloud-account">
             <div className="cloud-account-heading"><div><h3>{cloudUser ? 'Your account' : 'Your notes, everywhere'}</h3><p>{cloudUser?.email || 'Sign in to keep a private workspace.'}</p></div><CloudAccountStatus signal={cloud.signal}/></div>
-            {cloudUser ? <><AccountSecurity user={cloudUser}/><div className="cloud-account-actions"><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Edits save securely in this browser first, including while offline. Your signed-in workspace syncs to the cloud and your other devices when connected.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><p className="dialog-muted">Your changes save on this device first and update across devices automatically when connected. RemoNook keeps recovery copies in the background. Note attachments: 2 MiB each · 20 MiB total. Books: 25 MiB each. Combined cloud storage: 100 MiB. Notes: 900 KiB per workspace.</p></details>
+            {cloudUser ? <><AccountSecurity user={cloudUser}/><div className="cloud-account-actions"><button className="action" onClick={()=>void accountAction(true)}>Sign out</button></div><p className="dialog-muted">Edits save securely in this browser first, including while offline. Your signed-in workspace syncs to the cloud and your other devices when connected.</p><details className="settings-disclosure"><summary>Sync details & limits</summary><button className="action" onClick={async()=>{try{const entries=await syncOperation('recovery-export');if(!entries.length){setNotice('No sync recovery entries on this device.');return;}download(new Blob([JSON.stringify({format:'remonook-sync-recovery-v1',entries},null,2)],{type:'application/json'}),'remonook-sync-recovery.json');}catch(e){showError(e);}}}>Download device sync recovery</button><p className="dialog-muted">Your changes save on this device first and update across devices automatically when connected. RemoNook keeps recovery copies in the background. Note attachments: 2 MiB each · 20 MiB total. Books: 25 MiB each. Combined cloud storage: 100 MiB. Notes: 900 KiB per workspace.</p></details>
 
             {!doc.tables.bullets.length&&<button className="wide action" disabled={disabled} onClick={async()=>{try{await flush();const guest=await load('remo-web'),guestAssets=await getAssets('remo-web');if(!guest)throw Error('No device-only notes found.');if(!confirm('Copy device-only notes into this account? They will upload to your private cloud workspace.'))return;const next=await save(persisted.current,{...guest,web:{...guest.web,deviceId:docRef.current!.web.deviceId}},'copy device notes',guestAssets,true);persisted.current=next;docRef.current=next;assetsRef.current=guestAssets;setDoc(next);setAssets(guestAssets);}catch(e){showError(e);}}}>Import existing device-only notes…</button>}
 </> : <><button className="wide action cloud-google" disabled={disabled} onClick={()=>void accountAction()}>Sign in or create account</button><p className="dialog-muted">Your current notes stay in the device-only workspace. After signing in, you can choose to import them. Sign out to return to these notes.</p></>}

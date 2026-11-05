@@ -66,6 +66,13 @@ The working flow is local → staging → production:
 
 1. Develop on a feature branch and verify locally (`npm run build`, `npm test`).
 2. Push the branch and run the **Staging frontend** workflow on that branch (`workflow_dispatch`) so it can be tested on phones and other devices. Staging may run an unmerged branch during testing; record which branch and commit are live there.
+   This workflow deploys **only the frontend**. Deploy the sync server separately
+   with `npx wrangler deploy --config cloud/config.staging.local.json` from the
+   same tested branch. Keep that local config ignored; compare its bindings and
+   plain variables against live staging first. Preserve secrets, enabled AI,
+   Google Tasks, article capture, D1/R2 and scheduled cleanup. Verify `/health`
+   after deployment (`syncProtocol: 2`, `workdaysSchema: 2`, `aiAssist: 1`,
+   `bookmarkReader: 1`, with `aiEnabled: true` while staging AI is enabled).
 3. Open a PR into `main` once testing passes. CI runs Node 24, `npm ci`, a local-only build and the full tests.
 4. Merge to `main`. A push to `main` also deploys staging automatically.
 5. Release production explicitly from `main`. Before doing so, confirm `main` contains everything staging has been running, so the release and staging match.

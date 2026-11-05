@@ -40,12 +40,12 @@ async function fixture(){
   try{const perform=()=>send(init.method||'GET',new URL(url).pathname,typeof init.body==='string'?JSON.parse(init.body):init.body,Object.fromEntries(new Headers(init.headers)));
    if(intercept){const f=intercept;intercept=null;return await f(perform,init);}
    return await perform();
-  }catch(e){if(!e.status)throw e;return Response.json({error:e.message},{status:e.status});}
+  }catch(e){if(!e.status)throw e;return Response.json({error:e.message,code:e.code},{status:e.status});}
  };
- let result,root,canApply=true,renders=0;
- function Harness(){renders++;result=useCloudSync({user:{uid:'alice',getIdToken:async()=> 'token'},ready:true,revision:local.revision,get:()=>({doc:local,assets:files}),flush:async()=>{},canApply:()=>canApply,apply:async(doc,assets,sync)=>{local=await save(local,{...doc,web:{...doc.web,deviceId:local.web.deviceId}},'cloud download',assets,true,[],sync?.state);files=assets;}});return null;}
+ let result,root,canApply=true,renders=0;const notices=[];
+ function Harness(){renders++;result=useCloudSync({onNotice:message=>notices.push(message),user:{uid:'alice',getIdToken:async()=> 'token'},ready:true,revision:local.revision,get:()=>({doc:local,assets:files}),flush:async()=>{},canApply:()=>canApply,apply:async(doc,assets,sync)=>{local=await save(local,{...doc,web:{...doc.web,deviceId:local.web.deviceId}},'cloud download',assets,true,[],sync?.state);files=assets;}});return null;}
  const mount=async()=>{root=createRoot(document.getElementById('root'));await act(async()=>root.render(React.createElement(Harness)));};await mount();
- return {base,sqlite,send,get renders(){return renders;},get doc(){return local;},get result(){return result;},get posts(){return posts;},get fetches(){return fetches;},get uploads(){return uploads;},get files(){return files;},async cacheFile(){files=new Map([...files,['emoji/recovered.webp',new Blob(['recovered'],{type:'image/webp'})]]);await act(async()=>{local=await save(local,local,'recovered file',files);root.render(React.createElement(Harness));});},async attach(){const d=copy(local);d.tables.media.push({id:'file',bulletId:'a',fileName:'x.bin',mimeType:'application/octet-stream',sourceUrl:'',credit:'',licenseUrl:''});files=new Map([['media/x.bin',new Blob(['attachment'],{type:'application/octet-stream'})]]);await act(async()=>{local=await save(local,d,'attachment',files);root.render(React.createElement(Harness));});},set intercept(f){intercept=f;},set online(value){online=value;},set canApply(value){canApply=value;},async sync(){await act(async()=>result.sync());},async edit(fn){const d=copy(local);fn(d);await act(async()=>{local=await save(local,d,'edit');root.render(React.createElement(Harness));});},async reload(){await act(async()=>root.unmount());local=await load();await mount();},async close(){await act(async()=>root.unmount());globalThis.fetch=originalFetch;setStorageAccount(null);sqlite.close();dom.window.close();}};
+ return {base,sqlite,send,notices,get renders(){return renders;},get doc(){return local;},get result(){return result;},get posts(){return posts;},get fetches(){return fetches;},get uploads(){return uploads;},get files(){return files;},async cacheFile(){files=new Map([...files,['emoji/recovered.webp',new Blob(['recovered'],{type:'image/webp'})]]);await act(async()=>{local=await save(local,local,'recovered file',files);root.render(React.createElement(Harness));});},async attach(){const d=copy(local);d.tables.media.push({id:'file',bulletId:'a',fileName:'x.bin',mimeType:'application/octet-stream',sourceUrl:'',credit:'',licenseUrl:''});files=new Map([['media/x.bin',new Blob(['attachment'],{type:'application/octet-stream'})]]);await act(async()=>{local=await save(local,d,'attachment',files);root.render(React.createElement(Harness));});},set intercept(f){intercept=f;},set online(value){online=value;},set canApply(value){canApply=value;},async sync(){await act(async()=>result.sync());},async edit(fn){const d=copy(local);fn(d);await act(async()=>{local=await save(local,d,'edit');root.render(React.createElement(Harness));});},async reload(){await act(async()=>root.unmount());local=await load();await mount();},async close(){await act(async()=>root.unmount());globalThis.fetch=originalFetch;setStorageAccount(null);sqlite.close();dom.window.close();}};
 }
 async function remoteEdit(f,fn){const response=await(await f.send('GET','/sync/v2')).json(),y=openShared(response.update),before=project(y).doc,next=copy(before),v=vector(y);fn(next);applyIntent(y,before,next);return {operationId:crypto.randomUUID(),update:delta(y,v),vector:vector(y)};}
 
@@ -127,4 +127,26 @@ test('a cloud response cannot discard an emoji file restored after the outgoing 
 
 test('sync status transitions do not rerender the workspace that owns the hook',async()=>{
  const f=await fixture();try{const before=f.renders;await f.sync();assert.equal(f.result.status,'Synced');assert.equal(f.renders,before);await f.sync();assert.equal(f.renders,before);}finally{await f.close();}
+});
+
+test('a permanent validation 400 recovers automatically, stays pending until acknowledged, and shows one notice',async()=>{
+ const f=await fixture();try{
+  await f.sync();await f.edit(d=>d.tables.bullets[0].text='Phone edit must survive.');
+  f.intercept=async()=>Response.json({error:'Invalid shared document: legacy Workdays validation failed.',code:'SYNC_VALIDATION_FAILED'},{status:400});
+  await f.sync();assert.match(f.result.status,/pending/);let m=await syncMetadata();assert.ok(m.pending.length);assert.ok(m.inflight.recovery);assert.equal(m.recoveries.length,1);assert.equal(f.notices.length,1);assert.match(f.notices[0],/still pending/);
+  await f.reload();await f.sync();await until(()=>f.result.status==='Synced');
+  assert.equal(f.doc.tables.bullets.find(n=>n.id==='a').text,'Phone edit must survive.');assert.ok(f.doc.tables.bullets.some(n=>n.text==='Recovered from this device'));assert.equal(f.notices.length,1);assert.equal((await syncMetadata()).pending.length,0);
+  await f.edit(d=>d.tables.bullets[1].text='Later independent edit');await f.sync();await until(()=>f.result.status==='Synced');assert.equal(f.doc.tables.bullets.find(n=>n.id==='b').text,'Later independent edit');
+ }finally{await f.close();}
+});
+
+test('network, auth, quota and non-validation 400 errors never quarantine or acknowledge pending edits',async()=>{
+ const f=await fixture();try{
+  await f.sync();await f.edit(d=>d.tables.bullets[0].text='Still pending');
+  for(const status of [400,401,403,413,503]){
+   f.intercept=async()=>Response.json({error:'Request failed.'},{status});await f.sync();
+   const m=await syncMetadata();assert.ok(m.pending.length);assert.ok(m.inflight);assert.equal(m.recoveries,undefined);assert.match(f.result.status,/pending/);
+  }
+  assert.equal(f.notices.length,0);
+ }finally{await f.close();}
 });

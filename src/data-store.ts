@@ -8,6 +8,7 @@ import {sharedSnapshotProblem} from './sync-validate.mjs';
 import {workdaysLegacyIntent,upgradeWorkdaysIntent} from '../cloud/workdays-upgrade.mjs';
 import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
 import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox} from './sync-outbox.mjs';
+import {recoverRejectedBatch} from './sync-recovery.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
 import {validateOcclusions} from "./occlusion.mjs";
 import {validateStudyLibrary,studyFolders} from './study-library.mjs';
@@ -775,6 +776,13 @@ export async function syncOperation(operation:string,args:any={},account=storage
  }
  if(operation==='uploaded'){await change(m=>{m.uploaded=[...new Set([...(m.uploaded||[]),args.hash])];return m;});return;}
  if(operation==='receive'){await change(m=>receiveOutbox(m,args.response));return;}
+ if(operation==='recover'){await change(m=>recoverRejectedBatch(m,args.server,args.operationId,args.reason));return;}
+ if(operation==='recovery-export')return (await read())?.recoveries||[];
+ if(operation==='recovery-notice'){
+  const m=await read(),pending=m?.recoveries?.filter((r:any)=>r.noticePending)||[];
+  return pending.length?{ids:pending.map((r:any)=>r.operationId),message:'Some content could not sync in its original form. It is preserved under “Recovered from this device” and in Account recovery downloads. Sync is still pending.'}:null;
+ }
+ if(operation==='recovery-notice-shown'){await change(m=>{for(const r of m.recoveries||[])if(args.ids.includes(r.operationId))r.noticePending=false;return m;});return;}
  if(operation==='current')return (await read()).receivedState===args.state;
  if(operation==='diagnose'){
   const m=await read();
@@ -782,7 +790,7 @@ export async function syncOperation(operation:string,args:any={},account=storage
   if(args?.server&&m.inflight?.update){
    const y=openShared(args.server),update=unpack(m.inflight.update);let step='Workdays (older edit check)';
    try{
-    const legacy=workdaysLegacyIntent(y,update,unpack(m.inflight.vector));
+    const legacy=m.inflight.recovery?null:workdaysLegacyIntent(y,update,unpack(m.inflight.workdaysVector||m.inflight.vector));
     step='apply update';Y.applyUpdate(y,update);
     if(legacy){step='Workdays upgrade';const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,args.workdays);step='Workdays upgrade apply';applyIntent(y,before,next);}
     const problem=sharedSnapshotProblem(y);
@@ -794,7 +802,7 @@ export async function syncOperation(operation:string,args:any={},account=storage
   try{const problem=sharedSnapshotProblem(y);if(problem)return problem;}finally{y.destroy();}
   // The server also upgrades older Workdays edits in the batch it receives.
   if(m.inflight?.update&&args?.workdays){const r=openShared(m.receivedState);
-   try{const legacy=workdaysLegacyIntent(r,unpack(m.inflight.update),unpack(m.inflight.vector));
+   try{const legacy=m.inflight.recovery?null:workdaysLegacyIntent(r,unpack(m.inflight.update),unpack(m.inflight.workdaysVector||m.inflight.vector));
     if(legacy){try{upgradeWorkdaysIntent(project(r).doc,legacy,args.workdays);}catch(e:any){return 'Workdays upgrade: '+String(e?.message||'failed').slice(0,160);}}
    }finally{r.destroy();}}
   return '';

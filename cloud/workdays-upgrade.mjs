@@ -1,5 +1,7 @@
 import { Y } from "../src/sync-crdt.mjs";
 import { validateWorkdaysV2, leaveId } from "../src/workdays-v2.mjs";
+import {repairWorkdays} from '../src/workdays-repair.mjs';
+import {recoveryNotes} from '../src/sync-recovery-notes.mjs';
 // An older tab can retain an immutable, unacknowledged v1 batch through an app
 // update. Recover only its explicit metadata intent, never replace a workspace
 // or copy unrelated dates from the client's compatibility context.
@@ -61,6 +63,9 @@ export function workdaysLegacyIntent(y, update, senderVector) {
     : null;
 }
 export function upgradeWorkdaysIntent(doc, intent, context) {
+  const repairedContext=repairWorkdays(context),repaired=repairWorkdays(doc.web.workdays);
+  context=repairedContext.value;
+  doc=recoveryNotes({...doc,web:{...doc.web,workdays:repaired.value}},[...repaired.recovered,...repairedContext.recovered]);
   validateWorkdaysV2(context);
   const w = {
     ...doc.web.workdays,

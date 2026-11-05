@@ -11,6 +11,8 @@ import { validateWorkdays } from "./workdays.mjs";
 import { validateCalendarEvents } from "./calendar-events.mjs";
 import { validateStudyLibrary } from "./study-library.mjs";
 import { validateOcclusions } from "./occlusion.mjs";
+import {repairWorkdays} from './workdays-repair.mjs';
+import {recoveryNotes} from './sync-recovery-notes.mjs';
 
 const fail = (message, status = 400) => {
   throw Object.assign(Error(message), { status });
@@ -42,6 +44,14 @@ export function sharedSnapshot(y, step = () => {}) {
     }
   step("project");
   value = project(y);
+  step('Attachments');
+  const paths=new Set();let bytes=0;
+  if(value.assets.length>2000)fail('Too many attachments.',413);
+  for(const a of value.assets){
+    if(typeof a.path!=='string'||!a.path||a.path.length>500||paths.has(a.path)||!/^[a-f0-9]{64}$/.test(a.hash)||!Number.isSafeInteger(a.size)||a.size<0||a.size>2*1024*1024||typeof a.type!=='string'||a.type.length>150)fail('Invalid attachment.');
+    paths.add(a.path);bytes+=a.size;
+  }
+  if(bytes>20*1024*1024)fail('Attachments exceed 20 MiB.',413);
   const before = structuredClone(value.doc);
   step("outline tree");
   normalizeTree(value.doc);
@@ -56,6 +66,8 @@ export function sharedSnapshot(y, step = () => {}) {
     }
   }
   const web = value.doc.web;
+  const workdays=repairWorkdays(web.workdays);
+  if(workdays.recovered.length){web.workdays=workdays.value;value.doc=recoveryNotes(value.doc,workdays.recovered);}
   step("Books");
   validateReadingBooks(web.readingBooks);
   step("Reading");
