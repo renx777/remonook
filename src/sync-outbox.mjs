@@ -35,3 +35,4 @@ export function receiveOutbox(meta,response){
  if(response.acked){if(response.acked!==meta.inflight?.operationId)throw Error('Unexpected sync acknowledgement');const ids=new Set(meta.inflight.ids);meta.pending=meta.pending.filter(x=>!ids.has(x.id));meta.inflight=null;}
  return meta;
 }
+

@@ -782,7 +782,7 @@ export async function syncOperation(operation:string,args:any={},account=storage
   if(args?.server&&m.inflight?.update){
    const y=openShared(args.server),update=unpack(m.inflight.update);let step='Workdays (older edit check)';
    try{
-    const legacy=workdaysLegacyIntent(y,update);
+    const legacy=workdaysLegacyIntent(y,update,unpack(m.inflight.vector));
     step='apply update';Y.applyUpdate(y,update);
     if(legacy){step='Workdays upgrade';const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,args.workdays);step='Workdays upgrade apply';applyIntent(y,before,next);}
     const problem=sharedSnapshotProblem(y);
@@ -794,7 +794,7 @@ export async function syncOperation(operation:string,args:any={},account=storage
   try{const problem=sharedSnapshotProblem(y);if(problem)return problem;}finally{y.destroy();}
   // The server also upgrades older Workdays edits in the batch it receives.
   if(m.inflight?.update&&args?.workdays){const r=openShared(m.receivedState);
-   try{const legacy=workdaysLegacyIntent(r,unpack(m.inflight.update));
+   try{const legacy=workdaysLegacyIntent(r,unpack(m.inflight.update),unpack(m.inflight.vector));
     if(legacy){try{upgradeWorkdaysIntent(project(r).doc,legacy,args.workdays);}catch(e:any){return 'Workdays upgrade: '+String(e?.message||'failed').slice(0,160);}}
    }finally{r.destroy();}}
   return '';

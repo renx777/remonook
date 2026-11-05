@@ -3,11 +3,16 @@ import { validateWorkdaysV2, leaveId } from "../src/workdays-v2.mjs";
 // An older tab can retain an immutable, unacknowledged v1 batch through an app
 // update. Recover only its explicit metadata intent, never replace a workspace
 // or copy unrelated dates from the client's compatibility context.
-export function workdaysLegacyIntent(y, update) {
-  if (
-    y.getMap("fields").get(JSON.stringify(["web", "workdays", "version"])) !== 2
-  )
-    return null;
+const VERSION = JSON.stringify(["web", "workdays", "version"]);
+/** @param {any} y @param {Uint8Array} update @param {Uint8Array} [senderVector] what the sender had seen */
+export function workdaysLegacyIntent(y, update, senderVector) {
+  if (y.getMap("fields").get(VERSION) !== 2) return null;
+  // A sender that had already seen the switch to v2 cannot be replaying a v1
+  // edit through a deletion the upgrade itself made.
+  let sawV2 = false;
+  const marker = y.getMap("fields")._map.get(VERSION);
+  if (senderVector && marker)
+    sawV2 = (Y.decodeStateVector(senderVector).get(marker.id.client) || 0) > marker.id.clock;
   const decoded = Y.decodeUpdate(update),
     paths = [];
   let modern = false;
@@ -24,9 +29,12 @@ export function workdaysLegacyIntent(y, update) {
   if (modern) return null;
   // Yjs retains the field identity of deleted map items. Include removals, not
   // just inserted values, so an offline Clear action can recover after update.
+  // Every update carries the document's whole delete set. For a sender that had
+  // seen v2, removals this server already holds are history, not its intent.
   for (const [client, ranges] of decoded.ds.clients)
     for (const item of y.store.clients.get(client) || [])
       if (
+        !(sawV2 && item.deleted) &&
         ranges.some(
           (r) =>
             item.id.clock < r.clock + r.len &&
