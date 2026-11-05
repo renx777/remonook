@@ -2,6 +2,21 @@
 
 ## Current state
 
+Staging sync recovery release `2026-11-05.2` uses branch
+`ccr-641b18bf-2fe80f`, application commit `081280c`. The sync Worker was deployed
+separately on 5 November 2026: version `242ad50e-7d15-40e1-9bbe-b02791a3b7f0`,
+100% traffic. Health confirms `syncProtocol: 2`, `workdaysSchema: 2`,
+`aiAssist: 1`, `bookmarkReader: 1`, `aiEnabled: true`, article capture and Google
+Tasks configured. D1/R2, all existing variables and secret bindings, observability
+and cleanup cron were compared before/after and retained. The requested Wrangler
+command could not authenticate in this execution environment; the connected
+Cloudflare account uploaded the tested Wrangler bundle instead. The ignored
+local config was absent and was reconstructed from live staging settings.
+The matching **Staging frontend** workflow is dispatched on this branch after
+the backend deployment. Real affected-account verification on both devices is
+pending owner confirmation; synthetic clients and IndexedDB recovery tests pass.
+Production remains unchanged.
+
 The Bookmarks preview (`feature/bookmarks`, release `2026-11-04.1`) is intentionally limited to local development and staging at the owner’s request. Production stays on its existing deployed release. Do not publish this preview through Sites. See [BOOKMARKS.md](BOOKMARKS.md) for staging-only backend bindings, migration and local cloud development.
 
 GitHub `main` is the source for every environment. Release `2026-11-02.3` includes the flashcard editing, interactive mindmap, bulk actions and pane improvements from `678e82c`, plus an update notice for older open app sessions. `/release.json` identifies the release on each frontend. Sites uses a separate source-repository commit, whose application files must match GitHub byte for byte. Environment-specific build configuration, Firebase accounts, database contents and attachment buckets remain separate.
