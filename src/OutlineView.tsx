@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { outlineClipboardHtml, type ClipboardInput } from "./clipboard";
 import type { Editor } from "@tiptap/core";
 import { indexedRows, index, descendants } from "./domain.mjs";
+import { rootRows } from "./notes-filter.mjs";
 import { BulletEditor, RichRead } from "./editor";
 import { Icon } from "./icons";
 import type { Node } from "./data";
@@ -25,6 +26,8 @@ type Props = {
   hideTitle?: boolean;
   /** Size the canvas to its rows so a parent page can scroll it (short outlines only). */
   fitContent?: boolean;
+  /** Show only these bullets (each with its children) instead of the scope's tree. */
+  rootIds?: string[] | null;
   nodes: Node[];
   scope: string | null;
   search: string;
@@ -84,7 +87,7 @@ export function OutlineView(p: Props) {
     rs = useMemo(
       () => {
         const expanded = !!p.search,
-          all = indexedRows(idx, p.scope, expanded),
+          all = p.rootIds ? rootRows(idx, p.rootIds, expanded) : indexedRows(idx, p.scope, expanded),
           completion = { depth: -1 },
           available = all.filter((row: any) => {
             if (row.depth <= completion.depth) completion.depth = -1;
@@ -105,7 +108,7 @@ export function OutlineView(p: Props) {
         }
         return available.filter((row: any) => keep.has(row.bullet.id));
       },
-      [idx, p.scope, p.search, p.showCompleted, p.editing,matches],
+      [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds],
     );
   const scroller = useRef<HTMLDivElement>(null),
     [view, setView] = useState({ top: 0, height: 600, width: 800 }),

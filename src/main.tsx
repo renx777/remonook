@@ -56,10 +56,9 @@ import { parseClipboard, type ClipboardInput } from "./clipboard";
 import { SelectionFormatting } from "./SelectionFormatting";
 import { textColors } from "./color-palettes";
 import { prepareCoverImage, type DeckDesign } from "./deck-designs";
-import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif, ALL_MCQS } from "./mcq.mjs";
-import { QuickAccess, useQuickPrefs, type QuickTool } from "./QuickAccess";
-import { usePhone } from "./workdays-stats";
-import { createStudyContext as quickStudyContext, dueCards as quickDueCards } from "./study.mjs";
+import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
+import { NOTE_FILTERS, filterCounts, filterRoots } from "./notes-filter.mjs";
+import { useViewSwipe, SWIPE_VIEWS, SWIPE_LABELS, type SwipeView } from "./view-swipe";
 import { MCQEditor } from "./MCQEditor";
 import { BulkMCQEditor } from "./BulkMCQEditor";
 import {retireLegacyFolderSync} from './retire-folder-sync.mjs';
@@ -471,21 +470,19 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
   const [emptyTrashIds,setEmptyTrashIds]=React.useState<string[]>([]);
   const calendarToday=useReminderClock();
-  const [quickPrefs,setQuickPrefs]=useQuickPrefs(),[studyLaunch,setStudyLaunch]=useState<{scope:string|null;at:number}|null>(null),phone=usePhone();
-  const quickCounts=React.useMemo(()=>{
-    if(!doc||quickPrefs.collapsed)return {};
-    try{const now=Date.now(),ctx=quickStudyContext(doc,now),cards=quickDueCards(doc,null,now,ctx).length,mcqs=quickDueCards(doc,ALL_MCQS,now,ctx).length;
-      return {flashcards:{value:cards,label:`${cards} due`},mcqs:{value:mcqs,label:`${mcqs} due`}};}catch{return {};}
-  // Counts follow study data, not every keystroke in notes.
-  },[doc?.tables.cards,doc?.tables.review_logs,doc?.tables.decks,quickPrefs.collapsed]);
-  const openQuick=async(tool:QuickTool)=>{
+  const [notesFilter,setNotesFilter]=useState('all');
+  const [viewHint,setViewHint]=useState<{view:SwipeView;at:number}|null>(null);
+  useEffect(()=>{if(!viewHint)return;const t=setTimeout(()=>setViewHint(null),1400);return()=>clearTimeout(t);},[viewHint?.at]);
+  const swipeTo=async(view:SwipeView)=>{
     try{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');}catch(e){showError(e);return;}
-    setEditing(null);setSearch('');
-    if(tool==='flashcards'||tool==='mcqs'){setTab('study');setStudyLaunch({scope:tool==='mcqs'?ALL_MCQS:null,at:Date.now()});}
-    else{if(tool==='mindmap')setMindmapTarget(null);setTab(tool);}
+    setEditing(null);setSearch('');if(view==='mindmap')setMindmapTarget(null);setTab(view);setViewHint({view,at:Date.now()});
   };
-  const quickPlacement=phone?'bar':quickPrefs.placement;
-  const quickAccess=doc&&!(readerFocus&&tab==='bookmarks')?<QuickAccess placement={quickPlacement} collapsed={quickPrefs.collapsed} active={tab==='mindmap'?'mindmap':tab==='bookmarks'?'bookmarks':tab==='bookshelf'?'bookshelf':null} counts={quickCounts} onOpen={tool=>void openQuick(tool)} onChange={setQuickPrefs}/>:null;
+  useViewSwipe(tab,()=>tab==='notes'||tab==='study'||(tab==='mindmap'&&!!document.querySelector('.mindmap-library'))||(tab==='bookmarks'&&!!document.querySelector('.bookmark-library'))||(tab==='bookshelf'&&!document.querySelector('.book-reader')),view=>void swipeTo(view));
+  const notesFilterCounts=React.useMemo(()=>doc&&tab==='notes'?filterCounts(doc,views.active.global&&views.active.search?null:views.active.scope):{},[tab,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,views.active.scope,views.active.global,views.active.search]) as Record<string,number>;
+  const notesFilterRoots=React.useMemo(()=>{
+    if(!doc||tab!=='notes'||notesFilter==='all')return null;
+    return Object.fromEntries(views.panes.map(pane=>[pane.id,filterRoots(doc,notesFilter,pane.global&&pane.search?null:pane.scope)||[]]));
+  },[tab,notesFilter,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,views.panes]) as Record<string,string[]>|null;
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
@@ -1535,8 +1532,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
         </div>
       </aside>
-      <main ref={sidebarMotion.mainRef} className={quickPlacement==='rail'&&quickAccess?(quickPrefs.collapsed?'has-quick-rail-collapsed':'has-quick-rail'):undefined}>
-        {quickPlacement==='rail'&&quickAccess}
+      <main ref={sidebarMotion.mainRef}>
         <header className="topbar">
           <button
             className={`icon-button sidebar-toggle-btn topbar-sidebar-toggle ${sidebarShown ? "is-open" : "is-collapsed"}`}
@@ -1637,7 +1633,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {tab==='notes'&&<button className="icon-button" aria-label="New pane" title="New pane · Alt+R" onClick={()=>openPane()}><Icon name="pane" size={17}/></button>}
           </div>
         </header>
-        {quickPlacement==='bar'&&quickAccess}
+        {viewHint&&<div className="view-dots" role="status" aria-live="polite">{SWIPE_VIEWS.map(v=><span key={v} className={v===viewHint.view?'is-current':''}>{v===viewHint.view?SWIPE_LABELS[v]:''}</span>)}</div>}
         {error && (
           <div className="error-banner" role="alert">
             <span>{error}</span>
@@ -1664,13 +1660,17 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         {tab === "notes" ? (
           <>
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
+            {(notesFilter!=='all'||Object.values(notesFilterCounts).some(Boolean))&&<div className="notes-filter" role="tablist" aria-label="Show bullets">
+              {NOTE_FILTERS.filter(([kind])=>kind==='all'||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label])=><button key={kind} role="tab" aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{label}{kind!=='all'&&<span>{notesFilterCounts[kind]||0}</span>}</button>)}
+            </div>}
             <div className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
             {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
             {views.panes.length>1&&<div className="pane-bar">
              <PaneSearchBar value={pane.search} onChange={q=>views.update(pane.id,{search:q})} label={`Search pane ${i+1}`} onFocus={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}/>
              <button className="icon-button pane-close" aria-label={`Close pane ${i+1}`} title="Close pane" onClick={()=>views.close(pane.id)}><Icon name="close" size={14}/></button>
             </div>}
-            <OutlineView
+            {notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',pdfs:'PDF notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<OutlineView
+              rootIds={notesFilterRoots?.[pane.id]||null}
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
               scope={pane.global&&pane.search?null:pane.scope}
               search={pane.search}
@@ -1721,7 +1721,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               onMenu={openBulletMenu}
               onDeleteNodes={removeMultiple}
               setNotice={setNotice}
-            />
+            />}
               <ConnectionPanel id={pane.scope||(views.activePane===pane.id?editing:null)}/>
             </section>{i<views.panes.length-1&&<PaneDivider onResize={delta=>views.resize(pane.id,views.panes[i+1].id,delta)}/>}</React.Fragment>)}
             </div>
@@ -1738,7 +1738,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
-          <StudyDesk launch={studyLaunch} doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
+          <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : tab === "mindmap" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
         ) : (

@@ -2084,3 +2084,120 @@ hr {
 .outline-scroll.is-root > .outline-canvas {
   margin-top: -44px;
 }
+/* Notes filter: one quiet row of text tabs on the page background. */
+.notes-filter {
+  display: flex;
+  gap: 22px;
+  margin: 18px 64px 0 80px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.notes-filter button {
+  flex: 0 0 auto;
+  width: auto;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  gap: 5px;
+  white-space: nowrap;
+}
+.notes-filter button:hover {
+  color: var(--text);
+}
+.notes-filter button[aria-selected="true"] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--text);
+}
+.notes-filter button span {
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.notes-filter ~ .notes-panes .outline-scroll {
+  margin-top: 16px;
+}
+.notes-filter-empty {
+  margin: 28px 64px 0 80px;
+  color: var(--muted);
+  font-size: 14px;
+}
+@media (max-width: 760px) {
+  .notes-filter {
+    margin: 4px 0 0;
+    padding: 0 16px;
+    gap: 20px;
+  }
+  .notes-filter button {
+    height: 44px;
+    font-size: 14px;
+  }
+  .notes-filter-empty {
+    margin: 24px 18px 0;
+  }
+}
+/* Brief position indicator after a two-finger swipe between views. */
+.view-dots {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+  color: var(--text);
+  pointer-events: none;
+}
+.view-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 6px;
+  background: var(--line);
+}
+.view-dots span.is-current {
+  width: auto;
+  height: auto;
+  padding: 0 2px;
+  background: none;
+  font-weight: 600;
+}
+.view-dots span.is-current::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 6px;
+  background: var(--text);
+  vertical-align: 1px;
+}
+/* Keep the browser's own back/forward swipe from firing on the app's view swipe. */
+html {
+  overscroll-behavior-x: none;
+}
+.notes-filter button,
+.notes-filter button:hover,
+.notes-filter button:focus,
+.notes-filter button[aria-selected="true"] {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.notes-filter button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

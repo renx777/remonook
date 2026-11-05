@@ -39,10 +39,8 @@ type Props = {
   onSource: (id: string) => void;
   onSaveDesign: (id: string, design: DeckDesign, file?: File) => Promise<void>;
   onSaveReactions: (settings: ReactionSettings, files: { correct: File[]; wrong: File[] }) => Promise<void>;
-  /** Quick access: start the flashcard (null) or MCQ deck when it has cards, else show the library. */
-  launch?: { scope: string | null; at: number } | null;
 };
-export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, onSaveFolder, onSource, onSaveDesign, onSaveReactions, launch }: Props) {
+export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, onSaveFolder, onSource, onSaveDesign, onSaveReactions }: Props) {
   const [screen, setScreen] = useState<"library" | "topics" | "session">("library"),
     [topicDeck, setTopicDeck] = useState<string | null>(null),
     [editingCard, setEditingCard] = useState(false),
@@ -94,14 +92,6 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   const isAllBulletsRevealed = !hasStepBullets || revealedBullets >= totalBullets;
   const studyContext = useMemo(() => createStudyContext(doc, clock), [doc, clock]);
   const folders=studyFolders(doc),currentFolder=folders.find(f=>f.id===activeFolder);
-  useEffect(() => {
-    if (!launch) return;
-    const ready = mode === "SPACED" ? dueCards(doc, launch.scope, clock, studyContext) : scopedCards(doc, launch.scope, clock, studyContext);
-    if (ready.length && !disabled) openDeck(launch.scope);
-    else showLibrary();
-    // Only a new launch request starts a session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [launch?.at]);
   useEffect(()=>{if(activeFolder&&!currentFolder)setActiveFolder(null);},[activeFolder,!!currentFolder]);
   const moveDeckTo=(id:string,folderId:string|null)=>{if(disabled)return;onLibraryChange(moveStudyDeck(doc,id,folderId));setLibraryNotice(folderId?`Deck moved to ${folders.find(f=>f.id===folderId)?.name}.`:'Deck moved to unfiled.');setDraggedDeck(null);setDropFolder(null);};
   const folderDrop=(id:string|null)=>({
