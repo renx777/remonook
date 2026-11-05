@@ -17,7 +17,7 @@ import {openShared,sharedState,project,vector,delta,applyIntent} from '../src/sy
 await build({entryPoints:['src/useCloudSync.ts'],bundle:true,packages:'external',outfile:'tests/.build/sync-hook.mjs',format:'esm',platform:'node',plugins:[{name:'test-auth-only',setup(b){
  b.onResolve({filter:/^\.\/data$/},()=>({path:pathToFileURL(resolve('tests/.build/data.mjs')).href,external:true}));
  b.onResolve({filter:/^\.\/(CloudAccount|cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));
- b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?`export const authenticatedUid=()=> 'alice';`:`export const CLOUD_API='https://sync.test';`}));
+ b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?`export const authenticatedUid=()=> 'alice';`:`export const CLOUD_API='https://sync.test';export const APP_ENV='test';`}));
 }}]});
 const {useCloudSync}=await import('./.build/sync-hook.mjs');
 const copy=structuredClone,pause=ms=>new Promise(r=>setTimeout(r,ms));

@@ -1,13 +1,13 @@
 import { index, indexedRows } from "./domain.mjs";
 
-/** Filters shown above the Notes outline. */
+/** Filters shown above the Notes outline: [id, label, emoji]. Docs are PDF and EPUB notes from Bookshelf. */
 export const NOTE_FILTERS = [
-  ["all", "All"],
-  ["flashcards", "Flashcards"],
-  ["mcqs", "MCQs"],
-  ["mindmaps", "Mindmaps"],
-  ["bookmarks", "Bookmarks"],
-  ["pdfs", "PDFs"],
+  ["all", "All", ""],
+  ["flashcards", "Flashcards", "🃏"],
+  ["mcqs", "MCQs", "✅"],
+  ["mindmaps", "Mindmaps", "🧠"],
+  ["bookmarks", "Bookmarks", "🔖"],
+  ["docs", "Docs", "📚"],
 ];
 
 function matcher(doc, kind) {
@@ -23,7 +23,7 @@ function matcher(doc, kind) {
     const roots = new Set(Object.values(web.bookmarkNoteRoots || {}));
     return (n) => roots.has(n.id);
   }
-  if (kind === "pdfs") {
+  if (kind === "docs") {
     const roots = new Set(Object.values(web.readingNoteRoots || {}));
     return (n) => roots.has(n.id);
   }

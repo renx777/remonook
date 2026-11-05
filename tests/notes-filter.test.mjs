@@ -26,10 +26,10 @@ test('filters return whole outermost bullets in outline order', () => {
   assert.deepEqual(filterRoots(doc, 'mcqs'), ['mcq']);
   assert.deepEqual(filterRoots(doc, 'mindmaps'), ['map']);
   assert.deepEqual(filterRoots(doc, 'bookmarks'), ['web-1']);
-  assert.deepEqual(filterRoots(doc, 'pdfs'), ['book-1']);
+  assert.deepEqual(filterRoots(doc, 'docs'), ['book-1']);
   assert.equal(filterRoots(doc, 'all'), null);
   assert.deepEqual(filterRoots(doc, 'flashcards', 'ml'), ['q1'], 'a zoomed page only shows its own bullets');
-  assert.deepEqual(filterCounts(doc), { flashcards: 3, mcqs: 1, mindmaps: 1, bookmarks: 1, pdfs: 1 });
+  assert.deepEqual(filterCounts(doc), { flashcards: 3, mcqs: 1, mindmaps: 1, bookmarks: 1, docs: 1 });
 });
 
 test('rows show each matched bullet with its children', () => {

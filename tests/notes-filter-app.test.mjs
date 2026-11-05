@@ -6,13 +6,16 @@ test('Notes filter shows whole flashcard bullets editable in place, and a two-fi
  await save(null,withNodes(empty(),[bullet('ml',{text:'Machine Learning'}),bullet('q',{parentId:'ml',text:'What is overfitting?',kind:'QUESTION'}),bullet('a',{parentId:'q',text:'Memorising training data'}),bullet('other',{parentId:'ml',position:1,text:'Plain note'})]));let app;
  try{await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="ml"]'));
   const tabs=()=>[...document.querySelectorAll('.notes-filter [role="tab"]')];
-  assert.deepEqual(tabs().map(t=>t.textContent),['All','Flashcards1'],'only filters with bullets are offered');
+  assert.deepEqual(tabs().map(t=>t.textContent),['All','🃏Flashcards1'],'only filters with bullets are offered');
   await click(tabs()[1]);await wait(()=>!document.querySelector('[data-node-id="other"]'));
   assert.ok(document.querySelector('[data-node-id="q"]'),'the flashcard bullet is shown');
   assert.ok(document.querySelector('[data-node-id="a"]'),'with its children');
   assert.equal(document.querySelector('[data-node-id="ml"]'),null,'its parent page is not');
   assert.equal(tabs()[1].getAttribute('aria-selected'),'true');
   await click(tabs()[0]);await wait(()=>document.querySelector('[data-node-id="other"]'));
+  await click(document.querySelector('[aria-label="Account: not signed in"]'));await wait(()=>document.querySelector('.profile-menu'));
+  assert.match(document.querySelector('.profile-menu').textContent,/Notes stay on this device only/);assert.ok([...document.querySelectorAll('.profile-menu button')].some(b=>b.textContent==='Sign in or create account'));
+  await act(async()=>document.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   const outline=document.querySelector('.outline-scroll');
   for(let i=0;i<3;i++)await act(async()=>outline.dispatchEvent(new window.WheelEvent('wheel',{deltaX:80,deltaY:0,bubbles:true})));
   await wait(()=>document.querySelector('.study-desk'));
