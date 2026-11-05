@@ -590,7 +590,7 @@ export function OutlineView(p: Props) {
   return (
     <div
       ref={scroller}
-      className="outline-scroll"
+      className={"outline-scroll" + (!p.hideTitle && !scopedNode ? " is-root" : "")}
       onScroll={(e) => {
         // React clears currentTarget after dispatch; capture before a deferred update.
         const top = e.currentTarget.scrollTop;
@@ -666,7 +666,7 @@ export function OutlineView(p: Props) {
               }}
             />
           </div>
-        ) : <div className="zoomed-header"><h1 className="zoomed-title">My notes</h1></div>)}
+        ) : <h1 className="page-title-hidden">My notes</h1>)}
         {!rs.length && (!scopedNode || p.search) && (
           <div className="empty-state">
             <Icon name="notes" size={30} />

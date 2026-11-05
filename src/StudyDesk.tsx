@@ -39,8 +39,10 @@ type Props = {
   onSource: (id: string) => void;
   onSaveDesign: (id: string, design: DeckDesign, file?: File) => Promise<void>;
   onSaveReactions: (settings: ReactionSettings, files: { correct: File[]; wrong: File[] }) => Promise<void>;
+  /** Quick access: start the flashcard (null) or MCQ deck when it has cards, else show the library. */
+  launch?: { scope: string | null; at: number } | null;
 };
-export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, onSaveFolder, onSource, onSaveDesign, onSaveReactions }: Props) {
+export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, onSaveFolder, onSource, onSaveDesign, onSaveReactions, launch }: Props) {
   const [screen, setScreen] = useState<"library" | "topics" | "session">("library"),
     [topicDeck, setTopicDeck] = useState<string | null>(null),
     [editingCard, setEditingCard] = useState(false),
@@ -92,6 +94,14 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   const isAllBulletsRevealed = !hasStepBullets || revealedBullets >= totalBullets;
   const studyContext = useMemo(() => createStudyContext(doc, clock), [doc, clock]);
   const folders=studyFolders(doc),currentFolder=folders.find(f=>f.id===activeFolder);
+  useEffect(() => {
+    if (!launch) return;
+    const ready = mode === "SPACED" ? dueCards(doc, launch.scope, clock, studyContext) : scopedCards(doc, launch.scope, clock, studyContext);
+    if (ready.length && !disabled) openDeck(launch.scope);
+    else showLibrary();
+    // Only a new launch request starts a session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launch?.at]);
   useEffect(()=>{if(activeFolder&&!currentFolder)setActiveFolder(null);},[activeFolder,!!currentFolder]);
   const moveDeckTo=(id:string,folderId:string|null)=>{if(disabled)return;onLibraryChange(moveStudyDeck(doc,id,folderId));setLibraryNotice(folderId?`Deck moved to ${folders.find(f=>f.id===folderId)?.name}.`:'Deck moved to unfiled.');setDraggedDeck(null);setDropFolder(null);};
   const folderDrop=(id:string|null)=>({
@@ -523,7 +533,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   }
   const decks = [{ rootId: null, title: "All flashcards", description: "Every flashcard across your outline" }, { rootId: ALL_MCQS, title: "All MCQs", description: "Every MCQ, including questions outside a notebook" }, ...doc.tables.decks.map(deck => ({ rootId: deck.rootId, title: idx.byId.get(deck.rootId)?.text || "Untitled deck", description: "Linked to your notes · updates automatically" }))];
   return <section ref={rootRef} className={`study-desk ${deskDesign.backdrop ? "has-study-background" : ""}`} style={backdropStyle(deskDesign, deskImage)}>
-    <div className="study-heading"><div><span className="eyebrow">LEARN FROM YOUR NOTES</span><h1>Study Desk</h1><p>Your outline, turned into something you remember.</p><a className="study-guide-link" href="/guides/study" target="_blank" rel="noopener noreferrer">Flashcard guide</a><span className="study-guide-divider">·</span><a className="study-guide-link" href="/guides/mcqs" target="_blank" rel="noopener noreferrer">MCQ guide</a></div><Icon name="study" size={34} /></div>
+    <div className="study-heading"><div><h1 className="page-title-hidden">Study Desk</h1><p>Your outline, turned into something you remember.</p><a className="study-guide-link" href="/guides/study" target="_blank" rel="noopener noreferrer">Flashcard guide</a><span className="study-guide-divider">·</span><a className="study-guide-link" href="/guides/mcqs" target="_blank" rel="noopener noreferrer">MCQ guide</a></div><Icon name="study" size={34} /></div>
     <div className="study-shelf-tools"><span>Your notebook shelf</span><div className="study-shelf-buttons"><button className="study-text-button" disabled={disabled} onClick={()=>setFolderEditor({})}><Icon name="folder" size={15}/>New folder</button><button className="study-text-button" disabled={disabled} onClick={() => setReactionEditor(true)}>Quiz reactions</button><button className="study-text-button" disabled={disabled} onClick={() => setCoverEditor({ id: "__desk__", title: "Study Desk" })}><Icon name="image" size={15} />Personalize space</button></div></div>
     <div className="study-stats"><div><strong><FlowNumber value={all.length} /></strong><span>available cards</span></div><div><strong><FlowNumber value={due.length} /></strong><span>ready to review</span></div><div><strong><FlowNumber value={todayCount} /></strong><span>reviews today</span></div></div>
     {session && session.cursor < queue.length && <div className="study-resume"><div><strong>Pick up where you left off</strong><p>{session.mode === "NORMAL" ? "Cram" : "Spaced repetition"} · <NumberGroup><FlowNumber value={session.reviewed} /> reviewed · <FlowNumber value={queue.length - session.cursor} /> remaining</NumberGroup></p></div><button className="study-primary" disabled={disabled} onClick={resume}>Resume</button></div>}

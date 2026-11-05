@@ -1,0 +1,274 @@
+/* Quick access to study tools: a left rail or a bar under the top bar. */
+.quick-access {
+  display: flex;
+  gap: 4px;
+  background: var(--sidebar);
+  color: var(--text);
+  flex-shrink: 0;
+}
+.quick-access button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.quick-access-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 9px;
+  color: var(--muted) !important;
+}
+.quick-access-item:hover,
+.quick-access-item:focus-visible {
+  background: var(--hover) !important;
+  color: var(--text) !important;
+}
+.quick-access-item[aria-current="page"] {
+  background: var(--hover) !important;
+  color: var(--text) !important;
+  font-weight: 600;
+}
+.quick-access-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.quick-access-grip,
+.quick-access-hide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--muted) !important;
+}
+.quick-access-grip {
+  cursor: grab !important;
+}
+.quick-access-grip:active {
+  cursor: grabbing !important;
+}
+.quick-access-grip:hover,
+.quick-access-hide:hover {
+  background: var(--hover) !important;
+  color: var(--text) !important;
+}
+.quick-access-spacer {
+  flex: 1;
+}
+
+/* A · rail on the left edge */
+.quick-access.is-rail {
+  flex-direction: column;
+  align-items: center;
+  width: 52px;
+  height: 100%;
+  padding: 10px 0;
+  box-sizing: border-box;
+  border-right: 1px solid var(--line);
+}
+.quick-access.is-rail .quick-access-item {
+  width: 40px;
+  height: 40px;
+}
+.quick-access.is-rail .quick-access-count {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+.quick-access.is-rail .quick-access-grip {
+  width: 40px;
+  height: 28px;
+  margin-bottom: 4px;
+}
+.quick-access.is-rail .quick-access-hide {
+  width: 40px;
+  height: 36px;
+  font-size: 18px;
+}
+
+/* B · bar under the top bar */
+.quick-access.is-bar {
+  align-items: center;
+  height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.quick-access.is-bar .quick-access-item {
+  height: 32px;
+  padding: 0 11px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.quick-access.is-bar .quick-access-count {
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.quick-access.is-bar .quick-access-grip {
+  width: 28px;
+  height: 32px;
+  flex-shrink: 0;
+}
+.quick-access.is-bar .quick-access-hide {
+  width: 32px;
+  height: 32px;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+/* Collapsed: one small control to bring it back */
+.quick-access-reveal {
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  background: var(--sidebar);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.quick-access-reveal:hover {
+  color: var(--text);
+}
+.quick-access-reveal.is-rail {
+  width: 16px;
+  height: 100%;
+  padding: 0;
+  border-width: 0 1px 0 0;
+  border-radius: 0;
+  font-size: 13px;
+}
+.quick-access-reveal.is-bar {
+  align-self: flex-start;
+  height: 24px;
+  margin: 4px 0 0 16px;
+  padding: 0 10px;
+  border-radius: 0 0 8px 8px;
+  border-top: 0;
+}
+
+/* Drop targets while dragging the grip */
+.quick-access-zones {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+}
+.quick-access-zone {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: background 0.12s;
+}
+.quick-access-zone.is-rail {
+  left: 6px;
+  top: 60px;
+  bottom: 6px;
+  width: 64px;
+  writing-mode: vertical-rl;
+}
+.quick-access-zone.is-bar {
+  left: 80px;
+  right: 6px;
+  top: 52px;
+  height: 52px;
+}
+.quick-access-zone.is-current {
+  opacity: 0.55;
+}
+.quick-access-zone.is-over {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-style: solid;
+}
+
+/* Phones: always the bar, sized for touch, no dragging */
+@media (max-width: 760px) {
+  .quick-access.is-bar {
+    height: 52px;
+    gap: 6px;
+    padding: 0 10px;
+  }
+  .quick-access.is-bar .quick-access-item {
+    height: 40px;
+  }
+  .quick-access .quick-access-grip {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-access-zone {
+    transition: none;
+  }
+}
+
+/* The rail sits inside the main column, beside the top bar and content. */
+main.has-quick-rail {
+  padding-left: 52px;
+  box-sizing: border-box;
+}
+main.has-quick-rail-collapsed {
+  padding-left: 16px;
+  box-sizing: border-box;
+}
+main > .quick-access.is-rail,
+main > .quick-access-reveal.is-rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  z-index: 6;
+}
+.quick-access .quick-access-item,
+.quick-access .quick-access-grip,
+.quick-access .quick-access-hide {
+  flex: 0 0 auto;
+}
+/* The app's generic "nav button { width: 100% }" is for sidebars. */
+.quick-access.is-bar .quick-access-item {
+  width: auto;
+  justify-content: flex-start;
+}
+@media (max-width: 760px) {
+  .quick-access.is-bar .quick-access-item {
+    flex: 1 1 0;
+    min-width: 44px;
+    justify-content: center;
+    padding: 0 6px;
+  }
+  .quick-access.is-bar .quick-access-label {
+    display: none;
+  }
+  .quick-access.is-bar .quick-access-count {
+    position: absolute;
+    top: 2px;
+    right: 6px;
+    padding: 0;
+    background: none;
+    font-size: 10px;
+  }
+}

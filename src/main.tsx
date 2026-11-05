@@ -56,7 +56,10 @@ import { parseClipboard, type ClipboardInput } from "./clipboard";
 import { SelectionFormatting } from "./SelectionFormatting";
 import { textColors } from "./color-palettes";
 import { prepareCoverImage, type DeckDesign } from "./deck-designs";
-import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
+import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif, ALL_MCQS } from "./mcq.mjs";
+import { QuickAccess, useQuickPrefs, type QuickTool } from "./QuickAccess";
+import { usePhone } from "./workdays-stats";
+import { createStudyContext as quickStudyContext, dueCards as quickDueCards } from "./study.mjs";
 import { MCQEditor } from "./MCQEditor";
 import { BulkMCQEditor } from "./BulkMCQEditor";
 import {retireLegacyFolderSync} from './retire-folder-sync.mjs';
@@ -468,6 +471,21 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
   const [emptyTrashIds,setEmptyTrashIds]=React.useState<string[]>([]);
   const calendarToday=useReminderClock();
+  const [quickPrefs,setQuickPrefs]=useQuickPrefs(),[studyLaunch,setStudyLaunch]=useState<{scope:string|null;at:number}|null>(null),phone=usePhone();
+  const quickCounts=React.useMemo(()=>{
+    if(!doc||quickPrefs.collapsed)return {};
+    try{const now=Date.now(),ctx=quickStudyContext(doc,now),cards=quickDueCards(doc,null,now,ctx).length,mcqs=quickDueCards(doc,ALL_MCQS,now,ctx).length;
+      return {flashcards:{value:cards,label:`${cards} due`},mcqs:{value:mcqs,label:`${mcqs} due`}};}catch{return {};}
+  // Counts follow study data, not every keystroke in notes.
+  },[doc?.tables.cards,doc?.tables.review_logs,doc?.tables.decks,quickPrefs.collapsed]);
+  const openQuick=async(tool:QuickTool)=>{
+    try{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');}catch(e){showError(e);return;}
+    setEditing(null);setSearch('');
+    if(tool==='flashcards'||tool==='mcqs'){setTab('study');setStudyLaunch({scope:tool==='mcqs'?ALL_MCQS:null,at:Date.now()});}
+    else{if(tool==='mindmap')setMindmapTarget(null);setTab(tool);}
+  };
+  const quickPlacement=phone?'bar':quickPrefs.placement;
+  const quickAccess=doc&&!(readerFocus&&tab==='bookmarks')?<QuickAccess placement={quickPlacement} collapsed={quickPrefs.collapsed} active={tab==='mindmap'?'mindmap':tab==='bookmarks'?'bookmarks':tab==='bookshelf'?'bookshelf':null} counts={quickCounts} onOpen={tool=>void openQuick(tool)} onChange={setQuickPrefs}/>:null;
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
@@ -1517,7 +1535,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
         </div>
       </aside>
-      <main ref={sidebarMotion.mainRef}>
+      <main ref={sidebarMotion.mainRef} className={quickPlacement==='rail'&&quickAccess?(quickPrefs.collapsed?'has-quick-rail-collapsed':'has-quick-rail'):undefined}>
+        {quickPlacement==='rail'&&quickAccess}
         <header className="topbar">
           <button
             className={`icon-button sidebar-toggle-btn topbar-sidebar-toggle ${sidebarShown ? "is-open" : "is-collapsed"}`}
@@ -1618,6 +1637,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {tab==='notes'&&<button className="icon-button" aria-label="New pane" title="New pane · Alt+R" onClick={()=>openPane()}><Icon name="pane" size={17}/></button>}
           </div>
         </header>
+        {quickPlacement==='bar'&&quickAccess}
         {error && (
           <div className="error-banner" role="alert">
             <span>{error}</span>
@@ -1718,7 +1738,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
-          <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
+          <StudyDesk launch={studyLaunch} doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : tab === "mindmap" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
         ) : (

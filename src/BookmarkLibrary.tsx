@@ -177,7 +177,7 @@ export function BookmarkLibrary({
     <div className="bookmark-library">
       <header className="bl-heading">
         <div>
-          <h1>Bookmarks</h1>
+          <h1 className="page-title-hidden">Bookmarks</h1>
           <p>
             {counts.all + counts.archived
               ? [
