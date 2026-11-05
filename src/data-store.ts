@@ -3,8 +3,9 @@ import {validateBookmarks,articleSnapshotHashes} from './bookmarks.mjs';
 import {validateFsrs} from './fsrs-scheduler.mjs';
 import {validateReading} from './reading.mjs';
 import {validateReadingBooks} from './book-storage.mjs';
-import {project,openShared,vector,Y,emptyShared} from './sync-crdt.mjs';
+import {project,openShared,vector,Y,emptyShared,unpack} from './sync-crdt.mjs';
 import {sharedSnapshotProblem} from './sync-validate.mjs';
+import {workdaysLegacyIntent,upgradeWorkdaysIntent} from '../cloud/workdays-upgrade.mjs';
 import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
 import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox} from './sync-outbox.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
@@ -775,7 +776,16 @@ export async function syncOperation(operation:string,args:any={},account=storage
  if(operation==='uploaded'){await change(m=>{m.uploaded=[...new Set([...(m.uploaded||[]),args.hash])];return m;});return;}
  if(operation==='receive'){await change(m=>receiveOutbox(m,args.response));return;}
  if(operation==='current')return (await read()).receivedState===args.state;
- if(operation==='diagnose'){const m=await read(),y=openShared(m.localState);try{return sharedSnapshotProblem(y);}finally{y.destroy();}}
+ if(operation==='diagnose'){
+  const m=await read(),y=openShared(m.localState);
+  try{const problem=sharedSnapshotProblem(y);if(problem)return problem;}finally{y.destroy();}
+  // The server also upgrades older Workdays edits in the batch it receives.
+  if(m.inflight?.update&&args?.workdays){const r=openShared(m.receivedState);
+   try{const legacy=workdaysLegacyIntent(r,unpack(m.inflight.update));
+    if(legacy){try{upgradeWorkdaysIntent(project(r).doc,legacy,args.workdays);}catch(e:any){return 'Workdays upgrade: '+String(e?.message||'failed').slice(0,160);}}
+   }finally{r.destroy();}}
+  return '';
+ }
  if(operation==='inspect'){
   const m=await read(),y=openShared(m.receivedState);let shared;
   try{shared=project(y);}finally{y.destroy();}
