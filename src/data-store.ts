@@ -3,7 +3,7 @@ import {validateBookmarks,articleSnapshotHashes} from './bookmarks.mjs';
 import {validateFsrs} from './fsrs-scheduler.mjs';
 import {validateReading} from './reading.mjs';
 import {validateReadingBooks} from './book-storage.mjs';
-import {project,openShared,vector,Y,emptyShared,unpack} from './sync-crdt.mjs';
+import {project,openShared,vector,Y,emptyShared,unpack,applyIntent} from './sync-crdt.mjs';
 import {sharedSnapshotProblem} from './sync-validate.mjs';
 import {workdaysLegacyIntent,upgradeWorkdaysIntent} from '../cloud/workdays-upgrade.mjs';
 import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
@@ -777,7 +777,20 @@ export async function syncOperation(operation:string,args:any={},account=storage
  if(operation==='receive'){await change(m=>receiveOutbox(m,args.response));return;}
  if(operation==='current')return (await read()).receivedState===args.state;
  if(operation==='diagnose'){
-  const m=await read(),y=openShared(m.localState);
+  const m=await read();
+  // Most faithful: replay the batch being sent onto the server's own copy, in the server's order.
+  if(args?.server&&m.inflight?.update){
+   const y=openShared(args.server),update=unpack(m.inflight.update);let step='Workdays (older edit check)';
+   try{
+    const legacy=workdaysLegacyIntent(y,update);
+    step='apply update';Y.applyUpdate(y,update);
+    if(legacy){step='Workdays upgrade';const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,args.workdays);step='Workdays upgrade apply';applyIntent(y,before,next);}
+    const problem=sharedSnapshotProblem(y);
+    return problem?'server copy · '+problem:'';
+   }catch(e:any){return 'server copy · '+step+': '+String(e?.message||e?.name||'no message').replace(/\s+/g,' ').slice(0,160);}
+   finally{y.destroy();}
+  }
+  const y=openShared(m.localState);
   try{const problem=sharedSnapshotProblem(y);if(problem)return problem;}finally{y.destroy();}
   // The server also upgrades older Workdays edits in the batch it receives.
   if(m.inflight?.update&&args?.workdays){const r=openShared(m.receivedState);
