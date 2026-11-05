@@ -21,7 +21,8 @@ The full local test suite passed all 134 files; `node tests/repro-sync-rejection
 accepted every batch. A live staging test using two separate synthetic actors
 confirmed concurrent edits converge, both outboxes are acknowledged, and a
 validation-rejected batch is preserved and accepted after automatic repair.
-Real affected-account verification on both devices is pending owner confirmation.
+The owner confirmed the affected-account check succeeded on both devices:
+both reached **Synced** and the previously pending edits appeared on both.
 Production remains unchanged.
 
 The Bookmarks preview (`feature/bookmarks`, release `2026-11-04.1`) is intentionally limited to local development and staging at the owner’s request. Production stays on its existing deployed release. Do not publish this preview through Sites. See [BOOKMARKS.md](BOOKMARKS.md) for staging-only backend bindings, migration and local cloud development.
