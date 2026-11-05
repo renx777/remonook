@@ -12,9 +12,16 @@ and cleanup cron were compared before/after and retained. The requested Wrangler
 command could not authenticate in this execution environment; the connected
 Cloudflare account uploaded the tested Wrangler bundle instead. The ignored
 local config was absent and was reconstructed from live staging settings.
-The matching **Staging frontend** workflow is dispatched on this branch after
-the backend deployment. Real affected-account verification on both devices is
-pending owner confirmation; synthetic clients and IndexedDB recovery tests pass.
+The matching **Staging frontend** workflow succeeded at frontend commit
+`419442ff0a596305e8334e5fd9edd5b9c7194f04`:
+[run 42083418657](https://github.com/renx777/remonook/actions/runs/42083418657).
+`/staging-source.json` confirms that branch, commit and release. CI also passed
+on that commit ([run 42083391600](https://github.com/renx777/remonook/actions/runs/42083391600)).
+The full local test suite passed all 134 files; `node tests/repro-sync-rejection.mjs`
+accepted every batch. A live staging test using two separate synthetic actors
+confirmed concurrent edits converge, both outboxes are acknowledged, and a
+validation-rejected batch is preserved and accepted after automatic repair.
+Real affected-account verification on both devices is pending owner confirmation.
 Production remains unchanged.
 
 The Bookmarks preview (`feature/bookmarks`, release `2026-11-04.1`) is intentionally limited to local development and staging at the owner’s request. Production stays on its existing deployed release. Do not publish this preview through Sites. See [BOOKMARKS.md](BOOKMARKS.md) for staging-only backend bindings, migration and local cloud development.
