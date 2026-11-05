@@ -4,6 +4,7 @@ import {validateFsrs} from './fsrs-scheduler.mjs';
 import {validateReading} from './reading.mjs';
 import {validateReadingBooks} from './book-storage.mjs';
 import {project,openShared,vector,Y,emptyShared} from './sync-crdt.mjs';
+import {sharedSnapshotProblem} from './sync-validate.mjs';
 import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
 import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox} from './sync-outbox.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
@@ -774,6 +775,7 @@ export async function syncOperation(operation:string,args:any={},account=storage
  if(operation==='uploaded'){await change(m=>{m.uploaded=[...new Set([...(m.uploaded||[]),args.hash])];return m;});return;}
  if(operation==='receive'){await change(m=>receiveOutbox(m,args.response));return;}
  if(operation==='current')return (await read()).receivedState===args.state;
+ if(operation==='diagnose'){const m=await read(),y=openShared(m.localState);try{return sharedSnapshotProblem(y);}finally{y.destroy();}}
  if(operation==='inspect'){
   const m=await read(),y=openShared(m.receivedState);let shared;
   try{shared=project(y);}finally{y.destroy();}

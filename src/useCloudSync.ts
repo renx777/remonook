@@ -81,7 +81,12 @@ export function useCloudSync(options:Options){
    if(!e?.deferred&&[400,401,403,413].includes(e?.status)){
     // Name what the server rejected instead of repeating a generic message.
     let message=e.message;
-    if(e.status===400&&String(message).startsWith('Invalid shared document')&&!String(message).includes(':')){const problem=sharedDocumentProblem(latest.current.get().doc);if(problem)message='Invalid shared document · '+problem;}
+    if(e.status===400&&String(message).startsWith('Invalid shared document')&&!String(message).includes(':')){
+     // Older servers don't say why. Run the server's own check on this device's sync copy.
+     let problem='';try{problem=String(await work('diagnose',{})||'');}catch{}
+     if(!problem)problem=sharedDocumentProblem(latest.current.get().doc);
+     if(problem)message='Invalid shared document · '+problem;
+    }
     if(e.status===400)console.warn(JSON.stringify({event:'sync_rejected',message}));
     setError(message);
    }

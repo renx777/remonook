@@ -9,6 +9,7 @@ import {validateWorkdays} from '../src/workdays.mjs';
 import {validateCalendarEvents} from '../src/calendar-events.mjs';
 import {validateStudyLibrary} from '../src/study-library.mjs';
 import {validateOcclusions} from '../src/occlusion.mjs';
+import {sharedSnapshot} from '../src/sync-validate.mjs';
 const error=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const hash=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
 const STATE_LIMIT=6*1024*1024;
@@ -28,23 +29,7 @@ async function initialize(env,uid){
  }
  error('Sync is retrying. Your edits are saved on this device.',503);
 }
-function snapshot(y){
- let value=project(y);
- for(const [table,rows]of Object.entries(value.doc.tables))rows.forEach((row,i)=>{const key=rowKey(table,row,i);if(y.getMap('rows').get(key)===false)y.getMap('rows').set(key,true);});
- // Retain source notes when a concurrent attachment/deck references a node
- // deleted elsewhere. A nonexistent source is invalid input, not recoverable.
- const ids=new Set(value.doc.tables.bullets.map(n=>n.id));
- for(const id of [...(value.doc.tables.media||[]).map(x=>x.bulletId),...(value.doc.tables.decks||[]).map(x=>x.rootId)])if(!ids.has(id)){
-  const key=JSON.stringify(['bullets',id]);if(!y.getMap('rows').has(key))error('Invalid attachment or deck source');y.getMap('rows').set(key,true);ids.add(id);
- }
- value=project(y);const before=structuredClone(value.doc);normalizeTree(value.doc);
- // Invalid mirror references can arise when a source is deleted concurrently.
- // Detaching keeps the note text; the journal retains the original link.
- try{validateMirrors(value.doc.tables.bullets);}catch{for(const n of value.doc.tables.bullets){delete n.mirrorSourceId;delete n.mirrorRootId;}}
- validateReadingBooks(value.doc.web.readingBooks);validateReading(value.doc.web);validateBookmarks(value.doc.web);validateDashboard(value.doc.web.dashboard);validateWorkdays(value.doc.web.workdays);validateCalendarEvents(value.doc.web.calendarEvents);validateStudyLibrary(value.doc.web);validateOcclusions(value.doc.web.occlusions);
- applyIntent(y,before,value.doc,value.assets,value.assets);
- return value;
-}
+function snapshot(y){return sharedSnapshot(y);}
 function requireWorkdaysCapability(request,state){
  if((request.headers.get('X-Remo-Capabilities')||'').split(',').map(s=>s.trim()).includes('workdays-v2'))return;
  const y=openShared(state);try{if(y.getMap('fields').get(JSON.stringify(['web','workdays','version']))===2)error('Update RemoNook to continue syncing Workdays. Pending edits remain saved on this device.',426);}finally{y.destroy();}
