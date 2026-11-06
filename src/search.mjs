@@ -11,7 +11,7 @@ export function dateRange(value,today=localDate()){
  if(/^(this|next|last) year$/.test(text)){const year=y+(text.startsWith('next')?1:text.startsWith('last')?-1:0);return [`${year}-01-01`,`${year}-12-31`];}
  return null;
 }
-export function collectLabels(nodes,prefix='#'){const out=new Set();for(const n of nodes){if(n.codeLanguage)continue;const links=noteLinks(n.text);for(const m of n.text.matchAll(/(?:^|(?<=\s))([#@][\p{L}\p{N}_-]+)/gu))if(m[0][0]===prefix&&!links.some(l=>m.index>=l.start&&m.index<l.end))out.add(m[0]);}return [...out].sort((a,b)=>a.localeCompare(b));}
+export function collectLabels(nodes,prefix='#'){const out=new Set();for(const n of nodes){if(n.codeLanguage)continue;const links=noteLinks(n.text);for(const m of n.text.matchAll(/(?:^|(?<=\s))([#@][\p{L}\p{N}_-]+(?:\/[\p{L}\p{N}_-]+)*)/gu))if(m[0][0]===prefix&&!links.some(l=>m.index>=l.start&&m.index<l.end))out.add(m[0]);}return [...out].sort((a,b)=>a.localeCompare(b));}
 export function searchMatcher(nodes,media=[],times={},now=Date.now()){
  const idx=new Map(nodes.map(n=>[n.id,n])),images=new Set(media.map(m=>m.bulletId)),incoming=new Set(nodes.filter(n=>!n.codeLanguage&&!n.mirrorSourceId).flatMap(n=>noteLinks(n.text).map(l=>l.id))),today=localDate(new Date(now)),parents=new Set(nodes.map(n=>n.parentId)),dateCache=new Map();
  const dates=n=>{if(dateCache.has(n.id))return dateCache.get(n.id);const values=new Set([n.dueDate,n.journalDate,...(n.codeLanguage?[]:[...n.text.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].map(m=>m[0]))].filter(validEventDate));let parent=n,seen=new Set();while(parent&&!seen.has(parent.id)){seen.add(parent.id);const d=parent.journalDate||/^journal-(\d{4}-\d{2}-\d{2})$/.exec(parent.id)?.[1];if(validEventDate(d))values.add(d);parent=idx.get(parent.parentId);}const result=[...values];dateCache.set(n.id,result);return result;};
@@ -24,7 +24,7 @@ export function searchMatcher(nodes,media=[],times={},now=Date.now()){
   if(field==='has')return ({file:images.has(n.mirrorSourceId||n.id),image:images.has(n.mirrorSourceId||n.id),code:!!n.codeLanguage,date:dates(n).length>0,link:noteLinks(n.text).length>0,children:parents.has(n.id)})[value]===true;
   if(field==='text')return (n.formatting||'').toLowerCase().includes(value==='highlight'?'highlight':value);
   if(field==='highlight')return (n.formatting||'').toLowerCase().includes(value==='any'?'highlight':'highlight_'+value.replace('#',''));
-  if(/^[@#][\p{L}\p{N}_-]+$/u.test(value)){if(n.codeLanguage)return false;return collectLabels([n],value[0]).some(tag=>tag.toLowerCase()===value);}
+  if(/^[@#][\p{L}\p{N}_-]+(?:\/[\p{L}\p{N}_-]+)*$/u.test(value)){if(n.codeLanguage)return false;return collectLabels([n],value[0]).some(tag=>{const t=tag.toLowerCase();return t===value||(value[0]==='#'&&t.startsWith(value+'/'));});}
   if(field)return n.text.toLowerCase().includes(raw.toLowerCase());
   return n.text.toLowerCase().includes(value);
  };

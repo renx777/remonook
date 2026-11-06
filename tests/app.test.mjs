@@ -345,9 +345,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await wait(() => document.querySelectorAll(".outline-row").length >= 2);
 
   // Sidebar navigation and starred shortcuts operate on the existing outline.
-  const collapsedWelcome = document.querySelector('[aria-label="Expand Welcome to RemoNook in sidebar"]');
-  if (collapsedWelcome) await click(collapsedWelcome);
-  assert.ok(document.querySelector('[aria-label="Notes tree"] [aria-level="2"]'));
+  assert.ok(document.querySelector('[role="tree"][aria-label="Tags"]'), 'the sidebar lists tags');
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
   assert.ok(document.querySelector('.outline-popover[open]'));
   await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Star'));

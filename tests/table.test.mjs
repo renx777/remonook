@@ -26,3 +26,14 @@ test('pasting spreadsheet or Markdown grids grows the table within limits',async
  assert.deepEqual(t.pasteIntoTable([['x']],0,0,[['1','2'],['3','4']]),[['1','2'],['3','4']]);
  assert.equal(t.tableMarkdown([['A','B'],['1','=A2+1']]),'| A | B |\n| --- | --- |\n| 1 | 2 |');
 });
+
+test('tags: nested, case-insensitive, related and suggestions; search includes sub-tags',async()=>{
+ const t=await import('../src/tags.mjs');const {matchesQuery}=await import('../src/relations.mjs');const {bullet}=await import('../src/domain.mjs');
+ const nodes=[bullet('a',{text:'x #Study/ML #imp'}),bullet('b',{text:'y #study/rag'}),bullet('c',{text:'z #study'}),bullet('d',{text:'[[A|b#study]] only a link'})];
+ const idx=t.tagIndex(nodes);assert.equal(idx.get('study').count,3);assert.equal(idx.get('study/ml').label,'Study/ML');assert.deepEqual(idx.get('study').children.sort(),['study/ml','study/rag']);
+ assert.ok(t.tagMatches('#study/ml','#Study'));assert.ok(!t.tagMatches('#studying','#study'));
+ assert.deepEqual(t.relatedTags(nodes,'#study'),[{key:'imp',count:1}]);
+ assert.equal(t.tagSuggestions(idx,'ra')[0].key,'study/rag');
+ assert.ok(matchesQuery('notes #study/ml','#study'));assert.ok(matchesQuery('notes #STUDY','#study'));assert.ok(!matchesQuery('notes #studying','#study'));
+ assert.ok(t.isTagQuery('#a/b'));assert.ok(!t.isTagQuery('#a b'));
+});

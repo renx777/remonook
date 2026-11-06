@@ -500,3 +500,5 @@ kbd { font: 11px inherit; color: var(--muted); white-space: nowrap; }
 
 /* Table controls are always visible; the menus open in place. */
 
+/* Important tags ring the bullet whether or not it has children. */
+.outline-row.is-important .bullet-dot-btn .bullet-outer-circle{stroke:#e06c66;opacity:.6}

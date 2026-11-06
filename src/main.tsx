@@ -58,6 +58,8 @@ import { textColors } from "./color-palettes";
 import { prepareCoverImage, type DeckDesign } from "./deck-designs";
 import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
 import { NOTE_FILTERS, noteCatalog } from "./notes-filter.mjs";
+import { TagHeader } from "./TagHeader";
+import { isTagQuery } from "./tags.mjs";
 import { ProfileMenu } from "./ProfileMenu";
 import { TablePicker } from "./TablePicker";
 import { APP_ENV } from "./cloud-config";
@@ -1449,7 +1451,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   return (
     <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
-    <ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
+    <ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setNotesFilter('all');setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
       await chooseEmoji(item, true);
@@ -1513,7 +1515,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               </button>
             ))}
           </nav>
-          <OutlineSidebar nodes={nodes} scope={scope} starred={starred} savedSearches={savedSearches} disabled={disabled} onNavigate={navigateTo} onSearch={query => { navigateTo(null); setSearch(query); }} onAdd={parent => { setTab("notes"); setScope(parent); setSearch(""); add(parent); }} />
+          <OutlineSidebar nodes={nodes} scope={scope} starred={starred} savedSearches={savedSearches} search={search} disabled={disabled} onNavigate={navigateTo} onSearch={query => { navigateTo(null); setNotesFilter('all'); setSearch(query); }} onAdd={parent => { setTab("notes"); setScope(parent); setSearch(""); add(parent); }} />
           <div className="sidebar-bottom">
             <button onClick={async()=>{await flush();if(failed.current){showError(Error('Save or export your changes before returning home.'));return;}window.location.hash='home';}}><Icon name="home" size={16}/>RemoNook home</button>
             <button disabled={disabled} onClick={() => { setTab("notes"); setScope(null); setSearch(""); add(null); }}><Icon name="plus" /><span>New node</span></button>
@@ -1669,7 +1671,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         {tab === "notes" ? (
           <>
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
-            <div className="notes-filter" role="tablist" aria-label="Show bullets" onKeyDown={e=>{
+            {isTagQuery(search)&&<TagHeader nodes={nodes} tag={search.trim()} onTag={tag=>{setSearch(tag);}} onClose={()=>setSearch('')}/>}
+            <div className="notes-filter" hidden={isTagQuery(search)} role="tablist" aria-label="Show bullets" onKeyDown={e=>{
               if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
               const tabs=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')),at=tabs.indexOf(document.activeElement as HTMLButtonElement);
               if(at<0)return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(at+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click();
