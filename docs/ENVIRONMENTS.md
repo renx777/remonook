@@ -12,6 +12,13 @@ and positions are unchanged. Daily notes uses the canvas background without a
 frame. The full suite passes 135 files; Chromium acceptance covers mobile filters,
 group order, real previews, keyboard tabs, and unframed daily notes in both themes.
 This is a frontend-only staging release; the verified sync Worker below is retained.
+Deployed frontend source: `1fea6a1e0ca3aca034618ee8c3086fbcbd1ac35c`, confirmed
+by `/staging-source.json`. Both [staging run 42223022322](https://github.com/renx777/remonook/actions/runs/42223022322)
+and [CI run 42222995319](https://github.com/renx777/remonook/actions/runs/42222995319)
+passed. Chromium checks also passed against the deployed build using synthetic
+guest notes, including mobile grouping, filtered editing views, keyboard tab
+navigation, real mindmap snapshots, and borderless calendar notes in both themes.
+The sync server was not redeployed, and production remains unchanged.
 
 Staging sync recovery release `2026-11-05.2` uses branch
 `ccr-641b18bf-2fe80f`, application commit `081280c`. The sync Worker was deployed
