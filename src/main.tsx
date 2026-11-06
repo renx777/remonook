@@ -477,7 +477,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const [notesFilter,setNotesFilter]=useState('all');
   const [tablePicker,setTablePicker]=useState<string|null>(null);
   const insertTable=(id:string,grid:string[][])=>{
-    const text=tableText(grid);
+    const text=tableText(grid,{header:true});
     mutate(ns=>{const n=ns.find(n=>n.id===id);if(!n)return ns;return n.text.trim()?[...ns.map(x=>x.id===id?{...x,collapsed:false}:x),bullet(crypto.randomUUID(),{parentId:id,position:ns.filter(x=>x.parentId===id).length,text})]:ns.map(x=>x.id===id?{...x,text,formatting:'',codeLanguage:'',blockStyle:'paragraph'}:x);});
     setTablePicker(null);
   };

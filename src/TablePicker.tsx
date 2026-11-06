@@ -18,7 +18,7 @@ export function TablePicker({onPick, onClose}: {onPick: (rows: string[][]) => vo
   const [hover, setHover] = useState<[number, number]>([3, 3]);
   const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    dialog.current?.querySelector<HTMLButtonElement>('.table-picker-cells button')?.focus();
+    dialog.current?.querySelectorAll<HTMLButtonElement>('.table-picker-cells button')[2 * GRID + 2]?.focus();
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
