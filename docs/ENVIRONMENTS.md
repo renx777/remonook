@@ -2,6 +2,17 @@
 
 ## Current state
 
+Frontend release `2026-11-06.1` on `ccr-641b18bf-2fe80f` (application commit
+`326aaa5`) adds persistent All / Notes / Calendar quick-access tabs, groups All
+as Calendar → Flashcards/MCQs → Mindmaps → Bookmarks → Docs → ordinary notes,
+and replaces mindmap library icons with bounded SVG snapshots of their actual
+branches and styles. Notes excludes special-content subtrees while retaining
+ordinary siblings in mixed pages. These are presentation filters: saved parents
+and positions are unchanged. Daily notes uses the canvas background without a
+frame. The full suite passes 135 files; Chromium acceptance covers mobile filters,
+group order, real previews, keyboard tabs, and unframed daily notes in both themes.
+This is a frontend-only staging release; the verified sync Worker below is retained.
+
 Staging sync recovery release `2026-11-05.2` uses branch
 `ccr-641b18bf-2fe80f`, application commit `081280c`. The sync Worker was deployed
 separately on 5 November 2026: version `242ad50e-7d15-40e1-9bbe-b02791a3b7f0`,
