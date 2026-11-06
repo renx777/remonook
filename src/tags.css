@@ -31,3 +31,11 @@
 .tag-suggest-option { display: flex; align-items: center; gap: 8px; }
 .tag-suggest-option .sidebar-tag-dot { margin-left: 2px; }
 .tag-suggest-option em { margin-left: auto; font-style: normal; color: var(--muted); font-size: 11px; }
+/* Smart tags: #done strikes and dims, #later dims until hover, #key bands the row, #private blurs until hover or focus. */
+.outline-row.tag-done .bullet-read-source,.outline-row.tag-done .text-button { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.outline-row.tag-later { opacity: .5; transition: opacity .15s; }
+.outline-row.tag-later:hover,.outline-row.tag-later:focus-within { opacity: 1; }
+.outline-row.tag-key { background: color-mix(in srgb, #cb912f 14%, transparent); border-radius: 6px; }
+.outline-row.tag-private:not(:hover):not(:focus-within) .bullet-read-source,.outline-row.tag-private:not(:hover):not(:focus-within) .text-button { filter: blur(5px); }
+@media (prefers-reduced-motion: reduce) { .outline-row.tag-later { transition: none; } }
+@media print { .outline-row.tag-private .bullet-read-source,.outline-row.tag-private .text-button { filter: none; } }

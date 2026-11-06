@@ -37,3 +37,4 @@ test('tags: nested, case-insensitive, related and suggestions; search includes s
  assert.ok(matchesQuery('notes #study/ml','#study'));assert.ok(matchesQuery('notes #STUDY','#study'));assert.ok(!matchesQuery('notes #studying','#study'));
  assert.ok(t.isTagQuery('#a/b'));assert.ok(!t.isTagQuery('#a b'));
 });
+test('smart tags map to row classes; links and longer words do not count',async()=>{const {smartTagClasses}=await import('../src/relations.mjs');assert.equal(smartTagClasses('Renew passport #done'),'tag-done');assert.equal(smartTagClasses('Learn Rust #Someday'),'tag-later');assert.equal(smartTagClasses('#key idea #private'),'tag-key tag-private');assert.equal(smartTagClasses('#doneness'),'');assert.equal(smartTagClasses('#done/2024'),'');assert.equal(smartTagClasses('see [[x|#done]]'),'');});

@@ -17,7 +17,7 @@ import { MediaContent } from "./MediaContent";
 import { mediaLinks } from "./media.mjs";
 import { imageType } from "./media.mjs";
 import { depthIndent } from "./outline-layout.mjs";
-import {hasImportantTag} from "./relations.mjs";
+import {hasImportantTag,smartTagClasses} from "./relations.mjs";
 import {useContext} from "react";
 import {SearchContext} from "./SearchBox";
 import {searchMatcher} from "./search.mjs";
@@ -717,7 +717,7 @@ export function OutlineView(p: Props) {
                 event.preventDefault();
                 if (!p.disabled) openMenu(n.id, event.currentTarget);
               }}
-              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${hasImportantTag(n.text)?"is-important":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
+              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${hasImportantTag(n.text)?"is-important":""} ${smartTagClasses(n.text)} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
               style={{
                 top: r.top,
                 paddingLeft: depthIndent(r.depth, view.width),
