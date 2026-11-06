@@ -59,6 +59,7 @@ import { prepareCoverImage, type DeckDesign } from "./deck-designs";
 import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
 import { NOTE_FILTERS, noteCatalog } from "./notes-filter.mjs";
 import { ProfileMenu } from "./ProfileMenu";
+import { TablePicker } from "./TablePicker";
 import { APP_ENV } from "./cloud-config";
 import { useViewSwipe, SWIPE_VIEWS, SWIPE_LABELS, type SwipeView } from "./view-swipe";
 import { MCQEditor } from "./MCQEditor";
@@ -474,6 +475,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const [emptyTrashIds,setEmptyTrashIds]=React.useState<string[]>([]);
   const calendarToday=useReminderClock();
   const [notesFilter,setNotesFilter]=useState('all');
+  const [tablePicker,setTablePicker]=useState<string|null>(null);
+  const insertTable=(id:string,grid:string[][])=>{
+    const text=tableText(grid);
+    mutate(ns=>{const n=ns.find(n=>n.id===id);if(!n)return ns;return n.text.trim()?[...ns.map(x=>x.id===id?{...x,collapsed:false}:x),bullet(crypto.randomUUID(),{parentId:id,position:ns.filter(x=>x.parentId===id).length,text})]:ns.map(x=>x.id===id?{...x,text,formatting:'',codeLanguage:'',blockStyle:'paragraph'}:x);});
+    setTablePicker(null);
+  };
   const [viewHint,setViewHint]=useState<{view:SwipeView;at:number}|null>(null);
   useEffect(()=>{if(!viewHint)return;const t=setTimeout(()=>setViewHint(null),1400);return()=>clearTimeout(t);},[viewHint?.at]);
   const swipeTo=async(view:SwipeView)=>{
@@ -915,7 +922,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if(action==='action:music'){const current=docRef.current!;commit({...current,web:{...current.web,musicNodes:{...current.web.musicNodes,[id]:!current.web.musicNodes?.[id]}}});setMenu(null);setEditing(null);return;}
     if(action==='action:gallery'){const current=docRef.current!;commit({...current,web:{...current.web,galleryNodes:{...current.web.galleryNodes,[id]:!current.web.galleryNodes?.[id]}}});setMenu(null);setEditing(null);return;}
     if(action==='action:mindmap'){const n=docRef.current!.tables.bullets.find(n=>n.id===id);mutate(ns=>ns.map(x=>x.id===id?{...x,mindmap:!x.mindmap}:x));setMenu(null);setNotice(n?.mindmap?'Mindmap removed.':'Mindmap created. Open it from the Mindmap tab or its icon.');return;}
-    if(action==='action:table'){mutate(ns=>{const n=ns.find(n=>n.id===id);if(!n)return ns;const text=tableText([['','',''],['','',''],['','','']]);return n.text.trim()?[...ns.map(x=>x.id===id?{...x,collapsed:false}:x),bullet(crypto.randomUUID(),{parentId:id,position:ns.filter(x=>x.parentId===id).length,text})]:ns.map(x=>x.id===id?{...x,text,formatting:'',codeLanguage:'',blockStyle:'paragraph'}:x);});setEditing(null);setMenu(null);return;}
+    if(action==='action:table'){setTablePicker(id);setEditing(null);setMenu(null);return;}
     if(action==='action:image'){mediaTarget.current=id;imageInput.current?.click();return;}
     if(action==='action:complete'){command('complete',id,start,end);return;}
     if(action.startsWith('relation:')){setConnectionTarget({mode:action.slice(9),id,start,end});setMenu(null);return;}
@@ -2381,6 +2388,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           e.target.value = "";
         }}
       />
+      {tablePicker&&<TablePicker onClose={()=>setTablePicker(null)} onPick={grid=>insertTable(tablePicker,grid)}/>}
       {reminderEditor&&<ReminderEditor key={`${reminderEditor.id||'new'}:${reminderEditor.date}`} doc={doc} target={reminderEditor} disabled={disabled} onChange={next=>commit(next)} onClose={()=>setReminderEditor(null)}/>}
       {diagramTarget&&<VisualToolLoader title="Diagram workspace" onClose={()=>setDiagramTarget(null)}><DiagramEditor source={diagramTarget.source} editing={!!diagramTarget.original} disabled={disabled} onClose={()=>setDiagramTarget(null)} onSave={source=>{if(disabled)throw Error('Saving is unavailable.');const next=saveDiagram(docRef.current!.tables.bullets,diagramTarget,source);commit(withNodes(docRef.current!,next));setDiagramTarget(null);setNotice('Diagram saved to your note.');}}/></VisualToolLoader>}
       {drawingTarget&&<VisualToolLoader title="Drawing workspace" onClose={()=>setDrawingTarget(null)}><DrawingEditor blob={drawingTarget.mediaId?assets.get('media/'+doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.fileName):undefined} title={drawingTarget.mediaId?doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.credit:undefined} theme={['Light','Catppuccin Latte'].includes(theme)?'light':'dark'} disabled={disabled} onClose={()=>setDrawingTarget(null)} onSave={saveDrawing}/></VisualToolLoader>}

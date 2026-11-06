@@ -20,3 +20,14 @@ export function deleteTableAxis(rows,layout,axis,at){
  const next=(axis==='row'?rows.filter((_,r)=>r!==at):rows.map(row=>row.filter((_,c)=>c!==at))).map(row=>row.map(value=>!value.startsWith('=')?value:value.replace(/\b([A-Z])([1-9]\d*)\b/gi,(ref,col,num)=>{const n=axis==='row'?Number(num)-1:col.toUpperCase().charCodeAt(0)-65;return n===at?'#REF!':n<at?ref:axis==='row'?col+(Number(num)-1):String.fromCharCode(col.toUpperCase().charCodeAt(0)-1)+num;})));
  const key=axis==='row'?'heights':'widths',sizes=[...(layout[key]||[])];sizes.splice(at,1);return {rows:next,layout:{...layout,[key]:sizes}};
 }
+/** Inserts one blank row or column before index `at` (use rows/cols length to append). Formulas and sizes follow their cells. */
+export function insertTableAxis(rows,layout,axis,at){
+ const size=axis==='row'?rows.length:rows[0].length;if(at<0||at>size)throw Error('Invalid table position');if(size>=(axis==='row'?200:26))return {rows,layout};
+ const shiftRef=(ref,col,num)=>{const n=axis==='row'?Number(num)-1:col.toUpperCase().charCodeAt(0)-65;if(n<at)return ref;return axis==='row'?col+(Number(num)+1):String.fromCharCode(col.toUpperCase().charCodeAt(0)+1)+num;};
+ const fix=value=>!value.startsWith('=')?value:value.replace(/\b([A-Z])([1-9]\d*)\b/gi,(ref,col,num)=>shiftRef(ref,col,num));
+ const next=axis==='row'
+  ?[...rows.slice(0,at).map(row=>row.map(fix)),rows[0].map(()=>''),...rows.slice(at).map(row=>row.map(fix))]
+  :rows.map(row=>[...row.slice(0,at).map(fix),'',...row.slice(at).map(fix)]);
+ const key=axis==='row'?'heights':'widths',sizes=[...(layout[key]||[])];if(sizes.length>at)sizes.splice(at,0,undefined);
+ return {rows:next,layout:{...layout,[key]:sizes.map(v=>v??(axis==='row'?36:160))}};
+}
