@@ -57,7 +57,7 @@ import { SelectionFormatting } from "./SelectionFormatting";
 import { textColors } from "./color-palettes";
 import { prepareCoverImage, type DeckDesign } from "./deck-designs";
 import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
-import { NOTE_FILTERS, filterCounts, filterRoots } from "./notes-filter.mjs";
+import { NOTE_FILTERS, noteCatalog } from "./notes-filter.mjs";
 import { ProfileMenu } from "./ProfileMenu";
 import { APP_ENV } from "./cloud-config";
 import { useViewSwipe, SWIPE_VIEWS, SWIPE_LABELS, type SwipeView } from "./view-swipe";
@@ -481,11 +481,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setEditing(null);setSearch('');if(view==='mindmap')setMindmapTarget(null);setTab(view);setViewHint({view,at:Date.now()});
   };
   useViewSwipe(tab,()=>tab==='notes'||tab==='study'||(tab==='mindmap'&&!!document.querySelector('.mindmap-library'))||(tab==='bookmarks'&&!!document.querySelector('.bookmark-library'))||(tab==='bookshelf'&&!document.querySelector('.book-reader')),view=>void swipeTo(view));
-  const notesFilterCounts=React.useMemo(()=>doc&&tab==='notes'?filterCounts(doc,views.active.global&&views.active.search?null:views.active.scope):{},[tab,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,views.active.scope,views.active.global,views.active.search]) as Record<string,number>;
-  const notesFilterRoots=React.useMemo(()=>{
-    if(!doc||tab!=='notes'||notesFilter==='all')return null;
-    return Object.fromEntries(views.panes.map(pane=>[pane.id,filterRoots(doc,notesFilter,pane.global&&pane.search?null:pane.scope)||[]]));
-  },[tab,notesFilter,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,views.panes]) as Record<string,string[]>|null;
+  const notesCatalog=React.useMemo(()=>doc&&tab==='notes'?noteCatalog(doc):null,[tab,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots]);
+  const notesFilterCounts=React.useMemo(()=>notesCatalog?.counts(views.active.global&&views.active.search?null:views.active.scope)||{},[notesCatalog,views.active.scope,views.active.global,views.active.search]) as Record<string,number>;
+  const notesFilterRoots=React.useMemo(()=>notesCatalog?Object.fromEntries(views.panes.map(pane=>[pane.id,notesCatalog.roots(notesFilter,pane.global&&pane.search?null:pane.scope)||[]])):null,[notesCatalog,notesFilter,views.panes]) as Record<string,string[]>|null;
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
@@ -1664,17 +1662,22 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         {tab === "notes" ? (
           <>
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
-            {(notesFilter!=='all'||Object.values(notesFilterCounts).some(Boolean))&&<div className="notes-filter" role="tablist" aria-label="Show bullets">
-              {NOTE_FILTERS.filter(([kind])=>kind==='all'||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} role="tab" aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}{kind!=='all'&&<span>{notesFilterCounts[kind]||0}</span>}</button>)}
-            </div>}
-            <div className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
+            <div className="notes-filter" role="tablist" aria-label="Show bullets" onKeyDown={e=>{
+              if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+              const tabs=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')),at=tabs.indexOf(document.activeElement as HTMLButtonElement);
+              if(at<0)return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(at+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click();
+            }}>
+              {NOTE_FILTERS.filter(([kind])=>['all','notes','calendar'].includes(kind)||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} id={`notes-filter-${kind}`} role="tab" aria-controls="notes-filter-panel" tabIndex={notesFilter===kind?0:-1} aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}{kind!=='all'&&<span>{notesFilterCounts[kind]||0}</span>}</button>)}
+            </div>
+            <div id="notes-filter-panel" role="tabpanel" aria-labelledby={`notes-filter-${notesFilter}`} className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
             {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
             {views.panes.length>1&&<div className="pane-bar">
              <PaneSearchBar value={pane.search} onChange={q=>views.update(pane.id,{search:q})} label={`Search pane ${i+1}`} onFocus={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}/>
              <button className="icon-button pane-close" aria-label={`Close pane ${i+1}`} title="Close pane" onClick={()=>views.close(pane.id)}><Icon name="close" size={14}/></button>
             </div>}
-            {notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<OutlineView
+            {notesFilter!=='all'&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<OutlineView
               rootIds={notesFilterRoots?.[pane.id]||null}
+              excludedIds={notesFilter==='notes'?notesCatalog?.excluded:undefined}
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
               scope={pane.global&&pane.search?null:pane.scope}
               search={pane.search}

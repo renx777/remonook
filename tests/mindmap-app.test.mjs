@@ -59,7 +59,7 @@ test('mindmap converts branches, renders a read-only tree, navigates back to not
     await wait(() => document.querySelector('.zoomed-title'));
     assert.equal(document.querySelector('.zoomed-title').value, 'Beta', 'Open in Notes opens its bullet in Notes');
     assert.equal(navButton('Notes').getAttribute('aria-current'), 'page');
-    await click(navButton('Mindmap')); await wait(() => document.querySelector('.mindmap-library'));await click([...document.querySelectorAll('.mindmap-library-grid button')].find(b=>b.querySelector('strong').textContent==='Plan'));await wait(()=>document.querySelector('.mindmap-view'));
+    await click(navButton('Mindmap')); await wait(() => document.querySelector('.mindmap-library'));assert.ok(document.querySelector('.mindmap-snapshot [data-preview-node="a"]'),'library snapshot renders the actual Alpha branch');assert.match(document.querySelector('.mindmap-snapshot').textContent,/Plan/);assert.match(document.querySelector('.mindmap-snapshot').textContent,/Alpha/);await click([...document.querySelectorAll('.mindmap-library-grid button')].find(b=>b.querySelector('strong').textContent==='Plan'));await wait(()=>document.querySelector('.mindmap-view'));
     assert.equal(document.querySelectorAll('.mind-node').length, 3, 'a child scope resolves to its mindmap root');
     await click(navButton('Notes')); await wait(() => document.querySelector('[data-node-id="other"]'));
     await click('[data-node-id="other"] .bullet-dot-btn'); await wait(() => document.querySelector('.zoomed-title'));

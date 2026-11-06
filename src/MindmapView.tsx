@@ -9,6 +9,7 @@ import {Icon} from './icons';
 import {MindmapStylePanel} from './MindmapStylePanel';
 import {mindmapStyle,contrastText} from './mindmap-style.mjs';
 import './mindmap.css';
+import {MindmapPreview} from './MindmapPreview';
 
 type MindData={
   style:any;id:string;text:string;root:boolean;hasChildren:boolean;collapsed:boolean;hidden:number;editing:boolean;confirm:boolean;selected:boolean;
@@ -77,7 +78,8 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
  const [confirmId,setConfirmId]=useState<string|null>(null);
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const rf=useRef<{fitView:(options:object)=>void}|null>(null);
- const {byId,children}=useMemo(()=>index(nodes),[nodes]);
+ const mapIndex=useMemo(()=>index(nodes),[nodes]);
+ const {byId,children}=mapIndex;
  const scopePath=useMemo(()=>{const path=new Set<string>();let cur=scope?byId.get(scope):undefined;while(cur&&cur.id!==root?.id){path.add(cur.id);cur=cur.parentId?byId.get(cur.parentId):undefined;}return path;},[byId,scope,root]);
  const startEdit=(id:string)=>{ if(disabled)return; setConfirmId(null); setEditingId(id); };
  const commitEdit=(id:string,text:string)=>{ setEditingId(current=>current===id?null:current); onRename(id,text); };
@@ -118,7 +120,7 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
   const at=ordered.indexOf(node.id);
   if(at>=0)onReorder(node.id,at);
  };
- if(!root)return <section className="mindmap-library"><header><div><h1 className="page-title-hidden">Mindmaps</h1><p>{maps.length} {maps.length===1?"mindmap":"mindmaps"} · Every branch you turn into a mindmap, together in one place.</p></div><button onClick={onNotes}><Icon name="plus" size={16}/>Create from Notes</button></header>{maps.length>0&&<input type="search" aria-label="Search mindmaps" placeholder="Find a mindmap…" value={query} onChange={e=>setQuery(e.target.value)}/>}<div className="mindmap-library-grid">{maps.filter(n=>displayText(n.text).toLowerCase().includes(query.toLowerCase())).map(n=><button key={n.id} onClick={()=>{setSelectedId(null);setActiveMap(n.id);}}><span className="mindmap-library-preview" style={{color:styles[n.id]?.border||'var(--accent)'}}><Icon name="mindmap" size={40}/><i/><i/></span><strong>{displayText(n.text)||'Untitled mindmap'}</strong><span>{(children.get(n.id)||[]).length} main branches{n.parentId?' · Nested in Notes':''}</span></button>)}</div>{!maps.length&&<div className="mindmap-empty"><div><Icon name="mindmap" size={36}/><h2>Give your ideas room to connect</h2><p>Choose Mindmap from any bullet’s actions in Notes. Its children become branches here.</p>{scope&&<button disabled={disabled} onClick={()=>{onConvert(scope);setActiveMap(scope);}}>Convert this branch</button>}</div></div>}{maps.length>0&&!maps.some(n=>displayText(n.text).toLowerCase().includes(query.toLowerCase()))&&<p>No mindmaps match your search.</p>}</section>;
+ if(!root)return <section className="mindmap-library"><header><div><h1 className="page-title-hidden">Mindmaps</h1><p>{maps.length} {maps.length===1?"mindmap":"mindmaps"} · Every branch you turn into a mindmap, together in one place.</p></div><button onClick={onNotes}><Icon name="plus" size={16}/>Create from Notes</button></header>{maps.length>0&&<input type="search" aria-label="Search mindmaps" placeholder="Find a mindmap…" value={query} onChange={e=>setQuery(e.target.value)}/>}<div className="mindmap-library-grid">{maps.filter(n=>displayText(n.text).toLowerCase().includes(query.toLowerCase())).map(n=><button key={n.id} onClick={()=>{setSelectedId(null);setActiveMap(n.id);}}><MindmapPreview root={n} idx={mapIndex} styles={styles}/><strong>{displayText(n.text)||'Untitled mindmap'}</strong><span>{(children.get(n.id)||[]).length} main branches{n.parentId?' · Nested in Notes':''}</span></button>)}</div>{!maps.length&&<div className="mindmap-empty"><div><Icon name="mindmap" size={36}/><h2>Give your ideas room to connect</h2><p>Choose Mindmap from any bullet’s actions in Notes. Its children become branches here.</p>{scope&&<button disabled={disabled} onClick={()=>{onConvert(scope);setActiveMap(scope);}}>Convert this branch</button>}</div></div>}{maps.length>0&&!maps.some(n=>displayText(n.text).toLowerCase().includes(query.toLowerCase()))&&<p>No mindmaps match your search.</p>}</section>;
  return <div className="mindmap-view" aria-label="Mindmap">
   <ReactFlow key={root.id} nodes={rfNodes} edges={model!.flowEdges} onNodesChange={onNodesChange} nodeTypes={nodeTypes} fitView fitViewOptions={{padding:0.15}} minZoom={0.15} maxZoom={2.5} nodesDraggable={!disabled} nodesConnectable={false} elementsSelectable={false} zoomOnDoubleClick={false} zoomOnScroll panOnScroll={false} panOnDrag nodeDragThreshold={5} onNodeDragStop={onNodeDragStop} onPaneClick={()=>setSelectedId(null)} onInit={instance=>{rf.current=instance;}} proOptions={{hideAttribution:true}}>
    <Background variant={BackgroundVariant.Dots} gap={24} size={1.1} color="var(--line)"/>

@@ -28,6 +28,8 @@ type Props = {
   fitContent?: boolean;
   /** Show only these bullets (each with its children) instead of the scope's tree. */
   rootIds?: string[] | null;
+  /** Hide typed branches in the ordinary Notes filter, including their children. */
+  excludedIds?: ReadonlySet<string>;
   nodes: Node[];
   scope: string | null;
   search: string;
@@ -93,7 +95,7 @@ export function OutlineView(p: Props) {
             if (row.depth <= completion.depth) completion.depth = -1;
             const hidden = !p.showCompleted && !/(?:^|\s)is:complete(?:\s|$)/i.test(p.search) && (row.bullet.taskState === "DONE" || completion.depth >= 0);
             if (hidden && completion.depth < 0) completion.depth = row.depth;
-            return !hidden || row.bullet.id === p.editing;
+            return !p.excludedIds?.has(row.bullet.id)&&(!hidden || row.bullet.id === p.editing);
           });
         const query = p.search.trim().toLowerCase();
         if (!query) return available;
@@ -108,7 +110,7 @@ export function OutlineView(p: Props) {
         }
         return available.filter((row: any) => keep.has(row.bullet.id));
       },
-      [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds],
+      [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds,p.excludedIds],
     );
   const scroller = useRef<HTMLDivElement>(null),
     [view, setView] = useState({ top: 0, height: 600, width: 800 }),
