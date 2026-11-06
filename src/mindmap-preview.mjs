@@ -21,6 +21,6 @@ export function mindmapPreview(root,idx,styles={}){
  const nodes=points.map(p=>({id:p.data.node.id,text:displayText(p.data.node.text)||'Untitled',x:p.y+18,y:p.x-minY+18,width:170,height:34,root:p.depth===0,style:mindmapStyle(styles[p.data.node.id])}));
  const byId=new Map(nodes.map(n=>[n.id,n]));
  const links=layout.links().flatMap(l=>{const source=byId.get(l.source.data.node.id),target=byId.get(l.target.data.node.id);return source&&target?[{source,target}]:[];});
- const truncated=items.some(i=>(i.depth>=depthLimit||items.length>=limit)&&!i.node.collapsed&&(idx.children.get(i.node.id)||[]).some(n=>!seen.has(n.id)));
+ const truncated=items.some(i=>(i.depth>=depthLimit||items.length>=limit)&&(i.depth===0||!i.node.collapsed)&&(idx.children.get(i.node.id)||[]).some(n=>!seen.has(n.id)));
  return {nodes,links,width:Math.max(...nodes.map(n=>n.x+n.width))+18,height:maxY-minY+70,truncated};
 }

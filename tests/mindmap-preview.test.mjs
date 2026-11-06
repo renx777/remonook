@@ -12,7 +12,7 @@ test('mindmap snapshots contain actual branches, links and validated styles even
 });
 
 test('large previews are bounded and deterministic, while nested fold state is respected',()=>{
- const nodes=[bullet('map',{text:'Large map'})];for(let i=0;i<1000;i++)nodes.push(bullet('child-'+i,{parentId:'map',position:i,text:'Topic '+i}));
+ const nodes=[bullet('map',{text:'Large map',collapsed:true})];for(let i=0;i<1000;i++)nodes.push(bullet('child-'+i,{parentId:'map',position:i,text:'Topic '+i}));
  const idx=index(nodes),one=mindmapPreview(nodes[0],idx),two=mindmapPreview(nodes[0],idx);
  assert.equal(one.nodes.length,25);assert.equal(one.truncated,true);assert.deepEqual(one,two);
  const folded=[bullet('root'),bullet('a',{parentId:'root',collapsed:true}),bullet('b',{parentId:'a'})];assert.equal(mindmapPreview(folded[0],index(folded)).nodes.length,2);
