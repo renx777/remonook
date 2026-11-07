@@ -45,6 +45,10 @@ test('MCP: tokens, read and write tools, versions, idempotency, scopes and sync 
  const stale=await tool(env,t,'update_note',{id:'flight',version:'nope',markdown:'x'});assert.equal(stale.isError,true);assert.match(stale.content[0].text,/changed since you read it/);
  assert.equal((await tool(env,t,'update_note',{id:'flight',version:v,markdown:'Flight **booked**, seat 12A'})).isError,undefined);
  d=await serverDoc(env);const flight=d.tables.bullets.find(n=>n.id==='flight');assert.equal(flight.text,'Flight booked, seat 12A');assert.equal(flight.formatting,'7:13:BOLD');
+ // Emoji shortcodes become animated Noto emoji in the workspace library; code is left alone
+ await tool(env,t,'write_notes',{parent_id:'trip',markdown:'- Launch :rocket: :tada: and `:fire:`'});
+ d=await serverDoc(env);const launch=d.tables.bullets.find(n=>n.text.startsWith('Launch'));
+ assert.equal(launch.text,'Launch :noto_1f680: :noto_1f389: and :fire:');assert.ok(['noto_1f680.webp','noto_1f389.webp'].every(f=>d.tables.emojis.some(e=>e.fileName===f)));
  // Unsupported Markdown is refused with a reason, nothing saved
  const strike=await tool(env,t,'write_notes',{markdown:'- ~~gone~~'});assert.equal(strike.isError,true);assert.match(strike.content[0].text,/strikethrough/);
  // Study content

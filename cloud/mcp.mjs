@@ -6,6 +6,28 @@ import {displayText,notePath} from '../src/relations.mjs';
 import {searchMatcher} from '../src/search.mjs';
 import {configureMcq} from '../src/mcq.mjs';
 import {addBookmark,patchBookmark,bookmarkNote,bookmarkUrl} from '../src/bookmarks.mjs';
+import {notoEmojis,getNotoEmoji} from '../src/noto-emojis.mjs';
+
+/* Animated emoji: AI apps write shortcodes (:rocket:, :party_popper:, :tada:). They become RemoNook's Google Noto
+   tokens, and the emoji joins the workspace library; each device then fetches the animation itself (the app's
+   catalog repair). Code blocks and inline code are left alone; unknown shortcodes stay as text. */
+const ALIASES={tada:'party-popper',thumbsup:'thumbs-up','+1':'thumbs-up',joy:'joy',heart_eyes:'heart-eyes',sob:'loudly-crying',eyes:'eyes',star:'star',white_check_mark:'check-mark',heavy_check_mark:'check-mark',x:'cross-mark',warning:'warning',bulb:'light-bulb',memo:'memo',books:'books',pray:'folded-hands',clap:'clapping-hands',muscle:'muscle',wave:'wave'};
+const SHORTCODES=new Map();for(const e of notoEmojis)for(const t of e.tags||[]){const k=t.slice(1,-1).toLowerCase();if(!SHORTCODES.has(k))SHORTCODES.set(k,e.token);}
+const shortcode=name=>{const k=name.toLowerCase().replace(/_/g,'-');return SHORTCODES.get(k)||SHORTCODES.get((ALIASES[name.toLowerCase()]||'').replace(/_/g,'-'))||null;};
+export function animateShortcodes(md){
+ if(typeof md!=='string'||!md.includes(':'))return md;
+ return md.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`)/).map((part,i)=>i%2?part:part.replace(/:([a-z0-9][a-z0-9_+-]{0,40}):/gi,(m,name)=>shortcode(name)||m)).join('');
+}
+function registerEmojis(doc){
+ const have=new Set((doc.tables.emojis||[]).map(e=>e.token)),add=[];
+ for(const n of doc.tables.bullets){if(n.codeLanguage||!n.text.includes(':noto_'))continue;for(const m of n.text.matchAll(/:noto_[0-9a-f]{2,6}(?:_[0-9a-f]{2,6})*:/g)){const e=getNotoEmoji(m[0]);if(e&&!have.has(e.token)){have.add(e.token);add.push({token:e.token,fileName:e.fileName,label:e.label});}}}
+ return add.length?{...doc,tables:{...doc.tables,emojis:[...(doc.tables.emojis||[]),...add]}}:doc;
+}
+const withEmojiArgs=args=>({...args,
+ ...(typeof args.markdown==='string'?{markdown:animateShortcodes(args.markdown)}:{}),
+ ...(Array.isArray(args.cards)?{cards:args.cards.map(c=>({...c,question:animateShortcodes(c?.question),answer:animateShortcodes(c?.answer)}))}:{}),
+ ...(Array.isArray(args.questions)?{questions:args.questions.map(q=>({...q,question:animateShortcodes(q?.question),options:Array.isArray(q?.options)?q.options.map(animateShortcodes):q?.options,explanation:animateShortcodes(q?.explanation)}))}:{}),
+});
 
 /* RemoNook MCP server (Streamable HTTP, JSON responses). AI apps authenticate with a personal access token
    created in Settings → AI apps; each token carries scopes: read, write, delete. Every write goes through
@@ -72,7 +94,7 @@ export const TOOLS=[
  {name:'search',scope:'read',description:'Find bullets. Plain words match text; #tag matches a tag and its sub-tags; filters such as is:todo, date:today, has:children work too. Returns matching bullets with ids, versions and their page path.',inputSchema:S({query:str('What to look for.'),limit:int('Maximum results, 1–50 (default 20).')},['query'])},
  {name:'list_pages',scope:'read',description:'List the bullets directly under a parent (the top level when parent_id is omitted), with ids, child counts and kinds. Use it to find where to read or write.',inputSchema:S({parent_id:str('A bullet id, or omit for the top level.')})},
  {name:'read_page',scope:'read',description:'Read a bullet and everything under it (or the whole outline) as nested Markdown. Each line ends with <!-- id=… v=… -->: the id and version you need to edit it. Long pages are paginated with offset.',inputSchema:S({id:str('The bullet to read; omit for the whole outline.'),offset:int('Bullets to skip, from next_offset of the previous call.'),max_bullets:int('Up to 400 (default 200).')})},
- {name:'write_notes',scope:'write',description:'Add notes from Markdown under a parent bullet. Nested lists become nested bullets; # headings nest what follows them; - [ ] / - [x] are tasks; ```lang code, ```mermaid diagrams and | tables | become their RemoNook blocks; --- is a divider. Inline: **bold**, *italic*, `code`, ==highlight==, <u>underline</u>, #tags, [[Title|id]] links. Colours: <mark color="green">highlight</mark> (yellow, lemon, amber, orange, peach, coral, pink, rose, magenta, lavender, violet, indigo, blue, sky, cyan, teal, mint, green, lime, sage, sand, brown, gray); text colour <mark data-style="COLOR_red">text</mark> (black, gray, brown, red, coral, orange, amber, yellow, lemon, lime, green, mint, teal, cyan, sky, blue, indigo, violet, purple, magenta, pink, rose, slate); hand-drawn marks <mark data-style="ROUGH_CIRCLE_red">, ROUGH_BOX_…, ROUGH_UNDERLINE_…, ROUGH_HIGHLIGHT_… (colour name or AUTO); hidden-until-revealed text for study <mark data-style="MASK">answer</mark>. Hex colours also work. Marks can nest. Strikethrough is not supported.',inputSchema:S({parent_id:str('Where to add them; omit for the top level.'),position:int('Index among the existing children (default: at the end).'),markdown:str('The notes.'),...key},['markdown'])},
+ {name:'write_notes',scope:'write',description:'Add notes from Markdown under a parent bullet. Nested lists become nested bullets; # headings nest what follows them; - [ ] / - [x] are tasks; ```lang code, ```mermaid diagrams and | tables | become their RemoNook blocks; --- is a divider. Inline: **bold**, *italic*, `code`, ==highlight==, <u>underline</u>, #tags, [[Title|id]] links. Colours: <mark color="green">highlight</mark> (yellow, lemon, amber, orange, peach, coral, pink, rose, magenta, lavender, violet, indigo, blue, sky, cyan, teal, mint, green, lime, sage, sand, brown, gray); text colour <mark data-style="COLOR_red">text</mark> (black, gray, brown, red, coral, orange, amber, yellow, lemon, lime, green, mint, teal, cyan, sky, blue, indigo, violet, purple, magenta, pink, rose, slate); hand-drawn marks <mark data-style="ROUGH_CIRCLE_red">, ROUGH_BOX_…, ROUGH_UNDERLINE_…, ROUGH_HIGHLIGHT_… (colour name or AUTO); hidden-until-revealed text for study <mark data-style="MASK">answer</mark>. Hex colours also work. Marks can nest. Animated emoji: write a shortcode such as :rocket:, :fire:, :sparkles:, :brain:, :party_popper: (Google Noto names); it becomes a RemoNook animated emoji. Plain emoji characters stay static. Strikethrough is not supported.',inputSchema:S({parent_id:str('Where to add them; omit for the top level.'),position:int('Index among the existing children (default: at the end).'),markdown:str('The notes.'),...key},['markdown'])},
  {name:'update_note',scope:'write',description:'Change one bullet. Pass the version from read_page or search; if the bullet changed since, the edit is refused and you must read it again. markdown replaces its content (one bullet: inline Markdown, optionally starting with [ ] or [x], or a single code block / mermaid block / table). It accepts the same formatting as write_notes, including <mark color="…"> highlights and <mark data-style="COLOR_…"> text colours, so you can recolour or highlight existing text. Keep any <mark data-style=…> parts you are not changing, so formatting is kept.',inputSchema:S({id:str('The bullet.'),version:str('The v= value you read.'),markdown:str('New content for this bullet only (not its children).'),mindmap:{type:'boolean',description:'Show this branch as a mindmap.'},collapsed:{type:'boolean',description:'Fold its children.'},due_date:str('YYYY-MM-DD, or an empty string to clear.'),...key},['id','version'])},
  {name:'move_notes',scope:'write',description:'Move bullets (with their children) under a new parent, keeping their order.',inputSchema:S({ids:ids('Bullets to move.'),parent_id:{type:['string','null'],description:'New parent id, or null for the top level.'},position:int('Index among the new parent\'s children (default: at the end).'),...key},['ids','parent_id'])},
  {name:'delete_notes',scope:'delete',description:'Move bullets and everything under them to RemoNook\'s Trash, where the owner can restore them. Up to 200 bullets per call.',inputSchema:S({ids:ids('Bullets to delete.'),...key},['ids'])},
@@ -145,8 +167,9 @@ export async function callTool(env,auth,name,args,deps){
 
 /** Pure workspace change for a write tool: returns {doc, result:{summary, ids, text}}. */
 export function applyTool(doc,name,args){
+ args=withEmojiArgs(args);
  const nodes=doc.tables.bullets,makeId=()=>crypto.randomUUID();
- const done=(next,summary,ids,text)=>({doc:next,result:{summary,ids,text}});
+ const done=(next,summary,ids,text)=>({doc:registerEmojis(next),result:{summary,ids,text}});
  if(name==='write_notes'){
   const parent=parentOf(doc,args.parent_id),items=parseMarkdown(need(args.markdown,'markdown'));
   if(!items.length)fail('markdown has no content.');

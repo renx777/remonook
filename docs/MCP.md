@@ -26,7 +26,12 @@ can read and write the signed-in user's cloud notes.
 Markdown (`src/ai-markdown.mjs`): nested lists, `[ ]`/`[x]` tasks, numbered lists, `#` headings (content nests under
 them), `---` dividers, fenced code (language kept), ```` ```mermaid ```` diagrams, GFM tables (become `remo-table`),
 `**bold**`, `*italic*`, `` `code` ``, `==highlight==`, `<u>underline</u>`, and `<mark data-style="STYLE">` for every
-other stored style (colours, masks, rough annotations), so read → edit → write keeps all formatting. Strikethrough is
+other stored style (colours, masks, rough annotations), so read → edit → write keeps all formatting.
+Friendly forms are accepted too: `<mark color="green">` for highlights, `data-style="COLOR_red"` for text colour,
+`ROUGH_CIRCLE_blue` (and `BOX`, `UNDERLINE`, `HIGHLIGHT`; colour name or `AUTO`), and `MASK`. Colour names come from
+the app's palettes; hex also works, and stored hex is kept exactly. Emoji shortcodes such as `:rocket:`, `:party_popper:` or `:tada:`
+become animated Google Noto emoji and are added to the workspace emoji library. Each device downloads the animation
+through the app's catalog repair. Shortcodes inside code are left alone. Strikethrough is
 refused with an explanation (RemoNook cannot store it).
 
 ## Connecting by signing in (OAuth 2.1)
