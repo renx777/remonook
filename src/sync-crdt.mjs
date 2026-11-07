@@ -74,7 +74,7 @@ function editText(type,before,after,rebase){
   const mapping=baselineMap(next,type.toString());for(const m of wanted){const hits=[];for(let i=m.start;i<m.end;i++)if(mapping.has(i))hits.push(mapping.get(i));for(const p of hits)type.format(p,1,{[m.style]:true});}
  }
 }
-function documentLeaves(doc){
+export function documentLeaves(doc){
  const root=Object.fromEntries(Object.entries(doc).filter(([k])=>k!=='tables'));
  root.web={...root.web};
  for(const name of ['calendarEvents','studyFolders'])if(Array.isArray(root.web[name]))root.web[name]=Object.fromEntries(root.web[name].map(row=>[row.id,row]));

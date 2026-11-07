@@ -48,7 +48,8 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   // AI apps authenticate with their own access tokens, not Firebase sessions.
   if(url.pathname==='/mcp')return mcpEndpoint(request,env,{readLimited,validatePayload,NOTE_LIMIT});
   if(url.pathname.startsWith('/.well-known/')||['/oauth/register','/oauth/authorize','/oauth/token'].includes(url.pathname)){const r=await oauthPublic(request,env,{readLimited});if(r)return r;}
-  const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
+  // Browsers cannot set headers on a WebSocket, so the live sync connection sends its token in the query.
+  const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1]||(url.pathname==='/sync/v3/ws'?url.searchParams.get('access_token'):null);if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
   if(url.pathname.startsWith('/ai/'))return aiRoute(request,env,uid,{readLimited,waitUntil:ctx?p=>ctx.waitUntil(p):undefined});
   if(url.pathname==='/storage'||url.pathname==='/books'||url.pathname.startsWith('/books/'))return booksRoute(request,env,uid,{readLimited});
@@ -108,7 +109,7 @@ export default {
     const origin=request.headers.get('Origin'),path=new URL(request.url).pathname,openOAuth=path.startsWith('/.well-known/oauth-')||['/oauth/register','/oauth/token'].includes(path);
     // OAuth discovery, registration and token endpoints are public and credential-free (PKCE); any app may call them.
     if(origin&&!allowed.includes(origin)&&!openOAuth)return json({error:'Origin not allowed.'},403);
-    let response;try{response=await route(request,env,undefined,ctx);}catch(error){const status=error.status||500;response=json({error:status===500?'Cloud sync is temporarily unavailable.':error.message,...(['WORKDAYS_CONTEXT_REQUIRED','SYNC_VALIDATION_FAILED'].includes(error.code)?{code:error.code}:{})},status);if(status===500)console.error(JSON.stringify({event:'sync_error',message:String(error)}));}
+    let response;try{response=await route(request,env,undefined,ctx);if(response.webSocket)return response;}catch(error){const status=error.status||500;response=json({error:status===500?'Cloud sync is temporarily unavailable.':error.message,...(['WORKDAYS_CONTEXT_REQUIRED','SYNC_VALIDATION_FAILED'].includes(error.code)?{code:error.code}:{})},status);if(status===500)console.error(JSON.stringify({event:'sync_error',message:String(error)}));}
     const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',openOAuth&&!allowed.includes(origin)?'*':origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match, X-Sync-Vector, X-Remo-Capabilities');headers.set('Access-Control-Expose-Headers','WWW-Authenticate, MCP-Protocol-Version');headers.set('Access-Control-Allow-Methods','GET, PUT, POST, DELETE, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
     return new Response(response.body,{status:response.status,headers});
   }

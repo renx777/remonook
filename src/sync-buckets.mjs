@@ -5,7 +5,7 @@
 // different keys never reference each other, so routing every key to a fixed bucket
 // keeps merge behaviour identical while a save opens only the buckets it touches.
 // App, server and tests must use these functions so they agree on every key's bucket.
-import {Y,pack,unpack,documentParts,applyParts,projectParts,assembleParts,normalizeTree} from './sync-crdt.mjs';
+import {Y,pack,unpack,documentParts,documentLeaves,rowKey,applyParts,projectParts,assembleParts,normalizeTree} from './sync-crdt.mjs';
 import {validateMirrors} from './relations.mjs';
 
 export const PROTOCOL_V3=3,ROW_BUCKETS=256,ROOT_BUCKETS=16,ASSET_BUCKET='a',TABLES_BUCKET='r0';
@@ -50,6 +50,65 @@ const sameAssets=(a,b)=>fast(a)===fast(b);
 // and picks a random id, which would make concurrent tie-breaks differ between devices.
 export function openBucket(state,clientID){const d=new Y.Doc();if(state)Y.applyUpdate(d,unpack(state));if(clientID!==undefined)d.clientID=clientID;return d;}
 
+/** Rows as stored in the shared document (device-only fields removed). */
+const cloudRow=(table,row)=>table==='bullets'?{...row,collapsed:false}:row;
+function cloudRoot(doc){
+ if(!doc)return {web:{},columns:{},preferences:{}};
+ const {revision,tables,...rest}=doc,{deviceId,...web}=rest.web||{};
+ if(web.workdays)web.workdays={...web.workdays,view:'day'};
+ return {...rest,web};
+}
+/**
+ * The changed keys between two documents as a patch: [before, after] lists of leaves and rows.
+ * Rows that are the same object in both documents are skipped without inspection, so a save
+ * from the app (which shares unchanged rows between versions) costs O(changed rows).
+ */
+export function diffPatch(before,after){
+ const patch={leaves:[[],[]],rows:[[],[]]},bl=documentLeaves(cloudRoot(before)),al=documentLeaves(cloudRoot(after));
+ for(const k of new Set([...bl.keys(),...al.keys()])){const x=bl.get(k),y=al.get(k);if(x===y||fast(x)===fast(y))continue;if(bl.has(k))patch.leaves[0].push([k,x]);if(al.has(k))patch.leaves[1].push([k,y]);}
+ const bt=before?.tables||{},at=after?.tables||{};
+ for(const name of new Set([...Object.keys(bt),...Object.keys(at)])){
+  const B=bt[name]||[],A=at[name]||[];
+  if(B===A)continue;
+  // Same length and the changed rows keep their place (an edit, not an insert or delete):
+  // compare only those rows instead of indexing the whole table.
+  if(B.length===A.length&&name in bt){
+   const diff=[];for(let i=0;i<A.length;i++)if(A[i]!==B[i])diff.push(i);
+   if(diff.every(i=>rowKey(name,B[i],i)===rowKey(name,A[i],i))){
+    for(const i of diff){const k=rowKey(name,A[i],i),ca=cloudRow(name,A[i]),cb=cloudRow(name,B[i]);if(fast(cb)!==fast(ca)){patch.rows[0].push([name,k,cb]);patch.rows[1].push([name,k,ca]);}}
+    continue;
+   }
+  }
+  const bm=new Map(B.map((r,i)=>[rowKey(name,r,i),r])),am=new Map(A.map((r,i)=>[rowKey(name,r,i),r]));
+  if(!(name in bt))patch.tables=[...(patch.tables||[]),name];
+  for(const [k,r] of am){const o=bm.get(k);if(o===r)continue;const ca=cloudRow(name,r),cb=o&&cloudRow(name,o);if(cb&&fast(cb)===fast(ca))continue;if(cb)patch.rows[0].push([name,k,cb]);patch.rows[1].push([name,k,ca]);}
+  for(const [k,o] of bm)if(!am.has(k))patch.rows[0].push([name,k,cloudRow(name,o)]);
+ }
+ return patch;
+}
+/** Works out which buckets differ between two documents, without opening any Yjs document. */
+export function planDocument(before,after,{assetsBefore=[],assetsAfter=[]}={}){
+ const patch=diffPatch(before,after),parts=patchBuckets(patch);
+ if(patch.tables?.length){if(!parts.has(TABLES_BUCKET))parts.set(TABLES_BUCKET,[emptyPart(),emptyPart()]);for(const name of patch.tables)if(!parts.get(TABLES_BUCKET)[1].tables.has(name))parts.get(TABLES_BUCKET)[1].tables.set(name,new Map());}
+ const b=new Map([...parts].map(([k,v])=>[k,v[0]])),a=new Map([...parts].map(([k,v])=>[k,v[1]])),touched=new Set(parts.keys());
+ if(!sameAssets(assetsBefore,assetsAfter))touched.add(ASSET_BUCKET);
+ return {b,a,touched,assetsBefore,assetsAfter};
+}
+/** Applies a plan to the touched buckets. `get(bucket)` returns a bucket's state (base64).
+ Returns only the buckets that changed, and their incremental updates. */
+export function writePlan(plan,get,{rebase=false,clientID}={}){
+ const changed=new Map(),updates={};
+ for(const bucket of plan.touched){
+  const d=openBucket(get(bucket),clientID);
+  try{
+   const v=Y.encodeStateVector(d),asset=bucket===ASSET_BUCKET;
+   applyParts(d,plan.b.get(bucket)||emptyPart(),plan.a.get(bucket)||emptyPart(),asset?plan.assetsBefore:[],asset?plan.assetsAfter:[],rebase);
+   const update=Y.encodeStateAsUpdate(d,v);
+   if(update.length>2){updates[bucket]=pack(update);changed.set(bucket,pack(Y.encodeStateAsUpdate(d)));}
+  }finally{d.destroy();}
+ }
+ return {changed,updates};
+}
 /**
  * Writes the difference between two documents into bucket states.
  * `states` maps bucket → base64 state and is not modified. Returns the new states (a copy
@@ -57,23 +116,21 @@ export function openBucket(state,clientID){const d=new Y.Doc();if(state)Y.applyU
  * Only buckets whose parts differ are opened: the cost follows the edit, not the workspace.
  */
 export function applyDocument(states,before,after,{assetsBefore=[],assetsAfter=[],rebase=false,clientID}={}){
- const b=splitParts(documentParts(before)),a=splitParts(documentParts(after)),next=new Map(states),updates={};
- const touched=new Set();
- for(const key of new Set([...b.keys(),...a.keys()]))if(!samePart(b.get(key),a.get(key)))touched.add(key);
- if(!sameAssets(assetsBefore,assetsAfter))touched.add(ASSET_BUCKET);
- for(const bucket of touched){
-  const d=openBucket(states.get(bucket),clientID);
-  try{
-   const v=Y.encodeStateVector(d);
-   const asset=bucket===ASSET_BUCKET;
-   applyParts(d,b.get(bucket)||emptyPart(),a.get(bucket)||emptyPart(),asset?assetsBefore:[],asset?assetsAfter:[],rebase);
-   const update=Y.encodeStateAsUpdate(d,v);
-   if(update.length>2){updates[bucket]=pack(update);next.set(bucket,pack(Y.encodeStateAsUpdate(d)));}
-  }finally{d.destroy();}
- }
+ const plan=planDocument(before,after,{assetsBefore,assetsAfter}),{changed,updates}=writePlan(plan,b=>states.get(b),{rebase,clientID});
+ const next=new Map(states);for(const [b,s] of changed)next.set(b,s);
  return {states:next,updates};
 }
 
+/** Merges per-bucket updates into the given states; returns only the changed buckets. */
+export function mergeChanged(get,updates){
+ const changed=new Map();
+ for(const [bucket,update] of Object.entries(updates||{})){
+  if(!isBucket(bucket))throw Error('Invalid sync bucket');
+  const current=get(bucket);
+  changed.set(bucket,pack(current?Y.mergeUpdates([unpack(current),unpack(update)]):unpack(update)));
+ }
+ return changed;
+}
 /** Merges incoming per-bucket updates into states. Returns the new states. */
 export function mergeUpdates(states,updates){
  const next=new Map(states);
@@ -94,13 +151,18 @@ export function bucketVectors(states){const out={};for(const [b,s] of states)out
  * becomes a root, a move cycle is broken at its smallest id, invalid mirror links are removed.
  */
 export function projectBuckets(states,cache=new Map()){
+ return projectVersions(new Map([...states].map(([b,s])=>[b,s])),b=>states.get(b),cache);
+}
+/** Like projectBuckets, but `versions` (bucket → any value that changes with the state) decides
+ which buckets to decode, and `get` is called only for those. */
+export function projectVersions(versions,get,cache=new Map()){
  const parts=[];
- for(const [bucket,state] of states){
+ for(const [bucket,version] of versions){
   let hit=cache.get(bucket);
-  if(!hit||hit.state!==state){const d=openBucket(state);try{hit={state,parts:projectParts(d)};}finally{d.destroy();}cache.set(bucket,hit);}
+  if(!hit||hit.version!==version){const d=openBucket(get(bucket));try{hit={version,parts:projectParts(d)};}finally{d.destroy();}cache.set(bucket,hit);}
   parts.push(hit.parts);
  }
- for(const bucket of cache.keys())if(!states.has(bucket))cache.delete(bucket);
+ for(const bucket of cache.keys())if(!versions.has(bucket))cache.delete(bucket);
  const value=assembleParts(parts);
  readRepair(value.doc);
  return value;
@@ -113,17 +175,7 @@ export function readRepair(doc){
  return doc;
 }
 
-/** The keys that differ between two documents, with their before and after values.
- Serializable, so a server-side change (AI apps) can be sent to the account's sync store
- and applied there with rebase against whatever other devices committed meanwhile. */
-export function diffPatch(before,after){
- const b=documentParts(before),a=documentParts(after),patch={leaves:[[],[]],rows:[[],[]]};
- for(const k of new Set([...b.leaves.keys(),...a.leaves.keys()])){const x=b.leaves.get(k),y=a.leaves.get(k);if(fast(x)===fast(y))continue;if(b.leaves.has(k))patch.leaves[0].push([k,x]);if(a.leaves.has(k))patch.leaves[1].push([k,y]);}
- for(const name of new Set([...b.tables.keys(),...a.tables.keys()])){const B=b.tables.get(name)||new Map(),A=a.tables.get(name)||new Map();
-  for(const k of new Set([...B.keys(),...A.keys()])){const x=B.get(k),y=A.get(k);if(fast(x)===fast(y))continue;if(B.has(k))patch.rows[0].push([name,k,x]);if(A.has(k))patch.rows[1].push([name,k,y]);}}
- return patch;
-}
-export const emptyPatch=p=>!p.leaves[0].length&&!p.leaves[1].length&&!p.rows[0].length&&!p.rows[1].length;
+export const emptyPatch=p=>!p.leaves[0].length&&!p.leaves[1].length&&!p.rows[0].length&&!p.rows[1].length&&!p.tables?.length;
 /** Groups a patch by bucket: Map bucket → [beforePart, afterPart]. */
 export function patchBuckets(patch){
  const out=new Map(),at=(bucket,side)=>{if(!out.has(bucket))out.set(bucket,[emptyPart(),emptyPart()]);return out.get(bucket)[side];};

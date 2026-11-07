@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
-import {route,SyncSpace} from '../cloud/worker.mjs';
+import {route} from '../cloud/worker.mjs';
+import {syncSpaces as spaces} from './helpers/sync-space.mjs';
 import {empty} from './.build/data.mjs';
 import {bullet} from '../src/domain.mjs';
 import {applyDocument,mergeUpdates,projectBuckets,bulletBucket} from '../src/sync-buckets.mjs';
@@ -10,10 +11,6 @@ import {applyDocument,mergeUpdates,projectBuckets,bulletBucket} from '../src/syn
 function d1(){const sqlite=new DatabaseSync(':memory:');sqlite.exec(readFileSync('cloud/schema.sql','utf8'));
  const stmt=sql=>{let params=[];return {bind(...p){params=p;return this;},async first(){return sqlite.prepare(sql).get(...params)||null;},async all(){return {results:sqlite.prepare(sql).all(...params)};},async run(){const r=sqlite.prepare(sql).run(...params);return {success:true,meta:{changes:r.changes}};},exec(){return sqlite.prepare(sql).run(...params);}};};
  return {prepare:stmt,async batch(list){sqlite.exec('BEGIN');try{for(const s of list)s.exec();sqlite.exec('COMMIT');}catch(e){sqlite.exec('ROLLBACK');throw e;}return [];}};}
-/** Durable Object namespace backed by node:sqlite, one database per account. */
-function spaces(env){const live=new Map();
- const ctx=()=>{const db=new DatabaseSync(':memory:');return {storage:{sql:{exec(q,...p){const s=db.prepare(q);const rows=/^\s*(SELECT|WITH)/i.test(q)?s.all(...p):(s.run(...p),[]);return {toArray:()=>rows};}},transactionSync(fn){db.exec('BEGIN');try{const r=fn();db.exec('COMMIT');return r;}catch(e){db.exec('ROLLBACK');throw e;}}},getWebSockets:()=>[],db};};
- return {live,idFromName:n=>n,get:id=>({fetch:(input,init)=>{if(!live.has(id))live.set(id,new SyncSpace(ctx(),env));return live.get(id).fetch(input instanceof Request?input:new Request(input,init));}})};}
 function setup(){const env={DB:d1()};env.SYNC_SPACE=spaces(env);return env;}
 const call=(env,method,path,body,uid='alice')=>route(new Request('https://sync.test'+path,{method,headers:{Authorization:'Bearer '+uid,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}),env,async t=>t).catch(e=>Response.json({error:e.message,code:e.code},{status:e.status||500}));
 let n=0;const op=()=>`00000000-0000-4000-8000-${String(++n).padStart(12,'0')}`;

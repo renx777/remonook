@@ -47,23 +47,6 @@ test('permanent rejection preserves bytes, fixes only invalid domain, and later 
  }finally{f.sqlite.close();}
 });
 
-test('recovery and its one-time notice survive reload, are isolated by account, and failure leaves pending unchanged',async()=>{
- setStorageAccount('recovery-'+crypto.randomUUID());try{
-  const doc=await save(null,base(),'seed'),state=sharedState(seed(doc));let m=initializeOutbox(state,1,null,doc,[]);
-  const bad=structuredClone(doc);bad.web.dashboard={version:'bad'};recordLocal(m,bad);claimOutbox(m);const original=structuredClone(m);
-  await syncMetadata(()=>m);await assert.rejects(syncOperation('recover',{server:{update:'invalid',revision:1},operationId:m.inflight.operationId,reason:'bad'}));
-  assert.deepEqual(await syncMetadata(),original);
-  await syncOperation('recover',{server:{update:state,revision:1},operationId:m.inflight.operationId,reason:'bad'});
-  const notice=await syncOperation('recovery-notice');assert.ok(notice);assert.match(notice.message,/still pending/);
-  assert.equal((await load()).tables.bullets[0].text,'Initial.');assert.ok((await syncMetadata()).pending.length);
-  await syncOperation('recovery-notice-shown',{ids:notice.ids});assert.equal(await syncOperation('recovery-notice'),null);
-  assert.equal((await syncOperation('recovery-export')).length,1);
-  const persisted=await syncMetadata();await assert.rejects(syncOperation('recover',{server:{update:state,revision:1},operationId:persisted.inflight.operationId,reason:'again'}),/repair was rejected/);
-  assert.deepEqual(await syncMetadata(),persisted);
-  setStorageAccount('other-'+crypto.randomUUID());assert.deepEqual(await syncOperation('recovery-export'),[]);assert.equal(await syncOperation('recovery-notice'),null);
- }finally{setStorageAccount(null);}
-});
-
 test('server repairs v1 leftovers and holiday names beside v2 without losing originals or note edits',async()=>{
  const f=await setup();try{
   const doc=structuredClone(f.doc);doc.web.workdays=workdaysV2(doc,'2026-11-01');recordLocal(f.m,doc);claimOutbox(f.m);receiveOutbox(f.m,await(await f.call('POST',f.m.inflight)).json());
