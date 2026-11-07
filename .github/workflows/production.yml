@@ -31,9 +31,20 @@ jobs:
           COMMIT: ${{ inputs.commit }}
         run: |
           [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "Give the full 40-character SHA."; exit 1; }
-          git fetch --no-tags origin main
+          # fetch-depth 0 already fetched every branch, so origin/main is local; no network or credentials needed.
           git merge-base --is-ancestor "$COMMIT" origin/main || { echo "$COMMIT is not on main."; exit 1; }
           test "$(git rev-parse HEAD)" = "$COMMIT"
+      - name: Use the deploy configuration from this workflow's commit
+        # The app is built from the approved commit; how it is hosted comes from main, so older
+        # commits that predate these files can still be released.
+        env:
+          TOOLS: ${{ github.sha }}
+        run: |
+          mkdir -p .release
+          git show "$TOOLS:wrangler.production.jsonc" > .release/wrangler.production.jsonc
+          git show "$TOOLS:cloud/production-headers" > .release/production-headers
+          sed -i 's#"directory": "./dist"#"directory": "../dist"#' .release/wrangler.production.jsonc
+          grep -q '"directory": "../dist"' .release/wrangler.production.jsonc
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
@@ -45,6 +56,7 @@ jobs:
           cp .env.production.example .env.production.local
           npm run build:production
           rm -f .env.production.local
+          cp .release/production-headers dist/_headers
       - name: Test
         run: npm test
       - name: Verify the artifact
@@ -61,7 +73,7 @@ jobs:
           wranglerVersion: '4.157.0'
           apiToken: ${{ secrets.CLOUDFLARE_PRODUCTION_API_TOKEN }}
           accountId: e9a5c70b0fbe2e2d493fc21de0bbb40f
-          command: deploy --config wrangler.production.jsonc
+          command: deploy --config .release/wrangler.production.jsonc
       - name: Smoke test
         run: |
           node --input-type=module -e '
