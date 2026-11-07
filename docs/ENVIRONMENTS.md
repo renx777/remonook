@@ -2,6 +2,11 @@
 
 ## Current state
 
+Staging, 7 November 2026: sign-in for AI apps (OAuth) is on staging. `cloud/mcp-oauth.sql` was applied to D1
+`remo-sync-staging`. `remo-sync-staging` version `86cc6d0d-3c3e-419e-aebf-5f96e5621f5b` and the staging frontend
+(workflow run on `ccr-641b18bf-2fe80f`) were deployed. Discovery, registration, the authorize redirect to the consent screen and the
+consent screen itself were checked live. Production is not yet updated.
+
 Production frontend moved off ChatGPT Sites, 7 November 2026 (owner-authorized):
 - `remonook.com` is served by Cloudflare Worker `remonook-production`, deployed by the "Production frontend" workflow
   (run #2) from `main` at `13354fe` (release `2026-11-06.1`, offline shell `8b03319a6504`).
