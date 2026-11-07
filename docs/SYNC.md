@@ -1,5 +1,9 @@
 # RemoNook sync protocol v2
 
+> **Sync v3** ([SYNC-V3.md](SYNC-V3.md)) replaces the transport and storage described
+> here: bucketed CRDT state in a Durable Object per account. The merge rules below still
+> apply. Sections about whole-document validation, repair writes and recovery describe v2.
+
 The cloud owns acknowledged shared state. IndexedDB preserves local work and a
 pending operation outbox; it is not an independently chosen workspace copy.
 There are no user-facing conflict decisions or force-overwrite actions.

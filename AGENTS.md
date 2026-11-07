@@ -8,8 +8,8 @@ resolution, force-overwrite, or manual-sync controls to Settings. Ordinary backu
 export/import remains a separate user feature.
 
 Sync retries, ordering, merging and recovery are application responsibilities.
-The v2 protocol uses backend acknowledgement/journaling, incremental operations
-and rich-text CRDTs. Preserve and extend that architecture. Preserve
+The v3 protocol (docs/SYNC-V3.md; bucketed state, one Durable Object per account)
+uses backend acknowledgement/journaling, incremental operations and rich-text CRDTs. Preserve and extend that architecture. Preserve
 both sides of concurrent edits; never silently discard one version to remove a
 warning. Prefer automatic convergence, and keep recovery history out of routine
 sync flows. An optional future note history is not a required sync decision.
