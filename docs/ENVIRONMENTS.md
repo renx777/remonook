@@ -9,7 +9,10 @@ bindings). Before deploying, a D1 Time Travel restore point was recorded for `re
 `cloud/bookmark-snapshots.sql`, `cloud/ai.sql` and `cloud/mcp.sql` were applied. `/health` reports
 `workdaysSchema: 2`, `bookmarkReader: 1` and `mcp: 1`; AI assist and bookmark capture stay disabled in production
 (no bindings). The owner authorized this release and publishes the matching production frontend
-(`npm run build:production` from `13354fe`) through Sites. The production frontend must not be older than this
+(`npm run build:production` from `13354fe`) through Sites. That frontend build was verified in a clean checkout of
+`13354fe`: 460 tests pass; the marker is `2026-11-06.1`; the offline shell is `8b03319a6504`; the build uses only the production sync API, with no
+staging references. It is packaged as `remonook-production-13354fe.zip`. As of this record it is not yet published:
+both production URLs still serve `2026-11-02.2`, which is the rollback reference. The production frontend must not be older than this
 server's release for Workdays v2 sync.
 
 On 7 November 2026 (later the same day), `remo-sync-staging` was deployed from `ccr-641b18bf-2fe80f`,
@@ -119,11 +122,39 @@ Test with synthetic notes and test accounts. Verify Android phone, iPad, desktop
 
 Do not enable GitHub auto-deployment to production yet. The existing Sites publication and domain must remain the active production route until a deliberate hosting migration.
 
-Record the exact tested commit SHA, make independent data backups, then build using `.env.production.example` copied to `.env.production.local` and `npm run build:production`. An environment value in `.env.local` overrides mode files, so remove conflicting local overrides first. CI/release jobs should use explicit environment variables. Preserve `remo-978fb`, the existing D1 ID and R2 bucket when migrating hosting.
+### Who may release
 
-If deploying this repository's sync Worker, use `cloud/config.json` intentionally: it identifies the existing production resources and includes the new required environment variables. The parity release applies additive book/Google Tasks tables and deploys the same tested backend bundle to both environments, preserving their existing D1/R2 bindings. Production enables book uploads and hourly cleanup. Google Tasks remains unavailable in production until its own OAuth client and encryption secrets are configured; staging credentials must not be reused. Apply additive schema migrations before dependent application changes. Keep older clients compatible through the service-worker update window.
+Coding agents may prepare and execute production frontend releases with explicit owner authorization for each release (see AGENTS.md). Backend Workers, D1 migrations and infrastructure changes need their own separate authorization.
 
-Publish the tested GitHub commit through the retained Sites workflow during transition, or later through a reviewed Cloudflare production workflow. Record a release tag and the frontend/backend versions. Do not assume a frontend rollback undoes database writes or migrations.
+### How production is hosted
+
+- `remonook.com` and `remo-notes.arenukaprasad.chatgpt.site` are served by ChatGPT Sites. The domain's DNS zone is in the owner's Cloudflare account; the site content is not.
+- The Sites project and its hosting manifest live in the ChatGPT (Codex) workspace under `.openai/`, which is git-ignored. They are not in GitHub.
+- Publishing a Sites version is done from that ChatGPT workspace. A coding agent without access to it (for example Claude Code in a cloud session) cannot publish to Sites. It prepares and verifies the build, then hands off the publish step. No public CLI or API for Sites publishing is used or assumed here.
+
+### Procedure
+
+1. Owner authorizes the release and names the commit on `main`.
+2. Verify `main` is at that full SHA, and that CI passed on it and staging was checked from the same code.
+3. If the release needs backend changes, they must already be deployed and recorded (server first, then frontend), with separate authorization. Record a D1 Time Travel bookmark before any production migration.
+4. In a clean checkout of the commit: `rm -rf dist`, remove `.env.local`, `cp .env.production.example .env.production.local`, `npm ci`, `npm run build:production`, delete `.env.production.local`, `npm test`.
+5. Verify `dist/`:
+   - `index.html`, `manifest.webmanifest`, `sw.js` and `release.json` (expected marker) exist;
+   - `grep -r remo-sync-staging dist/` and `grep -r remonook-staging dist/` find nothing;
+   - the main bundle references `remo-sync.remo-978fb.workers.dev`.
+   Package `dist/` as `remonook-production-<shortsha>.zip`.
+6. Record the live version for rollback: `curl https://remonook.com/release.json` and the current Sites version number.
+7. In the Sites workspace, confirm its tracked application files match the commit (excluding `dist/` and the Sites hosting manifest). Replace the whole generated build with the verified archive, keep the hosting manifest, and publish to both production URLs.
+8. Verify:
+   - `https://remonook.com/release.json` and the `.chatgpt.site` URL report the new marker;
+   - the app loads without Firebase or sync errors;
+   - sign-in works, and notes reach Synced;
+   - the release's new features work;
+   - older tabs show Save & update.
+9. If a material problem appears, republish the recorded previous Sites version (frontend only). Leave Workers and D1 unchanged.
+10. Record the Sites version, commit, date, URLs, checks and matching Worker version under "Current state" through a pull request.
+
+If deploying this repository's sync Worker (separately authorized), use `cloud/config.json` intentionally: it identifies the existing production resources. Compare it with the live Worker bindings before deploying, and verify `/health` afterwards. Do not assume a frontend rollback undoes database writes or migrations.
 
 ## Cloud-first storage and legacy folder migration
 
