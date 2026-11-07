@@ -6,7 +6,9 @@
     "nodejs_compat"
   ],
   "workers_dev": true,
-  "ai": {"binding":"AI"},
+  "ai": {
+    "binding": "AI"
+  },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 0.1,
@@ -57,5 +59,8 @@
         "period": 60
       }
     }
-  ]
+  ],
+  "limits": {
+    "cpu_ms": 30000
+  }
 }
