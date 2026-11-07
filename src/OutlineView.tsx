@@ -17,7 +17,9 @@ import { MediaContent } from "./MediaContent";
 import { mediaLinks } from "./media.mjs";
 import { imageType } from "./media.mjs";
 import { depthIndent } from "./outline-layout.mjs";
-import {hasImportantTag,smartTagClasses} from "./relations.mjs";
+import {bulletTagStyle,toggleTagCheckbox} from "./tags.mjs";
+import {TagSettingsContext} from "./TagSettingsContext";
+import {marks as markRanges,encode as encodeMarks} from "./domain.mjs";
 import {useContext} from "react";
 import {SearchContext} from "./SearchBox";
 import {searchMatcher} from "./search.mjs";
@@ -64,6 +66,7 @@ type Props = {
 };
 export function OutlineView(p: Props) {
   const {times}=useContext(SearchContext);
+  const tagSettings=useContext(TagSettingsContext);
   const music=useMusic(),galleryContext=useContext(GalleryContext);
   const badges=useMemo(()=>branchMedia(p.nodes,p.media),[p.nodes,p.media]);
   const mindmapBadges=useMemo(()=>{
@@ -691,6 +694,7 @@ export function OutlineView(p: Props) {
         )}
         {visible.map((r: any) => {
           const n = r.bullet as Node,
+            ts = n.codeLanguage ? null : bulletTagStyle(n.text, tagSettings),
             childCount = (idx.children.get(n.id) || []).length,
             selected = n.id === p.editing,
             drop = drag?.active && drag.target === n.id && drag.id !== n.id;
@@ -717,10 +721,11 @@ export function OutlineView(p: Props) {
                 event.preventDefault();
                 if (!p.disabled) openMenu(n.id, event.currentTarget);
               }}
-              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${hasImportantTag(n.text)?"is-important":""} ${smartTagClasses(n.text)} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
+              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
               style={{
                 top: r.top,
                 paddingLeft: depthIndent(r.depth, view.width),
+                ...(ts?.ring ? { ["--tag-ring" as any]: ts.ring } : {}),
               }}
             >
               {/* Indent guide lines showing extent of branches */}
@@ -819,7 +824,7 @@ export function OutlineView(p: Props) {
                   });
                 }}
               >
-                {n.listType === "ORDERED" ? <span className="list-marker">{`${ordinals.get(n.id)}. `}</span> : <svg className="bullet-glyph" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                {n.listType === "ORDERED" ? <span className="list-marker">{`${ordinals.get(n.id)}. `}</span> : ts?.question ? <span className={`tag-glyph tag-glyph-question ${ts.question === "answered" ? "is-answered" : ""}`} aria-hidden="true">{ts.question === "answered" ? "✓" : "?"}</span> : ts?.icon ? <span className="tag-glyph" aria-hidden="true">{ts.icon}</span> : <svg className="bullet-glyph" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
                   <circle className="bullet-outer-circle" cx="10" cy="10" r="7.5" fill="none" />
                   <circle className="bullet-inner-dot" cx="10" cy="10" r="3" />
                 </svg>}
@@ -836,6 +841,17 @@ export function OutlineView(p: Props) {
                 <Icon name="grip" size={14} />
               </button>
 
+              {n.taskState === "NONE" && ts?.checkbox && (
+                <input
+                  className="tag-checkbox"
+                  aria-label={(ts.checkbox.done ? "Mark not done: " : "Complete ") + n.text}
+                  type="checkbox"
+                  checked={ts.checkbox.done}
+                  disabled={p.disabled}
+                  onClick={e => e.stopPropagation()}
+                  onChange={() => { const next = toggleTagCheckbox(n, markRanges, encodeMarks); if (next) (p.onEditorChange || p.onChange)(n.id, next); }}
+                />
+              )}
               {n.taskState !== "NONE" && (
                 <input
                   aria-label={"Complete " + n.text}

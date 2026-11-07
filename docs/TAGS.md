@@ -14,26 +14,23 @@ Design canvas: https://claude.ai/artifact/CWzDJ2JxgvbNXSvVM6dBFy (private to the
   `#imp`/`#important`/`#urgent` ring, `#done`/`#complete` strike and dim, `#later`/`#someday` dim until hover,
   `#key`/`#highlight` row band, `#private` blur until hover or focus.
 
-## Next (phase 2): tag settings and management
+## Tag settings and behaviours (shipped)
 
-1. Store settings in the synced workspace as `web.tags = { [key]: { color?, icon?, description?, pinned?, effect? } }`.
-   Follow docs/SYNC.md: add the field to the shared schema and the server acceptance check (`src/sync-validate.mjs`),
-   validate types (color is one of the table colour names in `src/table.mjs` `TABLE_COLORS`; effect is one of
-   `ring|band|dim|blur|strike|checkbox|icon|quote`; icon is one emoji). Unknown keys are ignored, never rejected.
-2. Settings popover from the sidebar (right-click / long-press a tag, or a ⋯ on hover) and from the tag page header:
-   name, icon, colour, effect, pin, description. `tagColor` should prefer the saved colour.
-3. Rename / merge / remove everywhere: one outline mutation that rewrites the tag text in every bullet
-   (respect `noteLinks` ranges and code bullets; keep sub-tags: renaming `#study` turns `#study/ml` into `#new/ml`),
-   recorded as one undo step. Remove asks for confirmation with the count.
-4. Pinned tags first in the sidebar; sort menu (most used, A–Z, recent).
+- Settings live in the synced workspace as `web.tags = { [key]: { color?, icon?, description?, pinned?, effect? } }`,
+  read through `sanitizeTagSettings` (invalid values are dropped, never thrown). The sync server does not validate
+  `web.tags`; like `web.starredSearches` it is free-form workspace data.
+- Built-in smart tags (`BUILTIN_TAGS` in `src/tags.mjs`) give defaults; a user's settings override them, and sub-tags
+  inherit colour, icon and effect from their parent.
+- Effects: ring, band (in the tag colour), dim, blur, strike, checkbox (`#todo` ⇄ `#done`), question (`?` bullet,
+  `#answered` closes it), quote. Icons replace the bullet dot.
+- Settings dialog (`src/TagSettings.tsx`): from ⋯ or right-click on a sidebar tag, or "Tag settings" on a tag page.
+  Rename everywhere (merges when the new name exists; sub-tags and settings follow; formatting stays on its text),
+  remove from every bullet, icon, colour, effect, pin, description. Each is one undo step.
+- Sidebar: pinned tags first, sort (most used, recent, A–Z), and a Pinned section listing `#pin` bullets.
+- On leaving a bullet: `#today`/`#tomorrow` become its date; `#review` makes it a flashcard (kind QUESTION).
+- Tag page for a question tag lists open questions with "Make flashcards".
 
-## Later (phase 3): behaviours
+## Possible follow-ups
 
-- `#todo` bullet becomes a checkbox; ticking swaps `#todo` for `#done`.
-- Icon bullets: a tag's emoji replaces the bullet dot (`#idea` → 💡 by default).
-- `#q`/`#question`: "?" bullet, open questions on the tag page, one-tap convert to flashcard.
-- `#quote` shown as a quote block in the outline (it already feeds the Quotes widget).
-- `#pin`: top of its page plus a Dashboard widget. `#review`: Study Desk queue. `#today`/`#tomorrow`: convert to a date.
-- Per-tag effect picker wired to `web.tags[key].effect`.
-
-Each step needs app tests next to `tests/sidebar.test.mjs` and `tests/table.test.mjs`, and a staging check.
+- A Dashboard widget for `#pin` bullets.
+- Hiding the tag text and showing only its effect.

@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Node } from "./data";
 import {displayText,tagColor} from "./relations.mjs";
-import {tagIndex,rootTags,tagLeaf,isTagQuery,tagKey} from "./tags.mjs";
+import {tagIndex,rootTags,tagLeaf,isTagQuery,tagKey,hasTag,tagSettings as effectiveTag} from "./tags.mjs";
 import { index } from "./domain.mjs";
 import { depthIndent } from "./outline-layout.mjs";
 import { Icon } from "./icons";
@@ -61,12 +61,14 @@ export function OutlinePopover({ title, anchor, onClose, children, className = "
   </Popover.Root>;
 }
 
-export function OutlineSidebar({ nodes, scope, starred, savedSearches, search = "", onNavigate, onSearch }: {
+export function OutlineSidebar({ nodes, scope, starred, savedSearches, search = "", tagSettings = {}, onEditTag, onNavigate, onSearch }: {
   nodes: Node[];
   scope: string | null;
   starred: string[];
   savedSearches: string[];
   search?: string;
+  tagSettings?: Record<string, any>;
+  onEditTag?: (key: string) => void;
   disabled?: boolean;
   onNavigate: (id: string | null) => void;
   onSearch: (query: string) => void;
@@ -74,7 +76,10 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, search = 
 }) {
   const idx = useMemo(() => snapshotIndex(nodes), [nodes]),
     tags = useMemo(() => tagIndex(nodes), [nodes]),
-    [expanded, setExpanded] = useState(new Set<string>()), [showAll, setShowAll] = useState(false);
+    [expanded, setExpanded] = useState(new Set<string>()), [showAll, setShowAll] = useState(false),
+    [sort, setSort] = useState<string>(() => { try { return localStorage.getItem("remo-tag-sort") || "used"; } catch { return "used"; } }),
+    pinnedBullets = useMemo(() => nodes.filter(n => !n.codeLanguage && !n.mirrorSourceId && n.text.includes("#") && hasTag(n.text, "pin")).slice(0, 20), [nodes]);
+  const changeSort = (value: string) => { setSort(value); try { localStorage.setItem("remo-tag-sort", value); } catch { /* storage unavailable */ } };
   const active = isTagQuery(search) ? tagKey(search.trim()) : null;
   useEffect(() => { // Reveal the active nested tag.
     if (!active?.includes("/")) return;
@@ -82,8 +87,9 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, search = 
     setExpanded(previous => new Set([...previous, ...parts.slice(1).map((_, i) => parts.slice(0, i + 1).join("/"))]));
   }, [active]);
   const rows: { tag: ReturnType<typeof tagIndex> extends Map<string, infer T> ? T : never; depth: number }[] = [];
-  const roots = rootTags(tags), limit = showAll ? Infinity : 12;
-  const walk = (key: string, depth: number) => { const t = tags.get(key)!; rows.push({ tag: t, depth }); if (expanded.has(key)) for (const child of t.children) walk(child, depth + 1); };
+  const order = (list: any[]) => [...list].sort((a, b) => Number(!!tagSettings[b.key]?.pinned) - Number(!!tagSettings[a.key]?.pinned) || (sort === "az" ? a.key.localeCompare(b.key) : sort === "recent" ? b.lastUsed - a.lastUsed || b.count - a.count : b.count - a.count) || a.key.localeCompare(b.key));
+  const roots = order(rootTags(tags)), limit = showAll ? Infinity : 12;
+  const walk = (key: string, depth: number) => { const t = tags.get(key)!; rows.push({ tag: t, depth }); if (expanded.has(key)) for (const child of order(t.children.map((k: string) => tags.get(k)!))) walk(child.key, depth + 1); };
   for (const t of roots.slice(0, limit)) walk(t.key, 0);
   const toggle = (key: string) => setExpanded(previous => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   return <div className="root-nav outline-sidebar">
@@ -91,18 +97,24 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, search = 
     {!starred.some(id => idx.byId.has(id)) && !savedSearches.length && <p className="sidebar-empty">Star a page or search for quick access.</p>}
     {starred.filter(id => idx.byId.has(id)).map(id => <button key={id} className={scope === id ? "root-active" : ""} onClick={() => onNavigate(id)}><Icon name="star" size={12} /><span>{displayText(idx.byId.get(id).text) || "Untitled"}</span></button>)}
     {savedSearches.map(query => <button key={query} className={search.trim() === query ? "root-active" : ""} onClick={() => onSearch(query)}><Icon name="search" size={12} /><span>{query}</span></button>)}
-    <div className="sidebar-section-heading sidebar-tags-heading"><Icon name="hash" size={14} /><span>Tags</span>{tags.size > 0 && <small>{tags.size}</small>}</div>
+    {pinnedBullets.length > 0 && <>
+      <div className="sidebar-section-heading"><span aria-hidden="true">📌</span><span>Pinned</span></div>
+      {pinnedBullets.map(n => <button key={n.id} className={`sidebar-pinned ${scope === n.id ? "root-active" : ""}`} title={displayText(n.text)} onClick={() => onNavigate(n.id)}><span>{displayText(n.text).replace(/(^|\s)#pin(?![\p{L}\p{N}_/-])/giu, "").trim() || "Untitled"}</span></button>)}
+    </>}
+    <div className="sidebar-section-heading sidebar-tags-heading"><Icon name="hash" size={14} /><span>Tags</span>{tags.size > 1 && <select className="sidebar-tag-sort" aria-label="Sort tags" value={sort} onChange={e => changeSort(e.target.value)}><option value="used">Most used</option><option value="recent">Recent</option><option value="az">A–Z</option></select>}</div>
     {!tags.size && <p className="sidebar-empty">Type #topic in any bullet to tag it. Tags appear here.</p>}
     <div role="tree" aria-label="Tags" className="sidebar-tags">
       {rows.map(({ tag, depth }) => {
-        const open = expanded.has(tag.key), isActive = active === tag.key, color = tagColor("#" + tag.key);
-        return <div key={tag.key} role="treeitem" aria-level={depth + 1} aria-selected={isActive} aria-expanded={tag.children.length ? open : undefined} className={`sidebar-tag-row ${isActive ? "root-active" : ""}`} style={{ paddingLeft: 4 + depth * 16 }}>
+        const open = expanded.has(tag.key), isActive = active === tag.key, color = tagColor("#" + tag.key), look = effectiveTag(tag.key, tagSettings);
+        return <div key={tag.key} onContextMenu={e => { if (!onEditTag) return; e.preventDefault(); onEditTag(tag.key); }} role="treeitem" aria-level={depth + 1} aria-selected={isActive} aria-expanded={tag.children.length ? open : undefined} className={`sidebar-tag-row ${isActive ? "root-active" : ""}`} style={{ paddingLeft: 4 + depth * 16 }}>
           <button className="sidebar-tree-toggle" aria-label={`${open ? "Collapse" : "Expand"} #${tag.label}`} disabled={!tag.children.length} onClick={() => toggle(tag.key)}><Icon name="chevron" size={10} /></button>
           <button className="sidebar-tag" title={`Show #${tag.label}`} onClick={() => onSearch("#" + tag.label)}>
-            <span className="sidebar-tag-dot" style={{ background: color }} aria-hidden="true" />
+            {look.icon ? <span className="sidebar-tag-icon" aria-hidden="true">{look.icon}</span> : <span className="sidebar-tag-dot" style={{ background: color }} aria-hidden="true" />}
             <span className="sidebar-tag-name">{tagLeaf(tag)}</span>
+            {tagSettings[tag.key]?.pinned && <span className="sidebar-tag-pin" title="Pinned" aria-label="Pinned">•</span>}
             <small>{tag.count}</small>
           </button>
+          {onEditTag && <button className="sidebar-tag-more" aria-label={`Settings for #${tag.label}`} title="Tag settings" onClick={() => onEditTag(tag.key)}>⋯</button>}
         </div>;
       })}
     </div>

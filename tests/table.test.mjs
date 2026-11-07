@@ -38,3 +38,21 @@ test('tags: nested, case-insensitive, related and suggestions; search includes s
  assert.ok(t.isTagQuery('#a/b'));assert.ok(!t.isTagQuery('#a b'));
 });
 test('smart tags map to row classes; links and longer words do not count',async()=>{const {smartTagClasses}=await import('../src/relations.mjs');assert.equal(smartTagClasses('Renew passport #done'),'tag-done');assert.equal(smartTagClasses('Learn Rust #Someday'),'tag-later');assert.equal(smartTagClasses('#key idea #private'),'tag-key tag-private');assert.equal(smartTagClasses('#doneness'),'');assert.equal(smartTagClasses('#done/2024'),'');assert.equal(smartTagClasses('see [[x|#done]]'),'');});
+
+test('tag settings: sanitizing, effects, rename/merge/remove keep formatting, checkbox and date tags',async()=>{
+ const t=await import('../src/tags.mjs');const d=await import('../src/domain.mjs');
+ assert.deepEqual(t.sanitizeTagSettings({Study:{color:'blue'},ok:{color:'nope',icon:'💡',pinned:'yes',effect:'band'},bad:5}),{ok:{icon:'💡',effect:'band'}});
+ assert.equal(t.tagSettings('study/ml',{study:{color:'green',icon:'📚'}}).color,'green','sub-tags inherit colour and icon');
+ const s=t.bulletTagStyle('a #todo #idea',{});assert.equal(s.icon,'💡');assert.equal(s.checkbox.done,false);
+ assert.equal(t.bulletTagStyle('x #imp',{}).ring,'#d44c47');assert.equal(t.bulletTagStyle('x #imp',{imp:{effect:'none'}}).ring,null,'user settings override smart tags');
+ assert.match(t.bulletTagStyle('x #work',{work:{effect:'band',color:'blue'}}).classes,/tag-band-blue/);
+ const n={text:'Read #study/ml now #imp',formatting:'0:4:BOLD;19:23:ITALIC'};
+ assert.equal(t.renameTagInNodes([n],'#study','learning',d.marks,d.encode).nodes[0].text,'Read #learning/ml now #imp');
+ const moved=t.renameTagInNodes([n],'#study/ml','ai',d.marks,d.encode).nodes[0];assert.equal(moved.text,'Read #ai now #imp');assert.equal(moved.formatting,'0:4:BOLD;13:17:ITALIC','formatting follows its text');
+ const removed=t.renameTagInNodes([n],'#imp',null,d.marks,d.encode).nodes[0];assert.equal(removed.text,'Read #study/ml now');assert.equal(removed.formatting,'0:4:BOLD');
+ assert.deepEqual(t.renameTagSettings({study:{color:'blue'},ai:{icon:'🤖'}},'study','ai'),{ai:{icon:'🤖',color:'blue'}},'merging keeps the target settings first');
+ assert.equal(t.toggleTagCheckbox({text:'Book #todo',formatting:''},d.marks,d.encode).text,'Book #done');
+ assert.equal(t.toggleTagCheckbox({text:'Book #done',formatting:''},d.marks,d.encode).text,'Book #todo');
+ assert.deepEqual(t.resolveDateTags({text:'Call bank #tomorrow',formatting:''},'2026-12-31',d.marks,d.encode),{text:'Call bank',formatting:'',dueDate:'2027-01-01'});
+ assert.equal(t.resolveDateTags({text:'no tags',formatting:''},'2026-12-31',d.marks,d.encode),null);
+});
