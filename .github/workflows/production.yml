@@ -64,4 +64,10 @@ jobs:
           command: deploy --config wrangler.production.jsonc
       - name: Smoke test
         run: |
-          node --input-type=module -e 'const expect=JSON.parse((await import("node:fs")).readFileSync("dist/release.json","utf8")).release;for(let i=0;i<10;i++){const r=await fetch("https://remonook.com/release.json",{cache:"no-store"});const v=r.ok?(await r.json()).release:null;if(v===expect){console.log("remonook.com serves",v);process.exit(0);}await new Promise(s=>setTimeout(s,6000));}throw Error("remonook.com does not serve "+expect+" yet (domain not attached, or caching).");'
+          node --input-type=module -e '
+          const expect=JSON.parse((await import("node:fs")).readFileSync("dist/release.json","utf8")).release;
+          const check=async url=>{for(let i=0;i<10;i++){try{const r=await fetch(url+"/release.json",{cache:"no-store"});if(r.ok&&(await r.json()).release===expect)return true;}catch{}await new Promise(s=>setTimeout(s,6000));}return false;};
+          if(!await check("https://remonook-production.remo-978fb.workers.dev"))throw Error("The Worker does not serve "+expect+".");
+          console.log("Worker serves",expect);
+          if(await check("https://remonook.com"))console.log("remonook.com serves",expect);
+          else console.log("::warning::remonook.com does not serve "+expect+" yet. Attach the custom domain to remonook-production (docs/ENVIRONMENTS.md).");'
