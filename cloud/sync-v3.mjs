@@ -5,7 +5,7 @@
 // SQLite transaction. A pull returns journal entries since the device's revision, so
 // unchanged buckets are never decoded. Records (projected rows as JSON) serve the AI apps
 // connection and other server readers without opening any Yjs document.
-import {Y,pack,unpack,projectParts,assembleParts,applyParts} from '../src/sync-crdt.mjs';
+import {Y,pack,unpack,projectParts,assembleParts,applyParts,emptyShared} from '../src/sync-crdt.mjs';
 import {applyDocument,isBucket,readRepair,patchBuckets,diffPatch,emptyPatch,ASSET_BUCKET,PROTOCOL_V3} from '../src/sync-buckets.mjs';
 import {checkRow,checkRoot,checkAssets} from '../src/sync-checks.mjs';
 
@@ -57,6 +57,8 @@ export class SyncSpace{
    const row=await this.env.DB.prepare('SELECT body FROM workspaces WHERE uid=?').bind(uid).first();
    if(row){let text=row.body;if(text.startsWith('r2:')){const o=await this.env.FILES?.get(text.slice(3));text=o?await o.text():null;}if(text)seed=JSON.parse(text);}
   }
+  // A new account starts from the empty workspace, as v2 did, so its tables exist in the CRDT.
+  if(!seed?.doc)seed={doc:emptyShared(),assets:[]};
   if(seed?.doc){
    const {states}=applyDocument(new Map(),null,seed.doc,{assetsAfter:seed.assets||[]});
    this.ctx.storage.transactionSync(()=>{
