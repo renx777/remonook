@@ -63,8 +63,6 @@ import { isTagQuery, sanitizeTagSettings, setTagRegistry, renameTagInNodes, rena
 import { TagSettingsContext } from "./TagSettingsContext";
 import { TagSettingsForm } from "./TagSettings";
 import { AiApps } from "./AiApps";
-import { useNotebook, useNotebookMetrics, NOTEBOOK_FONTS, NOTEBOOK_INKS } from "./notebook";
-import { NotebookSettings } from "./NotebookSettings";
 import { marks as markRanges, encode as encodeMarks } from "./domain.mjs";
 import { ProfileMenu } from "./ProfileMenu";
 import { TablePicker } from "./TablePicker";
@@ -204,10 +202,6 @@ function Dialog({
 }
 const DiagramEditor=React.lazy(()=>import('./DiagramEditor').then(m=>({default:m.DiagramEditor})));
 const DrawingEditor=React.lazy(()=>import('./DrawingEditor').then(m=>({default:m.DrawingEditor})));
-/** The reading font for the Appearance setting (also the Notebook theme's "Neat" font). */
-function readingFontFor(font?:string){
-  return font==="Serif"?"Georgia, serif":font==="Mono"?"ui-monospace, monospace":font==="Rounded"?"ui-rounded, system-ui, sans-serif":'-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-}
 export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const research=useResearchDrafts(storageAccountKey());
   const [researchTarget,setResearchTarget]=useState<string|null>(null);
@@ -488,9 +482,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const calendarToday=useReminderClock();
   const [notesFilter,setNotesFilter]=useState('all');
   const [tablePicker,setTablePicker]=useState<string|null>(null);
-  const [notebook,setNotebook]=useNotebook();
-  const nbAppearance=doc?.preferences?.appearance||{};
-  const nbGrid=useNotebookMetrics(notebook,nbAppearance.size||16,readingFontFor(nbAppearance.font));
   const [tagEditor,setTagEditor]=useState<string|null>(null);
   const tagSettings=React.useMemo(()=>sanitizeTagSettings(doc?.web?.tags),[doc?.web?.tags]);
   setTagRegistry(tagSettings);
@@ -1463,15 +1454,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const style: React.CSSProperties = {
     "--reading-size": `${ap.size || 16}px`,
     "--outline-line-height": `${(ap.size || 16) * 1.5}px`,
-    "--reading-font": readingFontFor(ap.font),
+    "--reading-font":
+      ap.font === "Serif"
+        ? "Georgia, serif"
+        : ap.font === "Mono"
+          ? "ui-monospace, monospace"
+          : ap.font === "Rounded"
+            ? "ui-rounded, system-ui, sans-serif"
+            : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   } as React.CSSProperties;
-  // Notebook theme: only while it is on and its font has been measured; off leaves every style untouched.
-  const notebookActive=notebook.on&&!!nbGrid.metrics,themeIsDark=["Dark","Dracula","Nord","Gruvbox","Catppuccin Mocha"].includes(theme);
-  if(notebookActive){
-    const ink=NOTEBOOK_INKS[notebook.ink],m=nbGrid.metrics!;
-    Object.assign(style,{"--nb-line":`${nbGrid.line}px`,"--nb-base":`${m.base}px`,"--nb-dot":`${m.dot}px`,"--nb-dot-shift":`${(m.dot-nbGrid.line/2).toFixed(1)}px`,"--nb-scale":String(NOTEBOOK_FONTS[notebook.font].scale),"--nb-ink":themeIsDark?ink.dark:ink.light,...(NOTEBOOK_FONTS[notebook.font].family?{"--reading-font":NOTEBOOK_FONTS[notebook.font].family}:{})});
-  }
-  const notebookClass=notebookActive?` notebook nb-${notebook.paper}${notebook.margin?' nb-margin':''}`:'';
   const openDiagram=(target:DiagramTarget)=>{if(disabled)return;setMenu(null);setEditing(null);setDiagramTarget({...target,id:sourceId(docRef.current!.tables.bullets,target.id)});};
   const openDrawing=(id:string,mediaId?:string)=>{if(disabled)return;setMenu(null);setEditing(null);setDrawingTarget({id:sourceId(docRef.current!.tables.bullets,id),mediaId,account:storageAccountKey()});};
   const saveDrawing=(blob:Blob,title:string)=>{
@@ -1500,7 +1491,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       emojiTarget.current = { id, start, end };
       await chooseEmoji(item, true);
     }}>
-    <div className={"app"+notebookClass} data-theme={theme} data-page={tab} data-editing={!!selected && (tab==='notes'||tab==='calendar')} style={style}>
+    <div className="app" data-theme={theme} data-page={tab} data-editing={!!selected && (tab==='notes'||tab==='calendar')} style={style}>
       <aside
         className={`sidebar ${sidebarShown ? "" : "collapsed"}`}
         aria-hidden={!sidebarShown}
@@ -1737,8 +1728,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               search={pane.search}
               showCompleted={pane.completed??showCompleted}
               readingSize={ap.size || 16}
-              lineHeight={notebookActive?nbGrid.line:undefined}
-              layoutKey={notebookActive?nbGrid.metrics!.key:''}
               onImages={(id, files) => { void attachImages(id, files); }}
               onRemoveMedia={removeMedia}
               onResizeMedia={resizeMedia}
@@ -2195,7 +2184,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             />
           </label>
           
-          <NotebookSettings value={notebook} onChange={setNotebook} dark={themeIsDark}/>
           <label className="emoji-setting"><input type="checkbox" checked={ap.animateEmojis !== false} disabled={disabled} onChange={event => prefs('animateEmojis', event.target.checked)} />Animate emojis</label>
           <p className="dialog-muted">Motion follows your device’s reduced-motion preference.</p>
           </section>}
