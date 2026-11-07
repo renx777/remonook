@@ -1,0 +1,13 @@
+{
+  // Production frontend for remonook.com. Serves the verified `dist/` of a commit on main.
+  // Deploy only with explicit owner authorization (AGENTS.md); see docs/ENVIRONMENTS.md "Production release".
+  "name": "remonook-production",
+  "compatibility_date": "2026-10-24",
+  // workers.dev gives a pre-switch test address; disable it once remonook.com is attached.
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

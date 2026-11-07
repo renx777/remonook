@@ -8,6 +8,8 @@ for(const args of [['node_modules/typescript/bin/tsc','--noEmit'],['node_modules
  if(result.error)throw result.error;
  if(result.status!==0)process.exit(result.status||1);
 }
+// Cloudflare Workers static assets read dist/_headers; other hosts ignore it.
+if(mode==='production')copyFileSync('cloud/production-headers','dist/_headers');
 if(mode==='staging'){
   copyFileSync('cloud/staging-headers','dist/_headers');
   // Staging is an internal preview, not a public search result. Keep this
