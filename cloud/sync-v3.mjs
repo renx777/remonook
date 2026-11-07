@@ -25,6 +25,8 @@ export class SyncSpace{
   this.sql.exec(`CREATE TABLE IF NOT EXISTS buckets(id TEXT PRIMARY KEY, rev INTEGER NOT NULL, size INTEGER NOT NULL)`);
   this.sql.exec(`CREATE TABLE IF NOT EXISTS journal(rev INTEGER PRIMARY KEY, op TEXT NOT NULL UNIQUE, hash TEXT NOT NULL, created INTEGER NOT NULL)`);
   this.sql.exec(`CREATE TABLE IF NOT EXISTS records(k TEXT PRIMARY KEY, tbl TEXT NOT NULL, bucket TEXT NOT NULL, body TEXT NOT NULL)`);
+  // Children lookups for the AI apps connection read only the part of the outline they need.
+  this.sql.exec(`CREATE INDEX IF NOT EXISTS records_parent ON records(tbl, json_extract(body,'$.parentId'))`);
  }
  // ---- storage helpers
  meta(k){return this.sql.exec('SELECT v FROM meta WHERE k=?',k).toArray()[0]?.v;}
@@ -161,6 +163,27 @@ export class SyncSpace{
   return {...value,revision:this.revision()};
  }
 
+ /** Part of the outline, read from projected records (no Yjs): text-search candidates, the
+  children and grandchildren of a parent, or a subtree, always with the ancestors of every
+  bullet returned (for paths). Media rows are included for attachment-aware matching. */
+ subset({word,parent,root,limit=20000}={}){
+  const bullets=new Map(),add=rows=>{for(const r of rows){const n=JSON.parse(r.body);bullets.set(n.id,n);}};
+  const byIds=ids=>{const out=[];for(const id of ids)out.push(...this.sql.exec("SELECT body FROM records WHERE k=?",JSON.stringify(['bullets',String(id)])).toArray());return out;};
+  const childrenOf=ids=>{const out=[];for(const id of ids)out.push(...(id===null?this.sql.exec("SELECT body FROM records WHERE tbl='bullets' AND json_extract(body,'$.parentId') IS NULL").toArray():this.sql.exec("SELECT body FROM records WHERE tbl='bullets' AND json_extract(body,'$.parentId')=?",id).toArray()));return out;};
+  const ids=rows=>rows.map(r=>JSON.parse(r.body).id);
+  if(typeof word==='string')add(this.sql.exec("SELECT body FROM records WHERE tbl='bullets' AND body LIKE ? ESCAPE '\\' ORDER BY k LIMIT 2000",'%'+word.replace(/[\\%_]/g,c=>'\\'+c)+'%').toArray());
+  let childCounts;
+  if(parent!==undefined){if(parent)add(byIds([parent]));const kids=childrenOf([parent]);add(kids);
+   // Only the number of grandchildren is needed, so count them instead of reading them.
+   childCounts={};for(const id of ids(kids))childCounts[id]=this.sql.exec("SELECT COUNT(*) AS c FROM records WHERE tbl='bullets' AND json_extract(body,'$.parentId')=?",id).toArray()[0].c;}
+  if(root){add(byIds([root]));let level=[root];while(level.length&&bullets.size<limit){const rows=childrenOf(level).filter(r=>!bullets.has(JSON.parse(r.body).id));add(rows);level=ids(rows);}}
+  // Ancestors, guarding against cycles (read-time repair is not applied to a subset).
+  const seen=new Set();let missing=[...bullets.values()].map(n=>n.parentId).filter(p=>p&&!bullets.has(p));
+  while(missing.length){const next=[];for(const row of byIds([...new Set(missing)].filter(id=>!seen.has(id)))){const n=JSON.parse(row.body);seen.add(n.id);bullets.set(n.id,n);if(n.parentId&&!bullets.has(n.parentId))next.push(n.parentId);}for(const id of missing)seen.add(id);missing=next;}
+  const media=this.sql.exec("SELECT body FROM records WHERE tbl='media'").toArray().map(r=>JSON.parse(r.body));
+  return {doc:{tables:{bullets:[...bullets.values()].sort((a,b)=>a.id.localeCompare(b.id)),media},web:{}},revision:this.revision(),...(childCounts?{childCounts}:{})};
+ }
+
  // ---- live updates: devices keep a WebSocket open and pull when told a new revision exists
  notify(revision){for(const ws of this.ctx.getWebSockets?.()||[])try{ws.send(JSON.stringify({revision}));}catch{}}
  webSocketMessage(ws,message){if(message==='ping')ws.send(JSON.stringify({revision:this.revision()}));}
@@ -178,6 +201,7 @@ export class SyncSpace{
    }
    if(url.pathname==='/pull')return json(this.pull(Number(url.searchParams.get('since')||0),url.searchParams.get('after')||'',Number(url.searchParams.get('target')||0)));
    if(url.pathname==='/read')return json(this.read());
+   if(url.pathname==='/subset')return json(this.subset(await request.json()));
    const body=await request.json();
    if(url.pathname==='/push')return json(await this.serial(()=>this.push(body)));
    if(url.pathname==='/patch')return json(await this.serial(()=>this.patch(body)));
@@ -222,6 +246,8 @@ export async function syncV3(request,env,uid,{readLimited}){
  let input;try{input=JSON.parse(new TextDecoder().decode(await readLimited(request,REQUEST_LIMIT)));}catch(e){if(e.status)throw e;error('Invalid sync request');}
  return json(await call(env,uid,'/push',input));
 }
+/** Part of the outline for AI app reads; see SyncSpace.subset. */
+export async function readSubsetV3(env,uid,query){return call(env,uid,'/subset',query);}
 export async function readDocumentV3(env,uid){const {doc,revision}=await call(env,uid,'/read');return {doc,revision};}
 /** v3 counterpart of commitServerChange: compute the change on the current document, send
  only the changed keys, and let the space rebase them onto concurrent edits. */

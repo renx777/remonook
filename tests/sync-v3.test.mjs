@@ -72,6 +72,11 @@ test('v3: first use copies the v2 workspace, old app versions get 426, AI apps r
  assert.match((await rpc('search',{query:'Goa'})).content[0].text,/Trip to Goa/);
  const w=await rpc('write_notes',{markdown:'- Packing list\n  - Sunscreen',parent_id:'trip'});assert.ok(!w.isError,JSON.stringify(w));
  await a.pull();assert.deepEqual(a.doc.tables.bullets.map(n=>n.text).sort(),['Packing list','Sunscreen','Trip to Goa']);
+ // Reads use outline subsets: same answers as the whole document.
+ assert.match((await rpc('list_pages',{})).content[0].text,/Trip to Goa <!-- id=trip children=1/);
+ const page=(await rpc('read_page',{id:'trip'})).content[0].text;assert.match(page,/Packing list/);assert.match(page,/Sunscreen/);
+ const hit=(await rpc('search',{query:'sunscreen'})).content[0].text;assert.match(hit,/Sunscreen/);assert.match(hit,/in: Trip to Goa › Packing list|in: .*Packing list/);
+ assert.match((await rpc('search',{query:'no-such-words'})).content[0].text,/No bullets match/);
 });
 
 test('v3: a device behind the journal gets whole buckets page by page',async()=>{

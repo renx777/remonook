@@ -1,4 +1,5 @@
 import {commitServerChange,readServerDocument} from './sync-v2.mjs';
+import {isV3Account,readSubsetV3} from './sync-v3.mjs';
 import {bullet,index,move,descendants} from '../src/domain.mjs';
 import {withNodes} from '../src/workspace-nodes.mjs';
 import {parseMarkdown,parseInline,itemsToBullets,outlineMarkdown,bulletVersion,bulletMarkdown} from '../src/ai-markdown.mjs';
@@ -131,6 +132,23 @@ function trashEntry(doc,rootIds){
  return {all,entry:{id:crypto.randomUUID(),title:rootIds.length===1&&first?(first.text||'Empty bullet'):`${rootIds.length} bullets`,deletedAt:Date.now(),nodeCount:all.size,payload:JSON.stringify({nodes:nodes.filter(n=>all.has(n.id)),media:doc.tables.media.filter(m=>all.has(m.bulletId)),decks:doc.tables.decks.filter(d=>all.has(d.rootId))})}};
 }
 
+/** The longest plain word of a simple search (ASCII letters and digits, no operators), which
+ every hit must contain; null when the query needs the whole outline (fields, OR, non-ASCII). */
+export function searchWord(query){
+ const q=String(query||'').trim();
+ if(!q||!/^[A-Za-z0-9#@_\/\s-]+$/.test(q)||/(^|\s)or(\s|$)/i.test(q))return null;
+ const words=q.split(/\s+/).filter(w=>!w.startsWith('-')).map(w=>w.replace(/^[#@]+/,'')).filter(w=>w.length>=2);
+ return words.sort((a,b)=>b.length-a.length)[0]||null;
+}
+/** Sync v3 accounts read only the part of the outline a read tool needs. */
+async function readForTool(env,uid,name,args){
+ if(await isV3Account(env,uid)){
+  if(name==='search'){const word=searchWord(args.query);if(word)return readSubsetV3(env,uid,{word});}
+  if(name==='list_pages')return readSubsetV3(env,uid,{parent:args.parent_id||null});
+  if(name==='read_page'&&args.id)return readSubsetV3(env,uid,{root:args.id});
+ }
+ return readServerDocument(env,uid);
+}
 /** Runs one tool. Reads use the stored document; writes go through commitServerChange. */
 export async function callTool(env,auth,name,args,deps){
  const tool=TOOLS.find(t=>t.name===name);if(!tool)fail(`Unknown tool ${name}.`,404);
@@ -138,7 +156,7 @@ export async function callTool(env,auth,name,args,deps){
  args=args&&typeof args==='object'?args:{};
  if(tool.scope==='read'){
   if(name==='recent_changes'){const rows=await env.DB.prepare('SELECT tool,summary,ids,created_at FROM mcp_activity WHERE uid=? ORDER BY created_at DESC LIMIT ?').bind(auth.uid,clampInt(args.limit,1,50,20)).all();return {text:(rows.results||[]).map(r=>`- ${new Date(r.created_at).toISOString()} ${r.tool}: ${r.summary} ${r.ids}`).join('\n')||'No changes from AI apps yet.'};}
-  const {doc,revision}=await readServerDocument(env,auth.uid),idx=index(doc.tables.bullets);
+  const {doc,revision,childCounts}=await readForTool(env,auth.uid,name,args),idx=index(doc.tables.bullets),childCount=id=>childCounts?.[id]??(idx.children.get(id)||[]).length;
   if(name==='search'){
    const q=need(args.query,'query').trim(),match=searchMatcher(doc.tables.bullets,doc.tables.media||[],doc.web.noteTimes||{}),limit=clampInt(args.limit,1,50,20),hits=[];
    for(const n of doc.tables.bullets){if(hits.length>=limit)break;if(match(n,q))hits.push(n);}
@@ -146,7 +164,7 @@ export async function callTool(env,auth,name,args,deps){
   }
   if(name==='list_pages'){
    const parent=args.parent_id?live(doc,args.parent_id).id:null,kids=idx.children.get(parent)||[];
-   return {text:kids.length?kids.map(n=>`- ${titled(idx,n)} <!-- id=${n.id} children=${(idx.children.get(n.id)||[]).length}${n.kind!=='NOTE'?' kind='+n.kind:''}${n.mindmap?' mindmap':''} -->`).join('\n'):'No bullets here.',structured:{revision,count:kids.length}};
+   return {text:kids.length?kids.map(n=>`- ${titled(idx,n)} <!-- id=${n.id} children=${childCount(n.id)}${n.kind!=='NOTE'?' kind='+n.kind:''}${n.mindmap?' mindmap':''} -->`).join('\n'):'No bullets here.',structured:{revision,count:kids.length}};
   }
   if(name==='read_page'){
    const root=args.id?live(doc,args.id):null,out=outlineMarkdown(idx,root?root.id:null,{offset:clampInt(args.offset,0,1e6,0),maxNodes:clampInt(args.max_bullets,1,LIMITS.read,200)});

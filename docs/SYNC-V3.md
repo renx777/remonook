@@ -19,7 +19,7 @@ Measured with 50,000 bullets (44 MB of CRDT state in 267 buckets, Node, the same
 | App: write it to its bucket | ~35 ms, 1 bucket sent |
 | Server: commit one edit | 32 ms cold, 9 ms warm |
 | Server: pull two revisions | 2 ms, 1 bucket returned |
-| Server: whole document for AI apps | ~0.7 s, from projected records, no CRDT decoding |
+| AI apps: search / open a page / list 5,000 pages | 46 ms / 2 ms / 164 ms, from projected records (whole document ~0.9 s, used only for writes and complex searches) |
 
 ## Model
 
@@ -103,8 +103,14 @@ A 100,000-bullet account is about 90 MB of state, or about 0.35 MB per row bucke
 - **Projection:** cached per bucket version, so only changed buckets are decoded.
 - **First sync on a device:** an empty account receives the device's notes; otherwise
   the device adopts the account.
-- **Refused batches** show the server's reason and stay pending (v2's automatic
-  repair of refused batches is not ported).
+- **Refused batches are repaired automatically.** The app pulls, then runs the server's own
+  checks (`src/sync-checks.mjs`) on the received document. An invalid field is reset, a
+  failing settings key is removed, and invalid attachments are dropped. The originals are
+  kept under "Recovered from this device", and one notice is shown. The correction is
+  queued after the original edits and sent with a new operation id. If nothing needs
+  repair, the server's reason stays visible and the edits stay pending.
+- **After a sync with nothing new**, inspect returns at once. The assembled projection
+  is reused, rows are shared instead of cloned, and read-time repair is copy-on-write.
 
 ## First use and compatibility
 
@@ -124,7 +130,9 @@ The frontend speaks only v3. Releasing it before step 1 would stop sync.
 
 ## Next
 
-- App: make the remaining whole-workspace passes per sync cycle incremental
-  (`contentKey` comparisons and full re-assembly of the projection).
-- AI apps: query `records` directly instead of loading the whole document.
+- App: when remote changes arrive, the projection is still re-assembled (O(rows)). That
+  is fine at tens of thousands of bullets; a per-bucket incremental merge could follow.
+- AI apps: plain-word search, page reads and page lists query `records` (an expression
+  index on `parentId`). Writes and searches with fields, OR or non-ASCII words still read
+  the whole document.
 - Spaces and selective cloud sync: add a space id to bucket names.
