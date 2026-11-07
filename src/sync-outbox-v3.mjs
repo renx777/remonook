@@ -40,7 +40,11 @@ export async function initializeOutbox(server,doc,assets,pushDevice,io){
  const meta={protocol:3,epoch:crypto.randomUUID(),ver:{L:{},R:{}},unsynced:{},receivedVersion:1,dirty:false,mappedDoc:null,assets:[],pending:[],inflight:null,since:server.revision,uploaded:[]};
  const states=mergeChanged(()=>undefined,server.updates);put(meta,io,'L',states);put(meta,io,'R',states);
  meta.assets=await bucketAssets({load:async(_,ids)=>new Map(ids.map(b=>[b,states.get(b)]))},'R');meta.uploaded=meta.assets.map(a=>a.hash);
- meta.mappedDoc=(await receivedProjection(meta,{load:async(_,ids)=>new Map(ids.map(b=>[b,states.get(b)]))})).doc;
+ // `mappedDoc` is what the device's own document looked like when recorded, never the
+ // account's: a later save diffs mappedDoc → device document, so mapping the account here
+ // would turn a device that has not adopted the account yet into "delete everything".
+ // The account's notes arrive through the normal apply (dirty) and adopt path.
+ meta.mappedDoc=cloudDocument(doc);meta.mappedRevision=doc.revision;meta.dirty=true;
  // A device with notes and an empty account uploads its notes; otherwise it adopts the account.
  if(pushDevice){
   const plan=planDocument(null,doc,{assetsBefore:[],assetsAfter:assets}),{changed,updates}=writePlan(plan,b=>states.get(b),{clientID:sessionClient});

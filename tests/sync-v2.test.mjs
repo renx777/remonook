@@ -13,7 +13,7 @@ import {bullet} from '../src/domain.mjs';
 import {route} from '../cloud/worker.mjs';
 const copy=structuredClone;
 const initial=()=>{const d=empty();d.tables.bullets=[bullet('a',{text:'Learn SQL.'}),bullet('b',{text:'Other',position:1})];return d;};
-import {applyDocument,projectBuckets,bulletBucket} from '../src/sync-buckets.mjs';
+import {applyDocument,projectBuckets,bulletBucket,mergeUpdates} from '../src/sync-buckets.mjs';
 test('restoring a removed note reuses retained text and preserves concurrent text edits',()=>{
  const base=initial(),seeded=seed(base),state=sharedState(seeded),removed=copy(base);removed.tables.bullets=removed.tables.bullets.filter(n=>n.id!=='a');
  const local=openShared(state),remote=openShared(state);try{
@@ -209,4 +209,22 @@ test('legacy Workdays conversion failures identify their step without exposing i
   await call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:modern.update,vector:modern.vector},'alice',headers);
   await assert.rejects(call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:old.update,vector:old.vector,workdaysContext:{secretText:'PRIVATE CONTENT'}},'alice',headers),e=>e.status===400&&e.code==='SYNC_VALIDATION_FAILED'&&/Legacy Workdays upgrade failed/.test(e.message)&&!e.message.includes('PRIVATE'));
  }finally{env.sqlite.close();}
+});
+
+test('v3: a new device with no notes adopts the account and never deletes its notes',async()=>{
+ setStorageAccount('v3-fresh-device-'+crypto.randomUUID());try{
+  const account=initial();account.tables.bullets.push(bullet('extra',{text:'Account note',position:5}));
+  const {updates}=applyDocument(new Map(),null,account);
+  const device=await save(null,empty(),'fresh device');
+  await syncOperation('initialize',{response:{updates,revision:7},doc:device,assets:[]});
+  await syncOperation('stage',{doc:device,assets:[]});
+  assert.equal((await syncMetadata()).pending.length,0,'nothing is queued: in particular no deletions');
+  const inspected=await syncOperation('inspect',{doc:device,assets:[]});
+  assert.equal(inspected.needsApply,true);assert.ok(inspected.doc.tables.bullets.some(n=>n.text==='Account note'),'the account notes are applied');
+  const adopted=await save(device,{...inspected.doc,web:{...inspected.doc.web,deviceId:device.web.deviceId}},'cloud download',undefined,true,[],inspected.state);
+  const next=copy(adopted);next.tables.bullets.find(n=>n.id==='extra').text='Account note, edited';await save(adopted,next,'edit');
+  const meta=await syncMetadata();assert.equal(meta.pending.length,1);
+  const sent=projectBuckets(mergeUpdates(new Map(Object.entries(updates)),meta.pending[0].updates)).doc.tables.bullets;
+  assert.equal(sent.length,account.tables.bullets.length,'a later edit keeps every account note');
+ }finally{setStorageAccount(null);}
 });
