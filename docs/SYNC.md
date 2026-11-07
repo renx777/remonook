@@ -82,10 +82,24 @@ Do not roll the backend back to a v1-only worker after accounts migrate. Use a
 forward fix, or a frontend version that still understands the v2 outbox. Keeping
 schema changes additive does not make a protocol downgrade safe.
 
-Existing limits remain: 900 KiB projected workspace, 2 MiB per attachment and
-20 MiB per account's stored attachment hashes. V2 encoded state has a 6 MiB bound;
-request batches are bounded. Sign-in/storage/quota errors stay actionable, and
+Limits: 3 MiB projected workspace and 7 MiB encoded v2 state per account, 2 MiB per
+attachment and 20 MiB per account's stored attachment hashes; request batches are
+bounded. The state bound is the real one: every commit loads the whole CRDT state into
+the Worker (a 6.8 MB state peaks near 100 MB of the 128 MB isolate). A refused save
+says how full the workspace is, and nothing is applied. Sign-in/storage/quota errors
+stay actionable, and
 pending work is never described as Synced.
+
+### Large-value storage
+
+A state or notes copy above 512 KiB is written to R2 (`FILES`) at
+`<uid>/sync-store/{state|body}/<state digest>` before the D1 compare-and-swap, and
+D1 stores `r2:<key>` in `sync_documents.state` / `workspaces.body`. Smaller values
+stay inline, so existing accounts are unchanged until they grow. After each commit
+attempt, objects no row references (superseded copies, or a lost CAS's own) are
+deleted; a reader that finds its object already replaced re-reads the row. Every
+reader goes through `loadStored`. This is forward-only: a Worker older than this
+change cannot read `r2:` pointers, so never roll the sync Worker back past it.
 
 ## Permanent validation rejection recovery
 

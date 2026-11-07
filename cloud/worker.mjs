@@ -6,7 +6,7 @@ import {validateReading} from '../src/reading.mjs';
 import {booksRoute,cleanupBooks} from './books.mjs';
 import {STORAGE_LIMIT,validateReadingBooks} from '../src/book-storage.mjs';
 import {googleTasksPublic,googleTasksRoute,googleTasksConfigured,cleanupGoogleTasks} from './google-tasks.mjs';
-import {syncV2} from './sync-v2.mjs';
+import {syncV2,loadStored} from './sync-v2.mjs';
 import {mcpEndpoint,mcpManage} from './mcp.mjs';
 import {oauthPublic,oauthConsent,cleanupOAuth} from './mcp-oauth.mjs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -59,6 +59,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
     if(request.method==='GET'){
       const row=await env.DB.prepare('SELECT revision, body FROM workspaces WHERE uid=?').bind(uid).first();
       if(!row)return json({revision:0,doc:null,assets:[]});
+      row.body=await loadStored(env,row.body);if(row.body===null)fail('Sync is retrying. Try again in a moment.',503);
       if(JSON.parse(row.body).doc?.web?.workdays?.version===2&&!request.headers.get('X-Remo-Capabilities')?.split(',').map(v=>v.trim()).includes('workdays-v2'))fail('Update RemoNook to sync Workdays. Pending edits remain saved on this device.',426);
       if(request.headers.get('If-None-Match')===String(row.revision))return new Response(null,{status:304});
       return json({revision:row.revision,...JSON.parse(row.body)});

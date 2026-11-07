@@ -1,4 +1,5 @@
 import {articleKey,storeArticle} from './article-storage.mjs';
+import {loadStored} from './sync-v2.mjs';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const json=value=>Response.json(value,{headers:{'Cache-Control':'private, no-store'}});
 const hashOf=async bytes=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -23,7 +24,7 @@ export async function bookmarksRoute(request,env,uid,{readLimited}){
  const row=await env.DB.prepare("SELECT * FROM article_snapshots WHERE uid=? AND hash=? AND state='ready'").bind(uid,hash).first();if(!row)fail('Article snapshot not found.',404);
  if(request.method==='GET'){const object=await env.FILES.get(articleKey(uid,hash));if(!object)fail('Article snapshot not found.',404);return new Response(object.body,{headers:{'Content-Type':'application/json','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});}
  if(request.method==='DELETE'){
-  const workspace=await env.DB.prepare('SELECT body FROM workspaces WHERE uid=?').bind(uid).first();if(workspace){const{doc}=JSON.parse(workspace.body);if(Object.values(doc?.web?.bookmarks||{}).some(b=>b.snapshotHash===hash)||Object.values(doc?.web?.bookmarkSources||{}).some(s=>s.snapshotHash===hash))fail('This snapshot is still referenced by your notes or bookmarks.',409);}
+  const workspace=await env.DB.prepare('SELECT body FROM workspaces WHERE uid=?').bind(uid).first(),text=workspace&&await loadStored(env,workspace.body);if(workspace&&text===null)fail('Your notes are busy syncing. Try again in a moment.',503);if(workspace){const{doc}=JSON.parse(text);if(Object.values(doc?.web?.bookmarks||{}).some(b=>b.snapshotHash===hash)||Object.values(doc?.web?.bookmarkSources||{}).some(s=>s.snapshotHash===hash))fail('This snapshot is still referenced by your notes or bookmarks.',409);}
   await env.DB.prepare("UPDATE article_snapshots SET state='deleting',expires_at=? WHERE uid=? AND hash=? AND state='ready'").bind(Date.now(),uid,hash).run();await env.FILES.delete(articleKey(uid,hash));await env.DB.prepare("UPDATE article_snapshots SET state='deleted',size=0 WHERE uid=? AND hash=?").bind(uid,hash).run();return json({deleted:true});
  }
  fail('Method not allowed.',405);
