@@ -12,7 +12,7 @@ jobs:
   deploy:
     if: vars.STAGING_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       VITE_REMO_ENV: staging
       NODE_OPTIONS: --max-old-space-size=4096
@@ -46,3 +46,14 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: e9a5c70b0fbe2e2d493fc21de0bbb40f
           command: deploy --config wrangler.staging.jsonc
+      # Real browsers as separate devices against the deployed staging app and sync server
+      # (scripts/e2e-sync.mjs). Production releases require this to pass for the same code.
+      - name: End-to-end sync check
+        env:
+          E2E_EMAIL: ${{ secrets.STAGING_E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.STAGING_E2E_PASSWORD }}
+        run: |
+          if [ -z "$E2E_EMAIL" ] || [ -z "$E2E_PASSWORD" ]; then echo "::error::Add the STAGING_E2E_EMAIL and STAGING_E2E_PASSWORD secrets (staging test account)."; exit 1; fi
+          for i in $(seq 1 30); do curl -fsS https://staging.remonook.com/staging-source.json | grep -q "$GITHUB_SHA" && break; sleep 10; done
+          npx playwright install --with-deps chromium
+          node scripts/e2e-sync.mjs

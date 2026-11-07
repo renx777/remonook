@@ -165,6 +165,30 @@ Coding agents may prepare and execute production frontend releases with explicit
   5. Rollback: remove the custom domain and restore the previous DNS record to Sites (keep a note of it), or `wrangler rollback` to the previous Worker version.
   6. After a stable period: set `workers_dev` to false, then retire or redirect the Sites URL. Users of the `.chatgpt.site` address sign in again at remonook.com; their notes are in the cloud.
 
+### End-to-end sync check (release gate)
+
+`scripts/e2e-sync.mjs` (`npm run e2e:sync`) runs real browsers as separate devices against a
+deployed environment, using a dedicated staging test account. It checks that:
+- the first sign-in and a brand-new device delete nothing;
+- a new device receives every note;
+- edits and new notes reach the other device live;
+- an offline edit stays pending, then syncs after reconnecting;
+- concurrent edits to one bullet keep both and converge;
+- a third new device sees the same notes.
+
+It keeps five baseline notes on the account, removes only its own notes, and checks that the
+account ends with exactly the notes it started with. It was confirmed to fail on the
+2026-11-07 data-loss build (`9647a6a`).
+
+- **Staging workflow:** runs it after every staging deploy.
+- **Production workflow:** releases only when two things hold:
+  - staging serves the same tree as the commit being released;
+  - the check passes there.
+- **Secrets:** `STAGING_E2E_EMAIL` and `STAGING_E2E_PASSWORD` (repository secrets). Never
+  put the credentials in files.
+- **Locally:** set `E2E_EMAIL` and `E2E_PASSWORD`. Set `E2E_CHROMIUM` to a browser path when
+  the Playwright browsers are not installed.
+
 ### Procedure
 
 1. Owner authorizes the release and names the commit on `main`.
