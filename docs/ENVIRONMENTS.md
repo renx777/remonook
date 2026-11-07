@@ -2,6 +2,20 @@
 
 ## Current state
 
+On 7 November 2026, `remo-sync-staging` was redeployed from
+`ccr-641b18bf-2fe80f` at `f341221b77c0f96f4b63f503bf2cf6a37b2de976`, matching
+the live staging frontend source (release `2026-11-06.1`). Worker version
+`6ed9c98d-5e1c-4f11-8171-662d80b64c39` serves 100% of staging traffic.
+The connected Cloudflare account deployed the Wrangler 4.157.0 dry-run bundle;
+no CLI deployment token was available. All live bindings and secret names,
+variables (including enabled AI), compatibility settings, observability and
+cleanup cron were retained. Health confirms sync protocol 2, Workdays schema 2,
+AI Assist 1 with AI enabled, Bookmarks reader/capture, books and Google Tasks.
+Unauthenticated sync returns 401. Eleven backend regression test files and the
+sync-rejection reproduction passed; CI also passed for the deployed source
+([run 42338608126](https://github.com/renx777/remonook/actions/runs/42338608126)).
+No migrations were needed, and no frontend or production deployment was performed.
+
 Frontend release `2026-11-06.1` on `ccr-641b18bf-2fe80f` (application commit
 `326aaa5`) adds persistent All / Notes / Calendar quick-access tabs, groups All
 as Calendar → Flashcards/MCQs → Mindmaps → Bookmarks → Docs → ordinary notes,
