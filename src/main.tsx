@@ -62,6 +62,7 @@ import { TagHeader } from "./TagHeader";
 import { isTagQuery, sanitizeTagSettings, setTagRegistry, renameTagInNodes, renameTagSettings, resolveDateTags, hasTag, tagKey } from "./tags.mjs";
 import { TagSettingsContext } from "./TagSettingsContext";
 import { TagSettingsForm } from "./TagSettings";
+import { AiApps } from "./AiApps";
 import { marks as markRanges, encode as encodeMarks } from "./domain.mjs";
 import { ProfileMenu } from "./ProfileMenu";
 import { TablePicker } from "./TablePicker";
@@ -2132,7 +2133,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <Dialog title="Settings" className="settings-dialog" onClose={() => setDialog(null)}>
           <p className="settings-subtitle">Make a little space for yourself.</p>
           <nav className="settings-navigation" aria-label="Settings sections">
-            {[["appearance","Appearance","settings"],["account","Account","people"],["connections","Connections","connections"],["storage","Storage","folder"],["backups","Backups","folder"]].map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>setSettingsPanel(id)}><Icon name={icon} size={15}/>{label}</button>)}
+            {[["appearance","Appearance","settings"],["account","Account","people"],["connections","Connections","connections"],["ai","AI apps","globe"],["storage","Storage","folder"],["backups","Backups","folder"]].map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>setSettingsPanel(id)}><Icon name={icon} size={15}/>{label}</button>)}
           </nav>
           <div className="settings-content" key={settingsPanel}>
           {settingsPanel==="appearance" && <section aria-label="Appearance"><div className="settings-section-heading"><h3>Feel at home.</h3><p>Choose how your workspace looks and reads.</p></div>
@@ -2198,6 +2199,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <section className="upload-storage-status"><h3>Attachment storage</h3><p className="dialog-muted">{(attachmentBytes(assets)/1024/1024).toFixed(1)} MB / 20 MB used · 2 MB per file</p><progress aria-label="Attachment storage used" max={MAX_ATTACHMENT_BYTES} value={Math.min(attachmentBytes(assets),MAX_ATTACHMENT_BYTES)}/><p className="dialog-muted">Note attachments in this workspace. Books have separate on-demand storage in Settings → Storage. Embedded links use no space.</p></section>
           </section>}
           {settingsPanel==="connections"&&<GoogleTasksConnection/>}
+          {settingsPanel==="ai"&&<AiApps user={cloudUser}/>}
           {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
           {settingsPanel==="backups" && <section aria-label="Backups"><div className="settings-section-heading"><h3>Your notes. Your copy.</h3><p>A full backup includes notes, media, decks and study progress.</p></div><div className="settings-backup-actions">
           <button

@@ -56,3 +56,15 @@ test('tag settings: sanitizing, effects, rename/merge/remove keep formatting, ch
  assert.deepEqual(t.resolveDateTags({text:'Call bank #tomorrow',formatting:''},'2026-12-31',d.marks,d.encode),{text:'Call bank',formatting:'',dueDate:'2027-01-01'});
  assert.equal(t.resolveDateTags({text:'no tags',formatting:''},'2026-12-31',d.marks,d.encode),null);
 });
+
+test('AI Markdown: lists, tasks, headings, tables, code, diagrams and exact formatting round trips',async()=>{
+ const m=await import('../src/ai-markdown.mjs');const {bullet,index}=await import('../src/domain.mjs');
+ const items=m.parseMarkdown('# Trip\n- [ ] Pack\n  - socks\n  1. first\n## Budget\n| A | B |\n|---|---|\n| 1 | 2 |\n```py\nprint(1)\n```\n---');
+ assert.deepEqual(items.map(i=>[i.depth,i.taskState,i.listType,i.codeLanguage,i.blockStyle]),[[0,'NONE','NONE','','paragraph'],[1,'TODO','NONE','','paragraph'],[2,'NONE','NONE','','paragraph'],[2,'NONE','ORDERED','','paragraph'],[1,'NONE','NONE','','paragraph'],[2,'NONE','NONE','','paragraph'],[2,'NONE','NONE','python','paragraph'],[2,'NONE','NONE','','divider']]);
+ assert.equal(items[0].formatting,'0:4:BOLD','headings are bold');assert.match(items[5].text,/^```remo-table/);
+ for(const f of ['0:5:BOLD;3:8:ITALIC;2:6:COLOR_00ff00','2:4:CODE;0:8:BOLD','1:3:MASK','0:8:HIGHLIGHT;4:8:UNDERLINE']){const md=m.inlineMarkdown('abcdefgh',f),back=m.parseInline(md);assert.equal(back.text,'abcdefgh');const cover=x=>{const a=Array(8).fill('');for(const s of x.split(';').filter(Boolean)){const [p,q,st]=s.split(':');for(let i=+p;i<+q;i++)a[i]+=st+',';}return a.map(v=>v.split(',').sort().join());};assert.deepEqual(cover(back.formatting),cover(f),md);}
+ assert.equal(m.inlineMarkdown('a*b_c',''),'a\\*b_c');assert.deepEqual(m.parseInline('a\\*b'),{text:'a*b',formatting:''});
+ assert.throws(()=>m.parseInline('~~x~~'),/strikethrough/);
+ let k=0;const nodes=[bullet('P',{text:'root'}),...m.itemsToBullets(m.parseMarkdown('- one\n  - two'),'P',()=>'n'+k++,bullet)];
+ assert.match(m.outlineMarkdown(index(nodes),'P').markdown,/^- one <!-- id=n0 v=\w+ -->\n  - two <!-- id=n1 v=\w+ -->$/);
+});

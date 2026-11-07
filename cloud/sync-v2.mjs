@@ -92,3 +92,42 @@ export async function syncV2(request,env,uid,{readLimited,validatePayload,NOTE_L
  row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();requireWorkdaysCapability(request,row.state);const y=openShared(row.state);
  try{return Response.json({protocol:2,acked:input.operationId,revision:row.revision,update:pack(Y.encodeStateAsUpdate(y,v))});}finally{y.destroy();}
 }
+
+/** Applies a server-made change (for example from a connected AI app) exactly like a device batch:
+ the same snapshot validation, payload and size checks, compare-and-swap commit and journal entry,
+ so every device receives it through normal sync. `change(doc)` returns {doc, result}; it may be
+ called more than once if another device commits first. An operation id that was already accepted
+ returns the recorded revision instead of applying the change twice. */
+export async function commitServerChange(env,uid,{operationId,requestHash,change},{validatePayload,NOTE_LIMIT}){
+ await initialize(env,uid);
+ for(let attempt=0;attempt<8;attempt++){
+  const prior=await env.DB.prepare('SELECT request_hash,accepted_revision FROM sync_journal WHERE uid=? AND operation_id=?').bind(uid,operationId).first();
+  if(prior){if(prior.request_hash!==requestHash)error('This idempotency key was already used for a different request.',409);return {revision:prior.accepted_revision,replayed:true,result:null};}
+  const row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first(),y=openShared(row.state);
+  let state,value,journalUpdate,result;
+  try{
+   const beforeVector=Y.encodeStateVector(y),before=project(y).doc,out=change(before);result=out.result;
+   if(out.doc===before)return {revision:row.revision,unchanged:true,result};
+   applyIntent(y,before,out.doc);
+   let step='snapshot';try{value=sharedSnapshot(y,name=>{step=name;});}catch(e){throw Object.assign(Error(`The change was refused because the workspace would not validate (${step}). Nothing was saved.`),{status:400});}
+   state=sharedState(y);journalUpdate=pack(Y.encodeStateAsUpdate(y,beforeVector));
+  }finally{y.destroy();}
+  if(state.length>STATE_LIMIT)error('Shared workspace storage limit reached.',413);
+  validatePayload({baseRevision:row.revision,...value});const body=JSON.stringify(value);
+  if(new TextEncoder().encode(body).length>NOTE_LIMIT)error('Workspace exceeds the note storage limit.',413);
+  const next=row.revision+1,digest=await hash(state),now=Date.now();
+  await env.DB.batch([
+   env.DB.prepare('UPDATE sync_documents SET revision=?,state=?,state_hash=?,updated_at=? WHERE uid=? AND revision=? AND NOT EXISTS(SELECT 1 FROM sync_journal WHERE uid=? AND operation_id=?)').bind(next,state,digest,now,uid,row.revision,uid,operationId),
+   env.DB.prepare('INSERT OR IGNORE INTO sync_journal(uid,operation_id,request_hash,update_body,accepted_revision,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM sync_documents WHERE uid=? AND revision=? AND state_hash=?)').bind(uid,operationId,requestHash,journalUpdate,next,now,uid,next,digest),
+   env.DB.prepare('UPDATE workspaces SET revision=?,body=?,updated_at=? WHERE uid=? AND EXISTS(SELECT 1 FROM sync_documents WHERE uid=? AND revision=? AND state_hash=?)').bind(next,body,now,uid,uid,next,digest)
+  ]);
+  const accepted=await env.DB.prepare('SELECT request_hash,accepted_revision FROM sync_journal WHERE uid=? AND operation_id=?').bind(uid,operationId).first();
+  if(accepted){if(accepted.request_hash!==requestHash)error('Operation identity was reused');return {revision:accepted.accepted_revision,result};}
+ }
+ error('Your notes are busy syncing. Try again in a moment.',503);
+}
+/** The current workspace, read-only. */
+export async function readServerDocument(env,uid){
+ const row=await initialize(env,uid),y=openShared(row.state);
+ try{return {doc:project(y).doc,revision:row.revision};}finally{y.destroy();}
+}

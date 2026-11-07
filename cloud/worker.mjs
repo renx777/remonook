@@ -7,6 +7,7 @@ import {booksRoute,cleanupBooks} from './books.mjs';
 import {STORAGE_LIMIT,validateReadingBooks} from '../src/book-storage.mjs';
 import {googleTasksPublic,googleTasksRoute,googleTasksConfigured,cleanupGoogleTasks} from './google-tasks.mjs';
 import {syncV2} from './sync-v2.mjs';
+import {mcpEndpoint,mcpManage} from './mcp.mjs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 // This cache contains only Google's public verification keys, never user data.
 const keys = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
@@ -39,14 +40,17 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID),ctx) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,workdaysSchema:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiEnabled:aiEnabled(env),bookmarkReader:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,workdaysSchema:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
   const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
+  // AI apps authenticate with their own access tokens, not Firebase sessions.
+  if(url.pathname==='/mcp')return mcpEndpoint(request,env,{readLimited,validatePayload,NOTE_LIMIT});
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
   if(url.pathname.startsWith('/ai/'))return aiRoute(request,env,uid,{readLimited,waitUntil:ctx?p=>ctx.waitUntil(p):undefined});
   if(url.pathname==='/storage'||url.pathname==='/books'||url.pathname.startsWith('/books/'))return booksRoute(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/integrations/google-tasks/'))return googleTasksRoute(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/bookmarks/'))return bookmarksRoute(request,env,uid,{readLimited});
+  if(url.pathname.startsWith('/mcp/'))return mcpManage(request,env,uid,{readLimited});
   if(url.pathname==='/sync/v2')return syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT});
   if(url.pathname==='/workspace'){
     if(request.method==='GET'){
