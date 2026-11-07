@@ -766,7 +766,9 @@ export async function syncOperation(operation:string,args:any={},account=storage
   const serverEmpty=!Object.keys(args.response.updates||{}).length;
   await changeIO(async(m,io)=>m||initializeOutbox(args.response,args.doc,args.assets,serverEmpty&&hasDeviceContent(args.doc,args.assets),io),args.doc.revision);return;
  }
- if(operation==='stage'){await changeIO(async(m,io)=>{if(contentKey(m.mappedDoc)!==contentKey(args.doc))await recordLocal(m,args.doc,io);return stageAssets(m,args.assets,io);},args.doc.revision);return;}
+ // Every save records its edit; this catches a document saved by an older code path. The
+ // revision check avoids comparing whole documents on every sync.
+ if(operation==='stage'){await changeIO(async(m,io)=>{if(m.mappedRevision!==args.doc.revision&&contentKey(m.mappedDoc)!==contentKey(args.doc))await recordLocal(m,args.doc,io);else m.mappedRevision=args.doc.revision;return stageAssets(m,args.assets,io);},args.doc.revision);return;}
  if(operation==='network'){
   const m=await change(claimOutbox);
   return {inflight:m.inflight,since:m.since,uploaded:m.uploaded||[],assets:m.inflight?await readIO((_m,io)=>bucketAssets(io,'L')):[]};
@@ -782,6 +784,8 @@ export async function syncOperation(operation:string,args:any={},account=storage
  if(operation==='diagnose')return '';
  if(operation==='inspect'){
   return readIO(async(m,io)=>{
+   // Nothing received since the device last adopted: its document already matches.
+   if(!m.dirty&&m.mappedRevision===args.doc?.revision)return {needsApply:false,remaining:!!m.inflight||m.pending.length>0};
    const shared=await receivedProjection(m,io,account);
    const different=!args.doc||contentKey(args.doc)!==contentKey(shared.doc)||JSON.stringify(args.assets)!==JSON.stringify(shared.assets);
    const needsApply=different||!!m.dirty;

@@ -71,3 +71,15 @@ test('a text edit touches only its bullet\'s bucket',()=>{
  assert.deepEqual(Object.keys(out.updates),[bulletBucket('n42')]);
  assert.ok(states.size>200,'500 bullets spread over many buckets');
 });
+
+test('read repair copies only repaired rows and never mutates its input; unchanged projections are reused',()=>{
+ const a=bullet('a',{parentId:'b',text:'a'}),b=bullet('b',{parentId:'a',text:'b'}),c=bullet('c',{parentId:'gone',text:'c'}),d=bullet('d',{text:'d'});
+ const doc={tables:{bullets:[a,b,c,d]}};const frozen=JSON.stringify([a,b,c,d]);
+ readRepair(doc);
+ assert.equal(JSON.stringify([a,b,c,d]),frozen,'input rows untouched');
+ assert.equal(doc.tables.bullets[3],d,'an unrepaired row keeps its identity');
+ assert.equal(doc.tables.bullets.find(n=>n.id==='a').parentId,null,'cycle broken at the smallest id');
+ assert.equal(doc.tables.bullets.find(n=>n.id==='c').parentId,null,'missing parent becomes a root');
+ const base=empty();base.tables.bullets=[bullet('x',{text:'x'})];const {states}=applyDocument(new Map(),null,base);const cache=new Map();
+ const first=projectBuckets(states,cache),second=projectBuckets(states,cache);assert.equal(first,second,'nothing changed: same projection object');
+});

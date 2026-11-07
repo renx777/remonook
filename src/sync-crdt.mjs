@@ -147,11 +147,11 @@ export function projectParts(d){
  return {rootFields,rows:out,tables:[...d.getMap('tables').keys()],assets:[...d.getMap('assets').values()]};
 }
 /** Builds the document from the parts of one or more Yjs documents. */
-export function assembleParts(list){
+export function assembleParts(list,{clone=true}={}){
  const doc={tables:{},columns:{},preferences:{},web:{}},rootFields=[],assets=[];
  for(const p of list){for(const name of p.tables)doc.tables[name]=[];rootFields.push(...p.rootFields);assets.push(...p.assets);}
  rootFields.sort((a,b)=>a.path.length-b.path.length);for(const {path,value}of rootFields)putPath(doc,path,structuredClone(value));
- for(const p of list)for(const {table,row}of p.rows)(doc.tables[table]||=[]).push(structuredClone(row));
+ for(const p of list)for(const {table,row}of p.rows)(doc.tables[table]||=[]).push(clone?structuredClone(row):row);
  for(const name of ['calendarEvents','studyFolders'])if(plain(doc.web[name]))doc.web[name]=Object.values(doc.web[name]).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
  if(plain(doc.web.workdays?.schedules))doc.web.workdays.schedules=Object.values(doc.web.workdays.schedules).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
  if(plain(doc.web.workdays?.policies))doc.web.workdays.policies=Object.values(doc.web.workdays.policies).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));

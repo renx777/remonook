@@ -5,8 +5,7 @@
 // different keys never reference each other, so routing every key to a fixed bucket
 // keeps merge behaviour identical while a save opens only the buckets it touches.
 // App, server and tests must use these functions so they agree on every key's bucket.
-import {Y,pack,unpack,documentParts,documentLeaves,rowKey,applyParts,projectParts,assembleParts,normalizeTree} from './sync-crdt.mjs';
-import {validateMirrors} from './relations.mjs';
+import {Y,pack,unpack,documentParts,documentLeaves,rowKey,applyParts,projectParts,assembleParts} from './sync-crdt.mjs';
 
 export const PROTOCOL_V3=3,ROW_BUCKETS=256,ROOT_BUCKETS=16,ASSET_BUCKET='a',TABLES_BUCKET='r0';
 /** Root maps with one entry per bullet. Their entries live with the bullet's row. */
@@ -156,22 +155,50 @@ export function projectBuckets(states,cache=new Map()){
 /** Like projectBuckets, but `versions` (bucket → any value that changes with the state) decides
  which buckets to decode, and `get` is called only for those. */
 export function projectVersions(versions,get,cache=new Map()){
- const parts=[];
+ const parts=[];let changed=false;
  for(const [bucket,version] of versions){
   let hit=cache.get(bucket);
-  if(!hit||hit.version!==version){const d=openBucket(get(bucket));try{hit={version,parts:projectParts(d)};}finally{d.destroy();}cache.set(bucket,hit);}
+  if(!hit||hit.version!==version){const d=openBucket(get(bucket));try{hit={version,parts:projectParts(d)};}finally{d.destroy();}cache.set(bucket,hit);changed=true;}
   parts.push(hit.parts);
  }
- for(const bucket of cache.keys())if(!versions.has(bucket))cache.delete(bucket);
- const value=assembleParts(parts);
+ for(const bucket of [...cache.keys()])if(bucket!==ASSEMBLED&&!versions.has(bucket)){cache.delete(bucket);changed=true;}
+ // Nothing changed since the last call: reuse the assembled document.
+ const last=cache.get(ASSEMBLED);
+ if(!changed&&last&&last.count===versions.size)return last.value;
+ // Rows are shared with the cache (not cloned): consumers must not mutate them.
+ const value=assembleParts(parts,{clone:false});
  readRepair(value.doc);
+ cache.set(ASSEMBLED,{count:versions.size,value});
  return value;
 }
-/** Deterministic read-time repair (no CRDT writes). */
+const ASSEMBLED='\u0000assembled';
+/**
+ * Deterministic read-time repair (no CRDT writes, no mutation): a missing parent becomes a
+ * root, a move cycle is broken at its smallest id, and a mirror whose source or root is
+ * missing loses its mirror link. Repaired rows are copies; every other row keeps its identity,
+ * so cached rows can be shared between projections.
+ */
 export function readRepair(doc){
- if(!doc.tables.bullets)doc.tables.bullets=[];
- try{normalizeTree(doc);}catch{/* shape problems are rejected at write time */}
- try{validateMirrors(doc.tables.bullets);}catch{for(const n of doc.tables.bullets){delete n.mirrorSourceId;delete n.mirrorRootId;}}
+ const nodes=doc.tables.bullets||[],byId=new Map(nodes.map(n=>[n.id,n])),patch=new Map();
+ const set=(id,change)=>patch.set(id,{...(patch.get(id)||{}),...change});
+ const parentOf=n=>patch.get(n.id)?.parentId!==undefined?patch.get(n.id).parentId:n.parentId;
+ for(const n of nodes){
+  if(n.parentId&&!byId.has(n.parentId))set(n.id,{parentId:null});
+  if(n.mirrorSourceId||n.mirrorRootId){
+   const root=byId.get(n.mirrorRootId);
+   if(typeof n.mirrorSourceId!=='string'||typeof n.mirrorRootId!=='string'||!byId.has(n.mirrorSourceId)||!root||root.mirrorRootId!==n.mirrorRootId)set(n.id,{mirrorSourceId:undefined,mirrorRootId:undefined});
+  }
+ }
+ const complete=new Set();
+ for(const node of nodes){const path=[],seen=new Map();let current=node;
+  while(current&&!complete.has(current.id)){
+   if(seen.has(current.id)){const cycle=path.slice(seen.get(current.id)).sort((a,b)=>a.id.localeCompare(b.id));set(cycle[0].id,{parentId:null});break;}
+   seen.set(current.id,path.length);path.push(current);const p=parentOf(current);current=p?byId.get(p):null;
+  }
+  for(const item of path)complete.add(item.id);
+ }
+ if(patch.size)doc.tables.bullets=nodes.map(n=>{const change=patch.get(n.id);if(!change)return n;const copy={...n,...change};for(const k of Object.keys(change))if(change[k]===undefined)delete copy[k];return copy;});
+ else doc.tables.bullets=nodes;
  return doc;
 }
 
