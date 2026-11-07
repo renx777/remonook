@@ -2,6 +2,16 @@
 
 ## Current state
 
+Production sync Worker, 7 November 2026: `remo-sync` was deployed from `main` at `13354fe` (PR #66; Worker
+version `305f8bb6-4151-425b-a2db-9a395bb3764d`, Wrangler 4.157.0, `cloud/config.json` unchanged from the live
+bindings). Before deploying, a D1 Time Travel restore point was recorded for `remo-sync`
+(bookmark `0000016c-00000000-0000511c-24e0adf507c4a652135b70b1b823e1f5`, 06:31 UTC), then the additive
+`cloud/bookmark-snapshots.sql`, `cloud/ai.sql` and `cloud/mcp.sql` were applied. `/health` reports
+`workdaysSchema: 2`, `bookmarkReader: 1` and `mcp: 1`; AI assist and bookmark capture stay disabled in production
+(no bindings). The owner authorized this release and publishes the matching production frontend
+(`npm run build:production` from `13354fe`) through Sites. The production frontend must not be older than this
+server's release for Workdays v2 sync.
+
 On 7 November 2026 (later the same day), `remo-sync-staging` was deployed from `ccr-641b18bf-2fe80f`,
 application commit `1255d38` (Worker version `3560885b-2726-4bed-932e-76628872d523`, Wrangler 4.157.0), adding
 connected AI apps (MCP). The additive migration `cloud/mcp.sql` (tables `mcp_tokens`, `mcp_activity`) was applied
