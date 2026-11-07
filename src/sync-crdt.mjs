@@ -156,6 +156,13 @@ export function assembleParts(list,{clone=true}={}){
  if(plain(doc.web.workdays?.schedules))doc.web.workdays.schedules=Object.values(doc.web.workdays.schedules).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
  if(plain(doc.web.workdays?.policies))doc.web.workdays.policies=Object.values(doc.web.workdays.policies).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
  for(const list of Object.values(doc.tables))list.sort((a,b)=>String(a.id??a.rootId??a.token??a.deckId).localeCompare(String(b.id??b.rootId??b.token??b.deckId)));
+ // A new or partly stored account still projects every table and the default settings,
+ // so the app never sees a document without, for example, tables.media.
+ const base=emptyShared();
+ for(const [name,rows] of Object.entries(base.tables))if(!Array.isArray(doc.tables[name]))doc.tables[name]=rows;
+ doc.columns={...base.columns,...doc.columns};
+ for(const [key,value] of Object.entries(base.preferences))if(!plain(doc.preferences[key]))doc.preferences[key]=value;
+ if(!doc.web.contract)doc.web.contract=base.web.contract;
  return {doc,assets:assets.sort((a,b)=>a.path.localeCompare(b.path))};
 }
 export function project(d){return assembleParts([projectParts(d)]);}

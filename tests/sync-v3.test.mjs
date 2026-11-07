@@ -86,3 +86,12 @@ test('v3: a device behind the journal gets whole buckets page by page',async()=>
  const late=new Device(env,'alice',52);await late.pull();
  assert.equal(late.doc.tables.bullets.length,150);assert.equal(late.since,space.revision());
 });
+
+test('v3: a brand-new account projects every table and default settings',async()=>{
+ const env=setup(),a=new Device(env,'newcomer',61);await a.pull();
+ const doc=a.doc;
+ for(const name of ['bullets','media','cards','decks','trash'])assert.ok(Array.isArray(doc.tables[name]),name+' is a list');
+ assert.ok(doc.preferences.appearance,'default appearance');assert.equal(doc.web.contract,'1.0.0');
+ // Even a projection of nothing has the defaults (accounts created before seeding).
+ assert.ok(Array.isArray(projectBuckets(new Map()).doc.tables.media));
+});

@@ -228,3 +228,14 @@ test('v3: a new device with no notes adopts the account and never deletes its no
   assert.equal(sent.length,account.tables.bullets.length,'a later edit keeps every account note');
  }finally{setStorageAccount(null);}
 });
+
+test('v3: notes made on a device before signing in to a new account are uploaded',async()=>{
+ setStorageAccount('v3-new-account-'+crypto.randomUUID());try{
+  const {updates}=applyDocument(new Map(),null,empty());
+  const device=await save(null,initial(),'guest notes');
+  await syncOperation('initialize',{response:{updates,revision:1},doc:device,assets:[]});
+  const meta=await syncMetadata();assert.equal(meta.pending.length,1,'the device notes are queued for the new account');
+  const sent=projectBuckets(mergeUpdates(new Map(Object.entries(updates)),meta.pending[0].updates)).doc.tables.bullets;
+  assert.equal(sent.length,device.tables.bullets.length);
+ }finally{setStorageAccount(null);}
+});

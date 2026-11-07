@@ -10,6 +10,7 @@ import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './clo
 import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox,receivedProjection,adopt,mapSelection,bucketAssets,recoverRefused} from './sync-outbox-v3.mjs';
 /** IndexedDB key of the sync v3 outbox. v2 metadata under 'sync-v2' is no longer used. */
 const SYNC_KEY='sync-v3';
+import {projectBuckets,mergeChanged} from './sync-buckets.mjs';
 import {recoverRejectedBatch} from './sync-recovery.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
 import {validateOcclusions} from "./occlusion.mjs";
@@ -763,7 +764,8 @@ export async function syncOperation(operation:string,args:any={},account=storage
  if(operation==='initialize'){
   // Notes made on this device before the account had any are uploaded; otherwise the
   // device adopts the account's notes.
-  const serverEmpty=!Object.keys(args.response.updates||{}).length;
+  // "Empty" means no notes: a new account is seeded with the empty workspace (tables, defaults).
+  const updates=args.response.updates||{},serverEmpty=!Object.keys(updates).length||projectBuckets(mergeChanged(()=>undefined,updates)).doc.tables.bullets.length===0;
   await changeIO(async(m,io)=>m||initializeOutbox(args.response,args.doc,args.assets,serverEmpty&&hasDeviceContent(args.doc,args.assets),io),args.doc.revision);return;
  }
  // Every save records its edit; this catches a document saved by an older code path. The
