@@ -81,19 +81,27 @@ function documentLeaves(doc){
  if(root.web.workdays){root.web.workdays={...root.web.workdays};if(Array.isArray(root.web.workdays.schedules))root.web.workdays.schedules=Object.fromEntries(root.web.workdays.schedules.map(row=>[row.effectiveFrom,row]));if(Array.isArray(root.web.workdays.policies))root.web.workdays.policies=Object.fromEntries(root.web.workdays.policies.map(row=>[row.effectiveFrom,row]));}
  return leaves(root);
 }
+/** A document's shared content as independent keyed parts: root leaves and table rows.
+ Every CRDT key belongs to exactly one part, which is what lets sync v3 store parts in buckets. */
+export function documentParts(doc){
+ const d=doc?cloudDocument(doc):{tables:{},web:{},columns:{},preferences:{}},tables=new Map();
+ for(const [name,rows] of Object.entries(d.tables))tables.set(name,new Map((rows||[]).map((n,i)=>[rowKey(name,n,i),n])));
+ return {leaves:documentLeaves(d),tables};
+}
 export function applyIntent(d,before,after,assetsBefore=[],assetsAfter=[],rebase=false){
- const b=before?cloudDocument(before):{tables:{},web:{},columns:{},preferences:{}},a=cloudDocument(after);
+ applyParts(d,documentParts(before),documentParts(after),assetsBefore,assetsAfter,rebase);
+}
+/** Writes the difference between two sets of parts into `d` (see documentParts). */
+export function applyParts(d,b,a,assetsBefore=[],assetsAfter=[],rebase=false){
  const fields=d.getMap('fields'),rows=d.getMap('rows'),tables=d.getMap('tables'),assets=d.getMap('assets');
  d.transact(()=>{
-  const flatten=documentLeaves;
-  const bf=flatten(b),af=flatten(a);
+  const bf=b.leaves,af=a.leaves;
   for(const [k,v] of af)if(!same(bf.get(k),v))fields.set(k,v);
   for(const k of bf.keys())if(!af.has(k))fields.delete(k);
-  for(const name of new Set([...Object.keys(b.tables),...Object.keys(a.tables)])){
+  for(const name of new Set([...b.tables.keys(),...a.tables.keys()])){
    if(!tables.has(name))tables.set(name,true);
-   const prior=new Map((b.tables[name]||[]).map((n,i)=>[rowKey(name,n,i),n]));
-   const next=new Map((a.tables[name]||[]).map((n,i)=>[rowKey(name,n,i),n]));
-   for(const [id,n]of next){const old=prior.get(id);if(same(old,n))continue;
+   const prior=b.tables.get(name)||new Map(),next=a.tables.get(name)||new Map();
+   for(const [id,n]of next){const old=prior.get(id);if(old===n||same(old,n))continue;
     if(rows.get(id)!==true)rows.set(id,true);
     for(const key of new Set([...Object.keys(old||{}),...Object.keys(n)])){
      if(name==='bullets'&&['text','formatting','collapsed','parentId','position'].includes(key))continue;
@@ -116,16 +124,14 @@ export function applyIntent(d,before,after,assetsBefore=[],assetsAfter=[],rebase
   for(const path of oldAssets.keys())if(!newAssets.has(path))assets.delete(path);
  });
 }
-export function project(d){
- const doc={tables:{},columns:{},preferences:{},web:{}},fields=d.getMap('fields'),rows=d.getMap('rows');
- for(const [name]of d.getMap('tables'))doc.tables[name]=[];
- const allRows=new Map();
- const rootFields=[];
+/** Reads one Yjs document's raw content (root fields, visible rows, table names, assets).
+ Sync v3 caches this per bucket and assembles many with assembleParts. */
+export function projectParts(d){
+ const fields=d.getMap('fields'),rows=d.getMap('rows'),allRows=new Map(),rootFields=[],out=[];
  for(const [key,value]of fields){
   const path=JSON.parse(key);if(path[0]==='row'){if(!allRows.has(path[1]))allRows.set(path[1],{});if(!safe([path[2]]))throw Error('Invalid row field');allRows.get(path[1])[path[2]]=value;}
   else rootFields.push({path,value});
  }
- rootFields.sort((a,b)=>a.path.length-b.path.length);for(const {path,value}of rootFields)putPath(doc,path,structuredClone(value));
  for(const [id,exists]of rows){const [table]=JSON.parse(id),row=allRows.get(id)||{},deleted=row._syncDeletedValue;delete row._syncDeletedValue;
   if(table==='bullets'){
    if(row._syncLocation)Object.assign(row,row._syncLocation);delete row._syncLocation;
@@ -136,14 +142,23 @@ export function project(d){
   // Concurrent edit vs delete recovers the edited record automatically. A
   // deletion made after observing that edit still removes the record normally.
   if(!exists&&(!deleted||sameRecord(row,deleted,table)))continue;
-  (doc.tables[table]||=[]).push(row);
+  out.push({key:id,table,row});
  }
+ return {rootFields,rows:out,tables:[...d.getMap('tables').keys()],assets:[...d.getMap('assets').values()]};
+}
+/** Builds the document from the parts of one or more Yjs documents. */
+export function assembleParts(list){
+ const doc={tables:{},columns:{},preferences:{},web:{}},rootFields=[],assets=[];
+ for(const p of list){for(const name of p.tables)doc.tables[name]=[];rootFields.push(...p.rootFields);assets.push(...p.assets);}
+ rootFields.sort((a,b)=>a.path.length-b.path.length);for(const {path,value}of rootFields)putPath(doc,path,structuredClone(value));
+ for(const p of list)for(const {table,row}of p.rows)(doc.tables[table]||=[]).push(structuredClone(row));
  for(const name of ['calendarEvents','studyFolders'])if(plain(doc.web[name]))doc.web[name]=Object.values(doc.web[name]).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
  if(plain(doc.web.workdays?.schedules))doc.web.workdays.schedules=Object.values(doc.web.workdays.schedules).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
  if(plain(doc.web.workdays?.policies))doc.web.workdays.policies=Object.values(doc.web.workdays.policies).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
  for(const list of Object.values(doc.tables))list.sort((a,b)=>String(a.id??a.rootId??a.token??a.deckId).localeCompare(String(b.id??b.rootId??b.token??b.deckId)));
- return {doc,assets:[...d.getMap('assets').values()].sort((a,b)=>a.path.localeCompare(b.path))};
+ return {doc,assets:assets.sort((a,b)=>a.path.localeCompare(b.path))};
 }
+export function project(d){return assembleParts([projectParts(d)]);}
 export function seed(doc,assets=[]){const d=new Y.Doc();applyIntent(d,null,doc,[],assets);return d;}
 export function normalizeTree(doc){
  const nodes=doc.tables.bullets,byId=new Map(nodes.map(n=>[n.id,n]));
