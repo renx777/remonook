@@ -8,6 +8,7 @@ import {STORAGE_LIMIT,validateReadingBooks} from '../src/book-storage.mjs';
 import {googleTasksPublic,googleTasksRoute,googleTasksConfigured,cleanupGoogleTasks} from './google-tasks.mjs';
 import {syncV2} from './sync-v2.mjs';
 import {mcpEndpoint,mcpManage} from './mcp.mjs';
+import {oauthPublic,oauthConsent,cleanupOAuth} from './mcp-oauth.mjs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 // This cache contains only Google's public verification keys, never user data.
 const keys = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
@@ -40,10 +41,11 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID),ctx) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,workdaysSchema:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,workdaysSchema:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
   const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
   // AI apps authenticate with their own access tokens, not Firebase sessions.
   if(url.pathname==='/mcp')return mcpEndpoint(request,env,{readLimited,validatePayload,NOTE_LIMIT});
+  if(url.pathname.startsWith('/.well-known/')||['/oauth/register','/oauth/authorize','/oauth/token'].includes(url.pathname)){const r=await oauthPublic(request,env,{readLimited});if(r)return r;}
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
   if(url.pathname.startsWith('/ai/'))return aiRoute(request,env,uid,{readLimited,waitUntil:ctx?p=>ctx.waitUntil(p):undefined});
@@ -51,6 +53,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   if(url.pathname.startsWith('/integrations/google-tasks/'))return googleTasksRoute(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/bookmarks/'))return bookmarksRoute(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/mcp/'))return mcpManage(request,env,uid,{readLimited});
+  if(url.pathname.startsWith('/oauth/requests/')){const r=await oauthConsent(request,env,uid,{readLimited});if(r)return r;}
   if(url.pathname==='/sync/v2')return syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT});
   if(url.pathname==='/workspace'){
     if(request.method==='GET'){
@@ -94,13 +97,15 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   fail('Not found.',404);
 }
 export default {
-  async scheduled(controller,env){await cleanupGoogleTasks(env);await cleanupBooks(env);await cleanupArticles(env);if(env.AI)await env.DB.prepare('DELETE FROM ai_requests WHERE created_at<?').bind(Date.now()-7*86400000).run();},
+  async scheduled(controller,env){await cleanupGoogleTasks(env);await cleanupBooks(env);await cleanupArticles(env);await cleanupOAuth(env).catch(()=>{});if(env.AI)await env.DB.prepare('DELETE FROM ai_requests WHERE created_at<?').bind(Date.now()-7*86400000).run();},
   async fetch(request,env,ctx){
     const project=env.FIREBASE_PROJECT_ID,allowed=(env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean);
     if(!project||project.startsWith('REPLACE_')||!allowed.length)return json({error:'Environment is not configured.'},503);
-    const origin=request.headers.get('Origin');if(origin&&!allowed.includes(origin))return json({error:'Origin not allowed.'},403);
+    const origin=request.headers.get('Origin'),path=new URL(request.url).pathname,openOAuth=path.startsWith('/.well-known/oauth-')||['/oauth/register','/oauth/token'].includes(path);
+    // OAuth discovery, registration and token endpoints are public and credential-free (PKCE); any app may call them.
+    if(origin&&!allowed.includes(origin)&&!openOAuth)return json({error:'Origin not allowed.'},403);
     let response;try{response=await route(request,env,undefined,ctx);}catch(error){const status=error.status||500;response=json({error:status===500?'Cloud sync is temporarily unavailable.':error.message,...(['WORKDAYS_CONTEXT_REQUIRED','SYNC_VALIDATION_FAILED'].includes(error.code)?{code:error.code}:{})},status);if(status===500)console.error(JSON.stringify({event:'sync_error',message:String(error)}));}
-    const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match, X-Sync-Vector, X-Remo-Capabilities');headers.set('Access-Control-Allow-Methods','GET, PUT, POST, DELETE, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
+    const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Vary','Origin');if(origin)headers.set('Access-Control-Allow-Origin',openOAuth&&!allowed.includes(origin)?'*':origin);headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, If-None-Match, X-Sync-Vector, X-Remo-Capabilities');headers.set('Access-Control-Expose-Headers','WWW-Authenticate, MCP-Protocol-Version');headers.set('Access-Control-Allow-Methods','GET, PUT, POST, DELETE, OPTIONS');headers.set('X-Content-Type-Options','nosniff');
     return new Response(response.body,{status:response.status,headers});
   }
 };

@@ -20,14 +20,15 @@ const SCOPES=['read','write','delete'];
 export async function mcpManage(request,env,uid,{readLimited}){
  const url=new URL(request.url),json=b=>Response.json(b);
  if(url.pathname==='/mcp/tokens'&&request.method==='GET'){
-  const rows=await env.DB.prepare('SELECT id,name,scopes,created_at,last_used_at FROM mcp_tokens WHERE uid=? AND revoked_at IS NULL ORDER BY created_at DESC').bind(uid).all();
-  return json({tokens:(rows.results||[]).map(r=>({...r,scopes:r.scopes.split(',')}))});
+  const rows=await env.DB.prepare('SELECT id,name,scopes,created_at,last_used_at FROM mcp_tokens WHERE uid=? AND revoked_at IS NULL AND grant_id IS NULL ORDER BY created_at DESC').bind(uid).all();
+  const grants=await env.DB.prepare('SELECT id,name,scopes,created_at,last_used_at FROM mcp_grants WHERE uid=? AND revoked_at IS NULL AND refresh_hash IS NOT NULL ORDER BY created_at DESC').bind(uid).all();
+  return json({tokens:[...(grants.results||[]).map(r=>({...r,kind:'oauth',scopes:r.scopes.split(',')})),...(rows.results||[]).map(r=>({...r,kind:'token',scopes:r.scopes.split(',')}))]});
  }
  if(url.pathname==='/mcp/tokens'&&request.method==='POST'){
   let body;try{body=JSON.parse(new TextDecoder().decode(await readLimited(request,4096)));}catch{fail('Invalid request.');}
   const name=String(body?.name||'').trim().slice(0,60)||'AI app',scopes=[...new Set(Array.isArray(body?.scopes)?body.scopes:['read'])];
   if(!scopes.includes('read')||scopes.some(s=>!SCOPES.includes(s))||(scopes.includes('delete')&&!scopes.includes('write')))fail('Choose read, read and write, or read, write and delete.');
-  const count=await env.DB.prepare('SELECT COUNT(*) AS n FROM mcp_tokens WHERE uid=? AND revoked_at IS NULL').bind(uid).first();
+  const count=await env.DB.prepare('SELECT COUNT(*) AS n FROM mcp_tokens WHERE uid=? AND revoked_at IS NULL AND grant_id IS NULL').bind(uid).first();
   if((count?.n||0)>=LIMITS.tokens)fail(`You can connect up to ${LIMITS.tokens} AI apps. Disconnect one first.`,409);
   const id=crypto.randomUUID().replace(/-/g,'').slice(0,16),secret=Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,'0')).join('');
   await env.DB.prepare('INSERT INTO mcp_tokens(id,uid,name,secret_hash,scopes,created_at) VALUES(?,?,?,?,?,?)').bind(id,uid,name,await sha(secret),scopes.join(','),Date.now()).run();
@@ -35,7 +36,13 @@ export async function mcpManage(request,env,uid,{readLimited}){
  }
  const revoke=url.pathname.match(/^\/mcp\/tokens\/([a-f0-9]{16})$/);
  if(revoke&&request.method==='DELETE'){
-  await env.DB.prepare('UPDATE mcp_tokens SET revoked_at=? WHERE id=? AND uid=? AND revoked_at IS NULL').bind(Date.now(),revoke[1],uid).run();
+  const now=Date.now();
+  await env.DB.batch([
+   env.DB.prepare('UPDATE mcp_tokens SET revoked_at=? WHERE id=? AND uid=? AND revoked_at IS NULL').bind(now,revoke[1],uid),
+   // A connection made by signing in: disconnect it and every access token it issued.
+   env.DB.prepare('UPDATE mcp_grants SET revoked_at=?,refresh_hash=NULL WHERE id=? AND uid=? AND revoked_at IS NULL').bind(now,revoke[1],uid),
+   env.DB.prepare('UPDATE mcp_tokens SET revoked_at=? WHERE grant_id=? AND uid=? AND revoked_at IS NULL').bind(now,revoke[1],uid),
+  ]);
   return json({ok:true});
  }
  if(url.pathname==='/mcp/activity'&&request.method==='GET'){
@@ -49,6 +56,8 @@ async function tokenUser(request,env){
  if(!m)fail('Connect this app with a RemoNook access token from Settings → AI apps.',401);
  const row=await env.DB.prepare('SELECT * FROM mcp_tokens WHERE id=?').bind(m[1]).first();
  if(!row||row.revoked_at||row.secret_hash!==await sha(m[2]))fail('This access token was disconnected or is not valid. Create a new one in Settings → AI apps.',401);
+ if(row.expires_at&&row.expires_at<Date.now())fail('The access token expired. Refresh it.',401);
+ if(row.grant_id){const g=await env.DB.prepare('SELECT revoked_at FROM mcp_grants WHERE id=?').bind(row.grant_id).first();if(!g||g.revoked_at)fail('This app was disconnected in Settings → AI apps.',401);await env.DB.prepare('UPDATE mcp_grants SET last_used_at=? WHERE id=?').bind(Date.now(),row.grant_id).run();}
  const now=Date.now(),minute=Math.floor(now/60000)*60000;
  const updated=await env.DB.prepare('UPDATE mcp_tokens SET last_used_at=?,window_start=?,window_count=CASE WHEN window_start=? THEN window_count+1 ELSE 1 END WHERE id=? AND (window_start!=? OR window_count<?)').bind(now,minute,minute,row.id,minute,LIMITS.perMinute).run();
  if(!updated?.meta?.changes)fail('Too many requests from this app. Wait a minute and try again.',429);
@@ -204,7 +213,7 @@ export function applyTool(doc,name,args){
 export async function mcpEndpoint(request,env,deps){
  if(request.method==='GET'||request.method==='DELETE')return new Response(null,{status:405,headers:{Allow:'POST'}});
  if(request.method!=='POST')fail('Method not allowed',405);
- let auth;try{auth=await tokenUser(request,env);}catch(e){return new Response(JSON.stringify({error:e.message}),{status:e.status||401,headers:{'Content-Type':'application/json','WWW-Authenticate':'Bearer realm="RemoNook", error="invalid_token"'}});}
+ let auth;try{auth=await tokenUser(request,env);}catch(e){return new Response(JSON.stringify({error:e.message}),{status:e.status||401,headers:{'Content-Type':'application/json','WWW-Authenticate':`Bearer realm="RemoNook", error="invalid_token", resource_metadata="${new URL(request.url).origin}/.well-known/oauth-protected-resource"`}});}
  let message;try{message=JSON.parse(new TextDecoder().decode(await deps.readLimited(request,512*1024)));}catch(e){if(e.status)throw e;return Response.json({jsonrpc:'2.0',id:null,error:{code:-32700,message:'Parse error'}},{status:400});}
  const batch=Array.isArray(message),replies=[];
  for(const m of batch?message.slice(0,20):[message]){const reply=await handle(env,auth,m,deps);if(reply)replies.push(reply);}

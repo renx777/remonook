@@ -1,5 +1,6 @@
 import {RemoLogo} from './RemoLogo';
 import {Landing} from './Landing';
+import {ConnectApproval} from './ConnectApproval';
 import React,{useEffect,useRef,useState} from 'react';
 import {onAuthStateChanged,type User} from 'firebase/auth';
 import {auth,googleSignIn,googleSignOut,settleAuthOperation} from './auth-service';
@@ -28,6 +29,8 @@ function CloudAuthGate({children}:{children:(user:User|null)=>React.ReactNode}){
    initial.current=true;setStorageAccount(next?.uid||null);setUser(next);
  },e=>setError(e.message)),[]);
  if(user===undefined)return <div className="startup"><div className="brand"><RemoLogo/>RemoNook</div><p>{error||'Opening your workspace…'}</p>{error&&<button onClick={()=>location.reload()}>Retry</button>}</div>;
+ const connect=new URLSearchParams(window.location.search).get('connect');
+ if(connect&&/^[a-f0-9]{32}$/.test(connect))return <ConnectApproval user={user} requestId={connect} onSignIn={openAccountSignIn}/>;
  if(route==='#home'||!user&&route!=='#app')return <Landing onSignIn={openAccountSignIn} signedIn={!!user}/>;
  return <>{error&&<p className="cloud-error" role="alert">{error}</p>}{children(user)}</>;
 }
