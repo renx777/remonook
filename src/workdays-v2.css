@@ -135,7 +135,7 @@
   font: 14px/1.5 system-ui;
 }
 .wd2-dialog.wide {
-  width: min(850px, calc(100vw - 32px));
+  width: min(1040px, calc(100vw - 32px));
 }
 .wd2-dialog > header {
   display: flex;

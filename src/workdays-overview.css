@@ -1,0 +1,768 @@
+/* Workdays palette: validated for colour-vision deficiency in light and dark.
+   Home's aqua is low contrast on white, so every view also carries text labels. */
+.app {
+  --wd-WFO: #2a78d6;
+  --wd-WFH: #1baf7a;
+  --wd-Leave: #eb6834;
+  --wd-off: color-mix(in srgb, var(--text) 9%, var(--bg));
+  --wd-now: #c43b2b;
+}
+.app:is([data-theme="Dark"], [data-theme="Dracula"], [data-theme="Nord"], [data-theme="Gruvbox"], [data-theme="Catppuccin Mocha"]) {
+  --wd-WFO: #3987e5;
+  --wd-WFH: #199e70;
+  --wd-Leave: #d95926;
+  --wd-now: #ff7a6b;
+}
+
+/* Stacked split bar */
+.wd2-split {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  min-width: 0;
+}
+.wd2-split > i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+}
+.wd2-split > i:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.wd2-split > i:last-of-type {
+  border-radius: 0 4px 4px 0;
+}
+.wd2-split > i:only-of-type {
+  border-radius: 4px;
+}
+.wd2-split.thin {
+  height: 6px;
+  gap: 1px;
+}
+[data-k="office"] {
+  background: var(--wd-WFO);
+}
+[data-k="home"] {
+  background: var(--wd-WFH);
+}
+[data-k="leave"] {
+  background: var(--wd-Leave);
+}
+[data-k="unset"] {
+  background: var(--line);
+}
+.wd2-split-target {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  border-radius: 1px;
+}
+
+.wd2-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.wd2-legend b {
+  color: var(--text);
+  font-weight: 600;
+}
+.wd2-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border-radius: 3px;
+  vertical-align: -1px;
+  box-sizing: border-box;
+}
+.wd2-legend i.planned {
+  border: 1.5px solid var(--muted);
+}
+.wd2-legend i.off {
+  background: var(--wd-off);
+}
+.wd2-status {
+  color: var(--muted);
+}
+.wd2-status.below,
+.wd2-status.risk {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Day squares (year heatmap) and day marks (month) */
+.app .wd2-dialog button.wd2-day,
+.wd2-day {
+  box-sizing: border-box;
+  aspect-ratio: 1;
+  min-height: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+:is(.app .wd2-dialog button, span).wd2-day.off {
+  background: var(--wd-off);
+}
+:is(.app .wd2-dialog button, span).wd2-day.recorded {
+  background: var(--a);
+}
+:is(.app .wd2-dialog button, span).wd2-day.recorded.half {
+  background: linear-gradient(135deg, var(--a) 50%, var(--b) 50%);
+}
+:is(.app .wd2-dialog button, span).wd2-day.planned {
+  border: 2px solid var(--a);
+}
+:is(.app .wd2-dialog button, span).wd2-day.planned.half {
+  border-color: var(--a) var(--b) var(--b) var(--a);
+}
+:is(.app .wd2-dialog button, span).wd2-day.missing {
+  background: color-mix(in srgb, var(--line) 55%, transparent);
+}
+:is(.app .wd2-dialog button, span).wd2-day.open {
+  border: 1px dashed color-mix(in srgb, var(--muted) 45%, transparent);
+}
+:is(.app .wd2-dialog button, span).wd2-day.today {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+.app .wd2-dialog button.wd2-day:hover,
+.app .wd2-dialog button.wd2-day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Year at a glance */
+.wd2-year {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.wd2-year-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 40px;
+}
+.wd2-headline p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.wd2-big {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 44px;
+  line-height: 1;
+  color: var(--text);
+}
+.wd2-mid {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 26px;
+  color: var(--text);
+}
+.wd2-year-split {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wd2-year-split .wd2-split {
+  height: 12px;
+}
+.wd2-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 14px;
+}
+.wd2-glance {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wd2-glance-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.wd2-glance-head h3,
+.wd2-year .wd2-section-title h3,
+.wd2-month-view .wd2-section-title h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.wd2-heat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wd2-heat-row {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) 168px;
+  align-items: center;
+  gap: 12px;
+}
+.wd2-heat-row.quarter {
+  margin-top: 10px;
+}
+.wd2-heat-row > span:first-child {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.wd2-heat-row > span:first-child small {
+  display: inline-block;
+  width: 22px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.wd2-heat-row.current > span:first-child {
+  color: var(--text);
+  font-weight: 650;
+}
+.wd2-heat-days {
+  display: grid;
+  grid-template-columns: repeat(31, minmax(0, 1fr));
+  gap: 3px;
+}
+.wd2-ruler span {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+.wd2-ruler > span:last-child {
+  text-align: left;
+}
+.wd2-heat-sum {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.wd2-heat-sum .wd2-split {
+  flex: 0 0 56px;
+}
+.wd2-heat-sum b {
+  width: 34px;
+  color: var(--text);
+  font-weight: 600;
+}
+.wd2-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.wd2-table th,
+.wd2-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+.wd2-table th:first-child {
+  text-align: left;
+}
+.wd2-table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.wd2-quarters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.wd2-quarters > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+}
+.wd2-bottom {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.wd2-bottom .wd2-section-title {
+  margin-bottom: 6px;
+}
+.wd2-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.wd2-lines li {
+  padding: 4px 0;
+}
+.wd2-lines .wd2-link {
+  padding: 0;
+  font-size: 13px;
+  color: var(--accent);
+}
+.wd2-warning-line {
+  color: var(--text);
+}
+.wd2-leave-left {
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.wd2-leave-left > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+}
+.wd2-leave-left > div > span:first-child,
+.wd2-leave-left b {
+  color: var(--text);
+  font-weight: 600;
+}
+.wd2-leave-left > div > span:first-child {
+  font-weight: 400;
+}
+.wd2-meter {
+  display: flex;
+  height: 4px;
+  margin-top: 5px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+.wd2-meter i {
+  background: var(--wd-Leave);
+}
+@media (max-width: 900px) {
+  .wd2-bottom {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .wd2-quarters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Month (phone) */
+.wd2-month-view {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wd2-month-head {
+  display: flex;
+  align-items: center;
+}
+.wd2-month-head h3 {
+  flex: 1;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  font-size: 24px;
+}
+.wd2-month-head .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.wd2-cal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.wd2-cal-wd {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  padding-bottom: 2px;
+}
+.wd2-cal-day {
+  height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  font: inherit;
+}
+.wd2-cal-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+.wd2-cal-day.out .wd2-cal-num,
+.wd2-cal-day.off .wd2-cal-num {
+  color: var(--muted);
+}
+.wd2-cal-day.holiday .wd2-cal-num {
+  background: var(--wd-off);
+}
+.wd2-cal-day.selected .wd2-cal-num {
+  box-shadow: inset 0 0 0 1.5px var(--text);
+}
+.wd2-cal-day.today .wd2-cal-num {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+.wd2-cal-day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 10px;
+}
+:is(.app .wd2-dialog button, span).wd2-day.mark {
+  width: 14px;
+  height: 4px;
+  min-height: 0;
+  aspect-ratio: auto;
+  border-radius: 4px;
+  outline: 0;
+}
+:is(.app .wd2-dialog button, span).wd2-day.mark.planned {
+  border-width: 1.5px;
+}
+:is(.app .wd2-dialog button, span).wd2-day.mark:is(.off, .missing, .open) {
+  background: transparent;
+  border: 0;
+}
+.wd2-cal-legend {
+  margin: 2px 4px 0;
+}
+.wd2-mv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.wd2-mv-section .wd2-split {
+  height: 12px;
+}
+.wd2-share-line {
+  font-size: 13px;
+  color: var(--muted);
+}
+.wd2-share-line b,
+.wd2-facts b {
+  color: var(--text);
+  font-weight: 650;
+}
+.wd2-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  font-size: 13px;
+  color: var(--muted);
+}
+.wd2-counts b {
+  color: var(--text);
+  font-weight: 600;
+}
+.wd2-mv-day {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.wd2-mv-day h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.wd2-mv-day h3 span {
+  font-weight: 400;
+  color: var(--muted);
+}
+.wd2-facts {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.wd2-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+}
+.wd2-facts dd {
+  margin: 0;
+  text-align: right;
+}
+.wd2-facts .wd2-link {
+  padding: 0;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+/* Compact work mode switch */
+.wd2-daily.wd2-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 0;
+}
+.wd2-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--hover);
+}
+.wd2-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wd2-switch button:hover {
+  color: var(--text);
+}
+.wd2-switch button[aria-pressed="true"] {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 650;
+  box-shadow: 0 1px 2px #00000017;
+}
+.wd2-switch button[aria-pressed="true"]::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 7px;
+  background: var(--wd-WFO);
+}
+.wd2-switch button[data-mode="WFH"][aria-pressed="true"]::before {
+  background: var(--wd-WFH);
+}
+.wd2-switch button[data-mode="Leave"][aria-pressed="true"]::before {
+  background: var(--wd-Leave);
+}
+.wd2-switch button[aria-pressed="true"][data-planned]::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--wd-WFO);
+}
+.wd2-switch button[data-mode="WFH"][aria-pressed="true"][data-planned]::before {
+  box-shadow: inset 0 0 0 1.5px var(--wd-WFH);
+}
+.wd2-switch button[data-mode="Leave"][aria-pressed="true"][data-planned]::before {
+  box-shadow: inset 0 0 0 1.5px var(--wd-Leave);
+}
+.wd2-switch button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.wd2-compact-note {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.wd2-compact-note .wd2-link {
+  padding: 0;
+}
+
+/* Inside the Workdays dialog, undo its generic button chrome. */
+.app .wd2-dialog button.wd2-cal-day,
+.app .wd2-dialog button.wd2-cal-day:hover:enabled {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.app .wd2-dialog .wd2-switch button {
+  min-height: 0;
+  padding: 0 11px;
+  border: 0;
+  font-size: 13px;
+}
+.app .wd2-dialog .wd2-switch button[aria-pressed="true"] {
+  background: var(--panel);
+}
+.app .wd2-dialog .wd2-switch button:hover:enabled:not([aria-pressed="true"]) {
+  background: transparent;
+}
+.app .wd2-dialog :is(.wd2-lines, .wd2-facts, .wd2-muted, .wd2-compact-note, .wd2-glance-head) .wd2-link {
+  min-height: 0;
+  padding: 0;
+}
+.app .wd2-dialog .wd2-month-head .icon-button {
+  min-height: 44px;
+}
+
+/* Holidays list */
+.wd2-holidays {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.wd2-holidays-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.wd2-holidays-head .wd2-muted {
+  flex: 1;
+  min-width: 200px;
+  margin: 0;
+  font-size: 13px;
+}
+.app .wd2-dialog .wd2-import-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.wd2-holiday-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.wd2-holiday {
+  display: grid;
+  grid-template-columns: 150px 74px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.app .wd2-dialog .wd2-holiday input {
+  margin: 0;
+  min-width: 0;
+}
+.app .wd2-dialog .wd2-holiday input:not([type="date"]) {
+  border-color: transparent;
+  background: transparent;
+}
+.app .wd2-dialog .wd2-holiday input:not([type="date"]):is(:hover, :focus) {
+  border-color: var(--line);
+}
+.wd2-holiday-day {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.wd2-holiday-day small {
+  font-size: 11px;
+}
+.wd2-holiday-add {
+  border-bottom: 0;
+}
+.app .wd2-dialog .wd2-holiday-add input:not([type="date"]) {
+  border-color: var(--line);
+}
+@media (max-width: 760px) {
+  .wd2-holiday {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "date day del" "name name name";
+    row-gap: 4px;
+  }
+  .wd2-holiday > input[type="date"] {
+    grid-area: date;
+  }
+  .wd2-holiday-day {
+    grid-area: day;
+  }
+  .wd2-holiday > button {
+    grid-area: del;
+  }
+  .wd2-holiday > input:not([type="date"]) {
+    grid-area: name;
+  }
+}
+.wd2-holiday.is-wrong input:not([type="date"]) {
+  color: var(--muted);
+}
+.wd2-holiday-wrong {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--wd-now);
+}
+.wd2-holiday-fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--wd-now) 40%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--wd-now) 7%, transparent);
+}
+.wd2-holiday-fix p {
+  flex: 1;
+  min-width: 220px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.wd2-holiday-clear {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.app .wd2-dialog .wd2-holiday-clear .wd2-link {
+  min-height: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.app .wd2-dialog .wd2-danger {
+  color: var(--wd-now);
+}
+@media (max-width: 760px) {
+  .wd2-holiday-wrong {
+    grid-area: auto;
+  }
+  .wd2-holiday {
+    grid-template-areas: "date day del" "name name name" "warn warn warn";
+  }
+  .wd2-holiday-wrong {
+    grid-area: warn;
+  }
+}

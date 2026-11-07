@@ -39,3 +39,11 @@ Browser-engine checks are not physical-device certification. Live signed-in stag
 Reader tools → Update saved copy captures a fresh version, including images missed by older capture versions. Existing notes and highlights retain their original snapshot references; opening a source citation retrieves that original version. Full backups include cached versions referenced by note sources as well as the latest bookmarked copy.
 
 Daily calendar notes use the ordinary inline bullet editor, including rich-text and paste/media actions. A provisional empty bullet remains local UI state until content is entered; browsing dates and focusing it do not create journal records. Work-location choices use compact Home/Office controls with semantic native radios and keyboard focus indicators.
+
+## Library and reader layout
+
+The library header shows saved, unread and archived counts that match the view tabs, plus a paste-a-link field (phones use the Save link button). Rows carry a site letter tile, website, reading time, when the page was saved, a clear storage state (Offline, Saved article or Link only), note count and tags. The most used tags are one-tap filters; more tags stay in a list. The app's global note search is hidden on the Bookmarks tab.
+
+The reader uses one slim header: Find, Outline, Text and display (size, theme, serif/sans, line width), Capture (region or visible article), Notes, Mark read and a More menu (Open original, Update saved copy). On phones these tools sit in a bottom bar and open as sheets. The app sidebar steps aside while an article is open without changing the saved sidebar preference. Selecting text shows both highlight colours and text colours, each one tap, plus Add note, which highlights the passage and opens an empty thought beneath it.
+
+Reading progress and display settings are per-device conveniences stored in this browser's local storage. They do not enter workspace sync, so progress on one device is not shown on another.

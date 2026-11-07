@@ -2,6 +2,70 @@
 
 ## Current state
 
+On 7 November 2026 (later the same day), `remo-sync-staging` was deployed from `ccr-641b18bf-2fe80f`,
+application commit `1255d38` (Worker version `3560885b-2726-4bed-932e-76628872d523`, Wrangler 4.157.0), adding
+connected AI apps (MCP). The additive migration `cloud/mcp.sql` (tables `mcp_tokens`, `mcp_activity`) was applied
+to D1 `remo-sync-staging` first. The config was built from `cloud/config.staging.example.json` with AI assist kept
+enabled, as it was live; bindings and secret names are unchanged. `/health` reports `mcp: 1` and
+`googleTasksConfigured: true`; `/mcp` refuses requests without an access token. The deploy used a Cloudflare API
+token stored as a network secret on the owner's personal cloud environment, never in the repository. The staging
+frontend for the same commit was deployed by the staging workflow. Production is unchanged. See [MCP.md](MCP.md).
+
+Earlier on 7 November 2026, `remo-sync-staging` was redeployed from
+`ccr-641b18bf-2fe80f` at `f341221b77c0f96f4b63f503bf2cf6a37b2de976`, matching
+the live staging frontend source (release `2026-11-06.1`). Worker version
+`6ed9c98d-5e1c-4f11-8171-662d80b64c39` serves 100% of staging traffic.
+The connected Cloudflare account deployed the Wrangler 4.157.0 dry-run bundle;
+no CLI deployment token was available. All live bindings and secret names,
+variables (including enabled AI), compatibility settings, observability and
+cleanup cron were retained. Health confirms sync protocol 2, Workdays schema 2,
+AI Assist 1 with AI enabled, Bookmarks reader/capture, books and Google Tasks.
+Unauthenticated sync returns 401. Eleven backend regression test files and the
+sync-rejection reproduction passed; CI also passed for the deployed source
+([run 42338608126](https://github.com/renx777/remonook/actions/runs/42338608126)).
+No migrations were needed, and no frontend or production deployment was performed.
+
+Frontend release `2026-11-06.1` on `ccr-641b18bf-2fe80f` (application commit
+`326aaa5`) adds persistent All / Notes / Calendar quick-access tabs, groups All
+as Calendar → Flashcards/MCQs → Mindmaps → Bookmarks → Docs → ordinary notes,
+and replaces mindmap library icons with bounded SVG snapshots of their actual
+branches and styles. Notes excludes special-content subtrees while retaining
+ordinary siblings in mixed pages. These are presentation filters: saved parents
+and positions are unchanged. Daily notes uses the canvas background without a
+frame. The full suite passes 135 files; Chromium acceptance covers mobile filters,
+group order, real previews, keyboard tabs, and unframed daily notes in both themes.
+This is a frontend-only staging release; the verified sync Worker below is retained.
+Deployed frontend source: `1fea6a1e0ca3aca034618ee8c3086fbcbd1ac35c`, confirmed
+by `/staging-source.json`. Both [staging run 42223022322](https://github.com/renx777/remonook/actions/runs/42223022322)
+and [CI run 42222995319](https://github.com/renx777/remonook/actions/runs/42222995319)
+passed. Chromium checks also passed against the deployed build using synthetic
+guest notes, including mobile grouping, filtered editing views, keyboard tab
+navigation, real mindmap snapshots, and borderless calendar notes in both themes.
+The sync server was not redeployed, and production remains unchanged.
+
+Staging sync recovery release `2026-11-05.2` uses branch
+`ccr-641b18bf-2fe80f`, application commit `081280c`. The sync Worker was deployed
+separately on 5 November 2026: version `242ad50e-7d15-40e1-9bbe-b02791a3b7f0`,
+100% traffic. Health confirms `syncProtocol: 2`, `workdaysSchema: 2`,
+`aiAssist: 1`, `bookmarkReader: 1`, `aiEnabled: true`, article capture and Google
+Tasks configured. D1/R2, all existing variables and secret bindings, observability
+and cleanup cron were compared before/after and retained. The requested Wrangler
+command could not authenticate in this execution environment; the connected
+Cloudflare account uploaded the tested Wrangler bundle instead. The ignored
+local config was absent and was reconstructed from live staging settings.
+The matching **Staging frontend** workflow succeeded at frontend commit
+`419442ff0a596305e8334e5fd9edd5b9c7194f04`:
+[run 42083418657](https://github.com/renx777/remonook/actions/runs/42083418657).
+`/staging-source.json` confirms that branch, commit and release. CI also passed
+on that commit ([run 42083391600](https://github.com/renx777/remonook/actions/runs/42083391600)).
+The full local test suite passed all 134 files; `node tests/repro-sync-rejection.mjs`
+accepted every batch. A live staging test using two separate synthetic actors
+confirmed concurrent edits converge, both outboxes are acknowledged, and a
+validation-rejected batch is preserved and accepted after automatic repair.
+The owner confirmed the affected-account check succeeded on both devices:
+both reached **Synced** and the previously pending edits appeared on both.
+Production remains unchanged.
+
 The Bookmarks preview (`feature/bookmarks`, release `2026-11-04.1`) is intentionally limited to local development and staging at the owner’s request. Production stays on its existing deployed release. Do not publish this preview through Sites. See [BOOKMARKS.md](BOOKMARKS.md) for staging-only backend bindings, migration and local cloud development.
 
 GitHub `main` is the source for every environment. Release `2026-11-02.3` includes the flashcard editing, interactive mindmap, bulk actions and pane improvements from `678e82c`, plus an update notice for older open app sessions. `/release.json` identifies the release on each frontend. Sites uses a separate source-repository commit, whose application files must match GitHub byte for byte. Environment-specific build configuration, Firebase accounts, database contents and attachment buckets remain separate.
@@ -66,6 +130,13 @@ The working flow is local → staging → production:
 
 1. Develop on a feature branch and verify locally (`npm run build`, `npm test`).
 2. Push the branch and run the **Staging frontend** workflow on that branch (`workflow_dispatch`) so it can be tested on phones and other devices. Staging may run an unmerged branch during testing; record which branch and commit are live there.
+   This workflow deploys **only the frontend**. Deploy the sync server separately
+   with `npx wrangler deploy --config cloud/config.staging.local.json` from the
+   same tested branch. Keep that local config ignored; compare its bindings and
+   plain variables against live staging first. Preserve secrets, enabled AI,
+   Google Tasks, article capture, D1/R2 and scheduled cleanup. Verify `/health`
+   after deployment (`syncProtocol: 2`, `workdaysSchema: 2`, `aiAssist: 1`,
+   `bookmarkReader: 1`, with `aiEnabled: true` while staging AI is enabled).
 3. Open a PR into `main` once testing passes. CI runs Node 24, `npm ci`, a local-only build and the full tests.
 4. Merge to `main`. A push to `main` also deploys staging automatically.
 5. Release production explicitly from `main`. Before doing so, confirm `main` contains everything staging has been running, so the release and staging match.

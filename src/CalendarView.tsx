@@ -141,6 +141,10 @@ const MONTH_NAMES_SHORT = [
 const WEEKDAY_NAMES_2 = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 type CalendarViewProps = {
+  /** Agenda column (month, Workdays, reminders). When set, the day page layout replaces the date strip. */
+  aside?: React.ReactNode;
+  /** Controls shown beside the date heading, such as the work mode switch. */
+  headerExtra?: React.ReactNode;
   workdays?: React.ReactNode;
   workdayMarker?:(date:string)=>React.ReactNode;
   trackers?: React.ReactNode;
@@ -345,8 +349,73 @@ export function CalendarView(props: CalendarViewProps) {
     onSelectDate(getLocalDateString(target));
   };
 
+  const longHeading = parseLocalDate(selectedDate).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", ...(selectedDate.slice(0, 4) === getLocalDateString().slice(0, 4) ? {} : { year: "numeric" }) });
+  const notesSection = (
+      <div className="calendar-notes-section">
+        <div className="calendar-notes-label">Daily notes</div>
+          <OutlineView
+            key={rootId}
+            hideTitle
+            fitContent={!!props.aside}
+            nodes={noteNodes}
+            scope={rootId}
+            search={props.search}
+            showCompleted={props.showCompleted}
+            readingSize={props.readingSize}
+            onImages={(id,files)=>{if(id===draft.id&&files.length)materializeDraft();props.onImages?.(id,files);}}
+            onRemoveMedia={props.onRemoveMedia}
+            onResizeMedia={props.onResizeMedia}
+            onOccludeMedia={props.onOccludeMedia}
+            editing={props.editing}
+            caret={props.caret}
+            disabled={props.disabled}
+            assets={props.assets}
+            media={props.media}
+            onEdit={props.onEdit}
+            onZoom={id=>id===draft.id&&!created.current?props.onEdit(id):props.onZoom(id)}
+            onMindmap={props.onMindmap}
+            onToggle={props.onToggle}
+            onChange={changeNote}
+            onEditorChange={changeNote}
+            readCurrentNode={id=>props.readCurrentNode?.(id)||(id===draft.id?draftValue.current:undefined)}
+            onCommand={props.onCommand}
+            onOutlinePaste={(id,start,end,text)=>{if(id===draft.id)materializeDraft();props.onOutlinePaste(id,start,end,text);}}
+            onReady={props.onReady}
+            onMove={props.onMove}
+            onTask={props.onTask}
+            onMenu={props.onMenu}
+            onAdd={() => hasBulletsForDay||created.current?props.onAddBullet(props.selectedDate):props.onEdit(draft.id)}
+            onDeleteNodes={props.onDeleteNodes}
+            setNotice={props.setNotice}
+          />
+          {props.aside&&<p className="cal2-notes-hint">Bullets save to this day's calendar notes · Tab to nest</p>}
+      </div>
+  );
   return (
-    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}><div className={`calendar-view ${props.autoOpen===false?'has-workdays':''}`}>
+    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}><div className={`calendar-view ${props.aside?'cal2':props.autoOpen===false?'has-workdays':''}`}>
+      {props.aside?<><div className="cal2-page">
+      <div className="calendar-header-row cal2-header">
+        <div className="calendar-title-wrap">
+          <span className="calendar-prefix">{relativePrefix.replace(/,\s*$/,'')}</span>
+          <Popover.Trigger asChild><button
+            ref={pillBtnRef}
+            className={`calendar-date-pill ${popoverOpen ? "active" : ""}`}
+            aria-label={`${longHeading} · choose a date`}
+            aria-expanded={popoverOpen}
+          >
+            <h1>{longHeading}</h1>
+          </button></Popover.Trigger>
+        </div>
+        <div className="cal2-day-nav">
+          <button className="icon-button" title="Previous day" aria-label="Previous day" onClick={() => onSelectDate(addDays(selectedDate, -1))}><Icon name="back" size={16} /></button>
+          <button className="icon-button" title="Next day" aria-label="Next day" onClick={() => onSelectDate(addDays(selectedDate, 1))}><Icon name="forward" size={16} /></button>
+        </div>
+        {props.headerExtra}
+      </div>
+      {props.trackers}
+      {notesSection}
+      </div>
+      <aside className="cal2-aside" aria-label="Agenda">{props.aside}</aside></>:<>
       {/* Top Heading */}
       <div className="calendar-header-row">
         <div className="calendar-title-wrap">
@@ -361,6 +430,7 @@ export function CalendarView(props: CalendarViewProps) {
           </button></Popover.Trigger>
         </div>
       </div>
+      </>}
 
       {/* Date Picker Popover Dropdown */}
       {popoverOpen && (
@@ -505,7 +575,7 @@ export function CalendarView(props: CalendarViewProps) {
       )}
 
       {/* Horizontal Date Strip (Timeline) */}
-      {!props.monthView && <div className="calendar-strip-container">
+      {!props.monthView && !props.aside && <div className="calendar-strip-container">
         <div className="calendar-strip-nav-left">
           <button
             className="icon-button strip-arrow-btn"
@@ -605,47 +675,10 @@ export function CalendarView(props: CalendarViewProps) {
 
       }
       {/* Daily Notes Content Area */}
-      {props.trackers}
+      {!props.aside&&<>{props.trackers}
       {props.workdays}
       {props.reminders}
-      <div className="calendar-notes-section">
-        <div className="calendar-notes-label">Daily notes</div>
-          <OutlineView
-            key={rootId}
-            hideTitle
-            nodes={noteNodes}
-            scope={rootId}
-            search={props.search}
-            showCompleted={props.showCompleted}
-            readingSize={props.readingSize}
-            onImages={(id,files)=>{if(id===draft.id&&files.length)materializeDraft();props.onImages?.(id,files);}}
-            onRemoveMedia={props.onRemoveMedia}
-            onResizeMedia={props.onResizeMedia}
-            onOccludeMedia={props.onOccludeMedia}
-            editing={props.editing}
-            caret={props.caret}
-            disabled={props.disabled}
-            assets={props.assets}
-            media={props.media}
-            onEdit={props.onEdit}
-            onZoom={id=>id===draft.id&&!created.current?props.onEdit(id):props.onZoom(id)}
-            onMindmap={props.onMindmap}
-            onToggle={props.onToggle}
-            onChange={changeNote}
-            onEditorChange={changeNote}
-            readCurrentNode={id=>props.readCurrentNode?.(id)||(id===draft.id?draftValue.current:undefined)}
-            onCommand={props.onCommand}
-            onOutlinePaste={(id,start,end,text)=>{if(id===draft.id)materializeDraft();props.onOutlinePaste(id,start,end,text);}}
-            onReady={props.onReady}
-            onMove={props.onMove}
-            onTask={props.onTask}
-            onMenu={props.onMenu}
-            onAdd={() => hasBulletsForDay||created.current?props.onAddBullet(props.selectedDate):props.onEdit(draft.id)}
-            onDeleteNodes={props.onDeleteNodes}
-            setNotice={props.setNotice}
-          />
-
-      </div>
+      {notesSection}</>}
     </div></Popover.Root>
   );
 }

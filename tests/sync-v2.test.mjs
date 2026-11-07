@@ -13,6 +13,22 @@ import {bullet} from '../src/domain.mjs';
 import {route} from '../cloud/worker.mjs';
 const copy=structuredClone;
 const initial=()=>{const d=empty();d.tables.bullets=[bullet('a',{text:'Learn SQL.'}),bullet('b',{text:'Other',position:1})];return d;};
+test('restoring a removed note reuses retained text and preserves concurrent text edits',()=>{
+ const base=initial(),seeded=seed(base),state=sharedState(seeded),removed=copy(base);removed.tables.bullets=removed.tables.bullets.filter(n=>n.id!=='a');
+ const local=openShared(state),remote=openShared(state);try{
+  applyIntent(local,base,removed);assert.equal(project(local).doc.tables.bullets.some(n=>n.id==='a'),false);
+  applyIntent(local,removed,base);assert.equal(project(local).doc.tables.bullets.find(n=>n.id==='a').text,'Learn SQL.');
+  applyIntent(local,base,removed);const changed=copy(base);changed.tables.bullets[0].text='Learn SQL from another device.';applyIntent(remote,base,changed);Y.applyUpdate(local,Y.encodeStateAsUpdate(remote));
+  applyIntent(local,removed,base);assert.equal(project(local).doc.tables.bullets.find(n=>n.id==='a').text,'Learn SQL from another device.');
+ }finally{seeded.destroy();local.destroy();remote.destroy();}
+});
+test('durable outbox add, acknowledged undo and redo do not duplicate accepted answer text',async()=>{
+ const f=await started();try{let meta=initializeOutbox(f.server.update,f.server.revision,f.base,f.base,[]);const added=copy(f.base);added.tables.bullets.push(bullet('ai-answer',{parentId:'a',text:'One reviewed answer.\nReviewed on staging.'}));
+  const sync=async()=>{meta=claimOutbox(meta);const response=await(await call(f.env,'POST','/sync/v2',meta.inflight)).json();meta=receiveOutbox(meta,response);};
+  recordLocal(meta,added);await sync();recordLocal(meta,f.base);await sync();recordLocal(meta,added);await sync();
+  const response=await(await call(f.env,'GET','/sync/v2')).json(),y=openShared(response.update);try{assert.equal(project(y).doc.tables.bullets.find(n=>n.id==='ai-answer').text,'One reviewed answer.\nReviewed on staging.');}finally{y.destroy();}
+ }finally{f.env.sqlite.close();}
+});
 export function database(){const sqlite=new DatabaseSync(':memory:');sqlite.exec(readFileSync('cloud/schema.sql','utf8'));const DB={prepare(sql){let params=[];return {bind(...p){params=p;return this;},async first(){return sqlite.prepare(sql).get(...params)||null;},run(){const r=sqlite.prepare(sql).run(...params);return {success:true,meta:{changes:r.changes}};}};},async batch(statements){sqlite.exec('BEGIN');try{const out=[];for(const s of statements)out.push(s.run());sqlite.exec('COMMIT');return out;}catch(e){sqlite.exec('ROLLBACK');throw e;}}};return {DB,sqlite};}
 const call=(env,method,path,body,uid='alice',headers={})=>route(new Request('https://sync.test'+path,{method,headers:{Authorization:'Bearer '+uid,...headers},...(body?{body:JSON.stringify(body)}:{})}),env,async t=>t);
 async function started(){const env=database(),base=initial();await call(env,'PUT','/workspace',{baseRevision:0,doc:base,assets:[]});const server=await(await call(env,'GET','/sync/v2')).json();return {env,base,server};}
@@ -163,4 +179,33 @@ test('an upgraded offline client retries its immutable v1 outbox without overwri
   const recovered=await call(env,'POST','/sync/v2',{...body,workdaysContext:workdaysV2(old.doc)},'alice',headers);assert.equal(recovered.status,200);const ack=await recovered.json(),result=await(await call(env,'GET','/sync/v2',null,'alice',headers)).json(),y=openShared(result.update),doc=project(y).doc;y.destroy();assert.equal(doc.web.workdays.version,2);assert.equal(doc.web.workdays.entries['2026-11-04'].plan.am.mode,'WFO');assert.equal(doc.tables.bullets.find(n=>n.id==='a').text,'Offline note kept.');if(clear)assert.equal(doc.web.workdays.entries[date],undefined);else assert.equal(doc.web.workdays.entries[date].actual.am.mode,'WFH');
   const retry=await(await call(env,'POST','/sync/v2',{...body,workdaysContext:workdaysV2(old.doc)},'alice',headers)).json();assert.equal(retry.revision,ack.revision);
  }
+});
+
+test('mixed pending pre-switch Clear and post-switch v2 updates retain the original Workdays sender vector',async()=>{
+ const env=database(),headers={'X-Remo-Capabilities':'workdays-v2'},date='2026-11-02';
+ try{
+  let base=enableWorkdays(initial(),true,'2026-11-01');base=setWorkdays(base,[date],'WFO','','2026-11-03');await call(env,'PUT','/workspace',{baseRevision:0,doc:base,assets:[]});
+  const server=await(await call(env,'GET','/sync/v2')).json(),m=initializeOutbox(server.update,server.revision,null,base,[]);
+  const clear=setWorkdays(base,[date],'Clear','','2026-11-03');recordLocal(m,clear);
+  const modern=edit(server.update,base,d=>{d.web.workdays=workdaysV2(d);d.web.workdays.entries['2026-11-04']={plan:{am:{mode:'WFO',updatedAt:8}}};});
+  await call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:modern.update,vector:modern.vector},'alice',headers);
+  // A tab can receive v2 while its older immutable deltas are still queued.
+  receiveOutbox(m,await(await call(env,'GET','/sync/v2',null,'alice',headers)).json());
+  m.localState=m.receivedState;m.mappedDoc=project(openShared(m.receivedState)).doc;
+  const latest=copy(m.mappedDoc);latest.tables.bullets[1].text='Modern edit after the switch';recordLocal(m,latest);claimOutbox(m);
+  assert.ok(m.inflight.workdaysVector);assert.ok(m.inflight.workdaysContext);
+  const ack=await(await call(env,'POST','/sync/v2',m.inflight,'alice',headers)).json();assert.ok(ack.acked);
+  const y=openShared((await(await call(env,'GET','/sync/v2',null,'alice',headers)).json()).update),doc=project(y).doc;y.destroy();
+  assert.equal(doc.web.workdays.entries[date],undefined);assert.equal(doc.web.workdays.entries['2026-11-04'].plan.am.mode,'WFO');assert.equal(doc.tables.bullets.find(n=>n.id==='b').text,'Modern edit after the switch');
+ }finally{env.sqlite.close();}
+});
+
+test('legacy Workdays conversion failures identify their step without exposing input text',async()=>{
+ const env=database(),headers={'X-Remo-Capabilities':'workdays-v2'};
+ try{
+  const base=enableWorkdays(initial(),true,'2026-11-01');await call(env,'PUT','/workspace',{baseRevision:0,doc:base,assets:[]});const server=await(await call(env,'GET','/sync/v2')).json();
+  const old=edit(server.update,base,d=>{d.web.workdays=setWorkdays(d,['2026-11-02'],'WFH','','2026-11-03').web.workdays;}),modern=edit(server.update,base,d=>{d.web.workdays=workdaysV2(d);});
+  await call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:modern.update,vector:modern.vector},'alice',headers);
+  await assert.rejects(call(env,'POST','/sync/v2',{operationId:crypto.randomUUID(),update:old.update,vector:old.vector,workdaysContext:{secretText:'PRIVATE CONTENT'}},'alice',headers),e=>e.status===400&&e.code==='SYNC_VALIDATION_FAILED'&&/Legacy Workdays upgrade failed/.test(e.message)&&!e.message.includes('PRIVATE'));
+ }finally{env.sqlite.close();}
 });

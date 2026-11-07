@@ -24,6 +24,8 @@ import {
   holidayDate,
   positionedLines,
   parsePdfPages,
+  misimportedHoliday,
+  repairHolidays,
 } from "../src/workday-holidays.mjs";
 import {
   seed,
@@ -360,4 +362,56 @@ test("PDF page ranges are bounded, deduplicated and reject reversed or empty ran
   assert.deepEqual(parsePdfPages("1-3, 3, 5"), [1, 2, 3, 5]);
   for (const input of ["1-0", "5-2", "0", "1-11", "1,,3", ""])
     assert.throws(() => parsePdfPages(input));
+});
+test("holiday tables with a row number and month column use the full date, not '3 January'", () => {
+  const page = [
+    "MBB LABS PRIVATE LIMITED",
+    "+91 80 6625 0001 | office@example.com",
+    "HOLIDAY LIST",
+    "Calendar Year 2026",
+    "# MONTH DATE DAY O CCASION",
+    "1 January 01-Jan-2026 Thursday New Year Day",
+    "3 January 26-Jan-2026 Monday Republic Day",
+    "6 May 01-May-2026 Friday May Day",
+    "11 October 20-Oct-2026 Tuesday Ayudha Pooja/ Vijaya Dashami",
+    "Page 1 of 1",
+  ].join("\n");
+  const { rows, skipped } = parseHolidaySource(page, { year: "2026" });
+  assert.deepEqual(
+    rows.map((r) => [r.date, r.name, r.selected]),
+    [
+      ["2026-01-01", "New Year Day", true],
+      ["2026-01-26", "Republic Day", true],
+      ["2026-05-01", "May Day", true],
+      ["2026-10-20", "Ayudha Pooja / Vijaya Dashami", true],
+    ],
+  );
+  assert.equal(skipped, 6, "titles, headers and footers are skipped");
+  const list = parseHolidaySource("Republic Day 26 Jan\nGood Friday, April 3, 2026\nDiwali - 8th November", { year: "2026" }).rows;
+  assert.deepEqual(list.map((r) => [r.date, r.name]), [
+    ["2026-01-26", "Republic Day"],
+    ["2026-04-03", "Good Friday"],
+    ["2026-11-08", "Diwali"],
+  ]);
+});
+test("holidays saved on the wrong date by the old importer can be repaired", () => {
+  assert.deepEqual(misimportedHoliday("2026-01-02", "15-Jan-2026 Thursday Makara Sankranti/ Pongal"), {
+    date: "2026-01-15",
+    name: "Makara Sankranti / Pongal",
+  });
+  assert.equal(misimportedHoliday("2026-01-26", "Republic Day"), null);
+  assert.equal(misimportedHoliday("2026-05-01", "May Day"), null, "a month word alone is not a date");
+  const fixed = repairHolidays({
+    "2026-01-01": "01-Jan-2026 Thursday New Year Day", // right date, messy name
+    "2026-01-02": "15-Jan-2026 Thursday Makara Sankranti/ Pongal", // wrong date
+    "2026-01-03": "26-Jan-2026 Monday Republic Day", // wrong date, correct copy exists
+    "2026-01-26": "Republic Day",
+    "2026-02-14": "Team day", // untouched
+  });
+  assert.deepEqual(fixed, {
+    "2026-01-01": "New Year Day",
+    "2026-01-15": "Makara Sankranti / Pongal",
+    "2026-01-26": "Republic Day",
+    "2026-02-14": "Team day",
+  });
 });

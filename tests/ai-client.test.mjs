@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {build} from 'esbuild';
+await build({stdin:{contents:"export{aiRequest}from './src/ai-client';",loader:'ts',resolveDir:process.cwd()},bundle:true,packages:'external',platform:'node',format:'esm',outfile:'tests/.build/ai-client.mjs',plugins:[{name:'identity',setup(b){b.onResolve({filter:/^\.\/(CloudAccount|cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?"export const authenticatedUid=()=>globalThis.aiUid;":"export const CLOUD_API='https://ai.test';"}));}}]});
+const {aiRequest}=await import('./.build/ai-client.mjs'),original=globalThis.fetch,user={uid:'a',getIdToken:async()=> 'token'};globalThis.aiUid='a';
+test('client discards account-switched responses and never accepts an unfinished stream',async()=>{try{
+ let release;globalThis.fetch=()=>new Promise(r=>release=r);const task=aiRequest(user,'status',null,new AbortController().signal);while(!release)await new Promise(r=>setTimeout(r,1));globalThis.aiUid='b';release(Response.json({remaining:10}));await assert.rejects(task,e=>e.name==='AbortError');globalThis.aiUid='a';
+ globalThis.fetch=async()=>new Response('{"type":"text","text":"partial"}\n',{headers:{'Content-Type':'application/x-ndjson'}});await assert.rejects(aiRequest(user,'generate',{},new AbortController().signal),/interrupted/);
+ globalThis.fetch=async()=>Response.json({error:'Daily allowance used.'},{status:429});await assert.rejects(aiRequest(user,'generate',{},new AbortController().signal),/Daily allowance/);
+}finally{globalThis.fetch=original;globalThis.aiUid='a';}});

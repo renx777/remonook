@@ -1,0 +1,128 @@
+.profile-trigger {
+  padding: 3px !important;
+  border-radius: 999px !important;
+}
+.profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.profile-avatar.is-initial {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  color: var(--text);
+  font-weight: 650;
+}
+.profile-menu {
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  padding: 16px;
+  box-sizing: border-box;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+}
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.profile-head > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.profile-head strong {
+  font-size: 15px;
+}
+.profile-head span,
+.profile-head small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-head small {
+  font-size: 12px;
+}
+.profile-facts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.profile-facts:empty {
+  display: none;
+}
+.profile-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.profile-facts dt {
+  color: var(--muted);
+}
+.profile-facts dd {
+  margin: 0;
+  text-align: right;
+}
+.profile-menu .cloud-error {
+  margin: 0;
+  font-size: 13px;
+}
+.profile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.profile-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.profile-actions button:hover,
+.profile-actions button:focus-visible {
+  background: var(--hover);
+}
+.profile-actions .profile-signout {
+  color: #c43b2b;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 9px 9px;
+}
+.profile-actions .profile-signin {
+  justify-content: center;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.profile-actions .profile-signin:hover {
+  background: var(--text);
+  opacity: 0.9;
+}

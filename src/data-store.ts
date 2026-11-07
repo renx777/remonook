@@ -3,9 +3,12 @@ import {validateBookmarks,articleSnapshotHashes} from './bookmarks.mjs';
 import {validateFsrs} from './fsrs-scheduler.mjs';
 import {validateReading} from './reading.mjs';
 import {validateReadingBooks} from './book-storage.mjs';
-import {project,openShared,vector,Y,emptyShared} from './sync-crdt.mjs';
+import {project,openShared,vector,Y,emptyShared,unpack,applyIntent} from './sync-crdt.mjs';
+import {sharedSnapshotProblem} from './sync-validate.mjs';
+import {workdaysLegacyIntent,upgradeWorkdaysIntent} from '../cloud/workdays-upgrade.mjs';
 import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
 import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox} from './sync-outbox.mjs';
+import {recoverRejectedBatch} from './sync-recovery.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
 import {validateOcclusions} from "./occlusion.mjs";
 import {validateStudyLibrary,studyFolders} from './study-library.mjs';
@@ -18,6 +21,7 @@ import { inspectZip } from "./zip-safety";
 import fieldRules from "./android-fields.json" with { type: "json" };
 import schema from "./android-schema.json" with { type: "json" };
 import { bullet, validate, refreshCards, uuid } from "./domain.mjs";
+import { withNodes as withNodesCore } from "./workspace-nodes.mjs";
 import { isCatalogEmoji, catalogAssetPaths } from './emoji-catalog.mjs';
 export type Node = ReturnType<typeof bullet> & Record<string, any>;
 export type RecordData = Record<string, any>;
@@ -80,37 +84,7 @@ export function sample(): Workspace {
   return d;
 }
 export function withNodes(doc: Workspace, nodes: Node[]): Workspace {
-  nodes = syncMirrors(doc.tables.bullets, nodes);
-  const oldNodes=new Map(doc.tables.bullets.map(n=>[n.id,n]));
-  const noteTimes={...doc.web.noteTimes},now=Date.now();
-  for(const n of nodes){const before=oldNodes.get(n.id);if(!before||['text','formatting','parentId','position','taskState','dueDate','kind','blockStyle','codeLanguage','dividerStyle','dividerColor'].some(k=>before[k]!==n[k]))noteTimes[n.id]={...noteTimes[n.id],...(!before?{createdAt:now}:{}),updatedAt:now};}
-  doc={...doc,web:{...doc.web,noteTimes}};
-  const detached=nodes.filter(n=>!n.mirrorSourceId&&oldNodes.get(n.id)?.mirrorSourceId);
-  const detachedMedia=detached.flatMap(n=>doc.tables.media.filter(m=>m.bulletId===oldNodes.get(n.id)!.mirrorSourceId).map(m=>({...m,id:uuid(),bulletId:n.id})));
-  if(detachedMedia.length)doc={...doc,tables:{...doc.tables,media:[...doc.tables.media,...detachedMedia]}};
-
-  validate(nodes);
-  const ids = new Set(nodes.map((n) => n.id)),
-    sourceIds = new Set([...doc.tables.bullets.map(node => node.id), ...ids]),
-    sourceCards = doc.tables.cards.filter(card => sourceIds.has(card.id)),
-    independentCards = doc.tables.cards.filter(card => !sourceIds.has(card.id));
-  const media = doc.tables.media.filter((m) => ids.has(m.bulletId)),
-    decks = doc.tables.decks.filter((d) => ids.has(d.rootId)),excluded=new Set(doc.web.studyExcludedCards||[]);
-  return {
-    ...doc,
-    columns: { ...doc.columns,
-      media: media.some(item=>item.displayWidth!==undefined) && !doc.columns.media.includes("displayWidth") ? [...doc.columns.media,"displayWidth"] : doc.columns.media,
-      bullets: [...new Set([...doc.columns.bullets.filter(field=>nodes.some(n=>n.mirrorSourceId)||!['mirrorSourceId','mirrorRootId'].includes(field)), ...nodes.flatMap(node => node.mirrorSourceId ? ['mirrorSourceId','mirrorRootId'] : []), ...(nodes.some(node=>node.mindmap)?['mindmap']:[]), ...(nodes.some(node=>node.blockStyle&&node.blockStyle!=='paragraph')?['blockStyle']:[]), ...(nodes.some(node=>node.dividerStyle)?['dividerStyle']:[]), ...(nodes.some(node=>node.dividerColor)?['dividerColor']:[])])],
-      decks: doc.tables.decks.some(deck => deck.layout) && !doc.columns.decks.includes('layout') ? [...doc.columns.decks, 'layout'] : doc.columns.decks,
-    },
-    tables: {
-      ...doc.tables,
-      bullets: nodes,
-      media,
-      decks,
-      cards: [...independentCards, ...refreshCards(nodes, decks.filter(deck => doc.web.deckTypes?.[deck.rootId] !== "MCQ"), media, sourceCards, Date.now())].map(card=>excluded.has(card.id)?{...card,state:'INACTIVE'}:card),
-    },
-  };
+  return withNodesCore(doc, nodes) as Workspace;
 }
 /** Content-only edits preserve the validated tree and scheduling metadata. */
 export function updateBulletContent(doc:Workspace,id:string,value:{text:string;formatting:string}):Workspace{
@@ -773,7 +747,37 @@ export async function syncOperation(operation:string,args:any={},account=storage
  }
  if(operation==='uploaded'){await change(m=>{m.uploaded=[...new Set([...(m.uploaded||[]),args.hash])];return m;});return;}
  if(operation==='receive'){await change(m=>receiveOutbox(m,args.response));return;}
+ if(operation==='recover'){await change(m=>recoverRejectedBatch(m,args.server,args.operationId,args.reason));return;}
+ if(operation==='recovery-export')return (await read())?.recoveries||[];
+ if(operation==='recovery-notice'){
+  const m=await read(),pending=m?.recoveries?.filter((r:any)=>r.noticePending)||[];
+  return pending.length?{ids:pending.map((r:any)=>r.operationId),message:'Some content could not sync in its original form. It is preserved under “Recovered from this device” and in Account recovery downloads. Sync is still pending.'}:null;
+ }
+ if(operation==='recovery-notice-shown'){await change(m=>{for(const r of m.recoveries||[])if(args.ids.includes(r.operationId))r.noticePending=false;return m;});return;}
  if(operation==='current')return (await read()).receivedState===args.state;
+ if(operation==='diagnose'){
+  const m=await read();
+  // Most faithful: replay the batch being sent onto the server's own copy, in the server's order.
+  if(args?.server&&m.inflight?.update){
+   const y=openShared(args.server),update=unpack(m.inflight.update);let step='Workdays (older edit check)';
+   try{
+    const legacy=m.inflight.recovery?null:workdaysLegacyIntent(y,update,unpack(m.inflight.workdaysVector||m.inflight.vector));
+    step='apply update';Y.applyUpdate(y,update);
+    if(legacy){step='Workdays upgrade';const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,args.workdays);step='Workdays upgrade apply';applyIntent(y,before,next);}
+    const problem=sharedSnapshotProblem(y);
+    return problem?'server copy · '+problem:'';
+   }catch(e:any){return 'server copy · '+step+': '+String(e?.message||e?.name||'no message').replace(/\s+/g,' ').slice(0,160);}
+   finally{y.destroy();}
+  }
+  const y=openShared(m.localState);
+  try{const problem=sharedSnapshotProblem(y);if(problem)return problem;}finally{y.destroy();}
+  // The server also upgrades older Workdays edits in the batch it receives.
+  if(m.inflight?.update&&args?.workdays){const r=openShared(m.receivedState);
+   try{const legacy=m.inflight.recovery?null:workdaysLegacyIntent(r,unpack(m.inflight.update),unpack(m.inflight.workdaysVector||m.inflight.vector));
+    if(legacy){try{upgradeWorkdaysIntent(project(r).doc,legacy,args.workdays);}catch(e:any){return 'Workdays upgrade: '+String(e?.message||'failed').slice(0,160);}}
+   }finally{r.destroy();}}
+  return '';
+ }
  if(operation==='inspect'){
   const m=await read(),y=openShared(m.receivedState);let shared;
   try{shared=project(y);}finally{y.destroy();}
@@ -787,4 +791,20 @@ export async function syncOperation(operation:string,args:any={},account=storage
   try{const text=a.getText(name),out=b.getText(name);const map=(pos:number)=>{const relative=Y.createRelativePositionFromTypeIndex(text,Math.max(0,Math.min(pos,text.length)));return Y.createAbsolutePositionFromRelativePosition(relative,b)?.index??Math.min(pos,out.length);};return {...args.selection,anchor:map(args.selection.anchor),head:map(args.selection.head)};}finally{a.destroy();b.destroy();}
  }
  throw Error('Unknown persistence operation.');
+}
+
+// Device-local research is deliberately outside workspace records and exports.
+export type AiDraft={operation:'answer'|'explain'|'summarize'|'flashcards'|'mcqs';mode:'general'|'web';context:string;sourceIds:string[];sourceTexts:string[];selectionIds?:string[];complete:boolean;interrupted?:string;candidates?:any[];selected?:number[];sources?:{id:number;title:string;text:string;url:string;source:string}[];title?:string;reader?:{hash:string;selection:any;fingerprint:string};supported?:boolean};
+export type ResearchDraft={id:string;query:string;answer:string;updatedAt:number;insertedId?:string;ai?:AiDraft};
+export type ResearchState={generation:string;drafts:Record<string,ResearchDraft>};
+export async function researchStore(change?: (value:ResearchState)=>ResearchState, expectedGeneration?:string, name=storageName):Promise<ResearchState>{
+ const db=await openDb(name);try{
+  const tx=db.transaction('meta','readwrite'),finished=done(tx),store=tx.objectStore('meta');
+  let value=await request<ResearchState|undefined>(store.get('ai-drafts'));
+  if(!value){const legacy=await request<ResearchState|undefined>(store.get('research-drafts'));if(legacy)value={generation:legacy.generation,drafts:Object.fromEntries(Object.entries(legacy.drafts).map(([id,d])=>[id,{...d,ai:{operation:'answer',mode:'web',context:d.query,sourceIds:[id],sourceTexts:[d.query],complete:false}}]))};}
+  value=value||{generation:uuid(),drafts:{}};
+  if(expectedGeneration&&value.generation!==expectedGeneration){tx.abort();await finished.catch(()=>{});throw Error('The workspace changed. Reopen research to continue.');}
+  if(change)value=change(value);
+  store.put(value,'ai-drafts');await finished;return value;
+ }finally{db.close();}
 }

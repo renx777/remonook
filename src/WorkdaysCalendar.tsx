@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { Workspace } from "./data";
 import { localDate } from "./calendar-events.mjs";
 import {
@@ -12,19 +12,18 @@ import {
   setAllocations,
   confirmPlans,
   clearWorkday,
-  targetProgress,
-  targetWarnings,
-  summarizeWorkdays,
   routinePreview,
   applyRoutine,
   leaveBalances,
 } from "./workdays-v2.mjs";
 import { WorkdayDialog } from "./WorkdayDialog";
+import { WorkdaysOverview } from "./WorkdaysOverview";
+import { WorkdayHolidays } from "./WorkdayHolidays";
+import { usePhone } from "./workdays-stats";
 import { WorkdayMarker, LeaveEntry } from "./WorkMode";
 import { WorkdaySettings, LeaveSettings } from "./WorkdaySettings";
 import { Icon } from "./icons";
 import "./workdays-v2.css";
-const Insights = lazy(() => import("./WorkdayInsights"));
 const HolidayImport = lazy(() => import("./WorkdayHolidayImport"));
 type Props = {
   doc: Workspace;
@@ -44,11 +43,11 @@ export function WorkdaysCalendar({
 }: Props) {
   const w = workdaysV2(doc, date),
     [tab, setTab] = useState("overview"),
-    [period, setPeriod] = useState("month"),
     [anchor, setAnchor] = useState(date),
     [selected, setSelected] = useState<string[]>([]),
     [dialog, setDialog] = useState(""),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    phone = usePhone();
   const [today, setToday] = useState(localDate);
   useEffect(() => {
     const tick = () => setToday(localDate());
@@ -59,13 +58,8 @@ export function WorkdaysCalendar({
       clearInterval(t);
     };
   }, []);
-  const range = periodRange(anchor, tab === "plan" ? "month" : period),
-    month = periodRange(anchor, "month"),
-    summary = useMemo(
-      () => summarizeWorkdays(w, range.start, range.end, today),
-      [w, range.start, range.end, today],
-    ),
-    warnings = targetWarnings(w, anchor, today);
+  const range = periodRange(anchor, "month"),
+    month = periodRange(anchor, "month");
   const change = (fn: (d: Workspace) => Workspace) => {
     try {
       onChange(fn);
@@ -101,7 +95,7 @@ export function WorkdaysCalendar({
         <div className="wd2-workspace">
           <div className="wd2-workspace-nav">
             <nav aria-label="Workdays views">
-              {["overview", "plan", "leave"].map((t) => (
+              {["overview", "plan", "leave", "holidays"].map((t) => (
                 <button
                   key={t}
                   aria-pressed={tab === t}
@@ -132,7 +126,7 @@ export function WorkdaysCalendar({
               </button>
             </div>
           </div>
-          <div className="wd2-period">
+          {tab !== "overview" && tab !== "holidays" && <div className="wd2-period">
             <button
               className="icon-button"
               aria-label="Previous work period"
@@ -154,17 +148,6 @@ export function WorkdaysCalendar({
                 }}
               />
             </label>
-            {tab === "overview" && (
-              <select
-                aria-label="Statistics period"
-                value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-              >
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-                <option value="quarter">Quarter</option>
-              </select>
-            )}
             <button
               className="icon-button"
               aria-label="Next work period"
@@ -172,152 +155,27 @@ export function WorkdaysCalendar({
             >
               <Icon name="forward" size={16} />
             </button>
-          </div>
+          </div>}
           {tab === "overview" && (
-            <>
-              <p className="wd2-muted">
-                {range.start} – {range.end} · Scheduled workdays only
-              </p>
-              <div className="wd2-metrics">
-                {[
-                  ["Home", summary.home],
-                  ["Office", summary.office],
-                  ["Leave", summary.leave],
-                  ["Unrecorded", summary.missing],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <strong>{value}</strong>
-                    <span>{label}</span>
-                  </div>
-                ))}
-              </div>
-              <Suspense fallback={<p role="status">Loading chart…</p>}>
-                <Insights
-                  rows={summary.rows}
-                  period={period}
-                  onDate={(d) => {
-                    setAnchor(d);
-                    setTab("plan");
-                    setSelected([d]);
-                  }}
-                />
-              </Suspense>
-              <div className="wd2-section-title">
-                <h3>Targets</h3>
-                <button
-                  className="wd2-link"
-                  onClick={() => setDialog("settings")}
-                >
-                  Edit targets
-                </button>
-              </div>
-              {!Object.keys(w.targets).length && (
-                <p className="wd2-muted">
-                  Set an office minimum or a home-working limit.
-                </p>
-              )}
-              {Object.values(w.targets).map((t: any) => {
-                const p = targetProgress(w, t, anchor, today);
-                if (!p) return null;
-                return (
-                  <button
-                    className="wd2-target"
-                    key={t.id}
-                    onClick={() => {
-                      setTab("plan");
-                      setSelected([]);
-                      setAnchor(p.start);
-                    }}
-                  >
-                    <div>
-                      <strong>
-                        {t.mode === "WFH" ? "Home" : "Office"} ·{" "}
-                        {t.comparison === "min" ? "At least" : "At most"}{" "}
-                        {t.value}
-                        {t.unit === "percent" ? "%" : " days"} / {t.period}
-                      </strong>
-                      <span>
-                        {p.noDays
-                          ? "No eligible workdays"
-                          : `${p.actual} recorded · ${p.projected} projected · ${p.projectedTarget} ${t.comparison === "min" ? "needed" : "limit"}`}
-                      </span>
-                    </div>
-                    <div className="wd2-progress" aria-hidden="true">
-                      <i
-                        style={{
-                          width:
-                            Math.min(
-                              100,
-                              p.target ? (p.actual / p.target) * 100 : 0,
-                            ) + "%",
-                        }}
-                      />
-                      <i
-                        className="projected"
-                        style={{
-                          width:
-                            Math.min(
-                              100,
-                              p.projectedTarget
-                                ? (p.projected / p.projectedTarget) * 100
-                                : 0,
-                            ) + "%",
-                        }}
-                      />
-                    </div>
-                    <small>
-                      {p.eligible} eligible days · {p.projectedEligible} after
-                      planned leave · {p.missing} unrecorded
-                      {t.comparison === "max" && p.end >= today
-                        ? " · provisional until period ends"
-                        : ""}
-                    </small>
-                  </button>
-                );
-              })}
-              {warnings.map((warning) => (
-                <p className="wd2-warning" key={warning}>
-                  {warning}
-                </p>
-              ))}
-              {!!summary.exceptions && (
-                <p className="wd2-muted">
-                  {summary.exceptions} recorded days on holidays/nonworking days
-                  · kept as exceptions, excluded from targets.
-                </p>
-              )}
-              {!!summary.pending.length && (
-                <section className="wd2-pending">
-                  <div className="wd2-section-title">
-                    <h3>{summary.pending.length} plans to confirm</h3>
-                    <button
-                      disabled={disabled}
-                      className="wd2-link"
-                      onClick={() =>
-                        change((d) => confirmPlans(d, summary.pending))
-                      }
-                    >
-                      Confirm these plans
-                    </button>
-                  </div>
-                  {summary.pending.slice(0, 7).map((d) => (
-                    <button
-                      className="wd2-pending-date"
-                      key={d}
-                      onClick={() => {
-                        setAnchor(d);
-                        setTab("plan");
-                        setSelected([d]);
-                      }}
-                    >
-                      {d}
-                      <span>{workdayState(w, d, today).label}</span>
-                      <Icon name="forward" size={14} />
-                    </button>
-                  ))}
-                </section>
-              )}
-            </>
+            <WorkdaysOverview
+              doc={doc}
+              w={w}
+              anchor={anchor}
+              today={today}
+              disabled={disabled}
+              phone={phone}
+              change={change}
+              onAnchor={(d) => {
+                if (d >= "1900-01-01" && d <= "2199-12-31") setAnchor(d);
+              }}
+              onPlan={(d) => {
+                setAnchor(d);
+                setTab("plan");
+                setSelected([d]);
+              }}
+              onSettings={() => setDialog("settings")}
+              onLeave={() => setTab("leave")}
+            />
           )}
           {tab === "plan" && (
             <>
@@ -454,6 +312,18 @@ export function WorkdaysCalendar({
               )}
             </>
           )}
+          {tab === "holidays" && (
+            <WorkdayHolidays
+              w={w}
+              anchor={anchor}
+              disabled={disabled}
+              onAnchor={(d) => {
+                if (d >= "1900-01-01" && d <= "2199-12-31") setAnchor(d);
+              }}
+              onChange={onChange}
+              onImport={() => setDialog("import")}
+            />
+          )}
           {tab === "leave" && (
             <LeaveSettings
               doc={doc}
@@ -480,7 +350,10 @@ export function WorkdaysCalendar({
             doc={doc}
             date={anchor}
             disabled={disabled}
-            onChange={onChange}
+            onChange={(fn) => {
+              onChange(fn);
+              setTab("holidays");
+            }}
             onClose={() => setDialog("")}
           />
         </Suspense>

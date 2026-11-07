@@ -1,3 +1,4 @@
+import {sharedDocumentProblem} from './sync-diagnostics';
 import {workdaysV2} from './workdays-v2.mjs';
 import {useEffect,useRef,useState} from 'react';
 import type {User} from 'firebase/auth';
@@ -8,7 +9,7 @@ import {createUiSignal} from './ui-signal';
 type Asset={path:string;hash:string;size:number;type:string};
 type Selection={id:string;anchor:number;head:number};
 type Apply={state:string;selection?:Selection};
-type Options={user:User|null;revision?:number;ready:boolean;get:()=>{doc:Workspace|null;assets:Map<string,Blob>};flush:()=>Promise<unknown>;canApply:()=>boolean;selection?:()=>Selection|null;apply:(doc:Workspace,assets:Map<string,Blob>,sync?:Apply)=>Promise<void>};
+type Options={onNotice?:(message:string)=>void;user:User|null;revision?:number;ready:boolean;get:()=>{doc:Workspace|null;assets:Map<string,Blob>};flush:()=>Promise<unknown>;canApply:()=>boolean;selection?:()=>Selection|null;apply:(doc:Workspace,assets:Map<string,Blob>,sync?:Apply)=>Promise<void>};
 export function useCloudSync(options:Options){
  const latest=useRef(options);latest.current=options;
  const acknowledged=useRef<number|null>(null);
@@ -35,9 +36,11 @@ export function useCloudSync(options:Options){
   if(timer.current){clearTimeout(timer.current);timer.current=null;}queued.current=false;busy.current=true;
   const account=storageAccountKey(),work=(operation:string,args:any={})=>syncOperation(operation,args,account);
   setError('');setStatus('Syncing…');
+  let submitted:string|null=null;
   try{
    if(!navigator.onLine){setStatus('Saved on device · sync pending');return;}
    await latest.current.flush();
+   const notice=await work('recovery-notice');if(notice&&latest.current.onNotice){latest.current.onNotice(notice.message);await work('recovery-notice-shown',{ids:notice.ids});}
    if(!(await work('status')).initialized){
     const response=await(await request('/sync/v2')).json();if(response.protocol!==2)throw Error('An app update is being prepared. Your edits are saved on this device.');
     await latest.current.flush();const current=latest.current.get();if(!current.doc)return;
@@ -50,7 +53,8 @@ export function useCloudSync(options:Options){
    const network=await work('network');
    if(network.inflight){
     for(const asset of network.assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!network.uploaded.includes(asset.hash)){await request('/assets/'+asset.hash,{method:'PUT',body:blob});await work('uploaded',{hash:asset.hash});}}
-    let response;try{response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(network.inflight)})).json();}catch(e){if((e as any).code!=='WORKDAYS_CONTEXT_REQUIRED')throw e;const context=latest.current.get().doc;if(!context)throw e;response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,workdaysContext:workdaysV2(context)})})).json();}
+    submitted=network.inflight.operationId;
+    let response;try{response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(network.inflight)})).json();}catch(e){if((e as any).code!=='WORKDAYS_CONTEXT_REQUIRED')throw e;const context=latest.current.get().doc;if(!context)throw e;response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,workdaysContext:network.inflight.workdaysContext||workdaysV2(context)})})).json();}
     await work('receive',{response});
    }else{
     const response=await request('/sync/v2',{headers:{'X-Sync-Vector':network.vector,'If-None-Match':String(network.serverRevision)}});
@@ -77,7 +81,28 @@ export function useCloudSync(options:Options){
    if(remaining)queued.current=true;
   }catch(e:any){
    setStatus('Saved on device · sync pending');
-   if(!e?.deferred&&[400,401,403,413].includes(e?.status))setError(e.message);
+   if(e?.status===400&&e?.code==='SYNC_VALIDATION_FAILED'&&submitted){
+    try{
+     const server=await(await request('/sync/v2')).json();
+     await work('recover',{server,operationId:submitted,reason:e.message});
+     const notice=await work('recovery-notice');if(notice&&latest.current.onNotice){latest.current.onNotice(notice.message);await work('recovery-notice-shown',{ids:notice.ids});}
+     queued.current=true;failures.current=0;return;
+    }catch(recoveryError:any){e=Object.assign(recoveryError,{status:recoveryError.status||400});}
+   }
+   if(!e?.deferred&&[400,401,403,413].includes(e?.status)){
+    // Name what the server rejected instead of repeating a generic message.
+    let message=e.message;
+    if(e.status===400&&String(message).startsWith('Invalid shared document')&&!String(message).includes(':')){
+     // Older servers don't say why. Run the server's own check on this device's sync copy.
+     const doc=latest.current.get().doc;let problem='',server='';
+     try{server=(await(await request('/sync/v2')).json())?.update||'';}catch{}
+     try{problem=String(await work('diagnose',{workdays:doc?workdaysV2(doc):null,server})||'');}catch{}
+     if(!problem)problem=sharedDocumentProblem(doc);
+     message='Invalid shared document · '+(problem||(server?'the sync server rejects a batch that passes its checks here; it needs updating':'rejected by the sync server; this device\'s copy passes every check'));
+    }
+    if(e.status===400)console.warn(JSON.stringify({event:'sync_rejected',message}));
+    setError(message);
+   }
    // Temporary network failures, races and editor transactions retry quietly.
    failures.current=Math.min(failures.current+1,6);queued.current=true;
   }finally{

@@ -87,6 +87,63 @@ Existing limits remain: 900 KiB projected workspace, 2 MiB per attachment and
 request batches are bounded. Sign-in/storage/quota errors stay actionable, and
 pending work is never described as Synced.
 
+## Permanent validation rejection recovery
+
+A decoded, projectable batch rejected with HTTP 400 and
+`SYNC_VALIDATION_FAILED` is recovered automatically. Network, authentication,
+quota, attachment-upload and protocol errors do not take this path. A fresh GET
+obtains acknowledged server operations; it never replaces the workspace.
+
+Before retrying, one account-scoped IndexedDB transaction retains the immutable
+rejected request, all pending operations, local/received CRDT states and the local
+projection in a recovery entry. It merges server operations into the existing
+CRDT, repairs only the failing validation domain against acknowledged values, and
+adds readable copies of the affected content under **Recovered from this device**.
+The exact recovery entry remains available as a download in Account settings.
+This is automatic preservation, not a device/cloud choice or force overwrite.
+
+The correction is another incremental Yjs operation. The replacement request
+contains the original pending operations AND the correction, with a new stable
+operation ID. Integrating the original structs preserves dependencies for later
+edits. No pending ID is removed during recovery; only the server acknowledgement
+of the corrected request can remove its claimed IDs. Edits during the request stay
+queued. Storage failure rolls the transaction back; failed recovery/oversized
+recovery stays visibly pending. Recovery itself is not an acknowledgement.
+The server's recovery request marker skips only legacy Workdays reinterpretation;
+the merged result still passes all ordinary validation, storage and attachment
+checks. It does not rewrite the v2 switch marker or replace any shared snapshot.
+
+A durable notice is delivered once after recovery is saved, explaining that some
+content was preserved in recovered notes and sync is still pending. Reopening the
+app does not repeatedly recover the same request. A second rejection of that
+repair is surfaced rather than generating an endless chain of recovered notes.
+Recovery entries are account-local and are never automatically pruned. Recovered
+notes follow ordinary synchronization and backups.
+
+## Workdays sender vectors and representation repair
+
+Yjs updates include the entire historical delete set. When the server already
+has Workdays v2, `workdaysLegacyIntent` checks whether the sender's state vector
+includes the item that set `web.workdays.version = 2`. If so, removals already
+deleted on the server are history, not a fresh v1 edit. New legacy insertions and
+newly observed removals still require conversion. A client that has never seen
+the v2 item retains legacy handling, including offline Clear actions.
+
+For new outbox entries, retain the vector at authorship and the migrated context
+of v1 Workdays edits. A claimed batch that mixes pre-switch and post-switch edits
+uses the first legacy entry's authorship vector (`workdaysVector`) and the last
+legacy context. Its ordinary `vector` remains the current response-delta vector.
+Older immutable requests without this metadata continue using their original
+`vector` and the existing context retry. Never rewrite a claimed request in place.
+A batch containing its own v2 conversion already expresses that migration.
+
+Shared validation repairs stray v1 policies/allowances and entry fields beside
+v2 data, and repairs blank, oversized or non-string holiday names. Existing v2
+slots win; an unambiguous legacy-only row becomes two half-day slots. Original
+changed values are copied to recovered notes and the repair is journalled with
+the accepted operation. Unsupported representations remain eligible for durable
+client recovery; quota and storage failures are never acknowledged as success.
+
 ## Verification
 
 Tests exercise actual React hooks with IndexedDB and SQLite-backed Worker routes,

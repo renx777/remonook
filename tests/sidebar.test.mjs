@@ -6,35 +6,27 @@ import { createRoot } from 'react-dom/client';
 import { bullet } from '../src/domain.mjs';
 import { OutlineSidebar } from './.build/OutlineChrome.mjs';
 
-test('sidebar virtualizes 10,000 nesting levels and scrolls selected ancestors into view', async () => {
+test('sidebar lists tags (nested, case-insensitive, most used first) instead of notes', async () => {
   const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
   for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'Node']) Object.defineProperty(globalThis, key, { value: dom.window[key], configurable: true });
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  globalThis.ResizeObserver = undefined;
-  Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get() { return this.classList.contains('root-nav') ? 400 : 0; } });
-  HTMLElement.prototype.getBoundingClientRect = function () {
-    const top = this.getAttribute('role') === 'tree' ? 100 - (this.parentElement?.scrollTop || 0) : 0;
-    return { x: 0, y: top, top, bottom: top + 400, left: 0, right: 280, width: 280, height: 400 };
-  };
-  const nodes = Array.from({ length: 10000 }, (_, i) => bullet(`n${i}`, { text: `Level ${i}`, parentId: i ? `n${i - 1}` : null })), navigated = [];
+  const nodes = [
+    bullet('a', { text: 'Gradient descent #study/ml #imp' }), bullet('b', { text: 'RAG notes #Study/rag', position: 1 }),
+    bullet('c', { text: 'Bias #study/ML', position: 2 }), bullet('d', { text: 'Pay bill #imp', position: 3 }),
+    bullet('e', { text: 'Linked [[Note|x#nottag]] and code', position: 4 }),
+  ], searched = [];
   const root = createRoot(document.querySelector('#root'));
-  const render = async scope => act(async () => root.render(React.createElement(OutlineSidebar, { nodes, scope, starred: [], savedSearches: [], disabled: false, onNavigate: id => navigated.push(id), onSearch() {}, onAdd() {} })));
-  await render('n9999');
-  assert.ok(document.querySelectorAll('[role="treeitem"]').length < 60, 'Only the visible sidebar window is mounted');
-  assert.equal(document.querySelector('[aria-selected="true"]').getAttribute('aria-level'), '10000');
-  const viewport = document.querySelector('.root-nav');
-  assert.ok(viewport.scrollTop > 290000);
-  await act(async () => { viewport.scrollTop = 0; viewport.dispatchEvent(new window.Event('scroll')); });
-  assert.match(document.querySelector('.sidebar-tree-label').textContent, /Level 0$/);
-  await act(async () => document.querySelector('.sidebar-tree-toggle').click());
-  assert.equal(document.querySelectorAll('[role="treeitem"]').length, 1, 'Collapsing a huge branch remains available');
-  await render('n5000');
-  assert.equal(document.querySelector('[aria-selected="true"]').getAttribute('aria-level'), '5001');
-  await act(async () => document.querySelector('[aria-selected="true"] .sidebar-tree-label').click());
-  assert.deepEqual(navigated, ['n5000']);
-  await render(null);
-  await act(async () => { viewport.scrollTop = 0; viewport.dispatchEvent(new window.Event('scroll')); });
-  await render('n5000');
-  assert.ok(document.querySelector('[aria-selected="true"]'), 'Returning from Home restores the selected location');
+  const render = async search => act(async () => root.render(React.createElement(OutlineSidebar, { nodes, scope: null, starred: [], savedSearches: [], search, onNavigate() {}, onSearch: q => searched.push(q) })));
+  await render('');
+  assert.equal(document.querySelector('[aria-label="Notes tree"]'), null, 'no notes tree in the sidebar');
+  const names = () => [...document.querySelectorAll('[aria-label="Tags"] .sidebar-tag-name')].map(n => n.textContent);
+  assert.deepEqual(names(), ['study', 'imp'], 'top-level tags, most used first');
+  assert.equal(document.querySelector('[aria-label="Tags"] [role="treeitem"] small').textContent, '3');
+  await act(async () => document.querySelector('[aria-label="Expand #study"]').click());
+  assert.deepEqual(names(), ['study', 'ml', 'rag', 'imp'], 'nested tags merge across case and fold under their parent');
+  await act(async () => [...document.querySelectorAll('.sidebar-tag')].find(b => b.textContent.startsWith('ml')).click());
+  assert.deepEqual(searched, ['#study/ml']);
+  await render('#study/rag');
+  assert.equal(document.querySelector('[aria-selected="true"] .sidebar-tag-name').textContent, 'rag');
   await act(async () => root.unmount()); dom.window.close();
 });

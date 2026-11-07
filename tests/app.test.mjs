@@ -182,7 +182,8 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await click(calendarTabBtn);
   await wait(() => document.querySelector(".calendar-view"));
   assert.ok(document.querySelector(".calendar-date-pill"));
-  assert.ok(document.querySelector(".calendar-strip-container"));
+  assert.ok(document.querySelector(".cal2-month"), "the agenda column shows a month grid");
+  assert.ok(document.querySelector(".cal2-agenda"));
 
   // Popover toggle
   const datePill = document.querySelector(".calendar-date-pill");
@@ -216,7 +217,8 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   stored=await load();const pasted=stored.tables.bullets.filter(n=>['First pasted daily bullet','Second pasted daily bullet'].includes(n.text));assert.equal(pasted.length,2);assert.equal(pasted[0].parentId,pasted[1].parentId);assert.notEqual(pasted[0].parentId,firstDaily.parentId);
 
   // Year picker popover
-  const yearShortcutBtn = document.querySelector(".shortcut-year-btn");
+  await click(datePill);
+  const yearShortcutBtn = document.querySelector(".calendar-mini-month-year-btn");
   assert.ok(yearShortcutBtn);
   await click(yearShortcutBtn);
   assert.ok(document.querySelector(".calendar-year-grid"));
@@ -343,9 +345,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await wait(() => document.querySelectorAll(".outline-row").length >= 2);
 
   // Sidebar navigation and starred shortcuts operate on the existing outline.
-  const collapsedWelcome = document.querySelector('[aria-label="Expand Welcome to RemoNook in sidebar"]');
-  if (collapsedWelcome) await click(collapsedWelcome);
-  assert.ok(document.querySelector('[aria-label="Notes tree"] [aria-level="2"]'));
+  assert.ok(document.querySelector('[role="tree"][aria-label="Tags"]'), 'the sidebar lists tags');
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
   assert.ok(document.querySelector('.outline-popover[open]'));
   await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Star'));

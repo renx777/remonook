@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { outlineClipboardHtml, type ClipboardInput } from "./clipboard";
 import type { Editor } from "@tiptap/core";
 import { indexedRows, index, descendants } from "./domain.mjs";
+import { rootRows } from "./notes-filter.mjs";
 import { BulletEditor, RichRead } from "./editor";
 import { Icon } from "./icons";
 import type { Node } from "./data";
@@ -16,13 +17,21 @@ import { MediaContent } from "./MediaContent";
 import { mediaLinks } from "./media.mjs";
 import { imageType } from "./media.mjs";
 import { depthIndent } from "./outline-layout.mjs";
-import {hasImportantTag} from "./relations.mjs";
+import {bulletTagStyle,toggleTagCheckbox} from "./tags.mjs";
+import {TagSettingsContext} from "./TagSettingsContext";
+import {marks as markRanges,encode as encodeMarks} from "./domain.mjs";
 import {useContext} from "react";
 import {SearchContext} from "./SearchBox";
 import {searchMatcher} from "./search.mjs";
 import { readerSelection } from "./outline-selection";
 type Props = {
   hideTitle?: boolean;
+  /** Size the canvas to its rows so a parent page can scroll it (short outlines only). */
+  fitContent?: boolean;
+  /** Show only these bullets (each with its children) instead of the scope's tree. */
+  rootIds?: string[] | null;
+  /** Hide typed branches in the ordinary Notes filter, including their children. */
+  excludedIds?: ReadonlySet<string>;
   nodes: Node[];
   scope: string | null;
   search: string;
@@ -57,6 +66,7 @@ type Props = {
 };
 export function OutlineView(p: Props) {
   const {times}=useContext(SearchContext);
+  const tagSettings=useContext(TagSettingsContext);
   const music=useMusic(),galleryContext=useContext(GalleryContext);
   const badges=useMemo(()=>branchMedia(p.nodes,p.media),[p.nodes,p.media]);
   const mindmapBadges=useMemo(()=>{
@@ -82,13 +92,13 @@ export function OutlineView(p: Props) {
     rs = useMemo(
       () => {
         const expanded = !!p.search,
-          all = indexedRows(idx, p.scope, expanded),
+          all = p.rootIds ? rootRows(idx, p.rootIds, expanded) : indexedRows(idx, p.scope, expanded),
           completion = { depth: -1 },
           available = all.filter((row: any) => {
             if (row.depth <= completion.depth) completion.depth = -1;
             const hidden = !p.showCompleted && !/(?:^|\s)is:complete(?:\s|$)/i.test(p.search) && (row.bullet.taskState === "DONE" || completion.depth >= 0);
             if (hidden && completion.depth < 0) completion.depth = row.depth;
-            return !hidden || row.bullet.id === p.editing;
+            return !p.excludedIds?.has(row.bullet.id)&&(!hidden || row.bullet.id === p.editing);
           });
         const query = p.search.trim().toLowerCase();
         if (!query) return available;
@@ -103,7 +113,7 @@ export function OutlineView(p: Props) {
         }
         return available.filter((row: any) => keep.has(row.bullet.id));
       },
-      [idx, p.scope, p.search, p.showCompleted, p.editing,matches],
+      [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds,p.excludedIds],
     );
   const scroller = useRef<HTMLDivElement>(null),
     [view, setView] = useState({ top: 0, height: 600, width: 800 }),
@@ -588,7 +598,7 @@ export function OutlineView(p: Props) {
   return (
     <div
       ref={scroller}
-      className="outline-scroll"
+      className={"outline-scroll" + (!p.hideTitle && !scopedNode ? " is-root" : "")}
       onScroll={(e) => {
         // React clears currentTarget after dispatch; capture before a deferred update.
         const top = e.currentTarget.scrollTop;
@@ -599,7 +609,7 @@ export function OutlineView(p: Props) {
     >
       <div
         className={`outline-canvas ${boxSelect ? "is-drag-selecting" : ""}`}
-        style={{ height: Math.max(total + 100, view.height) }}
+        style={{ height: p.fitContent ? total + 24 : Math.max(total + 100, view.height) }}
         onPointerDownCapture={(e) => {
           if (p.disabled || e.button !== 0 || e.pointerType === 'touch') return;
           const target = e.target as HTMLElement;
@@ -664,7 +674,7 @@ export function OutlineView(p: Props) {
               }}
             />
           </div>
-        ) : <div className="zoomed-header"><h1 className="zoomed-title">My notes</h1></div>)}
+        ) : <h1 className="page-title-hidden">My notes</h1>)}
         {!rs.length && (!scopedNode || p.search) && (
           <div className="empty-state">
             <Icon name="notes" size={30} />
@@ -684,6 +694,7 @@ export function OutlineView(p: Props) {
         )}
         {visible.map((r: any) => {
           const n = r.bullet as Node,
+            ts = n.codeLanguage ? null : bulletTagStyle(n.text, tagSettings),
             childCount = (idx.children.get(n.id) || []).length,
             selected = n.id === p.editing,
             drop = drag?.active && drag.target === n.id && drag.id !== n.id;
@@ -710,10 +721,11 @@ export function OutlineView(p: Props) {
                 event.preventDefault();
                 if (!p.disabled) openMenu(n.id, event.currentTarget);
               }}
-              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${hasImportantTag(n.text)?"is-important":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
+              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
               style={{
                 top: r.top,
                 paddingLeft: depthIndent(r.depth, view.width),
+                ...(ts?.ring ? { ["--tag-ring" as any]: ts.ring } : {}),
               }}
             >
               {/* Indent guide lines showing extent of branches */}
@@ -812,7 +824,7 @@ export function OutlineView(p: Props) {
                   });
                 }}
               >
-                {n.listType === "ORDERED" ? <span className="list-marker">{`${ordinals.get(n.id)}. `}</span> : <svg className="bullet-glyph" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                {n.listType === "ORDERED" ? <span className="list-marker">{`${ordinals.get(n.id)}. `}</span> : ts?.question ? <span className={`tag-glyph tag-glyph-question ${ts.question === "answered" ? "is-answered" : ""}`} aria-hidden="true">{ts.question === "answered" ? "✓" : "?"}</span> : ts?.icon ? <span className="tag-glyph" aria-hidden="true">{ts.icon}</span> : <svg className="bullet-glyph" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
                   <circle className="bullet-outer-circle" cx="10" cy="10" r="7.5" fill="none" />
                   <circle className="bullet-inner-dot" cx="10" cy="10" r="3" />
                 </svg>}
@@ -829,6 +841,17 @@ export function OutlineView(p: Props) {
                 <Icon name="grip" size={14} />
               </button>
 
+              {n.taskState === "NONE" && ts?.checkbox && (
+                <input
+                  className="tag-checkbox"
+                  aria-label={(ts.checkbox.done ? "Mark not done: " : "Complete ") + n.text}
+                  type="checkbox"
+                  checked={ts.checkbox.done}
+                  disabled={p.disabled}
+                  onClick={e => e.stopPropagation()}
+                  onChange={() => { const next = toggleTagCheckbox(n, markRanges, encodeMarks); if (next) (p.onEditorChange || p.onChange)(n.id, next); }}
+                />
+              )}
               {n.taskState !== "NONE" && (
                 <input
                   aria-label={"Complete " + n.text}

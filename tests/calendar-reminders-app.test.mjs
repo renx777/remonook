@@ -33,7 +33,7 @@ test('calendar reminders create recurring items, rotate top tabs, complete occur
  const submit=async()=>act(async()=>document.querySelector('.reminder-editor').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
  try{
  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('.outline-row')||document.querySelector('.outline-scroll'));
- await click('[aria-label="Calendar reminders"]');await wait(()=>document.querySelector('.calendar-reminders'));
+ await click('[aria-label="Calendar reminders"]');await wait(()=>document.querySelector('.cal2-agenda'));
  await textClick('Add reminder');await input('[aria-label="Reminder title"]','Electricity bill');await select('[aria-label="Reminder category"]','bill');assert.equal(document.querySelector('[aria-label="Reminder repeat"]').value,'monthly');
  const date=document.querySelector('[aria-label="Reminder date"]').value;await submit();assert.match(document.querySelector('.reminder-current').textContent,/Electricity bill.*Today/);assert.ok(document.querySelector('.has-reminder'));
  await textClick('Add reminder');await input('[aria-label="Reminder title"]','Birthday');await submit();assert.ok(document.querySelector('[aria-label="Next reminder"]'));
@@ -44,6 +44,6 @@ test('calendar reminders create recurring items, rotate top tabs, complete occur
  assert.ok(document.querySelector(`[aria-label="Reopen Electricity bill on ${date}"]`));let state=await stored();assert.equal(state.web.calendarEvents.find(e=>e.title==='Electricity bill').completed[0],date);
  const nodes=structuredClone(state.tables.bullets);await click('[aria-label="Edit Birthday"]');await input('[aria-label="Reminder title"]','Annual birthday');await submit();state=await stored();assert.ok(state.web.calendarEvents.some(e=>e.title==='Annual birthday'));
  await click('[aria-label="Edit Annual birthday"]');await textClick('Delete reminder');await textClick('Delete this reminder');state=await stored();assert.equal(state.web.calendarEvents.length,1);assert.deepEqual(state.tables.bullets,nodes);
- await textClick('All reminders (1)');assert.ok(document.querySelector('.reminder-agenda-row'));assert.ok(document.querySelector('[aria-label="Edit Electricity bill"]'));
+ await textClick('All reminders (1)');assert.ok(document.querySelector('.cal2-row'));assert.ok(document.querySelector('[aria-label="Edit Electricity bill"]'));
  }finally{if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
 });

@@ -4,7 +4,8 @@ import {snapshotIndex} from './outline-snapshot.mjs';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Node } from "./data";
-import {displayText} from "./relations.mjs";
+import {displayText,tagColor} from "./relations.mjs";
+import {tagIndex,rootTags,tagLeaf,isTagQuery,tagKey,hasTag,tagSettings as effectiveTag} from "./tags.mjs";
 import { index } from "./domain.mjs";
 import { depthIndent } from "./outline-layout.mjs";
 import { Icon } from "./icons";
@@ -60,80 +61,63 @@ export function OutlinePopover({ title, anchor, onClose, children, className = "
   </Popover.Root>;
 }
 
-export function OutlineSidebar({ nodes, scope, starred, savedSearches, disabled, onNavigate, onSearch, onAdd }: {
+export function OutlineSidebar({ nodes, scope, starred, savedSearches, search = "", tagSettings = {}, onEditTag, onNavigate, onSearch }: {
   nodes: Node[];
   scope: string | null;
   starred: string[];
   savedSearches: string[];
-  disabled: boolean;
+  search?: string;
+  tagSettings?: Record<string, any>;
+  onEditTag?: (key: string) => void;
+  disabled?: boolean;
   onNavigate: (id: string | null) => void;
   onSearch: (query: string) => void;
-  onAdd: (parent: string | null) => void;
+  onAdd?: (parent: string | null) => void;
 }) {
-  const [expanded, setExpanded] = useState(new Set<string>()),
-    idx = useMemo(() => snapshotIndex(nodes), [nodes]),
-    viewportRef = useRef<HTMLDivElement>(null), treeRef = useRef<HTMLDivElement>(null), lastScrolled = useRef<string | null>(null),
-    [viewport, setViewport] = useState({ top: 0, height: 600 });
-  const visible=useMemo(()=>{
-    const rows:{node:Node;depth:number}[]=[],stack=(idx.children.get(null)||[]).filter((n:Node)=>!n.id.startsWith('journal-')).slice().reverse().map((node:Node)=>({node,depth:0}));
-    while(stack.length){const row=stack.pop()!;rows.push(row);if(expanded.has(row.node.id)){const children=idx.children.get(row.node.id)||[];for(let i=children.length-1;i>=0;i--)stack.push({node:children[i],depth:row.depth+1});}}
-    return rows;
-  },[idx,expanded]);
-  useEffect(() => {
-    if (!scope) return;
-    const parents: string[] = [];
-    let parent = idx.byId.get(scope)?.parentId;
-    while (parent) {
-      parents.push(parent);
-      parent = idx.byId.get(parent)?.parentId;
-    }
-    setExpanded(previous => new Set([...previous, ...parents]));
-  }, [scope]);
-  const measureViewport = () => {
-    const el = viewportRef.current, tree = treeRef.current;
-    if (!el || !tree) return;
-    const top = Math.max(0, el.getBoundingClientRect().top - tree.getBoundingClientRect().top), height = el.clientHeight || 600;
-    setViewport(previous => previous.top === top && previous.height === height ? previous : { top, height });
-  };
-  useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measureViewport);
-    observer?.observe(el); window.addEventListener("resize", measureViewport); measureViewport();
-    return () => { observer?.disconnect(); window.removeEventListener("resize", measureViewport); };
-  }, []);
-  useLayoutEffect(() => {
-    const el = viewportRef.current, tree = treeRef.current;
-    if (!scope) { lastScrolled.current = null; return; }
-    if (!el || !tree || lastScrolled.current === scope) return;
-    const at = visible.findIndex(item => item.node.id === scope);
-    if (at < 0) return; // Ancestors are expanded by the effect above on the next render.
-    const start = tree.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
-    if (start + at * 30 < el.scrollTop || start + (at + 1) * 30 > el.scrollTop + el.clientHeight) el.scrollTop = Math.max(0, start + at * 30 - (el.clientHeight || 300) / 2);
-    lastScrolled.current = scope; measureViewport();
-  }, [scope, expanded, visible.length]);
-  const virtual = visible.length > 200, first = virtual ? Math.max(0, Math.floor(viewport.top / 30) - 10) : 0,
-    shown = virtual ? visible.slice(first, Math.min(visible.length, first + Math.ceil(viewport.height / 30) + 20)) : visible;
-  const toggle = (id: string) => setExpanded(previous => {
-    const next = new Set(previous);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  return <div ref={viewportRef} className="root-nav outline-sidebar" onScroll={measureViewport}>
+  const idx = useMemo(() => snapshotIndex(nodes), [nodes]),
+    tags = useMemo(() => tagIndex(nodes), [nodes]),
+    [expanded, setExpanded] = useState(new Set<string>()), [showAll, setShowAll] = useState(false),
+    [sort, setSort] = useState<string>(() => { try { return localStorage.getItem("remo-tag-sort") || "used"; } catch { return "used"; } }),
+    pinnedBullets = useMemo(() => nodes.filter(n => !n.codeLanguage && !n.mirrorSourceId && n.text.includes("#") && hasTag(n.text, "pin")).slice(0, 20), [nodes]);
+  const changeSort = (value: string) => { setSort(value); try { localStorage.setItem("remo-tag-sort", value); } catch { /* storage unavailable */ } };
+  const active = isTagQuery(search) ? tagKey(search.trim()) : null;
+  useEffect(() => { // Reveal the active nested tag.
+    if (!active?.includes("/")) return;
+    const parts: string[] = active.split("/");
+    setExpanded(previous => new Set([...previous, ...parts.slice(1).map((_, i) => parts.slice(0, i + 1).join("/"))]));
+  }, [active]);
+  const rows: { tag: ReturnType<typeof tagIndex> extends Map<string, infer T> ? T : never; depth: number }[] = [];
+  const order = (list: any[]) => [...list].sort((a, b) => Number(!!tagSettings[b.key]?.pinned) - Number(!!tagSettings[a.key]?.pinned) || (sort === "az" ? a.key.localeCompare(b.key) : sort === "recent" ? b.lastUsed - a.lastUsed || b.count - a.count : b.count - a.count) || a.key.localeCompare(b.key));
+  const roots = order(rootTags(tags)), limit = showAll ? Infinity : 12;
+  const walk = (key: string, depth: number) => { const t = tags.get(key)!; rows.push({ tag: t, depth }); if (expanded.has(key)) for (const child of order(t.children.map((k: string) => tags.get(k)!))) walk(child.key, depth + 1); };
+  for (const t of roots.slice(0, limit)) walk(t.key, 0);
+  const toggle = (key: string) => setExpanded(previous => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  return <div className="root-nav outline-sidebar">
     <div className="sidebar-section-heading"><Icon name="star" size={14} /><span>Starred</span></div>
     {!starred.some(id => idx.byId.has(id)) && !savedSearches.length && <p className="sidebar-empty">Star a page or search for quick access.</p>}
     {starred.filter(id => idx.byId.has(id)).map(id => <button key={id} className={scope === id ? "root-active" : ""} onClick={() => onNavigate(id)}><Icon name="star" size={12} /><span>{displayText(idx.byId.get(id).text) || "Untitled"}</span></button>)}
-    {savedSearches.map(query => <button key={query} onClick={() => onSearch(query)}><Icon name="search" size={12} /><span>{query}</span></button>)}
-    <div className="sidebar-section-heading"><button className="sidebar-home" onClick={() => onNavigate(null)}><Icon name="home" size={14} /><span>Home</span></button><button className="sidebar-tree-add" aria-label="New root note" title="New root note" disabled={disabled} onClick={() => onAdd(null)}><Icon name="plus" size={14} /></button></div>
-    <div ref={treeRef} role="tree" aria-label="Notes tree" style={virtual ? { height: visible.length * 30, position: "relative" } : undefined}>
-      {shown.map(({ node, depth }, i) => {
-        const hasChildren = (idx.children.get(node.id) || []).length > 0;
-        return <div key={node.id} className={`sidebar-tree-row ${scope === node.id ? "root-active" : ""}`} role="treeitem" aria-level={depth + 1} aria-selected={scope === node.id} aria-expanded={hasChildren ? expanded.has(node.id) : undefined} style={{ paddingLeft: depthIndent(depth, 280), ...(virtual ? { position: "absolute", top: (first + i) * 30, width: "100%" } : {}) }}>
-          <button className="sidebar-tree-toggle" aria-label={`${expanded.has(node.id) ? "Collapse" : "Expand"} ${node.text || "Untitled"} in sidebar`} disabled={!hasChildren} onClick={() => toggle(node.id)}><Icon name="chevron" size={10} /></button>
-          <button className="sidebar-tree-label" title={node.text || "Untitled"} onClick={() => onNavigate(node.id)}><span>{displayText(node.text) || "Untitled"}</span></button>
-          <button className="sidebar-tree-add" title="Add child note" aria-label={`Add child to ${node.text || "Untitled"}`} disabled={disabled} onClick={() => { setExpanded(previous => new Set(previous).add(node.id)); onAdd(node.id); }}><Icon name="plus" size={13} /></button>
+    {savedSearches.map(query => <button key={query} className={search.trim() === query ? "root-active" : ""} onClick={() => onSearch(query)}><Icon name="search" size={12} /><span>{query}</span></button>)}
+    {pinnedBullets.length > 0 && <>
+      <div className="sidebar-section-heading"><span aria-hidden="true">📌</span><span>Pinned</span></div>
+      {pinnedBullets.map(n => <button key={n.id} className={`sidebar-pinned ${scope === n.id ? "root-active" : ""}`} title={displayText(n.text)} onClick={() => onNavigate(n.id)}><span>{displayText(n.text).replace(/(^|\s)#pin(?![\p{L}\p{N}_/-])/giu, "").trim() || "Untitled"}</span></button>)}
+    </>}
+    <div className="sidebar-section-heading sidebar-tags-heading"><Icon name="hash" size={14} /><span>Tags</span>{tags.size > 1 && <select className="sidebar-tag-sort" aria-label="Sort tags" value={sort} onChange={e => changeSort(e.target.value)}><option value="used">Most used</option><option value="recent">Recent</option><option value="az">A–Z</option></select>}</div>
+    {!tags.size && <p className="sidebar-empty">Type #topic in any bullet to tag it. Tags appear here.</p>}
+    <div role="tree" aria-label="Tags" className="sidebar-tags">
+      {rows.map(({ tag, depth }) => {
+        const open = expanded.has(tag.key), isActive = active === tag.key, color = tagColor("#" + tag.key), look = effectiveTag(tag.key, tagSettings);
+        return <div key={tag.key} onContextMenu={e => { if (!onEditTag) return; e.preventDefault(); onEditTag(tag.key); }} role="treeitem" aria-level={depth + 1} aria-selected={isActive} aria-expanded={tag.children.length ? open : undefined} className={`sidebar-tag-row ${isActive ? "root-active" : ""}`} style={{ paddingLeft: 4 + depth * 16 }}>
+          <button className="sidebar-tree-toggle" aria-label={`${open ? "Collapse" : "Expand"} #${tag.label}`} disabled={!tag.children.length} onClick={() => toggle(tag.key)}><Icon name="chevron" size={10} /></button>
+          <button className="sidebar-tag" title={`Show #${tag.label}`} onClick={() => onSearch("#" + tag.label)}>
+            {look.icon ? <span className="sidebar-tag-icon" aria-hidden="true">{look.icon}</span> : <span className="sidebar-tag-dot" style={{ background: color }} aria-hidden="true" />}
+            <span className="sidebar-tag-name">{tagLeaf(tag)}</span>
+            {tagSettings[tag.key]?.pinned && <span className="sidebar-tag-pin" title="Pinned" aria-label="Pinned">•</span>}
+            <small>{tag.count}</small>
+          </button>
+          {onEditTag && <button className="sidebar-tag-more" aria-label={`Settings for #${tag.label}`} title="Tag settings" onClick={() => onEditTag(tag.key)}>⋯</button>}
         </div>;
       })}
     </div>
+    {roots.length > 12 && <button className="sidebar-tags-more" onClick={() => setShowAll(v => !v)}>{showAll ? "Show fewer tags" : `Show ${roots.length - 12} more tags`}</button>}
   </div>;
 }
