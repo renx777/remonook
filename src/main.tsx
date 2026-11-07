@@ -1572,7 +1572,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <span
                 className={failed.current ? "status-dot error-dot" : "status-dot"}
               />
-              Local-first · no account
+              {cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
             </div>
           </div>
         </div>
