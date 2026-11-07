@@ -9,11 +9,13 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {route} from '../cloud/worker.mjs';
+import {syncSpaces} from './helpers/sync-space.mjs';
 import {empty,save,load,getAssets,setStorageAccount,cloudCheckpoint,syncMetadata} from './.build/data.mjs';
 import 'fake-indexeddb/auto';
 import {bullet} from '../src/domain.mjs';
 import {cloudDocument,contentKey} from '../src/cloud-model.mjs';
 import {openShared,sharedState,project,vector,delta,applyIntent} from '../src/sync-crdt.mjs';
+import {applyDocument,mergeUpdates,projectBuckets} from '../src/sync-buckets.mjs';
 await build({entryPoints:['src/useCloudSync.ts'],bundle:true,packages:'external',outfile:'tests/.build/sync-hook.mjs',format:'esm',platform:'node',plugins:[{name:'test-auth-only',setup(b){
  b.onResolve({filter:/^\.\/data$/},()=>({path:pathToFileURL(resolve('tests/.build/data.mjs')).href,external:true}));
  b.onResolve({filter:/^\.\/(CloudAccount|cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));
@@ -33,7 +35,7 @@ async function fixture(){
  const send=(method,path,body,headers={})=>route(new Request('https://sync.test'+path,{method,headers:new Headers(Object.keys(headers).length?headers:{Authorization:'Bearer alice'}),...(body?{body:body instanceof Blob?body:JSON.stringify(body)}:{})}),env,async()=> 'alice');
  await send('PUT','/workspace',{baseRevision:0,doc:cloudDocument(base),assets:[]});
  let local=await save(null,base,'initial');await cloudCheckpoint({revision:1,key:JSON.stringify(cloudDocument(base))});
- let files=new Map(),uploads=0;env.FILES={async put(key,bytes){},async get(key){return null;}};
+ let files=new Map(),uploads=0;env.FILES={async put(key,bytes){},async get(key){return null;}};env.SYNC_SPACE=syncSpaces(env);
  const originalFetch=globalThis.fetch;let intercept=null,posts=0,fetches=0;
  globalThis.fetch=async(url,init={})=>{
   fetches++;if(init.method==='POST')posts++;if(init.method==='PUT'&&new URL(url).pathname.startsWith('/assets/'))uploads++;
@@ -47,14 +49,17 @@ async function fixture(){
  const mount=async()=>{root=createRoot(document.getElementById('root'));await act(async()=>root.render(React.createElement(Harness)));};await mount();
  return {base,sqlite,send,notices,get renders(){return renders;},get doc(){return local;},get result(){return result;},get posts(){return posts;},get fetches(){return fetches;},get uploads(){return uploads;},get files(){return files;},async cacheFile(){files=new Map([...files,['emoji/recovered.webp',new Blob(['recovered'],{type:'image/webp'})]]);await act(async()=>{local=await save(local,local,'recovered file',files);root.render(React.createElement(Harness));});},async attach(){const d=copy(local);d.tables.media.push({id:'file',bulletId:'a',fileName:'x.bin',mimeType:'application/octet-stream',sourceUrl:'',credit:'',licenseUrl:''});files=new Map([['media/x.bin',new Blob(['attachment'],{type:'application/octet-stream'})]]);await act(async()=>{local=await save(local,d,'attachment',files);root.render(React.createElement(Harness));});},set intercept(f){intercept=f;},set online(value){online=value;},set canApply(value){canApply=value;},async sync(){await act(async()=>result.sync());},async edit(fn){const d=copy(local);fn(d);await act(async()=>{local=await save(local,d,'edit');root.render(React.createElement(Harness));});},async reload(){await act(async()=>root.unmount());local=await load();await mount();},async close(){await act(async()=>root.unmount());globalThis.fetch=originalFetch;setStorageAccount(null);sqlite.close();dom.window.close();}};
 }
-async function remoteEdit(f,fn){const response=await(await f.send('GET','/sync/v2')).json(),y=openShared(response.update),before=project(y).doc,next=copy(before),v=vector(y);fn(next);applyIntent(y,before,next);return {operationId:crypto.randomUUID(),update:delta(y,v),vector:vector(y)};}
+async function serverStates(f){let states=new Map(),since=0,after='',target='';for(;;){const r=await(await f.send('GET',`/sync/v3?since=${since}&after=${after}&target=${target}`)).json();states=mergeUpdates(states,r.updates);if(!r.more)return states;after=r.after||'';target=r.target||'';if(!r.after)since=r.revision;}}
+async function serverValue(f){return projectBuckets(await serverStates(f));}
+async function remoteEdit(f,fn){const states=await serverStates(f),before=projectBuckets(states).doc,next=copy(before);fn(next);return {operationId:crypto.randomUUID(),updates:applyDocument(states,before,next,{clientID:987654}).updates,since:0};}
 
-test('legacy Android edits and desktop edits migrate automatically into rich-text operations',async()=>{
+test('an older app\'s snapshot write cannot overwrite an account that moved to v3',async()=>{
  const f=await fixture();try{
-  await f.edit(d=>d.tables.bullets[0].text='Learn SQL phone.');const remote=copy(f.base);remote.tables.bullets[0].text='Learn SQL desktop.';
-  await f.send('PUT','/workspace',{baseRevision:1,doc:cloudDocument(remote),assets:[]});await f.sync();
-  assert.equal(f.result.error,'');assert.match(f.result.status,/Synced/);assert.match(f.doc.tables.bullets[0].text,/phone/);assert.match(f.doc.tables.bullets[0].text,/desktop/);
-  assert.equal(f.result.resolve,undefined);
+  await f.sync();await f.edit(d=>d.tables.bullets[0].text='Learn SQL phone.');await f.sync();await until(()=>f.result.status==='Synced');
+  const remote=copy(f.base);remote.tables.bullets[0].text='Old snapshot';
+  const r=await f.send('PUT','/workspace',{baseRevision:1,doc:cloudDocument(remote),assets:[]}).catch(e=>e);
+  assert.ok(r instanceof Error||!r.ok,'the snapshot write is refused');
+  await f.sync();assert.equal(f.doc.tables.bullets[0].text,'Learn SQL phone.');assert.equal((await serverValue(f)).doc.tables.bullets[0].text,'Learn SQL phone.');
  }finally{await f.close();}
 });
 
@@ -66,7 +71,7 @@ test('lost response retries the same persisted batch while later edits remain qu
   await f.edit(d=>d.tables.bullets[1].text='Second phone edit');await f.reload();assert.equal((await syncMetadata()).inflight.operationId,id);
   await f.sync();await until(()=>f.result.status==='Synced');
   const meta=await syncMetadata();assert.equal(meta.pending.length,0);assert.equal(meta.inflight,null);assert.equal(f.doc.tables.bullets[1].text,'Second phone edit');
-  assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS n FROM sync_journal WHERE operation_id!='__seed__'").get().n,2);
+  assert.equal((await serverValue(f)).doc.tables.bullets[0].text,'First phone edit','the retried batch committed once');
  }finally{await f.close();}
 });
 
@@ -75,14 +80,14 @@ test('offline edits survive a browser reload and upload automatically on reconne
   await f.sync();f.online=false;await f.edit(d=>d.tables.bullets[0].text='Saved offline');const count=f.fetches;await f.sync();assert.equal(f.fetches,count);assert.equal(f.result.error,'');
   await f.reload();assert.equal(f.doc.tables.bullets[0].text,'Saved offline');assert.ok((await syncMetadata()).pending.length);
   f.online=true;await act(async()=>window.dispatchEvent(new window.Event('online')));await until(()=>f.result.status==='Synced');
-  assert.equal(project(openShared((await(await f.send('GET','/sync/v2')).json()).update)).doc.tables.bullets[0].text,'Saved offline');
+  assert.equal((await serverValue(f)).doc.tables.bullets[0].text,'Saved offline');
  }finally{await f.close();}
 });
 
 test('same-node concurrent rich-text changes converge without a conflict decision',async()=>{
  const f=await fixture();try{
   await f.sync();const remote=await remoteEdit(f,d=>d.tables.bullets[0].text='Learn SQL laptop.');
-  await f.edit(d=>d.tables.bullets[0].text='Learn SQL phone.');await f.send('POST','/sync/v2',remote);await f.sync();
+  await f.edit(d=>d.tables.bullets[0].text='Learn SQL phone.');await f.send('POST','/sync/v3',remote);await f.sync();
   assert.equal(f.result.conflict,false);assert.equal(f.result.error,'');assert.equal(f.result.status,'Synced');
   assert.match(f.doc.tables.bullets[0].text,/laptop/);assert.match(f.doc.tables.bullets[0].text,/phone/);
  }finally{await f.close();}
@@ -98,7 +103,7 @@ test('edits during a network request cannot be acknowledged or discarded with an
 
 test('composition defers visual updates while text operations continue syncing, then adopts both edits',async()=>{
  const f=await fixture();try{
-  await f.sync();f.canApply=false;const remote=await remoteEdit(f,d=>d.tables.bullets[0].text='Learn SQL laptop.');await f.send('POST','/sync/v2',remote);
+  await f.sync();f.canApply=false;const remote=await remoteEdit(f,d=>d.tables.bullets[0].text='Learn SQL laptop.');await f.send('POST','/sync/v3',remote);
   await f.sync();assert.match(f.result.status,/pending/);assert.equal(f.result.error,'');
   await f.edit(d=>d.tables.bullets[0].text='Learn SQL phone.');await f.sync();assert.match(f.result.status,/pending/);
   f.canApply=true;await f.sync();assert.equal(f.result.status,'Synced');assert.match(f.doc.tables.bullets[0].text,/laptop/);assert.match(f.doc.tables.bullets[0].text,/phone/);
@@ -117,11 +122,11 @@ test('an acknowledged attachment is uploaded once rather than on every later tex
 
 test('a cloud response cannot discard an emoji file restored after the outgoing manifest was staged',async()=>{
  const f=await fixture();try{
-  await f.sync();const remote=await remoteEdit(f,d=>{d.tables.bullets[0].text='Remote edit';});await f.send('POST','/sync/v2',remote);
+  await f.sync();const remote=await remoteEdit(f,d=>{d.tables.bullets[0].text='Remote edit';});await f.send('POST','/sync/v3',remote);
   f.intercept=async perform=>{const response=await perform();await f.cacheFile();return response;};
   await f.sync();assert.ok(f.files.has('emoji/recovered.webp'),'A late local asset must survive cloud adoption');
   await f.sync();assert.ok(f.files.has('emoji/recovered.webp'));assert.equal(f.uploads,1);
-  const response=await(await f.send('GET','/sync/v2')).json(),d=openShared(response.update);assert.ok(project(d).assets.some(a=>a.path==='emoji/recovered.webp'));d.destroy();
+  assert.ok((await serverValue(f)).assets.some(a=>a.path==='emoji/recovered.webp'));
  }finally{await f.close();}
 });
 
@@ -129,14 +134,24 @@ test('sync status transitions do not rerender the workspace that owns the hook',
  const f=await fixture();try{const before=f.renders;await f.sync();assert.equal(f.result.status,'Synced');assert.equal(f.renders,before);await f.sync();assert.equal(f.renders,before);}finally{await f.close();}
 });
 
-test('a permanent validation 400 recovers automatically, stays pending until acknowledged, and shows one notice',async()=>{
+test('a refused batch names the reason, stays pending across reloads and syncs once accepted',async()=>{
  const f=await fixture();try{
   await f.sync();await f.edit(d=>d.tables.bullets[0].text='Phone edit must survive.');
-  f.intercept=async()=>Response.json({error:'Invalid shared document: legacy Workdays validation failed.',code:'SYNC_VALIDATION_FAILED'},{status:400});
-  await f.sync();assert.match(f.result.status,/pending/);let m=await syncMetadata();assert.ok(m.pending.length);assert.ok(m.inflight.recovery);assert.equal(m.recoveries.length,1);assert.equal(f.notices.length,1);assert.match(f.notices[0],/still pending/);
+  f.intercept=async()=>Response.json({error:'Invalid shared document: bullets record: Invalid calendar date',code:'SYNC_VALIDATION_FAILED'},{status:400});
+  await f.sync();assert.match(f.result.status,/pending/);assert.match(f.result.error,/Invalid calendar date/);assert.ok((await syncMetadata()).pending.length);
   await f.reload();await f.sync();await until(()=>f.result.status==='Synced');
-  assert.equal(f.doc.tables.bullets.find(n=>n.id==='a').text,'Phone edit must survive.');assert.ok(f.doc.tables.bullets.some(n=>n.text==='Recovered from this device'));assert.equal(f.notices.length,1);assert.equal((await syncMetadata()).pending.length,0);
-  await f.edit(d=>d.tables.bullets[1].text='Later independent edit');await f.sync();await until(()=>f.result.status==='Synced');assert.equal(f.doc.tables.bullets.find(n=>n.id==='b').text,'Later independent edit');
+  assert.equal((await serverValue(f)).doc.tables.bullets.find(n=>n.id==='a').text,'Phone edit must survive.');assert.equal((await syncMetadata()).pending.length,0);
+ }finally{await f.close();}
+});
+
+test('a batch the server refuses is repaired automatically, keeps a readable original and then syncs',async()=>{
+ const f=await fixture();try{
+  await f.sync();await f.edit(d=>{d.tables.bullets[0].text='Keep this text';d.tables.bullets[0].dueDate='2026-02-30';});
+  await f.sync();await until(()=>f.result.status==='Synced');
+  const server=(await serverValue(f)).doc,n=server.tables.bullets.find(x=>x.id==='a');
+  assert.equal(n.text,'Keep this text','the edit itself survives');assert.equal(n.dueDate,'','only the invalid date was reset');
+  assert.ok(server.tables.bullets.some(x=>x.text==='Recovered from this device'),'the original is preserved readably');
+  assert.equal(f.notices.length,1);assert.equal(f.doc.tables.bullets.find(x=>x.id==='a').dueDate,'','the device adopted the repair');
  }finally{await f.close();}
 });
 

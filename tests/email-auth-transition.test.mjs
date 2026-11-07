@@ -9,7 +9,7 @@ await build({entryPoints:['src/CloudAccount.tsx'],bundle:true,packages:'external
   'firebase/auth':`export function onAuthStateChanged(auth,next){globalThis.__authNext=next;queueMicrotask(()=>next(auth.currentUser));return()=>{};}`,
   './auth-service':`export const auth=globalThis.__auth;export const authenticatedUid=()=>auth.currentUser?.uid;export const googleSignIn=async()=>{},googleSignOut=async()=>{},settleAuthOperation=async()=>{};`,
   './data':`export const setStorageAccount=id=>globalThis.__storageAccounts.push(id);`,
-  './cloud-config':`export const CLOUD_ENABLED=true;`,
+  './cloud-config':`export const CLOUD_API='https://sync.test';export const CLOUD_ENABLED=true;`,
   './Landing':`export const Landing=()=>null;`,
   './AccountAccess':`export const AccountAccess=()=>null,AccountSecurity=()=>null;`
  }[a.path]}));

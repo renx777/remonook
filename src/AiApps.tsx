@@ -3,7 +3,7 @@ import type {User} from 'firebase/auth';
 import {CLOUD_API} from './cloud-config';
 import './ai-apps.css';
 
-type Token={id:string;name:string;scopes:string[];created_at:number;last_used_at:number|null};
+type Token={id:string;name:string;scopes:string[];created_at:number;last_used_at:number|null;kind?:'oauth'|'token'};
 type Activity={id:string;tool:string;summary:string;created_at:number;app:string|null};
 const ACCESS=[['read','Read only','Can search and read your notes.'],['write','Read and write','Can also add and edit notes, flashcards, MCQs and bookmarks.'],['delete','Read, write and delete','Can also move notes to Trash (you can restore them).']] as const;
 const scopesFor=(a:string)=>a==='read'?['read']:a==='write'?['read','write']:['read','write','delete'];
@@ -30,6 +30,13 @@ export function AiApps({user}:{user:User|null}){
   return <section className="ai-apps" aria-label="AI apps">
     <div className="settings-section-heading"><h3>Use your notes from AI apps.</h3><p>Connect Claude, Codex, ChatGPT or any MCP app. Ask it to write notes, flashcards, MCQs, tables or diagrams straight into RemoNook, or to read and tidy what you have. Changes sync to all your devices; deleted notes go to Trash.</p></div>
     {error&&<p className="ai-apps-error" role="alert">{error}</p>}
+    <div className="ai-apps-signin">
+      <strong>Easiest: connect by signing in</strong>
+      <p>In Claude (claude.ai, desktop or mobile): Settings → Connectors → Add custom connector. In ChatGPT: Settings → Connectors → Create (developer mode). Paste this address, then sign in to RemoNook and choose what the app may do.</p>
+      <div className="ai-apps-token"><code>{endpoint}</code><button type="button" onClick={()=>copy('url',endpoint)}>{copied==='url'?'Copied':'Copy'}</button></div>
+    </div>
+    <h4>Or use an access token</h4>
+    <p className="ai-apps-muted">For Claude Code, Codex and apps that take a token instead of signing in.</p>
     {created?<div className="ai-apps-created">
       <strong>{created.name} is ready. Copy this token now; it is shown only once.</strong>
       <div className="ai-apps-token"><code>{created.token}</code><button type="button" onClick={()=>copy('token',created.token)}>{copied==='token'?'Copied':'Copy'}</button></div>
@@ -43,7 +50,7 @@ export function AiApps({user}:{user:User|null}){
       <button type="submit" className="primary" disabled={busy||!name.trim()}>{busy?'Connecting…':'Connect an app'}</button>
     </form>}
     <h4>Connected apps</h4>
-    {tokens===null?<p className="ai-apps-muted">Loading…</p>:!tokens.length?<p className="ai-apps-muted">No apps connected yet.</p>:<ul className="ai-apps-list">{tokens.map(t=><li key={t.id}><span><strong>{t.name}</strong><small>{accessLabel(t.scopes)} · last used {when(t.last_used_at)}</small></span><button type="button" onClick={async()=>{if(!window.confirm(`Disconnect ${t.name}? It will stop working immediately.`))return;try{await request('/mcp/tokens/'+t.id,{method:'DELETE'});await load();}catch(err){setError(err instanceof Error?err.message:String(err));}}}>Disconnect</button></li>)}</ul>}
+    {tokens===null?<p className="ai-apps-muted">Loading…</p>:!tokens.length?<p className="ai-apps-muted">No apps connected yet.</p>:<ul className="ai-apps-list">{tokens.map(t=><li key={t.id}><span><strong>{t.name}</strong><small>{t.kind==='oauth'?'Signed in':'Access token'} · {accessLabel(t.scopes)} · last used {when(t.last_used_at)}</small></span><button type="button" onClick={async()=>{if(!window.confirm(`Disconnect ${t.name}? It will stop working immediately.`))return;try{await request('/mcp/tokens/'+t.id,{method:'DELETE'});await load();}catch(err){setError(err instanceof Error?err.message:String(err));}}}>Disconnect</button></li>)}</ul>}
     <h4>Recent changes by AI apps</h4>
     {!activity.length?<p className="ai-apps-muted">Nothing yet.</p>:<ul className="ai-apps-activity">{activity.slice(0,20).map(a=><li key={a.id}><span>{a.summary}</span><small>{a.app||'Disconnected app'} · {when(a.created_at)}</small></li>)}</ul>}
     <p className="ai-apps-note">To undo a change, use Trash for deleted notes, or edit the note. Every AI change is checked the same way as an edit from your devices.</p>

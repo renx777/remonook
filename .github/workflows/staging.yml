@@ -39,7 +39,7 @@ jobs:
         run: node --test --test-concurrency=2 tests/workdays.test.mjs tests/workdays-v2.test.mjs tests/workdays-app.test.mjs tests/sync-v2.test.mjs tests/workdays-modern-batch.test.mjs tests/sync-recovery.test.mjs tests/sync-validate.test.mjs
       - name: Verify staging integration backend
         run: |
-          node --input-type=module -e 'const r=await fetch("https://remo-sync-staging.remo-978fb.workers.dev/health"); const h=await r.json(); if(!r.ok||h.aiAssist!==1||h.bookmarkReader!==1||h.bookmarkCapture!==true||h.bookReader!==1||h.bookStorage!==1||h.syncProtocol!==2||h.workdaysSchema!==2||!h.authProviders?.includes("password")||typeof h.googleTasksConfigured!=="boolean") throw Error("Deploy the tested sync backend with book reading, Google Tasks and email authentication to staging before the frontend.");'
+          node --input-type=module -e 'const r=await fetch("https://remo-sync-staging.remo-978fb.workers.dev/health"); const h=await r.json(); if(!r.ok||h.aiAssist!==1||h.bookmarkReader!==1||h.bookmarkCapture!==true||h.bookReader!==1||h.bookStorage!==1||h.syncProtocol!==3||h.workdaysSchema!==2||!h.authProviders?.includes("password")||typeof h.googleTasksConfigured!=="boolean") throw Error("Deploy the tested sync backend with book reading, Google Tasks and email authentication to staging before the frontend.");'
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           wranglerVersion: '4.157.0'

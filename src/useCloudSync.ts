@@ -6,6 +6,8 @@ import {authenticatedUid} from './CloudAccount';
 import {CLOUD_API} from './cloud-config';
 import {syncOperation,storageAccountKey,digest,type Workspace} from './data';
 import {createUiSignal} from './ui-signal';
+import {Y,pack,unpack} from './sync-crdt.mjs';
+const mergeEncoded=(list:string[])=>pack(Y.mergeUpdates(list.map(unpack)));
 type Asset={path:string;hash:string;size:number;type:string};
 type Selection={id:string;anchor:number;head:number};
 type Apply={state:string;selection?:Selection};
@@ -13,6 +15,9 @@ type Options={onNotice?:(message:string)=>void;user:User|null;revision?:number;r
 export function useCloudSync(options:Options){
  const latest=useRef(options);latest.current=options;
  const acknowledged=useRef<number|null>(null);
+ // A live connection tells this device when the account has a newer revision, so the
+ // 2-second poll only runs while it is down (and every 30 s as a safety net).
+ const live=useRef(false),lastRun=useRef(0),known=useRef(-1);
  const busy=useRef(false),queued=useRef(false),alive=useRef(true),timer=useRef<ReturnType<typeof setTimeout>|null>(null),failures=useRef(0),cache=useRef(new WeakMap<Blob,string>());
  const [signal]=useState(()=>createUiSignal({status:options.user?'Connecting…':'Device only',error:''}));
  const setStatus=(status:string)=>{if(signal.get().status!==status)signal.set({...signal.get(),status});};
@@ -30,19 +35,33 @@ export function useCloudSync(options:Options){
    const blob=new Blob([bytes],{type:a.type});cache.current.set(blob,a.hash);files.set(a.path,blob);
   }return files;
  }
+ /** Pulls every page since a revision. With `store`, each page is saved as it arrives;
+  without, pages are merged and returned (first sync on this device). */
+ async function pullAll(work:(operation:string,args?:any)=>Promise<any>,since:number,store=false){
+  let after='',target='',merged:any={protocol:3,revision:since,updates:{}};
+  for(;;){
+   const r=await(await request(`/sync/v3?since=${since}&after=${encodeURIComponent(after)}&target=${encodeURIComponent(target)}`)).json();
+   if(r.protocol!==3)throw Error('An app update is being prepared. Your edits are saved on this device.');
+   if(store)await work('receive',{response:r});else{for(const [b,u] of Object.entries(r.updates||{}))(merged.updates[b]||=[]).push(u);merged.revision=r.revision;}
+   if(!r.more)break;after=r.after||'';target=String(r.target||'');if(!r.after)since=r.revision;
+  }
+  if(!store)merged.updates=Object.fromEntries(Object.entries(merged.updates).map(([b,list]:any)=>[b,list.length===1?list[0]:mergeEncoded(list)]));
+  return merged;
+ }
  async function sync(){
   if(!alive.current||!latest.current.user||!latest.current.ready)return;
   if(busy.current){queued.current=true;return;}
+  lastRun.current=Date.now();
   if(timer.current){clearTimeout(timer.current);timer.current=null;}queued.current=false;busy.current=true;
   const account=storageAccountKey(),work=(operation:string,args:any={})=>syncOperation(operation,args,account);
   setError('');setStatus('Syncing…');
-  let submitted:string|null=null;
+  
   try{
    if(!navigator.onLine){setStatus('Saved on device · sync pending');return;}
    await latest.current.flush();
    const notice=await work('recovery-notice');if(notice&&latest.current.onNotice){latest.current.onNotice(notice.message);await work('recovery-notice-shown',{ids:notice.ids});}
    if(!(await work('status')).initialized){
-    const response=await(await request('/sync/v2')).json();if(response.protocol!==2)throw Error('An app update is being prepared. Your edits are saved on this device.');
+    const response=await pullAll(work,0);
     await latest.current.flush();const current=latest.current.get();if(!current.doc)return;
     await work('initialize',{response,doc:current.doc,assets:await manifest(current.assets)});
    }
@@ -53,13 +72,11 @@ export function useCloudSync(options:Options){
    const network=await work('network');
    if(network.inflight){
     for(const asset of network.assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!network.uploaded.includes(asset.hash)){await request('/assets/'+asset.hash,{method:'PUT',body:blob});await work('uploaded',{hash:asset.hash});}}
-    submitted=network.inflight.operationId;
-    let response;try{response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(network.inflight)})).json();}catch(e){if((e as any).code!=='WORKDAYS_CONTEXT_REQUIRED')throw e;const context=latest.current.get().doc;if(!context)throw e;response=await(await request('/sync/v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,workdaysContext:network.inflight.workdaysContext||workdaysV2(context)})})).json();}
+    
+    const response=await(await request('/sync/v3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,since:network.since})})).json();
     await work('receive',{response});
-   }else{
-    const response=await request('/sync/v2',{headers:{'X-Sync-Vector':network.vector,'If-None-Match':String(network.serverRevision)}});
-    if(response.status!==304)await work('receive',{response:await response.json()});
-   }
+    if(response.more)await pullAll(work,response.revision,true);
+   }else await pullAll(work,network.since,true);
    await latest.current.flush();
    const current=latest.current.get(),localAssets=await manifest(current.assets);
    const inspected=await work('inspect',{doc:current.doc,assets:localAssets});
@@ -77,31 +94,24 @@ export function useCloudSync(options:Options){
    const currentDoc=latest.current.get().doc;
    const remaining=(await work('inspect',{doc:currentDoc,assets:await manifest(latest.current.get().assets)})).remaining;
    if(!remaining)acknowledged.current=currentDoc?.revision??null;
+   known.current=await work('since');
    setStatus(remaining?'Saved on device · sync pending':'Synced');failures.current=0;
    if(remaining)queued.current=true;
   }catch(e:any){
    setStatus('Saved on device · sync pending');
-   if(e?.status===400&&e?.code==='SYNC_VALIDATION_FAILED'&&submitted){
+   if(e?.status===400&&e?.code==='SYNC_VALIDATION_FAILED'){
+    // Repair with the server's own checks, keep originals readable, and send the edits again.
     try{
-     const server=await(await request('/sync/v2')).json();
-     await work('recover',{server,operationId:submitted,reason:e.message});
-     const notice=await work('recovery-notice');if(notice&&latest.current.onNotice){latest.current.onNotice(notice.message);await work('recovery-notice-shown',{ids:notice.ids});}
-     queued.current=true;failures.current=0;return;
-    }catch(recoveryError:any){e=Object.assign(recoveryError,{status:recoveryError.status||400});}
+     await pullAll(work,await work('since'),true);
+     const repaired=await work('recover',{reason:e.message});
+     if(repaired){latest.current.onNotice?.('Some content could not sync as it was. It was repaired automatically, and the originals are under “Recovered from this device”.');queued.current=true;failures.current=0;return;}
+    }catch{/* fall through: show why the server refused */}
    }
-   if(!e?.deferred&&[400,401,403,413].includes(e?.status)){
-    // Name what the server rejected instead of repeating a generic message.
-    let message=e.message;
-    if(e.status===400&&String(message).startsWith('Invalid shared document')&&!String(message).includes(':')){
-     // Older servers don't say why. Run the server's own check on this device's sync copy.
-     const doc=latest.current.get().doc;let problem='',server='';
-     try{server=(await(await request('/sync/v2')).json())?.update||'';}catch{}
-     try{problem=String(await work('diagnose',{workdays:doc?workdaysV2(doc):null,server})||'');}catch{}
-     if(!problem)problem=sharedDocumentProblem(doc);
-     message='Invalid shared document · '+(problem||(server?'the sync server rejects a batch that passes its checks here; it needs updating':'rejected by the sync server; this device\'s copy passes every check'));
-    }
-    if(e.status===400)console.warn(JSON.stringify({event:'sync_rejected',message}));
-    setError(message);
+   if(!e?.deferred&&[400,401,403,409,413,426].includes(e?.status)&&e?.message!=='An attachment is still uploading.'){
+    // The server names what it refused (for example the record or setting that failed its
+    // checks). Pending edits stay queued on this device and are retried.
+    if(e.status===400)console.warn(JSON.stringify({event:'sync_rejected',message:e.message}));
+    setError(e.message);
    }
    // Temporary network failures, races and editor transactions retry quietly.
    failures.current=Math.min(failures.current+1,6);queued.current=true;
@@ -112,6 +122,22 @@ export function useCloudSync(options:Options){
  const run=useRef(sync);run.current=sync;
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;if(timer.current)clearTimeout(timer.current);};},[]);
  useEffect(()=>{if(!options.user||!options.ready)return;const t=setTimeout(()=>void run.current(),500);return()=>clearTimeout(t);},[options.user?.uid,options.revision,options.ready]);
- useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const t=setInterval(resume,2000);window.addEventListener('online',resume);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',resume);return()=>{clearInterval(t);window.removeEventListener('online',resume);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',resume);};},[options.user?.uid]);
+ useEffect(()=>{
+  const user=options.user;if(!user||typeof WebSocket==='undefined')return;
+  let ws:WebSocket|null=null,closed=false,retry:ReturnType<typeof setTimeout>|undefined;
+  const open=async()=>{
+   if(closed)return;
+   try{
+    const token=await user.getIdToken();if(closed)return;
+    ws=new WebSocket(CLOUD_API.replace(/^http/,'ws')+'/sync/v3/ws?access_token='+encodeURIComponent(token));
+    ws.onopen=()=>{live.current=true;};
+    ws.onmessage=event=>{try{const {revision}=JSON.parse(String(event.data));if(Number(revision)>known.current)void run.current();}catch{/* ignore */}};
+    ws.onclose=()=>{live.current=false;ws=null;if(!closed)retry=setTimeout(()=>void open(),5000);};
+   }catch{if(!closed)retry=setTimeout(()=>void open(),10000);}
+  };
+  void open();
+  return()=>{closed=true;live.current=false;if(retry)clearTimeout(retry);ws?.close();};
+ },[options.user?.uid]);
+ useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const t=setInterval(()=>{if(live.current&&Date.now()-lastRun.current<30000)return;resume();},2000);window.addEventListener('online',resume);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',resume);return()=>{clearInterval(t);window.removeEventListener('online',resume);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',resume);};},[options.user?.uid]);
  return {signal,get status(){return signal.get().status;},get error(){return signal.get().error;},conflict:false,sync,get acknowledgedRevision(){return acknowledged.current;}};
 }

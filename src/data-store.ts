@@ -7,7 +7,9 @@ import {project,openShared,vector,Y,emptyShared,unpack,applyIntent} from './sync
 import {sharedSnapshotProblem} from './sync-validate.mjs';
 import {workdaysLegacyIntent,upgradeWorkdaysIntent} from '../cloud/workdays-upgrade.mjs';
 import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
-import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox} from './sync-outbox.mjs';
+import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox,receivedProjection,adopt,mapSelection,bucketAssets,recoverRefused} from './sync-outbox-v3.mjs';
+/** IndexedDB key of the sync v3 outbox. v2 metadata under 'sync-v2' is no longer used. */
+const SYNC_KEY='sync-v3';
 import {recoverRejectedBatch} from './sync-recovery.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
 import {validateOcclusions} from "./occlusion.mjs";
@@ -170,13 +172,16 @@ export const storageAccountKey = () => storageName;
 export const accountLocalKey = (key: string) => storageName === "remo-web" ? key : storageName + ":" + key;
 function openDb(name = storageName): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const r = indexedDB.open(name, 1);
+    const r = indexedDB.open(name, 2);
     r.onupgradeneeded = () => {
-      r.result.createObjectStore("meta");
-      r.result.createObjectStore("records");
-      r.result.createObjectStore("assets");
-      r.result.createObjectStore("recovery");
-      r.result.createObjectStore("operations", { autoIncrement: true });
+      const stores = r.result.objectStoreNames;
+      if (!stores.contains("meta")) r.result.createObjectStore("meta");
+      if (!stores.contains("records")) r.result.createObjectStore("records");
+      if (!stores.contains("assets")) r.result.createObjectStore("assets");
+      if (!stores.contains("recovery")) r.result.createObjectStore("recovery");
+      if (!stores.contains("operations")) r.result.createObjectStore("operations", { autoIncrement: true });
+      // Sync v3 bucket states, one record per bucket and copy ('L:b12', 'R:b12').
+      if (!stores.contains("syncBuckets")) r.result.createObjectStore("syncBuckets");
     };
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => reject(r.error);
@@ -241,7 +246,7 @@ export async function save(
   const db = await openDb(account);
   try {
     const tx = db.transaction(
-        ["meta", "records", "assets", "recovery", "operations"],
+        ["meta", "records", "assets", "recovery", "operations", "syncBuckets"],
         "readwrite",
       ),
       finished = done(tx);
@@ -255,15 +260,16 @@ export async function save(
           "Another tab changed these notes. Reload before editing to avoid overwriting it.",
         );
       }
-      const syncMeta=await request<any>(meta.get('sync-v2'));
-      if(adoptSyncState&&syncMeta?.receivedState!==adoptSyncState){
+      const syncMeta=await request<any>(meta.get(SYNC_KEY));
+      if(adoptSyncState&&String(syncMeta?.receivedVersion)!==adoptSyncState){
         tx.abort();await finished.catch(()=>{});throw Object.assign(Error('A newer sync update is ready.'),{deferred:true});
       }
       const next = { ...after, revision: (before?.revision ?? 0) + 1 };
       if(syncMeta){
-        if(adoptSyncState){syncMeta.localState=adoptSyncState;syncMeta.mappedDoc=cloudDocument(next);const shared=openShared(adoptSyncState);try{syncMeta.assets=project(shared).assets;}finally{shared.destroy();}}
-        else recordLocal(syncMeta,next);
-        meta.put(syncMeta,'sync-v2');
+        const io=bucketIO(tx.objectStore('syncBuckets'));
+        if(adoptSyncState)await adopt(syncMeta,next,io);
+        else await recordLocal(syncMeta,next,io,before);
+        meta.put(syncMeta,SYNC_KEY);
       }
       if (replace && before) {
         const oldAssets = await request<Blob[]>(
@@ -723,72 +729,72 @@ export async function syncMetadata(change?:(value:any)=>any,expectedRevision?:nu
  const db=await openDb(account);try{
   const tx=db.transaction('meta',change?'readwrite':'readonly'),finished=done(tx),store=tx.objectStore('meta');
   if(expectedRevision!==undefined){const workspace=await request<any>(store.get('workspace'));if(workspace?.revision!==expectedRevision){tx.abort();await finished.catch(()=>{});throw Object.assign(Error('Newer device edits are ready.'),{deferred:true});}}
-  let value=await request<any>(store.get('sync-v2'));
-  if(change){value=change(value||null);store.put(value,'sync-v2');}
+  let value=await request<any>(store.get(SYNC_KEY));
+  if(change){value=change(value||null);store.put(value,SYNC_KEY);}
   await finished;return value||null;
  }finally{db.close();}
 }
 
+function bucketIO(store:IDBObjectStore){
+ return {
+  async load(kind:string,ids:string[]){const out=new Map<string,string|undefined>();for(const b of ids)out.set(b,await request<any>(store.get(kind+':'+b)));return out;},
+  put(kind:string,bucket:string,state:string){store.put(state,kind+':'+bucket);},
+ };
+}
+/** Runs `fn` on the outbox metadata and bucket states in one IndexedDB transaction. */
+async function syncTransaction(fn:(meta:any,io:ReturnType<typeof bucketIO>)=>any,write:boolean,expectedRevision?:number,account=storageName):Promise<any>{
+ const db=await openDb(account);try{
+  const tx=db.transaction(['meta','syncBuckets'],write?'readwrite':'readonly'),finished=done(tx),store=tx.objectStore('meta'),io=bucketIO(tx.objectStore('syncBuckets'));
+  if(expectedRevision!==undefined){const workspace=await request<any>(store.get('workspace'));if(workspace?.revision!==expectedRevision){tx.abort();await finished.catch(()=>{});throw Object.assign(Error('Newer device edits are ready.'),{deferred:true});}}
+  let value=await request<any>(store.get(SYNC_KEY));
+  const result=await fn(value||null,io);
+  if(write){value=result;store.put(value,SYNC_KEY);}
+  await finished;return write?value:result;
+ }finally{db.close();}
+}
 // These operations run next to IndexedDB in the persistence worker. Every mutation
 // keeps the original atomic transaction and revision checks.
 export async function syncOperation(operation:string,args:any={},account=storageName):Promise<any>{
  const change=(fn:(m:any)=>any,revision?:number)=>syncMetadata(fn,revision,account);
  const read=()=>syncMetadata(undefined,undefined,account);
  if(operation==='status')return {initialized:!!await read()};
+ const changeIO=(fn:(m:any,io:any)=>any,revision?:number)=>syncTransaction(fn,true,revision,account);
+ const readIO=(fn:(m:any,io:any)=>any)=>syncTransaction(fn,false,undefined,account);
  if(operation==='initialize'){
-  const checkpoint=recoverCheckpoint(await cloudCheckpoint(undefined,account));
-  const baseline=checkpoint?.baseDoc||(hasDeviceContent(args.doc,args.assets)?emptyShared():null);
-  await change(m=>m||initializeOutbox(args.response.update,args.response.revision,baseline,args.doc,args.assets,checkpoint?.assets||[]),args.doc.revision);return;
+  // Notes made on this device before the account had any are uploaded; otherwise the
+  // device adopts the account's notes.
+  const serverEmpty=!Object.keys(args.response.updates||{}).length;
+  await changeIO(async(m,io)=>m||initializeOutbox(args.response,args.doc,args.assets,serverEmpty&&hasDeviceContent(args.doc,args.assets),io),args.doc.revision);return;
  }
- if(operation==='stage'){await change(m=>{if(contentKey(m.mappedDoc)!==contentKey(args.doc))recordLocal(m,args.doc);return stageAssets(m,args.assets);},args.doc.revision);return;}
+ // Every save records its edit; this catches a document saved by an older code path. The
+ // revision check avoids comparing whole documents on every sync.
+ if(operation==='stage'){await changeIO(async(m,io)=>{if(m.mappedRevision!==args.doc.revision&&contentKey(m.mappedDoc)!==contentKey(args.doc))await recordLocal(m,args.doc,io);else m.mappedRevision=args.doc.revision;return stageAssets(m,args.assets,io);},args.doc.revision);return;}
  if(operation==='network'){
-  const m=await change(claimOutbox),y=openShared(m.inflight?m.localState:m.receivedState);
-  try{return {inflight:m.inflight,serverRevision:m.serverRevision,uploaded:m.uploaded||[],assets:m.inflight?project(y).assets:[],vector:m.inflight?null:vector(y)};}finally{y.destroy();}
+  const m=await change(claimOutbox);
+  return {inflight:m.inflight,since:m.since,uploaded:m.uploaded||[],assets:m.inflight?await readIO((_m,io)=>bucketAssets(io,'L')):[]};
  }
  if(operation==='uploaded'){await change(m=>{m.uploaded=[...new Set([...(m.uploaded||[]),args.hash])];return m;});return;}
- if(operation==='receive'){await change(m=>receiveOutbox(m,args.response));return;}
- if(operation==='recover'){await change(m=>recoverRejectedBatch(m,args.server,args.operationId,args.reason));return;}
+ if(operation==='receive'){await changeIO((m,io)=>receiveOutbox(m,args.response,io));return;}
+ if(operation==='since')return (await read())?.since??0;
+ if(operation==='recover'){let result:any=null;await changeIO(async(m,io)=>{result=await recoverRefused(m,io,account);return m;});return result;}
  if(operation==='recovery-export')return (await read())?.recoveries||[];
- if(operation==='recovery-notice'){
-  const m=await read(),pending=m?.recoveries?.filter((r:any)=>r.noticePending)||[];
-  return pending.length?{ids:pending.map((r:any)=>r.operationId),message:'Some content could not sync in its original form. It is preserved under “Recovered from this device” and in Account recovery downloads. Sync is still pending.'}:null;
- }
- if(operation==='recovery-notice-shown'){await change(m=>{for(const r of m.recoveries||[])if(args.ids.includes(r.operationId))r.noticePending=false;return m;});return;}
- if(operation==='current')return (await read()).receivedState===args.state;
- if(operation==='diagnose'){
-  const m=await read();
-  // Most faithful: replay the batch being sent onto the server's own copy, in the server's order.
-  if(args?.server&&m.inflight?.update){
-   const y=openShared(args.server),update=unpack(m.inflight.update);let step='Workdays (older edit check)';
-   try{
-    const legacy=m.inflight.recovery?null:workdaysLegacyIntent(y,update,unpack(m.inflight.workdaysVector||m.inflight.vector));
-    step='apply update';Y.applyUpdate(y,update);
-    if(legacy){step='Workdays upgrade';const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,args.workdays);step='Workdays upgrade apply';applyIntent(y,before,next);}
-    const problem=sharedSnapshotProblem(y);
-    return problem?'server copy · '+problem:'';
-   }catch(e:any){return 'server copy · '+step+': '+String(e?.message||e?.name||'no message').replace(/\s+/g,' ').slice(0,160);}
-   finally{y.destroy();}
-  }
-  const y=openShared(m.localState);
-  try{const problem=sharedSnapshotProblem(y);if(problem)return problem;}finally{y.destroy();}
-  // The server also upgrades older Workdays edits in the batch it receives.
-  if(m.inflight?.update&&args?.workdays){const r=openShared(m.receivedState);
-   try{const legacy=m.inflight.recovery?null:workdaysLegacyIntent(r,unpack(m.inflight.update),unpack(m.inflight.workdaysVector||m.inflight.vector));
-    if(legacy){try{upgradeWorkdaysIntent(project(r).doc,legacy,args.workdays);}catch(e:any){return 'Workdays upgrade: '+String(e?.message||'failed').slice(0,160);}}
-   }finally{r.destroy();}}
-  return '';
- }
+ if(operation==='recovery-notice')return null;
+ if(operation==='recovery-notice-shown')return;
+ if(operation==='current')return String((await read()).receivedVersion)===args.state;
+ if(operation==='diagnose')return '';
  if(operation==='inspect'){
-  const m=await read(),y=openShared(m.receivedState);let shared;
-  try{shared=project(y);}finally{y.destroy();}
-  const different=!args.doc||contentKey(args.doc)!==contentKey(shared.doc)||JSON.stringify(args.assets)!==JSON.stringify(shared.assets);
-  const needsApply=different||m.localState!==m.receivedState;
-  return {needsApply,remaining:!!m.inflight||m.pending.length>0||!args.doc||contentKey(args.doc)!==contentKey(shared.doc),...(needsApply?{state:m.receivedState,doc:shared.doc,assets:shared.assets}:{})};
+  return readIO(async(m,io)=>{
+   // Nothing received since the device last adopted: its document already matches.
+   if(!m.dirty&&m.mappedRevision===args.doc?.revision)return {needsApply:false,remaining:!!m.inflight||m.pending.length>0};
+   const shared=await receivedProjection(m,io,account);
+   const different=!args.doc||contentKey(args.doc)!==contentKey(shared.doc)||JSON.stringify(args.assets)!==JSON.stringify(shared.assets);
+   const needsApply=different||!!m.dirty;
+   return {needsApply,remaining:!!m.inflight||m.pending.length>0||!args.doc||contentKey(args.doc)!==contentKey(shared.doc),...(needsApply?{state:String(m.receivedVersion),doc:shared.doc,assets:shared.assets}:{})};
+  });
  }
  if(operation==='selection'){
   if(!args.selection)return undefined;
-  const m=await read(),a=openShared(m.localState),b=openShared(args.state),name='text:'+JSON.stringify(['bullets',args.selection.id]);
-  try{const text=a.getText(name),out=b.getText(name);const map=(pos:number)=>{const relative=Y.createRelativePositionFromTypeIndex(text,Math.max(0,Math.min(pos,text.length)));return Y.createAbsolutePositionFromRelativePosition(relative,b)?.index??Math.min(pos,out.length);};return {...args.selection,anchor:map(args.selection.anchor),head:map(args.selection.head)};}finally{a.destroy();b.destroy();}
+  return readIO((m,io)=>mapSelection(m,args.selection,io));
  }
  throw Error('Unknown persistence operation.');
 }

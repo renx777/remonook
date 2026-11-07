@@ -68,3 +68,11 @@ test('AI Markdown: lists, tasks, headings, tables, code, diagrams and exact form
  let k=0;const nodes=[bullet('P',{text:'root'}),...m.itemsToBullets(m.parseMarkdown('- one\n  - two'),'P',()=>'n'+k++,bullet)];
  assert.match(m.outlineMarkdown(index(nodes),'P').markdown,/^- one <!-- id=n0 v=\w+ -->\n  - two <!-- id=n1 v=\w+ -->$/);
 });
+
+test('AI Markdown: colour names from the app palette, highlight shorthand and sketch marks',async()=>{
+ const m=await import('../src/ai-markdown.mjs');
+ assert.equal(m.parseInline('<mark color="green">ATP</mark> <mark data-style="COLOR_red">x</mark>').formatting,'0:3:HIGHLIGHT_A8DBAE;4:5:COLOR_D43838');
+ assert.equal(m.parseInline('<mark>h</mark> <mark data-style="ROUGH_CIRCLE_blue">r</mark> <mark data-style="MASK">m</mark>').formatting,'0:1:HIGHLIGHT;2:3:ROUGH_CIRCLE_2463BB;4:5:MASK');
+ assert.equal(m.parseInline('<mark data-style="COLOR_00ff00">k</mark>').formatting,'0:1:COLOR_00ff00','stored hex is kept exactly');
+ assert.throws(()=>m.parseInline('<mark color="chartreuse">x</mark>'),/use one of/);
+});

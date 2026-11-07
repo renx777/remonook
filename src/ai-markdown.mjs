@@ -13,9 +13,23 @@ const protect=s=>s.replace(/\\([\\*_`=<>~\[\]#|])/g,(_,c)=>String.fromCharCode(P
 const restore=s=>s.replace(/[\uE000-\uE00F]/g,c=>ESC[c.charCodeAt(0)-PH]);
 const LANG_ALIAS={js:'javascript',ts:'typescript',py:'python',sh:'bash',shell:'bash',zsh:'bash','c++':'cpp','c#':'csharp',cs:'csharp',yml:'yaml',md:'markdown',text:'plaintext',txt:'plaintext','':'plaintext'};
 
+/* The app's palettes (src/color-palettes.ts), so AI apps can use colour names. Keep in step with that file. */
+export const TEXT_COLORS={black:'202124',gray:'787774',brown:'9F6B53',red:'D43838',coral:'F16C5B',orange:'E87924',amber:'D69E16',yellow:'EAB308',lemon:'D4D92A',lime:'84B52B',green:'2D9A59',mint:'4DBB92',teal:'249C99',cyan:'20A5C7',sky:'4DA8E8',blue:'2463BB',indigo:'5964D9',violet:'8956CD',purple:'A55CC5',magenta:'CA4DAD',pink:'EC7CAE',rose:'D95779',slate:'8C9DB5',white:'FFFFFF'};
+export const HIGHLIGHT_COLORS={yellow:'FFE082',lemon:'FFF59D',amber:'FFD166',orange:'FFBE85',peach:'FFD1AB',coral:'FFB6A6',pink:'F8BDD6',rose:'F2B6C1',magenta:'EDB7EA',lavender:'DFCCFF',violet:'C9BAF0',indigo:'C4CCFF',blue:'B9D4FF',sky:'BFDEFF',cyan:'AEECF5',teal:'A5E5DF',mint:'BEE9CB',green:'A8DBAE',lime:'D0EB9C',sage:'D2DFC2',sand:'EAD8BB',brown:'D7BCA7',gray:'D8DDE4',white:'FFFFFF'};
+/** Friendly forms to stored styles: <mark color="green"> (highlight), data-style="COLOR_red", "HIGHLIGHT_mint",
+    "ROUGH_CIRCLE_red" (sketch circle/box/underline/highlight; AUTO for the default colour), names or hex. */
+function friendlyMarks(text){
+  const hex=(name,table)=>{const v=String(name).replace(/^#/,'');if(/^[0-9a-f]{6}$/i.test(v))return v;/* keep stored hex exactly as written */const h=table[v.toLowerCase()];if(!h)throw unsupported(`the colour "${name}" (use one of: ${Object.keys(table).join(', ')}, or a hex value)`);return h;};
+  return text
+    .replace(/<mark color="([^"]+)">/gi,(_,c)=>`<mark data-style="HIGHLIGHT_${hex(c,HIGHLIGHT_COLORS)}">`)
+    .replace(/<mark>/gi,'<mark data-style="HIGHLIGHT">')
+    .replace(/data-style="(COLOR|HIGHLIGHT)_([^"]+)"/g,(m,k,c)=>/^[0-9a-f]{6}$/i.test(c)?m:`data-style="${k}_${hex(c,k==='COLOR'?TEXT_COLORS:HIGHLIGHT_COLORS)}"`).replace(/data-style="(color|highlight)_([^"]+)"/gi,(m,k,c)=>`data-style="${k.toUpperCase()}_${hex(c,k.toUpperCase()==='COLOR'?TEXT_COLORS:HIGHLIGHT_COLORS)}"`)
+    .replace(/data-style="ROUGH_(CIRCLE|BOX|UNDERLINE|HIGHLIGHT)_([^"]+)"/gi,(m,k,c)=>/^ROUGH_(CIRCLE|BOX|UNDERLINE|HIGHLIGHT)_(AUTO|[0-9A-F]{6})$/.test(m.slice(12,-1))?m:`data-style="ROUGH_${k.toUpperCase()}_${/^auto$/i.test(c)?'AUTO':hex(c,TEXT_COLORS).toUpperCase()}"`)
+    .replace(/data-style="(bold|italic|underline|highlight|code|mask)"/gi,(_,k)=>`data-style="${k.toUpperCase()}"`);
+}
 /** Inline Markdown to {text, formatting}. Throws on syntax RemoNook cannot store (strikethrough). */
 export function parseInline(src){
-  let text=protect(src),ms=[];
+  let text=friendlyMarks(protect(src)),ms=[];
   if(/~~[^~]+~~/.test(text))throw unsupported('strikethrough (~~text~~)');
   const pass=(re,style,group=1)=>{
     const removed=[],added=[];let out='',last=0,m;re.lastIndex=0;

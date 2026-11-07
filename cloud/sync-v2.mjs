@@ -10,9 +10,46 @@ import {validateCalendarEvents} from '../src/calendar-events.mjs';
 import {validateStudyLibrary} from '../src/study-library.mjs';
 import {validateOcclusions} from '../src/occlusion.mjs';
 import {sharedSnapshot} from '../src/sync-validate.mjs';
+import {isV3Account,readDocumentV3,commitChangeV3} from './sync-v3.mjs';
 const error=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const hash=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
-const STATE_LIMIT=6*1024*1024;
+// Limits for one account's synced workspace. Every save loads the whole CRDT state into the
+// Worker: a 6.8 MB state needs about 100 MB of the 128 MB isolate memory, so the state bound
+// is what really limits size. The notes copy (WORKSPACE_LIMIT) is reached only when the
+// state is unusually compact. Values above INLINE_LIMIT are kept in R2 (FILES) and D1 stores
+// a pointer ("r2:<key>"), so neither depends on D1's 2 MB row size.
+export const WORKSPACE_LIMIT=3*1024*1024,STATE_LIMIT=7*1024*1024;
+const INLINE_LIMIT=512*1024,STORED='r2:';
+const megabytes=n=>(n/1048576).toFixed(n<10485760?1:0)+' MB';
+function full(kind,size,limit){error(`Your workspace is full: ${kind} would be ${megabytes(size)} of the ${megabytes(limit)} limit. Nothing was saved. Delete or move unused notes (empty Trash too) and try again.`,413);}
+async function storeLarge(env,uid,kind,text,digest){
+ if(text.length<=INLINE_LIMIT)return text;
+ if(!env.FILES)error('Sync storage is not available. Your edits are saved on this device.',503);
+ const key=`${uid}/sync-store/${kind}/${digest}`;
+ await env.FILES.put(key,text,{httpMetadata:{contentType:'text/plain; charset=utf-8'}});
+ return STORED+key;
+}
+/** Resolves a stored state or body: inline text is returned as is; an R2 pointer is read.
+ Returns null when the object is gone (replaced by a newer commit); callers re-read the row. */
+export async function loadStored(env,value){
+ if(typeof value!=='string'||!value.startsWith(STORED))return value;
+ const object=await env.FILES?.get(value.slice(STORED.length));
+ return object?object.text():null;
+}
+/** After a commit attempt, deletes R2 objects that no row references any more: superseded
+ ones, or this attempt's own when another device won the compare-and-swap. */
+async function releaseStored(env,uid,candidates){
+ const now=await env.DB.prepare('SELECT d.state,w.body FROM sync_documents d LEFT JOIN workspaces w USING(uid) WHERE d.uid=?').bind(uid).first();
+ const live=new Set([now?.state,now?.body]);
+ for(const value of new Set(candidates))if(typeof value==='string'&&value.startsWith(STORED)&&!live.has(value)){try{await env.FILES.delete(value.slice(STORED.length));}catch{/* left for a later cleanup */}}
+}
+async function readRow(env,uid){
+ for(let attempt=0;attempt<5;attempt++){
+  const row=await env.DB.prepare('SELECT d.*,w.body AS body_ref FROM sync_documents d LEFT JOIN workspaces w USING(uid) WHERE d.uid=?').bind(uid).first();if(!row)return null;
+  const state=await loadStored(env,row.state);if(state!==null)return {...row,state_ref:row.state,state};
+ }
+ error('Sync is retrying. Your edits are saved on this device.',503);
+}
 function validationFailure(step){
  const legacy=step.includes('Workdays intent');
  const reason=legacy?'Legacy Workdays upgrade failed. Pending Workdays data could not be converted.':step+': validation failed.';
@@ -21,8 +58,9 @@ function validationFailure(step){
 }
 async function initialize(env,uid){
  for(let attempt=0;attempt<8;attempt++){
-  const found=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();if(found)return found;
+  const found=await readRow(env,uid);if(found)return found;
   const legacy=await env.DB.prepare('SELECT revision,body FROM workspaces WHERE uid=?').bind(uid).first();
+  if(legacy){const text=await loadStored(env,legacy.body);if(text===null)continue;legacy.body=text;}
   const value=legacy?JSON.parse(legacy.body):{doc:emptyShared(),assets:[]},revision=legacy?.revision||0;
   const y=seed(value.doc,value.assets),state=sharedState(y);y.destroy();const digest=await hash(state),now=Date.now();
   if(legacy&&env.FILES)await env.FILES.put(uid+'/sync-recovery/'+await hash(legacy.body)+'.json',legacy.body,{httpMetadata:{contentType:'application/json'}});
@@ -36,19 +74,21 @@ async function initialize(env,uid){
  error('Sync is retrying. Your edits are saved on this device.',503);
 }
 function snapshot(y){return sharedSnapshot(y);}
-function requireWorkdaysCapability(request,state){
+async function requireWorkdaysCapability(request,getState){
  if((request.headers.get('X-Remo-Capabilities')||'').split(',').map(s=>s.trim()).includes('workdays-v2'))return;
+ const state=typeof getState==='function'?await getState():getState;
  const y=openShared(state);try{if(y.getMap('fields').get(JSON.stringify(['web','workdays','version']))===2)error('Update RemoNook to continue syncing Workdays. Pending edits remain saved on this device.',426);}finally{y.destroy();}
 }
-export async function syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT}){
+export async function syncV2(request,env,uid,{readLimited,validatePayload}){
  const url=new URL(request.url);
  if(request.method==='GET'&&request.headers.has('If-None-Match')){
-  const head=await env.DB.prepare('SELECT revision,state FROM sync_documents WHERE uid=?').bind(uid).first();
-  if(head)requireWorkdaysCapability(request,head.state);
+  const head=await env.DB.prepare('SELECT revision FROM sync_documents WHERE uid=?').bind(uid).first();
+  if(head)await requireWorkdaysCapability(request,async()=>(await readRow(env,uid)).state);
   if(head&&String(head.revision)===request.headers.get('If-None-Match'))return new Response(null,{status:304});
  }
  let row=await initialize(env,uid);
- requireWorkdaysCapability(request,row.state);
+ if(row.state_hash==='v3')error('Update RemoNook to keep syncing. Your edits are saved on this device.',426);
+ await requireWorkdaysCapability(request,row.state);
  if(request.method==='GET'){
   if(request.headers.get('If-None-Match')===String(row.revision))return new Response(null,{status:304});
   const y=openShared(row.state);try{
@@ -66,30 +106,32 @@ export async function syncV2(request,env,uid,{readLimited,validatePayload,NOTE_L
  for(let attempt=0;attempt<8;attempt++){
   const prior=await env.DB.prepare('SELECT request_hash FROM sync_journal WHERE uid=? AND operation_id=?').bind(uid,input.operationId).first();
   if(prior){if(prior.request_hash!==requestHash)error('Operation identity was reused with different content');break;}
-  row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();requireWorkdaysCapability(request,row.state);const y=openShared(row.state);
+  row=await readRow(env,uid);await requireWorkdaysCapability(request,row.state);const y=openShared(row.state);
   let state,value,journalUpdate,step='legacy Workdays intent';const beforeVector=Y.encodeStateVector(y);
   // A recovery request contains the rejected structs AND a validated corrective
   // delta. Do not reinterpret those original legacy edits using a newer context.
   // All normal shared validation, quotas, attachment checks and journalling still
   // apply; this flag never acknowledges or replaces an existing server copy.
-  try{const legacy=input.recovery?null:workdaysLegacyIntent(y,update,workdaysVector);if(legacy&&!input.workdaysContext)throw Object.assign(Error('Updating pending Workdays edits…'),{status:409,code:'WORKDAYS_CONTEXT_REQUIRED'});step='apply update';Y.applyUpdate(y,update);if(legacy){step='upgrade Workdays intent';const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,input.workdaysContext);step='apply Workdays intent';applyIntent(y,before,next);}step='Workdays capability';requireWorkdaysCapability(request,sharedState(y));step='snapshot';value=sharedSnapshot(y,name=>{step=name;});step='shared state';state=sharedState(y);step='journal';journalUpdate=pack(Y.encodeStateAsUpdate(y,beforeVector));}catch(e){y.destroy();if(e.status&&e.status!==400)throw e;validationFailure(step);}y.destroy();
-  if(state.length>STATE_LIMIT)error('Shared workspace storage limit reached.',413);
+  try{const legacy=input.recovery?null:workdaysLegacyIntent(y,update,workdaysVector);if(legacy&&!input.workdaysContext)throw Object.assign(Error('Updating pending Workdays edits…'),{status:409,code:'WORKDAYS_CONTEXT_REQUIRED'});step='apply update';Y.applyUpdate(y,update);if(legacy){step='upgrade Workdays intent';const before=project(y).doc,next=upgradeWorkdaysIntent(before,legacy,input.workdaysContext);step='apply Workdays intent';applyIntent(y,before,next);}step='Workdays capability';await requireWorkdaysCapability(request,()=>sharedState(y));step='snapshot';value=sharedSnapshot(y,name=>{step=name;});step='shared state';state=sharedState(y);step='journal';journalUpdate=pack(Y.encodeStateAsUpdate(y,beforeVector));}catch(e){y.destroy();if(e.status&&e.status!==400)throw e;validationFailure(step);}y.destroy();
+  if(state.length>STATE_LIMIT)full('edit history',state.length,STATE_LIMIT);
   try{validatePayload({baseRevision:row.revision,...value});}catch(e){if(e.status&&e.status!==400)throw e;validationFailure('workspace payload');}const body=JSON.stringify(value);
-  if(new TextEncoder().encode(body).length>NOTE_LIMIT)error('Workspace exceeds the note storage limit.',413);
+  const bodySize=new TextEncoder().encode(body).length;if(bodySize>WORKSPACE_LIMIT)full('notes',bodySize,WORKSPACE_LIMIT);
   for(const a of value.assets){const file=await env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(uid,a.hash).first();if(!file||file.size!==a.size)error('An attachment is still uploading.',409);}
   const next=row.revision+1,digest=await hash(state),now=Date.now();
+  const storedState=await storeLarge(env,uid,'state',state,digest),storedBody=await storeLarge(env,uid,'body',body,digest);
   // D1 batch is transactional. A failed CAS cannot journal an unaccepted update;
   // a response lost after commit is safely retried using the same operation ID.
   await env.DB.batch([
-   env.DB.prepare('UPDATE sync_documents SET revision=?,state=?,state_hash=?,updated_at=? WHERE uid=? AND revision=? AND NOT EXISTS(SELECT 1 FROM sync_journal WHERE uid=? AND operation_id=?)').bind(next,state,digest,now,uid,row.revision,uid,input.operationId),
+   env.DB.prepare('UPDATE sync_documents SET revision=?,state=?,state_hash=?,updated_at=? WHERE uid=? AND revision=? AND NOT EXISTS(SELECT 1 FROM sync_journal WHERE uid=? AND operation_id=?)').bind(next,storedState,digest,now,uid,row.revision,uid,input.operationId),
    env.DB.prepare('INSERT OR IGNORE INTO sync_journal(uid,operation_id,request_hash,update_body,accepted_revision,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM sync_documents WHERE uid=? AND revision=? AND state_hash=?)').bind(uid,input.operationId,requestHash,journalUpdate,next,now,uid,next,digest),
-   env.DB.prepare('UPDATE workspaces SET revision=?,body=?,updated_at=? WHERE uid=? AND EXISTS(SELECT 1 FROM sync_documents WHERE uid=? AND revision=? AND state_hash=?)').bind(next,body,now,uid,uid,next,digest)
+   env.DB.prepare('UPDATE workspaces SET revision=?,body=?,updated_at=? WHERE uid=? AND EXISTS(SELECT 1 FROM sync_documents WHERE uid=? AND revision=? AND state_hash=?)').bind(next,storedBody,now,uid,uid,next,digest)
   ]);
+  await releaseStored(env,uid,[row.state_ref,row.body_ref,storedState,storedBody]);
   const accepted=await env.DB.prepare('SELECT request_hash FROM sync_journal WHERE uid=? AND operation_id=?').bind(uid,input.operationId).first();
   if(accepted){if(accepted.request_hash!==requestHash)error('Operation identity was reused');break;}
   if(attempt===7)error('Sync is retrying. Your edits remain saved on this device.',503);
  }
- row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first();requireWorkdaysCapability(request,row.state);const y=openShared(row.state);
+ row=await readRow(env,uid);await requireWorkdaysCapability(request,row.state);const y=openShared(row.state);
  try{return Response.json({protocol:2,acked:input.operationId,revision:row.revision,update:pack(Y.encodeStateAsUpdate(y,v))});}finally{y.destroy();}
 }
 
@@ -98,12 +140,13 @@ export async function syncV2(request,env,uid,{readLimited,validatePayload,NOTE_L
  so every device receives it through normal sync. `change(doc)` returns {doc, result}; it may be
  called more than once if another device commits first. An operation id that was already accepted
  returns the recorded revision instead of applying the change twice. */
-export async function commitServerChange(env,uid,{operationId,requestHash,change},{validatePayload,NOTE_LIMIT}){
+export async function commitServerChange(env,uid,{operationId,requestHash,change},{validatePayload}){
+ if(await isV3Account(env,uid))return commitChangeV3(env,uid,{operationId,requestHash,change});
  await initialize(env,uid);
  for(let attempt=0;attempt<8;attempt++){
   const prior=await env.DB.prepare('SELECT request_hash,accepted_revision FROM sync_journal WHERE uid=? AND operation_id=?').bind(uid,operationId).first();
   if(prior){if(prior.request_hash!==requestHash)error('This idempotency key was already used for a different request.',409);return {revision:prior.accepted_revision,replayed:true,result:null};}
-  const row=await env.DB.prepare('SELECT * FROM sync_documents WHERE uid=?').bind(uid).first(),y=openShared(row.state);
+  const row=await readRow(env,uid),y=openShared(row.state);
   let state,value,journalUpdate,result;
   try{
    const beforeVector=Y.encodeStateVector(y),before=project(y).doc,out=change(before);result=out.result;
@@ -112,15 +155,17 @@ export async function commitServerChange(env,uid,{operationId,requestHash,change
    let step='snapshot';try{value=sharedSnapshot(y,name=>{step=name;});}catch(e){throw Object.assign(Error(`The change was refused because the workspace would not validate (${step}). Nothing was saved.`),{status:400});}
    state=sharedState(y);journalUpdate=pack(Y.encodeStateAsUpdate(y,beforeVector));
   }finally{y.destroy();}
-  if(state.length>STATE_LIMIT)error('Shared workspace storage limit reached.',413);
+  if(state.length>STATE_LIMIT)full('edit history',state.length,STATE_LIMIT);
   validatePayload({baseRevision:row.revision,...value});const body=JSON.stringify(value);
-  if(new TextEncoder().encode(body).length>NOTE_LIMIT)error('Workspace exceeds the note storage limit.',413);
+  const bodySize=new TextEncoder().encode(body).length;if(bodySize>WORKSPACE_LIMIT)full('notes',bodySize,WORKSPACE_LIMIT);
   const next=row.revision+1,digest=await hash(state),now=Date.now();
+  const storedState=await storeLarge(env,uid,'state',state,digest),storedBody=await storeLarge(env,uid,'body',body,digest);
   await env.DB.batch([
-   env.DB.prepare('UPDATE sync_documents SET revision=?,state=?,state_hash=?,updated_at=? WHERE uid=? AND revision=? AND NOT EXISTS(SELECT 1 FROM sync_journal WHERE uid=? AND operation_id=?)').bind(next,state,digest,now,uid,row.revision,uid,operationId),
+   env.DB.prepare('UPDATE sync_documents SET revision=?,state=?,state_hash=?,updated_at=? WHERE uid=? AND revision=? AND NOT EXISTS(SELECT 1 FROM sync_journal WHERE uid=? AND operation_id=?)').bind(next,storedState,digest,now,uid,row.revision,uid,operationId),
    env.DB.prepare('INSERT OR IGNORE INTO sync_journal(uid,operation_id,request_hash,update_body,accepted_revision,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM sync_documents WHERE uid=? AND revision=? AND state_hash=?)').bind(uid,operationId,requestHash,journalUpdate,next,now,uid,next,digest),
-   env.DB.prepare('UPDATE workspaces SET revision=?,body=?,updated_at=? WHERE uid=? AND EXISTS(SELECT 1 FROM sync_documents WHERE uid=? AND revision=? AND state_hash=?)').bind(next,body,now,uid,uid,next,digest)
+   env.DB.prepare('UPDATE workspaces SET revision=?,body=?,updated_at=? WHERE uid=? AND EXISTS(SELECT 1 FROM sync_documents WHERE uid=? AND revision=? AND state_hash=?)').bind(next,storedBody,now,uid,uid,next,digest)
   ]);
+  await releaseStored(env,uid,[row.state_ref,row.body_ref,storedState,storedBody]);
   const accepted=await env.DB.prepare('SELECT request_hash,accepted_revision FROM sync_journal WHERE uid=? AND operation_id=?').bind(uid,operationId).first();
   if(accepted){if(accepted.request_hash!==requestHash)error('Operation identity was reused');return {revision:accepted.accepted_revision,result};}
  }
@@ -128,6 +173,7 @@ export async function commitServerChange(env,uid,{operationId,requestHash,change
 }
 /** The current workspace, read-only. */
 export async function readServerDocument(env,uid){
+ if(await isV3Account(env,uid))return readDocumentV3(env,uid);
  const row=await initialize(env,uid),y=openShared(row.state);
  try{return {doc:project(y).doc,revision:row.revision};}finally{y.destroy();}
 }

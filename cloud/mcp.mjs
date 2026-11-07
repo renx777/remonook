@@ -1,4 +1,5 @@
 import {commitServerChange,readServerDocument} from './sync-v2.mjs';
+import {isV3Account,readSubsetV3} from './sync-v3.mjs';
 import {bullet,index,move,descendants} from '../src/domain.mjs';
 import {withNodes} from '../src/workspace-nodes.mjs';
 import {parseMarkdown,parseInline,itemsToBullets,outlineMarkdown,bulletVersion,bulletMarkdown} from '../src/ai-markdown.mjs';
@@ -6,6 +7,28 @@ import {displayText,notePath} from '../src/relations.mjs';
 import {searchMatcher} from '../src/search.mjs';
 import {configureMcq} from '../src/mcq.mjs';
 import {addBookmark,patchBookmark,bookmarkNote,bookmarkUrl} from '../src/bookmarks.mjs';
+import {notoEmojis,getNotoEmoji} from '../src/noto-emojis.mjs';
+
+/* Animated emoji: AI apps write shortcodes (:rocket:, :party_popper:, :tada:). They become RemoNook's Google Noto
+   tokens, and the emoji joins the workspace library; each device then fetches the animation itself (the app's
+   catalog repair). Code blocks and inline code are left alone; unknown shortcodes stay as text. */
+const ALIASES={tada:'party-popper',thumbsup:'thumbs-up','+1':'thumbs-up',joy:'joy',heart_eyes:'heart-eyes',sob:'loudly-crying',eyes:'eyes',star:'star',white_check_mark:'check-mark',heavy_check_mark:'check-mark',x:'cross-mark',warning:'warning',bulb:'light-bulb',memo:'memo',books:'books',pray:'folded-hands',clap:'clapping-hands',muscle:'muscle',wave:'wave'};
+const SHORTCODES=new Map();for(const e of notoEmojis)for(const t of e.tags||[]){const k=t.slice(1,-1).toLowerCase();if(!SHORTCODES.has(k))SHORTCODES.set(k,e.token);}
+const shortcode=name=>{const k=name.toLowerCase().replace(/_/g,'-');return SHORTCODES.get(k)||SHORTCODES.get((ALIASES[name.toLowerCase()]||'').replace(/_/g,'-'))||null;};
+export function animateShortcodes(md){
+ if(typeof md!=='string'||!md.includes(':'))return md;
+ return md.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`)/).map((part,i)=>i%2?part:part.replace(/:([a-z0-9][a-z0-9_+-]{0,40}):/gi,(m,name)=>shortcode(name)||m)).join('');
+}
+function registerEmojis(doc){
+ const have=new Set((doc.tables.emojis||[]).map(e=>e.token)),add=[];
+ for(const n of doc.tables.bullets){if(n.codeLanguage||!n.text.includes(':noto_'))continue;for(const m of n.text.matchAll(/:noto_[0-9a-f]{2,6}(?:_[0-9a-f]{2,6})*:/g)){const e=getNotoEmoji(m[0]);if(e&&!have.has(e.token)){have.add(e.token);add.push({token:e.token,fileName:e.fileName,label:e.label});}}}
+ return add.length?{...doc,tables:{...doc.tables,emojis:[...(doc.tables.emojis||[]),...add]}}:doc;
+}
+const withEmojiArgs=args=>({...args,
+ ...(typeof args.markdown==='string'?{markdown:animateShortcodes(args.markdown)}:{}),
+ ...(Array.isArray(args.cards)?{cards:args.cards.map(c=>({...c,question:animateShortcodes(c?.question),answer:animateShortcodes(c?.answer)}))}:{}),
+ ...(Array.isArray(args.questions)?{questions:args.questions.map(q=>({...q,question:animateShortcodes(q?.question),options:Array.isArray(q?.options)?q.options.map(animateShortcodes):q?.options,explanation:animateShortcodes(q?.explanation)}))}:{}),
+});
 
 /* RemoNook MCP server (Streamable HTTP, JSON responses). AI apps authenticate with a personal access token
    created in Settings → AI apps; each token carries scopes: read, write, delete. Every write goes through
@@ -20,14 +43,15 @@ const SCOPES=['read','write','delete'];
 export async function mcpManage(request,env,uid,{readLimited}){
  const url=new URL(request.url),json=b=>Response.json(b);
  if(url.pathname==='/mcp/tokens'&&request.method==='GET'){
-  const rows=await env.DB.prepare('SELECT id,name,scopes,created_at,last_used_at FROM mcp_tokens WHERE uid=? AND revoked_at IS NULL ORDER BY created_at DESC').bind(uid).all();
-  return json({tokens:(rows.results||[]).map(r=>({...r,scopes:r.scopes.split(',')}))});
+  const rows=await env.DB.prepare('SELECT id,name,scopes,created_at,last_used_at FROM mcp_tokens WHERE uid=? AND revoked_at IS NULL AND grant_id IS NULL ORDER BY created_at DESC').bind(uid).all();
+  const grants=await env.DB.prepare('SELECT id,name,scopes,created_at,last_used_at FROM mcp_grants WHERE uid=? AND revoked_at IS NULL AND refresh_hash IS NOT NULL ORDER BY created_at DESC').bind(uid).all();
+  return json({tokens:[...(grants.results||[]).map(r=>({...r,kind:'oauth',scopes:r.scopes.split(',')})),...(rows.results||[]).map(r=>({...r,kind:'token',scopes:r.scopes.split(',')}))]});
  }
  if(url.pathname==='/mcp/tokens'&&request.method==='POST'){
   let body;try{body=JSON.parse(new TextDecoder().decode(await readLimited(request,4096)));}catch{fail('Invalid request.');}
   const name=String(body?.name||'').trim().slice(0,60)||'AI app',scopes=[...new Set(Array.isArray(body?.scopes)?body.scopes:['read'])];
   if(!scopes.includes('read')||scopes.some(s=>!SCOPES.includes(s))||(scopes.includes('delete')&&!scopes.includes('write')))fail('Choose read, read and write, or read, write and delete.');
-  const count=await env.DB.prepare('SELECT COUNT(*) AS n FROM mcp_tokens WHERE uid=? AND revoked_at IS NULL').bind(uid).first();
+  const count=await env.DB.prepare('SELECT COUNT(*) AS n FROM mcp_tokens WHERE uid=? AND revoked_at IS NULL AND grant_id IS NULL').bind(uid).first();
   if((count?.n||0)>=LIMITS.tokens)fail(`You can connect up to ${LIMITS.tokens} AI apps. Disconnect one first.`,409);
   const id=crypto.randomUUID().replace(/-/g,'').slice(0,16),secret=Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,'0')).join('');
   await env.DB.prepare('INSERT INTO mcp_tokens(id,uid,name,secret_hash,scopes,created_at) VALUES(?,?,?,?,?,?)').bind(id,uid,name,await sha(secret),scopes.join(','),Date.now()).run();
@@ -35,7 +59,13 @@ export async function mcpManage(request,env,uid,{readLimited}){
  }
  const revoke=url.pathname.match(/^\/mcp\/tokens\/([a-f0-9]{16})$/);
  if(revoke&&request.method==='DELETE'){
-  await env.DB.prepare('UPDATE mcp_tokens SET revoked_at=? WHERE id=? AND uid=? AND revoked_at IS NULL').bind(Date.now(),revoke[1],uid).run();
+  const now=Date.now();
+  await env.DB.batch([
+   env.DB.prepare('UPDATE mcp_tokens SET revoked_at=? WHERE id=? AND uid=? AND revoked_at IS NULL').bind(now,revoke[1],uid),
+   // A connection made by signing in: disconnect it and every access token it issued.
+   env.DB.prepare('UPDATE mcp_grants SET revoked_at=?,refresh_hash=NULL WHERE id=? AND uid=? AND revoked_at IS NULL').bind(now,revoke[1],uid),
+   env.DB.prepare('UPDATE mcp_tokens SET revoked_at=? WHERE grant_id=? AND uid=? AND revoked_at IS NULL').bind(now,revoke[1],uid),
+  ]);
   return json({ok:true});
  }
  if(url.pathname==='/mcp/activity'&&request.method==='GET'){
@@ -49,6 +79,8 @@ async function tokenUser(request,env){
  if(!m)fail('Connect this app with a RemoNook access token from Settings → AI apps.',401);
  const row=await env.DB.prepare('SELECT * FROM mcp_tokens WHERE id=?').bind(m[1]).first();
  if(!row||row.revoked_at||row.secret_hash!==await sha(m[2]))fail('This access token was disconnected or is not valid. Create a new one in Settings → AI apps.',401);
+ if(row.expires_at&&row.expires_at<Date.now())fail('The access token expired. Refresh it.',401);
+ if(row.grant_id){const g=await env.DB.prepare('SELECT revoked_at FROM mcp_grants WHERE id=?').bind(row.grant_id).first();if(!g||g.revoked_at)fail('This app was disconnected in Settings → AI apps.',401);await env.DB.prepare('UPDATE mcp_grants SET last_used_at=? WHERE id=?').bind(Date.now(),row.grant_id).run();}
  const now=Date.now(),minute=Math.floor(now/60000)*60000;
  const updated=await env.DB.prepare('UPDATE mcp_tokens SET last_used_at=?,window_start=?,window_count=CASE WHEN window_start=? THEN window_count+1 ELSE 1 END WHERE id=? AND (window_start!=? OR window_count<?)').bind(now,minute,minute,row.id,minute,LIMITS.perMinute).run();
  if(!updated?.meta?.changes)fail('Too many requests from this app. Wait a minute and try again.',429);
@@ -63,8 +95,8 @@ export const TOOLS=[
  {name:'search',scope:'read',description:'Find bullets. Plain words match text; #tag matches a tag and its sub-tags; filters such as is:todo, date:today, has:children work too. Returns matching bullets with ids, versions and their page path.',inputSchema:S({query:str('What to look for.'),limit:int('Maximum results, 1–50 (default 20).')},['query'])},
  {name:'list_pages',scope:'read',description:'List the bullets directly under a parent (the top level when parent_id is omitted), with ids, child counts and kinds. Use it to find where to read or write.',inputSchema:S({parent_id:str('A bullet id, or omit for the top level.')})},
  {name:'read_page',scope:'read',description:'Read a bullet and everything under it (or the whole outline) as nested Markdown. Each line ends with <!-- id=… v=… -->: the id and version you need to edit it. Long pages are paginated with offset.',inputSchema:S({id:str('The bullet to read; omit for the whole outline.'),offset:int('Bullets to skip, from next_offset of the previous call.'),max_bullets:int('Up to 400 (default 200).')})},
- {name:'write_notes',scope:'write',description:'Add notes from Markdown under a parent bullet. Nested lists become nested bullets; # headings nest what follows them; - [ ] / - [x] are tasks; ```lang code, ```mermaid diagrams and | tables | become their RemoNook blocks; --- is a divider. Inline: **bold**, *italic*, `code`, ==highlight==, <u>underline</u>, #tags, [[Title|id]] links. Strikethrough is not supported.',inputSchema:S({parent_id:str('Where to add them; omit for the top level.'),position:int('Index among the existing children (default: at the end).'),markdown:str('The notes.'),...key},['markdown'])},
- {name:'update_note',scope:'write',description:'Change one bullet. Pass the version from read_page or search; if the bullet changed since, the edit is refused and you must read it again. markdown replaces its content (one bullet: inline Markdown, optionally starting with [ ] or [x], or a single code block / mermaid block / table). Keep any <mark data-style=…> parts you are not changing, so formatting is kept.',inputSchema:S({id:str('The bullet.'),version:str('The v= value you read.'),markdown:str('New content for this bullet only (not its children).'),mindmap:{type:'boolean',description:'Show this branch as a mindmap.'},collapsed:{type:'boolean',description:'Fold its children.'},due_date:str('YYYY-MM-DD, or an empty string to clear.'),...key},['id','version'])},
+ {name:'write_notes',scope:'write',description:'Add notes from Markdown under a parent bullet. Nested lists become nested bullets; # headings nest what follows them; - [ ] / - [x] are tasks; ```lang code, ```mermaid diagrams and | tables | become their RemoNook blocks; --- is a divider. Inline: **bold**, *italic*, `code`, ==highlight==, <u>underline</u>, #tags, [[Title|id]] links. Colours: <mark color="green">highlight</mark> (yellow, lemon, amber, orange, peach, coral, pink, rose, magenta, lavender, violet, indigo, blue, sky, cyan, teal, mint, green, lime, sage, sand, brown, gray); text colour <mark data-style="COLOR_red">text</mark> (black, gray, brown, red, coral, orange, amber, yellow, lemon, lime, green, mint, teal, cyan, sky, blue, indigo, violet, purple, magenta, pink, rose, slate); hand-drawn marks <mark data-style="ROUGH_CIRCLE_red">, ROUGH_BOX_…, ROUGH_UNDERLINE_…, ROUGH_HIGHLIGHT_… (colour name or AUTO); hidden-until-revealed text for study <mark data-style="MASK">answer</mark>. Hex colours also work. Marks can nest. Animated emoji: write a shortcode such as :rocket:, :fire:, :sparkles:, :brain:, :party_popper: (Google Noto names); it becomes a RemoNook animated emoji. Plain emoji characters stay static. Strikethrough is not supported.',inputSchema:S({parent_id:str('Where to add them; omit for the top level.'),position:int('Index among the existing children (default: at the end).'),markdown:str('The notes.'),...key},['markdown'])},
+ {name:'update_note',scope:'write',description:'Change one bullet. Pass the version from read_page or search; if the bullet changed since, the edit is refused and you must read it again. markdown replaces its content (one bullet: inline Markdown, optionally starting with [ ] or [x], or a single code block / mermaid block / table). It accepts the same formatting as write_notes, including <mark color="…"> highlights and <mark data-style="COLOR_…"> text colours, so you can recolour or highlight existing text. Keep any <mark data-style=…> parts you are not changing, so formatting is kept.',inputSchema:S({id:str('The bullet.'),version:str('The v= value you read.'),markdown:str('New content for this bullet only (not its children).'),mindmap:{type:'boolean',description:'Show this branch as a mindmap.'},collapsed:{type:'boolean',description:'Fold its children.'},due_date:str('YYYY-MM-DD, or an empty string to clear.'),...key},['id','version'])},
  {name:'move_notes',scope:'write',description:'Move bullets (with their children) under a new parent, keeping their order.',inputSchema:S({ids:ids('Bullets to move.'),parent_id:{type:['string','null'],description:'New parent id, or null for the top level.'},position:int('Index among the new parent\'s children (default: at the end).'),...key},['ids','parent_id'])},
  {name:'delete_notes',scope:'delete',description:'Move bullets and everything under them to RemoNook\'s Trash, where the owner can restore them. Up to 200 bullets per call.',inputSchema:S({ids:ids('Bullets to delete.'),...key},['ids'])},
  {name:'create_flashcards',scope:'write',description:'Create flashcards for Study Desk under a parent bullet. Each card is a question bullet with its answer underneath (answer may be Markdown, including lists).',inputSchema:S({parent_id:str('Where to add them; omit for the top level.'),cards:{type:'array',items:S({question:str('Front of the card.'),answer:str('Back of the card.')},['question','answer']),description:'Up to 100 cards.'},...key},['cards'])},
@@ -100,6 +132,23 @@ function trashEntry(doc,rootIds){
  return {all,entry:{id:crypto.randomUUID(),title:rootIds.length===1&&first?(first.text||'Empty bullet'):`${rootIds.length} bullets`,deletedAt:Date.now(),nodeCount:all.size,payload:JSON.stringify({nodes:nodes.filter(n=>all.has(n.id)),media:doc.tables.media.filter(m=>all.has(m.bulletId)),decks:doc.tables.decks.filter(d=>all.has(d.rootId))})}};
 }
 
+/** The longest plain word of a simple search (ASCII letters and digits, no operators), which
+ every hit must contain; null when the query needs the whole outline (fields, OR, non-ASCII). */
+export function searchWord(query){
+ const q=String(query||'').trim();
+ if(!q||!/^[A-Za-z0-9#@_\/\s-]+$/.test(q)||/(^|\s)or(\s|$)/i.test(q))return null;
+ const words=q.split(/\s+/).filter(w=>!w.startsWith('-')).map(w=>w.replace(/^[#@]+/,'')).filter(w=>w.length>=2);
+ return words.sort((a,b)=>b.length-a.length)[0]||null;
+}
+/** Sync v3 accounts read only the part of the outline a read tool needs. */
+async function readForTool(env,uid,name,args){
+ if(await isV3Account(env,uid)){
+  if(name==='search'){const word=searchWord(args.query);if(word)return readSubsetV3(env,uid,{word});}
+  if(name==='list_pages')return readSubsetV3(env,uid,{parent:args.parent_id||null});
+  if(name==='read_page'&&args.id)return readSubsetV3(env,uid,{root:args.id});
+ }
+ return readServerDocument(env,uid);
+}
 /** Runs one tool. Reads use the stored document; writes go through commitServerChange. */
 export async function callTool(env,auth,name,args,deps){
  const tool=TOOLS.find(t=>t.name===name);if(!tool)fail(`Unknown tool ${name}.`,404);
@@ -107,7 +156,7 @@ export async function callTool(env,auth,name,args,deps){
  args=args&&typeof args==='object'?args:{};
  if(tool.scope==='read'){
   if(name==='recent_changes'){const rows=await env.DB.prepare('SELECT tool,summary,ids,created_at FROM mcp_activity WHERE uid=? ORDER BY created_at DESC LIMIT ?').bind(auth.uid,clampInt(args.limit,1,50,20)).all();return {text:(rows.results||[]).map(r=>`- ${new Date(r.created_at).toISOString()} ${r.tool}: ${r.summary} ${r.ids}`).join('\n')||'No changes from AI apps yet.'};}
-  const {doc,revision}=await readServerDocument(env,auth.uid),idx=index(doc.tables.bullets);
+  const {doc,revision,childCounts}=await readForTool(env,auth.uid,name,args),idx=index(doc.tables.bullets),childCount=id=>childCounts?.[id]??(idx.children.get(id)||[]).length;
   if(name==='search'){
    const q=need(args.query,'query').trim(),match=searchMatcher(doc.tables.bullets,doc.tables.media||[],doc.web.noteTimes||{}),limit=clampInt(args.limit,1,50,20),hits=[];
    for(const n of doc.tables.bullets){if(hits.length>=limit)break;if(match(n,q))hits.push(n);}
@@ -115,7 +164,7 @@ export async function callTool(env,auth,name,args,deps){
   }
   if(name==='list_pages'){
    const parent=args.parent_id?live(doc,args.parent_id).id:null,kids=idx.children.get(parent)||[];
-   return {text:kids.length?kids.map(n=>`- ${titled(idx,n)} <!-- id=${n.id} children=${(idx.children.get(n.id)||[]).length}${n.kind!=='NOTE'?' kind='+n.kind:''}${n.mindmap?' mindmap':''} -->`).join('\n'):'No bullets here.',structured:{revision,count:kids.length}};
+   return {text:kids.length?kids.map(n=>`- ${titled(idx,n)} <!-- id=${n.id} children=${childCount(n.id)}${n.kind!=='NOTE'?' kind='+n.kind:''}${n.mindmap?' mindmap':''} -->`).join('\n'):'No bullets here.',structured:{revision,count:kids.length}};
   }
   if(name==='read_page'){
    const root=args.id?live(doc,args.id):null,out=outlineMarkdown(idx,root?root.id:null,{offset:clampInt(args.offset,0,1e6,0),maxNodes:clampInt(args.max_bullets,1,LIMITS.read,200)});
@@ -136,8 +185,9 @@ export async function callTool(env,auth,name,args,deps){
 
 /** Pure workspace change for a write tool: returns {doc, result:{summary, ids, text}}. */
 export function applyTool(doc,name,args){
+ args=withEmojiArgs(args);
  const nodes=doc.tables.bullets,makeId=()=>crypto.randomUUID();
- const done=(next,summary,ids,text)=>({doc:next,result:{summary,ids,text}});
+ const done=(next,summary,ids,text)=>({doc:registerEmojis(next),result:{summary,ids,text}});
  if(name==='write_notes'){
   const parent=parentOf(doc,args.parent_id),items=parseMarkdown(need(args.markdown,'markdown'));
   if(!items.length)fail('markdown has no content.');
@@ -204,7 +254,7 @@ export function applyTool(doc,name,args){
 export async function mcpEndpoint(request,env,deps){
  if(request.method==='GET'||request.method==='DELETE')return new Response(null,{status:405,headers:{Allow:'POST'}});
  if(request.method!=='POST')fail('Method not allowed',405);
- let auth;try{auth=await tokenUser(request,env);}catch(e){return new Response(JSON.stringify({error:e.message}),{status:e.status||401,headers:{'Content-Type':'application/json','WWW-Authenticate':'Bearer realm="RemoNook", error="invalid_token"'}});}
+ let auth;try{auth=await tokenUser(request,env);}catch(e){return new Response(JSON.stringify({error:e.message}),{status:e.status||401,headers:{'Content-Type':'application/json','WWW-Authenticate':`Bearer realm="RemoNook", error="invalid_token", resource_metadata="${new URL(request.url).origin}/.well-known/oauth-protected-resource"`}});}
  let message;try{message=JSON.parse(new TextDecoder().decode(await deps.readLimited(request,512*1024)));}catch(e){if(e.status)throw e;return Response.json({jsonrpc:'2.0',id:null,error:{code:-32700,message:'Parse error'}},{status:400});}
  const batch=Array.isArray(message),replies=[];
  for(const m of batch?message.slice(0,20):[message]){const reply=await handle(env,auth,m,deps);if(reply)replies.push(reply);}

@@ -67,7 +67,7 @@ jobs:
           node --input-type=module -e 'import{readFileSync}from"node:fs";console.log("release",JSON.parse(readFileSync("dist/release.json","utf8")).release)'
       - name: Verify the production sync backend
         run: |
-          node --input-type=module -e 'const r=await fetch("https://remo-sync.remo-978fb.workers.dev/health");const h=await r.json();if(!r.ok||h.syncProtocol!==2||h.workdaysSchema!==2)throw Error("Deploy the matching production sync Worker before the frontend.");'
+          node --input-type=module -e 'const r=await fetch("https://remo-sync.remo-978fb.workers.dev/health");const h=await r.json();if(!r.ok||h.syncProtocol!==3||h.workdaysSchema!==2)throw Error("Deploy the matching production sync Worker before the frontend.");'
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           wranglerVersion: '4.157.0'

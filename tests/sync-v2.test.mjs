@@ -7,12 +7,13 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {Y,seed,sharedState,openShared,applyIntent,project,vector,delta,pack,unpack} from '../src/sync-crdt.mjs';
 import {initializeOutbox,recordLocal,claimOutbox,receiveOutbox} from '../src/sync-outbox.mjs';
-import {empty,save,load,setStorageAccount,syncMetadata} from './.build/data.mjs';
+import {empty,save,load,setStorageAccount,syncMetadata,syncOperation} from './.build/data.mjs';
 import 'fake-indexeddb/auto';
 import {bullet} from '../src/domain.mjs';
 import {route} from '../cloud/worker.mjs';
 const copy=structuredClone;
 const initial=()=>{const d=empty();d.tables.bullets=[bullet('a',{text:'Learn SQL.'}),bullet('b',{text:'Other',position:1})];return d;};
+import {applyDocument,projectBuckets,bulletBucket} from '../src/sync-buckets.mjs';
 test('restoring a removed note reuses retained text and preserves concurrent text edits',()=>{
  const base=initial(),seeded=seed(base),state=sharedState(seeded),removed=copy(base);removed.tables.bullets=removed.tables.bullets.filter(n=>n.id!=='a');
  const local=openShared(state),remote=openShared(state);try{
@@ -92,9 +93,9 @@ test('outbox claim identity survives reload and acknowledges only its own edits'
 
 test('local edits and their Yjs outbox records commit atomically in IndexedDB',async()=>{
  setStorageAccount('v2-local-'+crypto.randomUUID());try{
-  let doc=await save(null,initial(),'seed');const state=sharedState(seed(doc));await syncMetadata(()=>initializeOutbox(state,1,null,doc,[]),doc.revision);
+  let doc=await save(null,initial(),'seed');const {updates}=applyDocument(new Map(),null,doc);await syncOperation('initialize',{response:{updates,revision:1},doc,assets:[]});
   const next=copy(doc);next.tables.bullets[0].text='Durable offline edit';doc=await save(doc,next,'edit');
-  const meta=await syncMetadata();assert.equal(meta.pending.length,1);assert.equal(project(openShared(meta.localState)).doc.tables.bullets[0].text,'Durable offline edit');assert.equal((await load()).tables.bullets[0].text,'Durable offline edit');
+  const meta=await syncMetadata();assert.equal(meta.pending.length,1);assert.deepEqual(Object.keys(meta.pending[0].updates),[bulletBucket(next.tables.bullets[0].id)],'the save wrote one bucket');assert.equal((await load()).tables.bullets[0].text,'Durable offline edit');
   await assert.rejects(save({...doc,revision:0},next,'stale'));assert.equal((await syncMetadata()).pending.length,1);
  }finally{setStorageAccount(null);}
 });

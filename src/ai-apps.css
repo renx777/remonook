@@ -23,3 +23,17 @@
 .ai-apps-list li > span,.ai-apps-activity li { flex-wrap: wrap; }
 .ai-apps-list li > span { display: flex; flex-direction: column; gap: 2px; }
 @media (hover: none) { .ai-apps button { min-height: 44px; } }
+.connect-approval { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; box-sizing: border-box; background: var(--bg, #fbfbfa); color: var(--text, #24262a); font: 15px/1.5 system-ui, sans-serif; }
+.connect-card { width: min(460px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 24px; border: 1px solid var(--line, #e4e3df); border-radius: 16px; background: var(--panel, #fff); box-shadow: 0 12px 40px rgba(15, 18, 22, .08); }
+.connect-brand { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.connect-brand svg { width: 28px; height: 28px; }
+.connect-card h1 { margin: 0; font-size: 20px; line-height: 1.35; }
+.connect-card p { margin: 0; }
+.connect-muted { color: var(--muted, #6b6f75); font-size: 13px; }
+.connect-card fieldset { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
+.connect-card legend { margin-bottom: 6px; font-size: 12px; color: var(--muted, #6b6f75); }
+.connect-card button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line, #e4e3df); border-radius: 10px; background: var(--panel, #fff); color: var(--text, #24262a); font: inherit; cursor: pointer; }
+.connect-card button.primary { background: var(--accent, #2b6f8f); border-color: var(--accent, #2b6f8f); color: #fff; }
+.connect-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ai-apps-signin { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--accent); border-radius: 12px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.ai-apps-signin p { margin: 0; font-size: 13px; color: var(--text); line-height: 1.5; }
