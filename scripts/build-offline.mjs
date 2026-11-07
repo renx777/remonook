@@ -14,6 +14,8 @@ const files = [
   "/learn.css",
   ...publicPaths.filter(path=>path!=='/').map(path=>path+'.html'),
   ...(await readdir("dist/reminder-emojis")).map(f=>"/reminder-emojis/"+f),
+  // Notebook theme handwriting (Latin) so it works offline; other alphabets load on first use.
+  ...(await readdir("dist/fonts/notebook")).filter(f=>/-latin\.woff2$/.test(f)).map(f=>"/fonts/notebook/"+f),
   ...(await readdir("dist/assets")).filter(f=>!(/^(PdfPage|PdfDocument|book-cover|pdf-capture|pdf-|pdf\.|pdf-runtime|epub-worker|reader-|drawing-|guide-|Workday|workday-)/.test(f))).map((f) => "/assets/" + f),
 ];
 const hash=createHash('sha256');

@@ -37,6 +37,9 @@ type Props = {
   search: string;
   showCompleted: boolean;
   readingSize?: number;
+  /** Notebook theme: one ruled line in px. Rows become whole lines so text stays on the rules. */
+  lineHeight?: number;
+  layoutKey?: string;
   onImages?: (id: string, files: File[]) => void;
   onRemoveMedia?: (id: string) => void;
   onResizeMedia?: (id:string,width:number)=>void;
@@ -79,7 +82,12 @@ export function OutlineView(p: Props) {
   },[p.nodes]);
   const matches=useMemo(()=>p.search.trim()?searchMatcher(p.nodes,p.media,times):()=>true,[p.nodes,p.media,times,p.search]);
   const readingSize = p.readingSize || 16,
-    rowHeight = readingSize * 1.5 + 4;
+    grid = p.lineHeight || 0,
+    lineSize = grid || readingSize * 1.5,
+    rowPad = grid ? 0 : 4,
+    rowHeight = lineSize + rowPad,
+    titleTop = p.hideTitle ? 0 : grid ? Math.ceil(44 / grid) * grid : 44,
+    snap = (h: number) => grid ? Math.max(grid, Math.ceil((h - 0.5) / grid) * grid) : h;
   const idx = useMemo(() => snapshotIndex(p.nodes), [p.nodes]),
     ordinals = useMemo(() => {
       const numbers = new Map<string, number>();
@@ -181,7 +189,7 @@ export function OutlineView(p: Props) {
   }, [p.media]);
   const scopedNode = p.scope ? idx.byId.get(p.scope) : null;
   const layout = useMemo(() => {
-    let top = p.hideTitle ? 0 : 44;
+    let top = titleTop;
     return rs.map((r: any, i: number) => {
       const available=Math.max(120,view.width-100-depthIndent(r.depth,view.width));
       let height=heights.current.get(r.bullet.id);
@@ -191,10 +199,11 @@ export function OutlineView(p: Props) {
         else{
           const lines=r.bullet.text.split('\n').reduce((sum:number,line:string)=>sum+Math.max(1,Math.ceil(line.length*readingSize*.5/available)),0);
           const hasMedia=attached||mediaLinks(r.bullet.text).some(item=>item?.kind!=='link');
-          height=Math.max(rowHeight,lines*readingSize*1.5+4+(hasMedia?180:0));
+          height=Math.max(rowHeight,lines*lineSize+rowPad+(hasMedia?180:0));
           estimates.current.set(r.bullet,{available,size:readingSize,attached,height});
         }
       }
+      height = snap(height);
       const nextRow = rs[i + 1],
         item = {
           ...r,
@@ -206,12 +215,12 @@ export function OutlineView(p: Props) {
       top += height;
       return item;
     });
-  }, [rs, view.width, measure, mediaByNode, scopedNode, readingSize, p.hideTitle]);
+  }, [rs, view.width, measure, mediaByNode, scopedNode, readingSize, p.hideTitle, grid]);
   const nextTop = layout.length
     ? layout.at(-1)!.top + layout.at(-1)!.height
-      : p.hideTitle ? 0 : 44;
+      : titleTop;
   const total = nextTop + rowHeight;
-  useEffect(() => { heights.current.clear(); setMeasure(value => value + 1); }, [readingSize]);
+  useEffect(() => { heights.current.clear(); setMeasure(value => value + 1); }, [readingSize, grid, p.layoutKey]);
   const visible = layout.filter(
     (r: any) =>
       r.bullet.id === p.editing ||
