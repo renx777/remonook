@@ -10,6 +10,7 @@ import {validateCalendarEvents} from '../src/calendar-events.mjs';
 import {validateStudyLibrary} from '../src/study-library.mjs';
 import {validateOcclusions} from '../src/occlusion.mjs';
 import {sharedSnapshot} from '../src/sync-validate.mjs';
+import {isV3Account,readDocumentV3,commitChangeV3} from './sync-v3.mjs';
 const error=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const hash=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
 // Limits for one account's synced workspace. Every save loads the whole CRDT state into the
@@ -86,6 +87,7 @@ export async function syncV2(request,env,uid,{readLimited,validatePayload}){
   if(head&&String(head.revision)===request.headers.get('If-None-Match'))return new Response(null,{status:304});
  }
  let row=await initialize(env,uid);
+ if(row.state_hash==='v3')error('Update RemoNook to keep syncing. Your edits are saved on this device.',426);
  await requireWorkdaysCapability(request,row.state);
  if(request.method==='GET'){
   if(request.headers.get('If-None-Match')===String(row.revision))return new Response(null,{status:304});
@@ -139,6 +141,7 @@ export async function syncV2(request,env,uid,{readLimited,validatePayload}){
  called more than once if another device commits first. An operation id that was already accepted
  returns the recorded revision instead of applying the change twice. */
 export async function commitServerChange(env,uid,{operationId,requestHash,change},{validatePayload}){
+ if(await isV3Account(env,uid))return commitChangeV3(env,uid,{operationId,requestHash,change});
  await initialize(env,uid);
  for(let attempt=0;attempt<8;attempt++){
   const prior=await env.DB.prepare('SELECT request_hash,accepted_revision FROM sync_journal WHERE uid=? AND operation_id=?').bind(uid,operationId).first();
@@ -170,6 +173,7 @@ export async function commitServerChange(env,uid,{operationId,requestHash,change
 }
 /** The current workspace, read-only. */
 export async function readServerDocument(env,uid){
+ if(await isV3Account(env,uid))return readDocumentV3(env,uid);
  const row=await initialize(env,uid),y=openShared(row.state);
  try{return {doc:project(y).doc,revision:row.revision};}finally{y.destroy();}
 }

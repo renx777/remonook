@@ -112,3 +112,23 @@ export function readRepair(doc){
  try{validateMirrors(doc.tables.bullets);}catch{for(const n of doc.tables.bullets){delete n.mirrorSourceId;delete n.mirrorRootId;}}
  return doc;
 }
+
+/** The keys that differ between two documents, with their before and after values.
+ Serializable, so a server-side change (AI apps) can be sent to the account's sync store
+ and applied there with rebase against whatever other devices committed meanwhile. */
+export function diffPatch(before,after){
+ const b=documentParts(before),a=documentParts(after),patch={leaves:[[],[]],rows:[[],[]]};
+ for(const k of new Set([...b.leaves.keys(),...a.leaves.keys()])){const x=b.leaves.get(k),y=a.leaves.get(k);if(fast(x)===fast(y))continue;if(b.leaves.has(k))patch.leaves[0].push([k,x]);if(a.leaves.has(k))patch.leaves[1].push([k,y]);}
+ for(const name of new Set([...b.tables.keys(),...a.tables.keys()])){const B=b.tables.get(name)||new Map(),A=a.tables.get(name)||new Map();
+  for(const k of new Set([...B.keys(),...A.keys()])){const x=B.get(k),y=A.get(k);if(fast(x)===fast(y))continue;if(B.has(k))patch.rows[0].push([name,k,x]);if(A.has(k))patch.rows[1].push([name,k,y]);}}
+ return patch;
+}
+export const emptyPatch=p=>!p.leaves[0].length&&!p.leaves[1].length&&!p.rows[0].length&&!p.rows[1].length;
+/** Groups a patch by bucket: Map bucket → [beforePart, afterPart]. */
+export function patchBuckets(patch){
+ const out=new Map(),at=(bucket,side)=>{if(!out.has(bucket))out.set(bucket,[emptyPart(),emptyPart()]);return out.get(bucket)[side];};
+ patch.leaves.forEach((list,side)=>{for(const [k,v] of list)at(leafBucket(k),side).leaves.set(k,v);});
+ patch.rows.forEach((list,side)=>{for(const [name,k,row] of list){const part=at(rowBucket(k),side);if(!part.tables.has(name))part.tables.set(name,new Map());part.tables.get(name).set(k,row);}});
+ return out;
+}
+export {applyParts,projectParts,assembleParts};

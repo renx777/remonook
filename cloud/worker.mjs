@@ -7,6 +7,8 @@ import {booksRoute,cleanupBooks} from './books.mjs';
 import {STORAGE_LIMIT,validateReadingBooks} from '../src/book-storage.mjs';
 import {googleTasksPublic,googleTasksRoute,googleTasksConfigured,cleanupGoogleTasks} from './google-tasks.mjs';
 import {syncV2,loadStored} from './sync-v2.mjs';
+import {syncV3,SyncSpace} from './sync-v3.mjs';
+export {SyncSpace};
 import {mcpEndpoint,mcpManage} from './mcp.mjs';
 import {oauthPublic,oauthConsent,cleanupOAuth} from './mcp-oauth.mjs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -41,7 +43,7 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID),ctx) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:2,workdaysSchema:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:env.SYNC_SPACE?3:2,workdaysSchema:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
   const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
   // AI apps authenticate with their own access tokens, not Firebase sessions.
   if(url.pathname==='/mcp')return mcpEndpoint(request,env,{readLimited,validatePayload,NOTE_LIMIT});
@@ -55,6 +57,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   if(url.pathname.startsWith('/mcp/'))return mcpManage(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/oauth/requests/')){const r=await oauthConsent(request,env,uid,{readLimited});if(r)return r;}
   if(url.pathname==='/sync/v2')return syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT});
+  if(url.pathname==='/sync/v3'||url.pathname==='/sync/v3/ws')return syncV3(request,env,uid,{readLimited});
   if(url.pathname==='/workspace'){
     if(request.method==='GET'){
       const row=await env.DB.prepare('SELECT revision, body FROM workspaces WHERE uid=?').bind(uid).first();

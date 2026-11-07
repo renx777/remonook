@@ -62,5 +62,21 @@
   ],
   "limits": {
     "cpu_ms": 30000
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SYNC_SPACE",
+        "class_name": "SyncSpace"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-sync-space",
+      "new_sqlite_classes": [
+        "SyncSpace"
+      ]
+    }
+  ]
 }
