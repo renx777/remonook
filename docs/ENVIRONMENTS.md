@@ -2,6 +2,26 @@
 
 ## Current state
 
+Production frontend moved off ChatGPT Sites, 7 November 2026 (owner-authorized):
+- `remonook.com` is served by Cloudflare Worker `remonook-production`, deployed by the "Production frontend" workflow
+  (run #2) from `main` at `13354fe` (release `2026-11-06.1`, offline shell `8b03319a6504`).
+- The custom domain `remonook.com` was attached in Cloudflare, replacing the apex A records that pointed to Sites.
+  Rollback: remove the custom domain and restore `A 172.66.3.26` and `A 162.159.143.30` (DNS only).
+- `www.remonook.com` keeps its redirect to `remonook.com`. The Sites URL `remo-notes.arenukaprasad.chatgpt.site` still
+  serves the old `2026-11-02.2` release; retire or redirect it later.
+- Verified on `remonook.com`:
+  - release marker, security headers, `sw.js` revalidation and immutable assets;
+  - browser load with no errors; service worker registers;
+  - the sync API accepts the `remonook.com` origin;
+  - the owner confirmed sign-in and sync.
+
+Sync Worker CPU limit, 7 November 2026: sync saves validate the whole shared workspace and were being cut off by the free
+plan's CPU limit (`503 exceededCpu`). Staging had been affected since 4 November; production started failing most saves
+after the new release. The account moved to **Workers Paid**. `remo-sync` (version `9a9914a8-3561-4552-a1b4-aa1339e9e975`)
+and `remo-sync-staging` (version `c79ae554-cb25-4c84-8fae-d4d7c6c44ca5`) were redeployed with unchanged code from
+`13354fe` and `limits.cpu_ms = 30000` (now in `cloud/config.json` and `cloud/config.staging.example.json`). After the
+redeploy, production showed no CPU cut-offs and queued device edits synced.
+
 Production sync Worker, 7 November 2026: `remo-sync` was deployed from `main` at `13354fe` (PR #66; Worker
 version `305f8bb6-4151-425b-a2db-9a395bb3764d`, Wrangler 4.157.0, `cloud/config.json` unchanged from the live
 bindings). Before deploying, a D1 Time Travel restore point was recorded for `remo-sync`
