@@ -12,6 +12,7 @@ import {Y,pack,unpack,projectParts} from './sync-crdt.mjs';
 import {planDocument,writePlan,mergeChanged,projectVersions,openBucket,bulletBucket,ASSET_BUCKET} from './sync-buckets.mjs';
 import {cloudDocument} from './cloud-model.mjs';
 import {catalogAssetPaths} from './emoji-catalog.mjs';
+import {repairDocument} from './sync-checks.mjs';
 
 const actor=new Y.Doc(),sessionClient=actor.clientID;actor.destroy();
 const BATCH_BYTES=3*1024*1024;
@@ -101,4 +102,24 @@ export async function mapSelection(meta,selection,io){
  const a=openBucket((await io.load('L',[bucket])).get(bucket)),b=openBucket((await io.load('R',[bucket])).get(bucket));
  try{const text=a.getText(name),out=b.getText(name);const map=pos=>{const relative=Y.createRelativePositionFromTypeIndex(text,Math.max(0,Math.min(pos,text.length)));return Y.createAbsolutePositionFromRelativePosition(relative,b)?.index??Math.min(pos,out.length);};return {...selection,anchor:map(selection.anchor),head:map(selection.head)};}
  finally{a.destroy();b.destroy();}
+}
+
+/**
+ * The server refused the in-flight batch. Repairs the received document with the server's own
+ * checks and queues the correction after the original edits, so the next request sends both
+ * (with a new operation id). Originals are kept under "Recovered from this device".
+ * Returns null when nothing needed repair: the refusal then stays visible.
+ */
+export async function recoverRefused(meta,io,account=''){
+ const shared=await receivedProjection(meta,io,account),fix=repairDocument(shared.doc,shared.assets);
+ if(!fix)return null;
+ const plan=planDocument(shared.doc,fix.doc,{assetsBefore:shared.assets,assetsAfter:fix.assets}),buckets=[...plan.touched];
+ const received=await io.load('R',buckets),{changed,updates}=writePlan(plan,b=>received.get(b),{clientID:sessionClient});
+ put(meta,io,'R',changed);
+ const local=await io.load('L',Object.keys(updates));put(meta,io,'L',mergeChanged(b=>local.get(b),updates));
+ meta.pending.push({id:crypto.randomUUID(),updates});
+ for(const b of Object.keys(updates))meta.unsynced[b]=true;
+ meta.receivedVersion=(meta.receivedVersion||0)+1;meta.dirty=true;meta.inflight=null;
+ meta.recoveries=[...(meta.recoveries||[]).slice(-19),{at:Date.now(),items:fix.recovered.length}];
+ return {items:fix.recovered.length};
 }

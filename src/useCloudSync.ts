@@ -99,6 +99,14 @@ export function useCloudSync(options:Options){
    if(remaining)queued.current=true;
   }catch(e:any){
    setStatus('Saved on device · sync pending');
+   if(e?.status===400&&e?.code==='SYNC_VALIDATION_FAILED'){
+    // Repair with the server's own checks, keep originals readable, and send the edits again.
+    try{
+     await pullAll(work,await work('since'),true);
+     const repaired=await work('recover',{reason:e.message});
+     if(repaired){latest.current.onNotice?.('Some content could not sync as it was. It was repaired automatically, and the originals are under “Recovered from this device”.');queued.current=true;failures.current=0;return;}
+    }catch{/* fall through: show why the server refused */}
+   }
    if(!e?.deferred&&[400,401,403,409,413,426].includes(e?.status)&&e?.message!=='An attachment is still uploading.'){
     // The server names what it refused (for example the record or setting that failed its
     // checks). Pending edits stay queued on this device and are retried.

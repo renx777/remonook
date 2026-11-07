@@ -144,6 +144,17 @@ test('a refused batch names the reason, stays pending across reloads and syncs o
  }finally{await f.close();}
 });
 
+test('a batch the server refuses is repaired automatically, keeps a readable original and then syncs',async()=>{
+ const f=await fixture();try{
+  await f.sync();await f.edit(d=>{d.tables.bullets[0].text='Keep this text';d.tables.bullets[0].dueDate='2026-02-30';});
+  await f.sync();await until(()=>f.result.status==='Synced');
+  const server=(await serverValue(f)).doc,n=server.tables.bullets.find(x=>x.id==='a');
+  assert.equal(n.text,'Keep this text','the edit itself survives');assert.equal(n.dueDate,'','only the invalid date was reset');
+  assert.ok(server.tables.bullets.some(x=>x.text==='Recovered from this device'),'the original is preserved readably');
+  assert.equal(f.notices.length,1);assert.equal(f.doc.tables.bullets.find(x=>x.id==='a').dueDate,'','the device adopted the repair');
+ }finally{await f.close();}
+});
+
 test('network, auth, quota and non-validation 400 errors never quarantine or acknowledge pending edits',async()=>{
  const f=await fixture();try{
   await f.sync();await f.edit(d=>d.tables.bullets[0].text='Still pending');

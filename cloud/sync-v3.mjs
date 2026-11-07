@@ -7,37 +7,13 @@
 // connection and other server readers without opening any Yjs document.
 import {Y,pack,unpack,projectParts,assembleParts,applyParts} from '../src/sync-crdt.mjs';
 import {applyDocument,isBucket,readRepair,patchBuckets,diffPatch,emptyPatch,ASSET_BUCKET,PROTOCOL_V3} from '../src/sync-buckets.mjs';
-import {validate} from '../src/domain.mjs';
-import {validateBookmarks} from '../src/bookmarks.mjs';
-import {validateDashboard} from '../src/dashboard.mjs';
-import {validateReading} from '../src/reading.mjs';
-import {validateReadingBooks} from '../src/book-storage.mjs';
-import {validateWorkdays} from '../src/workdays.mjs';
-import {validateCalendarEvents} from '../src/calendar-events.mjs';
-import {validateStudyLibrary} from '../src/study-library.mjs';
-import {validateOcclusions} from '../src/occlusion.mjs';
+import {checkRow,checkRoot,checkAssets} from '../src/sync-checks.mjs';
 
 const CHUNK=1_000_000,REQUEST_LIMIT=4*1024*1024,PULL_LIMIT=4*1024*1024,BUCKET_LIMIT=8*1024*1024,ACCOUNT_LIMIT=1024*1024*1024,JOURNAL_KEEP=5000,CACHE_LIMIT=24*1024*1024;
-const FILE_LIMIT=2*1024*1024,ASSET_LIMIT=20*1024*1024;
 const error=(message,status=400,code)=>{throw Object.assign(Error(message),{status,code});};
 const sha=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
 const json=(body,status=200)=>Response.json(body,{status});
 
-/** Checks one projected record. Tree structure is repaired at read time, not here. */
-function checkRow(table,row){
- if(table==='bullets')validate([{...row,parentId:null}]);
- else if(!row||typeof row!=='object')error('Invalid record');
-}
-function checkRoot(web){
- validateReadingBooks(web.readingBooks);validateReading(web);validateBookmarks(web);validateDashboard(web.dashboard);
- validateWorkdays(web.workdays);validateCalendarEvents(web.calendarEvents);validateStudyLibrary(web);validateOcclusions(web.occlusions);
-}
-function checkAssets(assets){
- if(assets.length>2000)error('Too many attachments.',413);
- const paths=new Set();let bytes=0;
- for(const a of assets){if(typeof a.path!=='string'||!a.path||a.path.length>500||paths.has(a.path)||!/^[a-f0-9]{64}$/.test(a.hash)||!Number.isSafeInteger(a.size)||a.size<0||a.size>FILE_LIMIT||typeof a.type!=='string'||a.type.length>150)error('Invalid attachment.');paths.add(a.path);bytes+=a.size;}
- if(bytes>ASSET_LIMIT)error('Attachments exceed 20 MiB.',413);
-}
 const rowMap=parts=>new Map(parts.rows.map(r=>[r.key,r]));
 const leafMap=parts=>new Map(parts.rootFields.map(f=>[JSON.stringify(f.path),f.value]));
 
@@ -128,7 +104,7 @@ export class SyncSpace{
     try{checkRoot(doc.web||{});}catch(e){error(`Invalid shared document: ${e.message}`,400,'SYNC_VALIDATION_FAILED');}
    }
    if(assetsTouched){
-    const assets=touched.get(ASSET_BUCKET).after.assets;checkAssets(assets);
+    const assets=touched.get(ASSET_BUCKET).after.assets;try{checkAssets(assets);}catch(e){error(e.status===413?e.message:`Invalid shared document: ${e.message}`,e.status||400,e.status===413?undefined:'SYNC_VALIDATION_FAILED');}
     const before=new Set(touched.get(ASSET_BUCKET).before.assets.map(a=>a.hash+':'+a.size));
     for(const a of assets)if(!before.has(a.hash+':'+a.size)){const file=this.env.DB&&await this.env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(this.meta('uid'),a.hash).first();if(this.env.DB&&(!file||file.size!==a.size))error('An attachment is still uploading.',409);}
    }

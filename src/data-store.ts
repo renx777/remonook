@@ -7,7 +7,7 @@ import {project,openShared,vector,Y,emptyShared,unpack,applyIntent} from './sync
 import {sharedSnapshotProblem} from './sync-validate.mjs';
 import {workdaysLegacyIntent,upgradeWorkdaysIntent} from '../cloud/workdays-upgrade.mjs';
 import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
-import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox,receivedProjection,adopt,mapSelection,bucketAssets} from './sync-outbox-v3.mjs';
+import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox,receivedProjection,adopt,mapSelection,bucketAssets,recoverRefused} from './sync-outbox-v3.mjs';
 /** IndexedDB key of the sync v3 outbox. v2 metadata under 'sync-v2' is no longer used. */
 const SYNC_KEY='sync-v3';
 import {recoverRejectedBatch} from './sync-recovery.mjs';
@@ -776,7 +776,7 @@ export async function syncOperation(operation:string,args:any={},account=storage
  if(operation==='uploaded'){await change(m=>{m.uploaded=[...new Set([...(m.uploaded||[]),args.hash])];return m;});return;}
  if(operation==='receive'){await changeIO((m,io)=>receiveOutbox(m,args.response,io));return;}
  if(operation==='since')return (await read())?.since??0;
- if(operation==='recover')throw Object.assign(Error(args.reason||'This change could not sync.'),{status:400});
+ if(operation==='recover'){let result:any=null;await changeIO(async(m,io)=>{result=await recoverRefused(m,io,account);return m;});return result;}
  if(operation==='recovery-export')return (await read())?.recoveries||[];
  if(operation==='recovery-notice')return null;
  if(operation==='recovery-notice-shown')return;

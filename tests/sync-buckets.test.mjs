@@ -83,3 +83,15 @@ test('read repair copies only repaired rows and never mutates its input; unchang
  const base=empty();base.tables.bullets=[bullet('x',{text:'x'})];const {states}=applyDocument(new Map(),null,base);const cache=new Map();
  const first=projectBuckets(states,cache),second=projectBuckets(states,cache);assert.equal(first,second,'nothing changed: same projection object');
 });
+
+test('repairDocument fixes only what the server checks refuse and records the originals',async()=>{
+ const {repairDocument,checkRow,checkRoot}=await import('../src/sync-checks.mjs');
+ const doc=empty();doc.tables.bullets=[bullet('ok',{text:'fine'}),{...bullet('bad',{text:'keep me'}),kind:'WEIRD',journalDate:'2026-13-01'}];
+ assert.equal(repairDocument(empty(),[]),null,'a valid document needs nothing');
+ const fixed=repairDocument(doc,[]);
+ const bad=fixed.doc.tables.bullets.find(n=>n.id==='bad');
+ assert.deepEqual([bad.text,bad.kind,bad.journalDate],['keep me','NOTE','']);
+ assert.equal(fixed.doc.tables.bullets.find(n=>n.id==='ok'),doc.tables.bullets[0]);
+ for(const n of fixed.doc.tables.bullets)checkRow('bullets',n);checkRoot(fixed.doc.web);
+ assert.equal(fixed.recovered.length,1);assert.ok(fixed.doc.tables.bullets.some(n=>n.text==='Recovered from this device'));
+});
