@@ -1,0 +1,67 @@
+name: Production frontend
+# Manual, owner-approved release of a commit on main to remonook.com (Worker remonook-production).
+# The `production` GitHub environment must require the owner's review, so nothing deploys without approval.
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full SHA of the approved commit on main
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: production-frontend
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the commit is on main
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "Give the full 40-character SHA."; exit 1; }
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$COMMIT" origin/main || { echo "$COMMIT is not on main."; exit 1; }
+          test "$(git rev-parse HEAD)" = "$COMMIT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Clean production build
+        run: |
+          rm -rf dist .env.local
+          cp .env.production.example .env.production.local
+          npm run build:production
+          rm -f .env.production.local
+      - name: Test
+        run: npm test
+      - name: Verify the artifact
+        run: |
+          for f in index.html manifest.webmanifest sw.js release.json; do test -f "dist/$f" || { echo "missing dist/$f"; exit 1; }; done
+          if grep -rlq -e remo-sync-staging -e remonook-staging dist/assets dist/index.html dist/sw.js; then echo "Staging reference in production build."; exit 1; fi
+          grep -rlq remo-sync.remo-978fb.workers.dev dist/assets || { echo "Production sync API missing."; exit 1; }
+          node --input-type=module -e 'import{readFileSync}from"node:fs";console.log("release",JSON.parse(readFileSync("dist/release.json","utf8")).release)'
+      - name: Verify the production sync backend
+        run: |
+          node --input-type=module -e 'const r=await fetch("https://remo-sync.remo-978fb.workers.dev/health");const h=await r.json();if(!r.ok||h.syncProtocol!==2||h.workdaysSchema!==2)throw Error("Deploy the matching production sync Worker before the frontend.");'
+      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+        with:
+          wranglerVersion: '4.157.0'
+          apiToken: ${{ secrets.CLOUDFLARE_PRODUCTION_API_TOKEN }}
+          accountId: e9a5c70b0fbe2e2d493fc21de0bbb40f
+          command: deploy --config wrangler.production.jsonc
+      - name: Smoke test
+        run: |
+          node --input-type=module -e 'const expect=JSON.parse((await import("node:fs")).readFileSync("dist/release.json","utf8")).release;for(let i=0;i<10;i++){const r=await fetch("https://remonook.com/release.json",{cache:"no-store"});const v=r.ok?(await r.json()).release:null;if(v===expect){console.log("remonook.com serves",v);process.exit(0);}await new Promise(s=>setTimeout(s,6000));}throw Error("remonook.com does not serve "+expect+" yet (domain not attached, or caching).");'

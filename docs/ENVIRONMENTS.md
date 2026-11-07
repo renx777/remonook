@@ -128,9 +128,17 @@ Coding agents may prepare and execute production frontend releases with explicit
 
 ### How production is hosted
 
-- `remonook.com` and `remo-notes.arenukaprasad.chatgpt.site` are served by ChatGPT Sites. The domain's DNS zone is in the owner's Cloudflare account; the site content is not.
-- The Sites project and its hosting manifest live in the ChatGPT (Codex) workspace under `.openai/`, which is git-ignored. They are not in GitHub.
-- Publishing a Sites version is done from that ChatGPT workspace. A coding agent without access to it (for example Claude Code in a cloud session) cannot publish to Sites. It prepares and verifies the build, then hands off the publish step. No public CLI or API for Sites publishing is used or assumed here.
+- Today `remonook.com` and `remo-notes.arenukaprasad.chatgpt.site` are served by ChatGPT Sites. The domain's DNS zone is in the owner's Cloudflare account; the Sites project lives in the ChatGPT (Codex) workspace under the git-ignored `.openai/`, not in GitHub. Only that workspace can publish a Sites version.
+- **Moving off Sites (approved by the owner on 7 November 2026, in progress):** production moves to Cloudflare Worker `remonook-production` (`wrangler.production.jsonc`), mirroring staging's `remonook-staging`. `npm run build:production` writes `dist/_headers` from `cloud/production-headers`: nosniff, referrer policy, `sw.js` revalidation, immutable hashed assets.
+  1. One-time owner setup:
+     - create a Cloudflare API token with **Workers Scripts: Edit** for account `e9a5c70b…`, limited to what deploying `remonook-production` needs;
+     - save it as GitHub secret `CLOUDFLARE_PRODUCTION_API_TOKEN`;
+     - create the GitHub environment `production` with the owner as required reviewer.
+  2. Deploy: run **Production frontend** (`.github/workflows/production.yml`) with the full SHA of an approved commit on `main`. It checks the commit is on `main`, builds cleanly, runs all tests, verifies the artifact and the production sync Worker, waits for owner approval, then deploys.
+  3. Test at `https://remonook-production.remo-978fb.workers.dev`. That origin is not in Firebase authorized domains or the sync Worker's `ALLOWED_ORIGINS`, so it is for load, asset and header checks only.
+  4. Switch: in Cloudflare, Workers & Pages → `remonook-production` → Settings → Domains & Routes → Add custom domain `remonook.com`. Cloudflare asks to replace the existing DNS record that points to Sites. The origin stays `remonook.com`, so offline data, the installed app, Firebase sign-in and sync are unaffected.
+  5. Rollback: remove the custom domain and restore the previous DNS record to Sites (keep a note of it), or `wrangler rollback` to the previous Worker version.
+  6. After a stable period: set `workers_dev` to false, then retire or redirect the Sites URL. Users of the `.chatgpt.site` address sign in again at remonook.com; their notes are in the cloud.
 
 ### Procedure
 
