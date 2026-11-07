@@ -2,7 +2,16 @@
 
 ## Current state
 
-On 7 November 2026, `remo-sync-staging` was redeployed from
+On 7 November 2026 (later the same day), `remo-sync-staging` was deployed from `ccr-641b18bf-2fe80f`,
+application commit `1255d38` (Worker version `3560885b-2726-4bed-932e-76628872d523`, Wrangler 4.157.0), adding
+connected AI apps (MCP). The additive migration `cloud/mcp.sql` (tables `mcp_tokens`, `mcp_activity`) was applied
+to D1 `remo-sync-staging` first. The config was built from `cloud/config.staging.example.json` with AI assist kept
+enabled, as it was live; bindings and secret names are unchanged. `/health` reports `mcp: 1` and
+`googleTasksConfigured: true`; `/mcp` refuses requests without an access token. The deploy used a Cloudflare API
+token stored as a network secret on the owner's personal cloud environment, never in the repository. The staging
+frontend for the same commit was deployed by the staging workflow. Production is unchanged. See [MCP.md](MCP.md).
+
+Earlier on 7 November 2026, `remo-sync-staging` was redeployed from
 `ccr-641b18bf-2fe80f` at `f341221b77c0f96f4b63f503bf2cf6a37b2de976`, matching
 the live staging frontend source (release `2026-11-06.1`). Worker version
 `6ed9c98d-5e1c-4f11-8171-662d80b64c39` serves 100% of staging traffic.
