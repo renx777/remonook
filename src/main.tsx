@@ -25,6 +25,7 @@ import {RemoLogo} from './RemoLogo';
 import {WorkspaceSwitcher} from './WorkspaceSwitcher';
 import {isDesktop,installDesktopLinks} from './desktop';
 import {DesktopSignIn} from './DesktopSignIn';
+import {DesktopUpdate} from './DesktopUpdate';
 import './workspaces.css';
 import {activeLocalWorkspace,protectDeviceStorage} from './workspaces';
 import {copyTargets,copyBranch} from './workspace-copy';
@@ -1586,6 +1587,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
         </div>
       </aside>
+      {isDesktop()&&<DesktopUpdate flush={flush}/>}
       <main ref={sidebarMotion.mainRef}>
         <header className="topbar">
           <button

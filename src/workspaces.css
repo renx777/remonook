@@ -30,3 +30,10 @@
 .desktop-signin h1 { font-size: 22px; margin: 0 0 8px; }
 .desktop-signin p { font-size: 14px; line-height: 1.5; opacity: .8; }
 .desktop-signin .access-google { width: 100%; margin-top: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--border, #d6d6d6); background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.desktop-update { position: fixed; right: 16px; bottom: 16px; z-index: 60; width: 300px; padding: 14px; border: 1px solid var(--border, #e3e3e3); border-radius: 12px; background: var(--panel, var(--bg, #fff)); color: inherit; box-shadow: 0 10px 30px rgba(0,0,0,.18); display: flex; flex-direction: column; gap: 10px; }
+.desktop-update strong { display: block; font-size: 14px; }
+.desktop-update small { font-size: 12px; opacity: .75; }
+.desktop-update-error { color: #c0392b; opacity: 1 !important; }
+.desktop-update-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.desktop-update-actions button { padding: 6px 12px; border: 1px solid var(--border, #d6d6d6); border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.desktop-update-actions .primary { background: var(--accent, #2b6f8f); border-color: transparent; color: #fff; }

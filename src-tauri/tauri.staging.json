@@ -12,5 +12,16 @@
         "resizable": true
       }
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBMTZGQTE4NTZCNDFFNUIKUldSYkhyUldHUG9XNm1uZHBvdVR3SUZIdjRlV25nbkpwZlptY1ByZEY4amFRS2RzNWRkYmU4akkK",
+      "endpoints": [
+        "https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

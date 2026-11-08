@@ -44,6 +44,16 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
   if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:env.SYNC_SPACE?3:2,workdaysSchema:2,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
+  // Desktop app updates (public: the app checks before anyone signs in). Files are uploaded by
+  // the Desktop app workflow to R2 under desktop/<channel>/; builds are signed, and the app only
+  // installs updates whose signature matches the key built into it.
+  const desktop=(request.method==='GET'||request.method==='HEAD')&&url.pathname.match(/^\/desktop\/(staging|production)\/([A-Za-z0-9][A-Za-z0-9._-]{0,119})$/);
+  if(desktop){
+    const object=env.FILES&&await env.FILES.get(`desktop/${desktop[1]}/${desktop[2]}`);
+    if(!object)return json({error:'Not found'},404);
+    const name=desktop[2],type=name.endsWith('.json')?'application/json':name.endsWith('.sig')?'text/plain':name.endsWith('.msi')?'application/x-msi':name.endsWith('.exe')?'application/vnd.microsoft.portable-executable':'application/octet-stream';
+    return new Response(request.method==='HEAD'?null:object.body,{headers:{'Content-Type':type,'Content-Length':String(object.size),'Cache-Control':name==='latest.json'?'no-store':'public, max-age=31536000, immutable'}});
+  }
   const publicTasks=await googleTasksPublic(request,env);if(publicTasks)return publicTasks;
   // AI apps authenticate with their own access tokens, not Firebase sessions.
   if(url.pathname==='/mcp')return mcpEndpoint(request,env,{readLimited,validatePayload,NOTE_LIMIT});
