@@ -165,6 +165,13 @@ Coding agents may prepare and execute production frontend releases with explicit
   5. Rollback: remove the custom domain and restore the previous DNS record to Sites (keep a note of it), or `wrangler rollback` to the previous Worker version.
   6. After a stable period: set `workers_dev` to false, then retire or redirect the Sites URL. Users of the `.chatgpt.site` address sign in again at remonook.com; their notes are in the cloud.
 
+### Release label
+
+The production workflow writes `dist/release.json` with a label of date plus run number
+(for example `2026-11-08.7`) and the released commit. The smoke test then checks that
+remonook.com serves this release, not the previous one. `public/release.json` is only the
+placeholder used in local and staging builds.
+
 ### End-to-end sync check (release gate)
 
 `scripts/e2e-sync.mjs` (`npm run e2e:sync`) runs real browsers as separate devices against a

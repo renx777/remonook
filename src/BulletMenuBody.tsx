@@ -4,7 +4,7 @@ import {Icon} from './icons';
 type Element = ReactElement<any>;
 const words = (node:ReactNode):string => Children.toArray(node).map(child => typeof child === 'string' || typeof child === 'number' ? String(child) : isValidElement<any>(child) && child.type !== 'kbd' ? words((child as Element).props.children) : '').join(' ');
 const controls = (node:ReactNode):Element[] => Children.toArray(node).flatMap(child => !isValidElement<any>(child) ? [] : child.type === 'button' || child.type === 'label' ? [child as Element] : controls((child as Element).props.children));
-const descriptions = ['Text, lists & bullet types','Images, emoji, tables & media','Links, mirrors & backlinks','Indent, expand & navigate','Flashcards, quizzes & decks'];
+const descriptions = ['Text, lists & bullet types','Images, emoji, tables & media','Links, mirrors & backlinks','Indent, expand, navigate & copy','Flashcards, quizzes & decks'];
 
 export function BulletMenuBody({children}:{children:ReactNode}) {
   const items = Children.toArray(children);

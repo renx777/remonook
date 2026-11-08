@@ -11,6 +11,14 @@ RemoNook has one **main workspace** and any number of **device-only workspaces**
 
 - **Choosing:** the sync setting is chosen when a workspace is created and never changes.
   There are no moves between workspaces, so nothing can race an offline edit.
+- **Copy to…** (bullet actions → Organize branch) copies a bullet and everything under it into
+  another workspace, as new bullets at its top level (`src/workspace-copy.ts`):
+  - the copy goes through the target's normal save, so a synced target queues it and uploads
+    it the next time it is open;
+  - a synced account must have synced once on this device first, so its first sync cannot
+    replace the copy;
+  - mirror links are dropped;
+  - images and attachments are not copied yet.
 - **Implementation:** `src/workspaces.ts` keeps the registry and the active choice in
   localStorage. A device-only workspace's databases are named `remo-web-local-<id>`.
 - **No sync code path:** when a device-only workspace is open, the auth gate gives the app no

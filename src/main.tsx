@@ -24,6 +24,7 @@ import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
 import {WorkspaceSwitcher} from './WorkspaceSwitcher';
 import {activeLocalWorkspace,protectDeviceStorage} from './workspaces';
+import {copyTargets,copyBranch} from './workspace-copy';
 import {ReleaseUpdate} from './ReleaseUpdate';
 import {CloudDeviceSaveIndicator,CloudAccountStatus} from './SaveIndicator';
 import {FlowNumber} from './FlowNumber';
@@ -2003,6 +2004,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {menuNode.mirrorSourceId&&<button disabled={disabled} onClick={()=>{mutate(ns=>detachMirror(ns,menuNode.id));setMenu(null);setNotice('Mirror detached. This branch is now independent.');}}><Icon name="mirror" size={16}/><span>Detach mirror</span></button>}
 
 </div></details><details className="bullet-action-section"><summary><Icon name="organize" size={16}/><span>Organize branch</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">
+          {copyTargets().map(target => <button key={target.key} className="wide action" disabled={disabled} onClick={async () => {
+            setMenu(null);
+            try { await flush(); const count = await copyBranch(docRef.current!, menuNode.id, target); setNotice(`Copied ${count} bullet${count === 1 ? "" : "s"} to “${target.name}”.${target.synced ? " It syncs the next time you open that workspace." : ""} Images and attachments are not copied.`); }
+            catch (e) { setNotice(e instanceof Error ? e.message : String(e)); }
+          }}><Icon name="upload" />Copy to “{target.name}”</button>)}
           <div className="action-grid">
             {(idx.children.get(menuNode.id) || []).length > 0 && <>
               <button disabled={disabled} onClick={() => { command("expandBranch", menuNode.id, 0, 0); setMenu(null); }}><Icon name="expand" size={16} />Expand entire branch</button>
