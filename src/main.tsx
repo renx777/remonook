@@ -24,6 +24,8 @@ import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
 import {WorkspaceSwitcher} from './WorkspaceSwitcher';
 import {isDesktop,installDesktopLinks} from './desktop';
+import {DesktopSignIn} from './DesktopSignIn';
+import './workspaces.css';
 import {activeLocalWorkspace,protectDeviceStorage} from './workspaces';
 import {copyTargets,copyBranch} from './workspace-copy';
 import {ReleaseUpdate} from './ReleaseUpdate';
@@ -2464,7 +2466,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   );
 }
 export const appRoot = createRoot(document.getElementById("root")!);
-appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{(import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
+// The browser half of desktop Google sign-in runs on its own page (see DesktopSignIn).
+appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isDesktop() ? <DesktopSignIn/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
 
 // The desktop app bundles its files, so it needs no offline service worker.
 if (import.meta.env.PROD && "serviceWorker" in navigator && !isDesktop())
