@@ -23,6 +23,7 @@ import {restoreDeviceState,historyAfterSync} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
 import {WorkspaceSwitcher} from './WorkspaceSwitcher';
+import {isDesktop,installDesktopLinks} from './desktop';
 import {activeLocalWorkspace,protectDeviceStorage} from './workspaces';
 import {copyTargets,copyBranch} from './workspace-copy';
 import {ReleaseUpdate} from './ReleaseUpdate';
@@ -1514,7 +1515,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               }}
             >
               <RemoLogo/>RemoNook
-              <span className="local-label">WEB</span>
+              <span className="local-label">{isDesktop()?"DESKTOP":"WEB"}</span>
             </a>
             <button
               className="icon-button sidebar-toggle-btn"
@@ -2465,5 +2466,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 export const appRoot = createRoot(document.getElementById("root")!);
 appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{(import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
 
-if (import.meta.env.PROD && "serviceWorker" in navigator)
+// The desktop app bundles its files, so it needs no offline service worker.
+if (import.meta.env.PROD && "serviceWorker" in navigator && !isDesktop())
   navigator.serviceWorker.register("/sw.js").catch(() => {});
+installDesktopLinks();

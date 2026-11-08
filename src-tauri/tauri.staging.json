@@ -1,0 +1,16 @@
+{
+  "productName": "RemoNook Staging",
+  "identifier": "com.remonook.desktop.staging",
+  "app": {
+    "windows": [
+      {
+        "title": "RemoNook Staging",
+        "width": 1280,
+        "height": 840,
+        "minWidth": 720,
+        "minHeight": 520,
+        "resizable": true
+      }
+    ]
+  }
+}
