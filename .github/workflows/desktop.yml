@@ -43,7 +43,10 @@ jobs:
           extra=""; [ "${{ inputs.environment }}" = "staging" ] && extra="--config src-tauri/tauri.staging.json"
           # The bundler downloads its installer tools (NSIS, WiX); retry brief download failures.
           # A retry reuses the compiled app, so it only repeats the packaging.
-          for attempt in 1 2 3; do npx tauri build $extra && exit 0; echo "::warning::Packaging attempt $attempt failed; retrying"; sleep 20; done; exit 1
+          for attempt in 1 2 3; do npx tauri build $extra && exit 0; echo "::warning::Packaging attempt $attempt failed; retrying"; sleep 20; done
+          # If the NSIS (.exe) tool download stays down, still produce the .msi installer.
+          echo "::warning::Building the .msi installer only (the .exe packaging tool could not be downloaded)."
+          npx tauri build $extra --bundles msi
       - uses: actions/upload-artifact@v4
         with:
           name: RemoNook-${{ inputs.environment }}-windows
