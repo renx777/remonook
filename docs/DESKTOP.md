@@ -40,6 +40,24 @@ The **Desktop app** workflow (`.github/workflows/desktop.yml`) is started by han
   so they install alongside the production app.
 - **Unsigned:** Windows SmartScreen warns on first launch (More info → Run anyway).
 
+## Automatic updates
+- **Plugins:** the updater plugin checks the channel's `latest.json` 15 s after start and every
+  6 hours, downloads in the background, then shows "Update ready · Restart to update"
+  (`src/DesktopUpdate.tsx`). It flushes edits, installs (Windows: passive installer) and
+  relaunches. Nothing installs until the person chooses it.
+- **Signatures:** updates are signed. The public key is in `tauri.conf.json` and
+  `tauri.staging.json`; the private key is the `TAURI_SIGNING_PRIVATE_KEY` secret (no
+  password). An update whose signature does not match is refused.
+- **Channels:** each channel has its own update file:
+  - staging: `https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/latest.json`;
+  - production: `https://remo-sync.remo-978fb.workers.dev/desktop/production/latest.json`.
+
+  The sync Worker serves `desktop/<channel>/<file>` from R2 publicly (only that prefix and
+  plain file names).
+- **Versions:** every workflow build is `0.1.<run number>`. The workflow uploads the signed
+  installer, then `latest.json` last.
+- **Without the key secret,** builds still work but are not published as updates.
+
 ## Locally (Linux)
 Install the WebKitGTK development packages, then run `npm run build:staging` followed by
 `npx tauri build --config src-tauri/tauri.staging.json --bundles deb`.
@@ -49,4 +67,5 @@ Install the WebKitGTK development packages, then run `npm run build:staging` fol
 2. Google sign-in through the system browser. **Done.**
 3. Device-only workspaces stored as files on disk; Markdown export folder.
 4. Quick capture (global shortcut), tray, launch at login.
+- Automatic updates (signed, per channel). **Done.**
 5. Local AI connection (MCP) to device-only workspaces.
