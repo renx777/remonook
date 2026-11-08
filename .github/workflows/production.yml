@@ -16,7 +16,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     environment: production
     env:
       NODE_OPTIONS: --max-old-space-size=4096
@@ -68,6 +68,21 @@ jobs:
       - name: Verify the production sync backend
         run: |
           node --input-type=module -e 'const r=await fetch("https://remo-sync.remo-978fb.workers.dev/health");const h=await r.json();if(!r.ok||h.syncProtocol!==3||h.workdaysSchema!==2)throw Error("Deploy the matching production sync Worker before the frontend.");'
+      # Sync can lose notes in ways unit tests miss (a 2026-11 release deleted a new device's
+      # account). Release only code that staging is running and that passes the real-browser
+      # multi-device check there. It uses a dedicated staging test account from secrets.
+      - name: Staging runs this code and passes the end-to-end sync check
+        env:
+          COMMIT: ${{ inputs.commit }}
+          E2E_EMAIL: ${{ secrets.STAGING_E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.STAGING_E2E_PASSWORD }}
+        run: |
+          staged=$(curl -fsS https://staging.remonook.com/staging-source.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).commit))')
+          git cat-file -e "$staged^{tree}" 2>/dev/null || { echo "::error::Staging runs $staged, which is not in this repository. Deploy this code to staging first."; exit 1; }
+          if [ "$(git rev-parse "$staged^{tree}")" != "$(git rev-parse "$COMMIT^{tree}")" ]; then echo "::error::Staging runs $staged, not the code of $COMMIT. Deploy this code to staging first."; exit 1; fi
+          if [ -z "$E2E_EMAIL" ] || [ -z "$E2E_PASSWORD" ]; then echo "::error::Add the STAGING_E2E_EMAIL and STAGING_E2E_PASSWORD secrets (staging test account)."; exit 1; fi
+          npx playwright install --with-deps chromium
+          node scripts/e2e-sync.mjs
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           wranglerVersion: '4.157.0'

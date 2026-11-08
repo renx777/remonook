@@ -33,7 +33,9 @@ test('slash commands convert blocks, highlight code, preserve text and open MCQs
     // The .tiptap element can exist before its editor instance is attached; wait for both.
     await wait(() => document.querySelector('.tiptap')?.editor);
     let editor = document.querySelector('.tiptap').editor;
-    const type = async text => act(async () => { editor.commands.focus(); editor.commands.insertContent(text); });
+    // The app may re-create the editor (for example after a block-style change); always type
+    // into the current one instead of a reference captured earlier.
+    const type = async text => { await wait(() => document.querySelector('.tiptap')?.editor?.view); editor = document.querySelector('.tiptap').editor; await act(async () => { editor.commands.focus(); editor.commands.insertContent(text); }); };
     await type('/h2'); await key('Enter');
     assert.equal(document.querySelector('.row-content').dataset.blockStyle, 'h2');
     await type('Section title');
