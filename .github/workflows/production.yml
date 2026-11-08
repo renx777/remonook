@@ -57,6 +57,14 @@ jobs:
           npm run build:production
           rm -f .env.production.local
           cp .release/production-headers dist/_headers
+      # Every release gets its own label (date and run number) and records its commit, so the
+      # smoke test confirms that this release, not the previous one, is being served.
+      - name: Stamp the release
+        env:
+          COMMIT: ${{ inputs.commit }}
+          RUN: ${{ github.run_number }}
+        run: |
+          node --input-type=module -e 'import{writeFileSync}from"node:fs";const release=new Date().toISOString().slice(0,10)+"."+process.env.RUN;writeFileSync("dist/release.json",JSON.stringify({release,commit:process.env.COMMIT,applicationBase:process.env.COMMIT},null,2)+"\n");console.log("release",release,process.env.COMMIT)'
       - name: Test
         run: npm test
       - name: Verify the artifact
