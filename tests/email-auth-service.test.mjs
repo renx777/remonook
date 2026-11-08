@@ -6,11 +6,11 @@ globalThis.__emailAuth={currentUser:{uid:'existing-google',email:'user@example.t
 globalThis.__emailCall=async(name,...args)=>{calls.push([name,...args]);if(name==='create')return {user:globalThis.__emailAuth.currentUser};if(name==='verify')await verification;};
 await build({entryPoints:['src/auth-service.ts'],bundle:true,packages:'external',outfile:'tests/.build/email-service.mjs',format:'esm',platform:'node',plugins:[{name:'firebase-fixture',setup(b){
  b.onResolve({filter:/^(firebase\/(app|auth)|\.\/cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));
- b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./cloud-config'?`export const CLOUD_ENABLED=true,firebaseConfig={};`:a.path==='firebase/app'?`export const initializeApp=()=>({});`:`
+ b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./cloud-config'?`export const CLOUD_ENABLED=true,firebaseConfig={},APP_ENV='test';`:a.path==='firebase/app'?`export const initializeApp=()=>({});`:`
  export const browserLocalPersistence={},browserPopupRedirectResolver=()=>{};
  export const getAuth=()=>globalThis.__emailAuth,initializeAuth=getAuth;
  export class GoogleAuthProvider{setCustomParameters(){};}
- export const signInWithPopup=(...a)=>globalThis.__emailCall('google',...a),signOut=(...a)=>globalThis.__emailCall('signout',...a);
+ export const signInWithPopup=(...a)=>globalThis.__emailCall('google',...a),signInWithCredential=(...a)=>globalThis.__emailCall('credential',...a),signOut=(...a)=>globalThis.__emailCall('signout',...a);
  export const createUserWithEmailAndPassword=(...a)=>globalThis.__emailCall('create',...a),signInWithEmailAndPassword=(...a)=>globalThis.__emailCall('login',...a);
  export const sendEmailVerification=(...a)=>globalThis.__emailCall('verify',...a),sendPasswordResetEmail=(...a)=>globalThis.__emailCall('reset',...a);
  export const EmailAuthProvider={credential:(email,password)=>({email,password})},linkWithCredential=(...a)=>globalThis.__emailCall('link',...a),reload=(...a)=>globalThis.__emailCall('reload',...a);

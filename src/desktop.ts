@@ -25,3 +25,24 @@ export function installDesktopLinks() {
     return open(url as any, target, features);
   }) as typeof window.open;
 }
+
+/** The website that finishes Google sign-in for this build (see DesktopSignIn and google.rs). */
+export const desktopSignInSite = (env: string) => env === 'production' ? 'https://remonook.com' : 'https://staging.remonook.com';
+/** Opens Google sign-in in the system browser and resolves with the Google ID token.
+ `onLink` receives the sign-in address when the browser could not be opened, to show it. */
+export async function desktopGoogleToken(env: string, onLink?: (url: string) => void): Promise<string> {
+  const tauri = internals(); if (!tauri) throw Error('Not in the desktop app.');
+  const message = (e: unknown) => Error(typeof e === 'string' ? e : (e as any)?.message || 'Google sign-in failed.');
+  const started = await tauri.invoke('google_sign_in_start', { web: desktopSignInSite(env) }).catch(e => { throw message(e); }) as { url: string; opened: boolean };
+  if (!started.opened) onLink?.(started.url);
+  return String(await tauri.invoke('google_sign_in_wait').catch(e => { throw message(e); }));
+}
+
+/** The request the desktop app put in the sign-in page's address: its loopback port and state. */
+export function desktopSignInRequest(search: string): { port: number; state: string } | null {
+  const q = new URLSearchParams(search), port = Number(q.get('port')), state = q.get('state') || '';
+  return Number.isInteger(port) && port >= 1024 && port <= 65535 && /^[a-f0-9]{32,128}$/.test(state) ? { port, state } : null;
+}
+export const desktopCallback = (port: number, state: string, idToken: string) =>
+  `http://127.0.0.1:${port}/callback?state=${encodeURIComponent(state)}&id_token=${encodeURIComponent(idToken)}`;
+

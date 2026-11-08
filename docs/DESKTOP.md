@@ -7,10 +7,24 @@ is bundled, so the desktop app works offline and needs no service worker.
 - **Start-up:** opens straight into the app; there is no website landing page.
 - **Links:** links to other sites, and `window.open` calls for them, open in the system
   browser (opener plugin, limited to http, https and mailto by `capabilities/default.json`).
-- **Sign-in:** email and password only for now. Google blocks sign-in inside embedded app
-  windows, so Google sign-in through the system browser is phase 2. Firebase Auth is created
-  without the pop-up helper in the desktop app, because that helper loads a page from the auth
-  domain that never completes in the app window and held up start-up.
+- **Sign-in:** email and password, or Google through the system browser (Google refuses
+  sign-in inside embedded app windows). Firebase Auth is created without the pop-up helper in
+  the desktop app, because that helper loads a page from the auth domain that never completes in
+  the app window and held up start-up.
+
+## Google sign-in (`src-tauri/src/google.rs`, `src/DesktopSignIn.tsx`)
+1. `google_sign_in_start` binds a one-time listener on `127.0.0.1:<random port>`, generates a
+   random 48-hex `state`, and opens `<site>/?port=…&state=…#desktop-signin` in the system browser.
+   The site is `https://remonook.com` or `https://staging.remonook.com`; no other value is
+   accepted. If no browser opens, the dialog shows the link to open by hand.
+2. That page (the website's own origin, already authorised with Google) signs in with the
+   Google pop-up, takes the Google ID token, signs the website back out if it was signed out
+   before, and redirects to `http://127.0.0.1:<port>/callback?state=…&id_token=…`. Only a
+   loopback port with a valid state is accepted.
+3. `google_sign_in_wait` accepts only that callback (exact state, `/callback` path, JWT-shaped
+   token), answers other requests with 400, and times out after 5 minutes. The listener is
+   loopback-only, so other machines cannot connect.
+4. The app signs in to Firebase with `GoogleAuthProvider.credential(idToken)`.
 - **Label:** the sidebar label reads DESKTOP.
 
 ## Origins
@@ -32,7 +46,7 @@ Install the WebKitGTK development packages, then run `npm run build:staging` fol
 
 ## Roadmap
 1. Shell, email sign-in, Windows installers. **Done.**
-2. Google sign-in through the system browser.
+2. Google sign-in through the system browser. **Done.**
 3. Device-only workspaces stored as files on disk; Markdown export folder.
 4. Quick capture (global shortcut), tray, launch at login.
 5. Local AI connection (MCP) to device-only workspaces.

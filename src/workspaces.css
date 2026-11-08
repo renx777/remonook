@@ -24,3 +24,9 @@
 .workspace-error { color: #c0392b; opacity: 1 !important; }
 @media (max-width: 640px) { .workspace-menu { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; } }
 .profile-note { margin: 4px 8px 8px; font-size: 12px; line-height: 1.45; opacity: .8; }
+.desktop-signin { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg, #f7f7f5); color: var(--text, #222); font-family: system-ui, sans-serif; }
+.desktop-signin-card { max-width: 420px; width: 100%; padding: 32px; border-radius: 16px; background: var(--panel, #fff); box-shadow: 0 10px 40px rgba(0,0,0,.1); text-align: center; }
+.desktop-signin-brand { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; margin-bottom: 16px; }
+.desktop-signin h1 { font-size: 22px; margin: 0 0 8px; }
+.desktop-signin p { font-size: 14px; line-height: 1.5; opacity: .8; }
+.desktop-signin .access-google { width: 100%; margin-top: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--border, #d6d6d6); background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
