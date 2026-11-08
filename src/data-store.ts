@@ -233,6 +233,9 @@ function records(doc: Workspace | null) {
       );
   return m;
 }
+let savedListener: ((account: string) => void) | null = null;
+/** Called after every committed save (the desktop app mirrors folder workspaces from it). */
+export function onWorkspaceSaved(listener: ((account: string) => void) | null) { savedListener = listener; }
 export async function save(
   before: Workspace | null,
   after: Workspace,
@@ -323,6 +326,7 @@ export async function save(
         preferences: next.preferences,
       });
       await finished;
+      try { savedListener?.(account); } catch { /* the mirror reports its own errors */ }
       return next;
     } catch (error) {
       try {

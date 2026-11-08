@@ -5,6 +5,18 @@ type TauriInternals = { invoke: (cmd: string, args?: Record<string, unknown>) =>
 const internals = (): TauriInternals | undefined => (typeof window === 'undefined' ? undefined : (window as any).__TAURI_INTERNALS__);
 export const isDesktop = () => !!internals();
 
+/** Calls a RemoNook desktop command (src-tauri). Errors arrive as plain messages. */
+export async function desktopInvoke<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const tauri = internals(); if (!tauri) throw Error('Not in the desktop app.');
+  try { return await tauri.invoke(cmd, args) as T; } catch (e) { throw Error(typeof e === 'string' ? e : (e as any)?.message || String(e)); }
+}
+/** Listens for an event from the desktop app; resolves to an unsubscribe function. */
+export async function desktopListen<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
+  if (!isDesktop()) return () => {};
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen<T>(event, e => handler(e.payload));
+}
+
 /** Opens a web or mail link in the system browser. */
 export function openExternal(url: string) {
   return internals()?.invoke('plugin:opener|open_url', { url }).catch(() => {});

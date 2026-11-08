@@ -26,8 +26,12 @@ import {WorkspaceSwitcher} from './WorkspaceSwitcher';
 import {isDesktop,installDesktopLinks} from './desktop';
 import {DesktopSignIn} from './DesktopSignIn';
 import {DesktopUpdate} from './DesktopUpdate';
+import {DesktopSettings} from './DesktopSettings';
+import {QuickCapture} from './QuickCapture';
+import {useDesktop} from './useDesktop';
+import {importFromFolder} from './workspace-folder';
 import './workspaces.css';
-import {activeLocalWorkspace,protectDeviceStorage} from './workspaces';
+import {activeLocalWorkspace,protectDeviceStorage,workspaceStorageName} from './workspaces';
 import {copyTargets,copyBranch} from './workspace-copy';
 import {ReleaseUpdate} from './ReleaseUpdate';
 import {CloudDeviceSaveIndicator,CloudAccountStatus} from './SaveIndicator';
@@ -306,6 +310,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   useEffect(() => {
     (async () => {
       try {
+        // Desktop: a folder workspace opens the folder's version when it was changed elsewhere.
+        const folderWorkspace = activeLocalWorkspace();
+        if (isDesktop() && folderWorkspace?.folder) {
+          try { await importFromFolder(folderWorkspace, workspaceStorageName(folderWorkspace)); }
+          catch (e) { setError(`Could not read the folder “${folderWorkspace.folder}”: ${e instanceof Error ? e.message : String(e)} This workspace opens from the app's own copy.`); }
+        }
         const [stored, a] = await Promise.all([load(), getAssets()]);
         let initial = stored;
         // Signed-in accounts and device-only workspaces start empty; the guest workspace gets the sample notes.
@@ -455,6 +465,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
+  useDesktop({ready:!!doc&&!failed.current,getDoc:()=>docRef.current,commit:next=>commit(next),flush,onError:message=>setError(message||null),onNotice:setNotice});
   useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{
     const current=docRef.current;
     if(!current||failed.current||!current.tables.emojis.some(e=>e.token===item.token))return;
@@ -1582,7 +1593,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <span
                 className={failed.current ? "status-dot error-dot" : "status-dot"}
               />
-              {activeLocalWorkspace()?"Device-only workspace · never synced":cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
+              {activeLocalWorkspace()?.folder?"Folder workspace · this computer · never synced":activeLocalWorkspace()?"Device-only workspace · never synced":cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
             </div>
           </div>
         </div>
@@ -2149,7 +2160,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <Dialog title="Settings" className="settings-dialog" onClose={() => setDialog(null)}>
           <p className="settings-subtitle">Make a little space for yourself.</p>
           <nav className="settings-navigation" aria-label="Settings sections">
-            {[["appearance","Appearance","settings"],["account","Account","people"],["connections","Connections","connections"],["ai","AI apps","globe"],["storage","Storage","folder"],["backups","Backups","folder"]].map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>setSettingsPanel(id)}><Icon name={icon} size={15}/>{label}</button>)}
+            {[["appearance","Appearance","settings"],["account","Account","people"],["connections","Connections","connections"],["ai","AI apps","globe"],["storage","Storage","folder"],["backups","Backups","folder"],...(isDesktop()?[["desktop","Desktop","settings"]]:[])].map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>setSettingsPanel(id)}><Icon name={icon} size={15}/>{label}</button>)}
           </nav>
           <div className="settings-content" key={settingsPanel}>
           {settingsPanel==="appearance" && <section aria-label="Appearance"><div className="settings-section-heading"><h3>Feel at home.</h3><p>Choose how your workspace looks and reads.</p></div>
@@ -2216,6 +2227,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </section>}
           {settingsPanel==="connections"&&<GoogleTasksConnection/>}
           {settingsPanel==="ai"&&<AiApps user={cloudUser}/>}
+          {settingsPanel==="desktop"&&isDesktop()&&<DesktopSettings/>}
           {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
           {settingsPanel==="backups" && <section aria-label="Backups"><div className="settings-section-heading"><h3>Your notes. Your copy.</h3><p>A full backup includes notes, media, decks and study progress.</p></div><div className="settings-backup-actions">
           <button
@@ -2469,7 +2481,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 }
 export const appRoot = createRoot(document.getElementById("root")!);
 // The browser half of desktop Google sign-in runs on its own page (see DesktopSignIn).
-appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isDesktop() ? <DesktopSignIn/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
+appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isDesktop() ? <DesktopSignIn/> : window.location.hash === "#quick-capture" && isDesktop() ? <QuickCapture/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
 
 // The desktop app bundles its files, so it needs no offline service worker.
 if (import.meta.env.PROD && "serviceWorker" in navigator && !isDesktop())

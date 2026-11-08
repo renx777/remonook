@@ -4,9 +4,9 @@ RemoNook has one **main workspace** and any number of **device-only workspaces**
 
 | | Main workspace | Device-only workspace |
 |---|---|---|
-| Where | Synced to your account (or this device when signed out) | Only this browser's IndexedDB |
+| Where | Synced to your account (or this device when signed out) | Only this browser's IndexedDB (desktop app: optionally also a folder) |
 | Other devices | Yes | No, never |
-| AI apps (MCP) | Yes | No |
+| AI apps (MCP) | Yes | Desktop app only: AI apps on the same computer |
 | Contents | Everything | Everything, separately: notes, flashcards, calendar, tags, attachments |
 
 - **Choosing:** the sync setting is chosen when a workspace is created and never changes.
@@ -32,7 +32,11 @@ RemoNook has one **main workspace** and any number of **device-only workspaces**
 - **Browser storage:** browsers may clear site storage, so opening a device-only workspace asks
   for persistent storage, and the create dialog points to backups.
 
+- **Desktop app:** a device-only workspace can also be kept in a folder on the computer, with a
+  readable Markdown copy, and AI apps on the computer can use the open workspace. See
+  docs/DESKTOP.md.
+
 ## Later
 - A one-way "Turn on sync for this workspace" (upload only, which is safe).
-- Desktop and Android apps storing device-only workspaces as files.
+- The Android app storing device-only workspaces as files.
 - Optional same-Wi-Fi or encrypted sync per workspace.

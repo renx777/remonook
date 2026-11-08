@@ -5,7 +5,8 @@
 //
 // The registry and the active choice are per device (localStorage). Each workspace's data
 // lives in its own databases, named from WORKSPACE_PREFIX + id.
-export type LocalWorkspace = { id: string; name: string; createdAt: number };
+/** `folder`: in the desktop app, the folder on this computer that keeps the workspace's copy. */
+export type LocalWorkspace = { id: string; name: string; createdAt: number; folder?: string };
 const LIST = 'remo-local-workspaces', ACTIVE = 'remo-active-workspace';
 export const WORKSPACE_PREFIX = 'remo-web-local-';
 const ID = /^[a-z0-9]{8,32}$/;
@@ -17,7 +18,7 @@ export const cleanName = (name: string) => String(name || '').replace(/\s+/g, ' 
 export function localWorkspaces(): LocalWorkspace[] {
   try {
     const list = JSON.parse(read(LIST) || '[]');
-    return Array.isArray(list) ? list.filter(w => w && ID.test(w.id) && typeof w.name === 'string' && cleanName(w.name)).map(w => ({ id: w.id, name: cleanName(w.name), createdAt: Number(w.createdAt) || 0 })) : [];
+    return Array.isArray(list) ? list.filter(w => w && ID.test(w.id) && typeof w.name === 'string' && cleanName(w.name)).map(w => ({ id: w.id, name: cleanName(w.name), createdAt: Number(w.createdAt) || 0, ...(typeof w.folder === 'string' && w.folder ? { folder: w.folder } : {}) })) : [];
   } catch { return []; }
 }
 const save = (list: LocalWorkspace[]) => write(LIST, JSON.stringify(list));
@@ -30,15 +31,21 @@ export function activeLocalWorkspace(): LocalWorkspace | null {
 }
 export const workspaceStorageName = (w: LocalWorkspace) => WORKSPACE_PREFIX + w.id;
 
-export function createLocalWorkspace(name: string): LocalWorkspace {
+export function createLocalWorkspace(name: string, folder?: string): LocalWorkspace {
   const clean = cleanName(name); if (!clean) throw Error('Give the workspace a name.');
-  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16), workspace = { id, name: clean, createdAt: Date.now() };
+  if (folder && localWorkspaces().some(w => w.folder === folder)) throw Error('That folder is already a workspace here.');
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16), workspace: LocalWorkspace = { id, name: clean, createdAt: Date.now(), ...(folder ? { folder } : {}) };
   save([...localWorkspaces(), workspace]);
   return workspace;
 }
 export function renameLocalWorkspace(id: string, name: string) {
   const clean = cleanName(name); if (!clean) throw Error('Give the workspace a name.');
   save(localWorkspaces().map(w => w.id === id ? { ...w, name: clean } : w));
+}
+/** Keeps (or stops keeping) a workspace's copy in a folder on this computer. */
+export function setWorkspaceFolder(id: string, folder: string | null) {
+  if (folder && localWorkspaces().some(w => w.folder === folder && w.id !== id)) throw Error('That folder is already a workspace here.');
+  save(localWorkspaces().map(w => { if (w.id !== id) return w; const { folder: _, ...rest } = w; return folder ? { ...rest, folder } : rest; }));
 }
 /** Chooses the workspace that opens next (the app reloads to open it). */
 export function chooseWorkspace(target: { local: string } | 'main') {
