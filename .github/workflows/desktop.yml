@@ -72,11 +72,40 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
-      # Publish the update: the signed installer, then latest.json (last, so the app never sees an
-      # update whose files are missing). Served by the sync Worker at /desktop/<channel>/.
-      - name: Publish the update
-        if: env.HAS_UPDATER_KEY == 'true'
+      # The signed installer and its signature, for the publish job below.
+      - name: Collect the update files
+        id: update
         shell: bash
+        run: |
+          echo "signed=$HAS_UPDATER_KEY" >> "$GITHUB_OUTPUT"
+          [ "$HAS_UPDATER_KEY" = "true" ] || exit 0
+          dir=src-tauri/target/release/bundle; mkdir update
+          file=$(ls $dir/nsis/*-setup.exe 2>/dev/null | head -1); kind=setup.exe
+          if [ -z "$file" ]; then file=$(ls $dir/msi/*.msi | head -1); kind=installer.msi; fi
+          test -f "$file.sig" || { echo "::error::No updater signature for $file"; exit 1; }
+          cp "$file" "update/installer.$kind" && cp "$file.sig" "update/installer.$kind.sig"
+      - if: steps.update.outputs.signed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-${{ inputs.environment }}
+          path: update/
+          if-no-files-found: error
+    outputs:
+      signed: ${{ steps.update.outputs.signed }}
+  # Publish the update: the signed installer, then latest.json (last, so the app never sees an
+  # update whose files are missing). Served by the sync Worker at /desktop/<channel>/.
+  # A separate job, so a failed upload can be retried ("Re-run failed jobs") without rebuilding.
+  publish:
+    needs: windows
+    if: needs.windows.outputs.signed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: update-${{ inputs.environment }}
+          path: update
+      - name: Publish the update
         env:
           CHANNEL: ${{ inputs.environment }}
           VERSION: 0.1.${{ github.run_number }}
@@ -84,15 +113,13 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ inputs.environment == 'production' && secrets.CLOUDFLARE_PRODUCTION_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if [ "$CHANNEL" = "production" ]; then BUCKET=remo-attachments; API=https://remo-sync.remo-978fb.workers.dev; else BUCKET=remo-attachments-staging; API=https://remo-sync-staging.remo-978fb.workers.dev; fi
-          dir=src-tauri/target/release/bundle
-          file=$(ls $dir/nsis/*-setup.exe 2>/dev/null | head -1); kind=setup.exe
-          if [ -z "$file" ]; then file=$(ls $dir/msi/*.msi | head -1); kind=installer.msi; fi
-          test -f "$file.sig" || { echo "::error::No updater signature for $file"; exit 1; }
+          file=$(ls update/installer.* | grep -v '\.sig$' | head -1); kind=${file#update/installer.}
           name="RemoNook-${CHANNEL}_${VERSION}_x64-${kind}"
-          npx wrangler r2 object put "$BUCKET/desktop/$CHANNEL/$name" --file "$file" --remote
+          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/$name" --file "$file" --remote || {
+            echo "::error::Cloudflare refused the upload. The API token needs the account permission Workers R2 Storage: Edit. Fix the token, then use Re-run failed jobs."; exit 1; }
           node --input-type=module -e '
           import {readFileSync,writeFileSync} from "node:fs";
           const [file,url]=process.argv.slice(1);
           writeFileSync("latest.json",JSON.stringify({version:process.env.VERSION,notes:"RemoNook "+process.env.VERSION,pub_date:new Date().toISOString(),platforms:{"windows-x86_64":{signature:readFileSync(file+".sig","utf8").trim(),url}}},null,2));' "$file" "$API/desktop/$CHANNEL/$name"
-          npx wrangler r2 object put "$BUCKET/desktop/$CHANNEL/latest.json" --file latest.json --remote --content-type application/json
+          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/latest.json" --file latest.json --remote --content-type application/json
           echo "Published $VERSION: $API/desktop/$CHANNEL/latest.json"

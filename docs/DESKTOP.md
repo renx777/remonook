@@ -54,8 +54,11 @@ The **Desktop app** workflow (`.github/workflows/desktop.yml`) is started by han
 
   The sync Worker serves `desktop/<channel>/<file>` from R2 publicly (only that prefix and
   plain file names).
-- **Versions:** every workflow build is `0.1.<run number>`. The workflow uploads the signed
-  installer, then `latest.json` last.
+- **Versions:** every workflow build is `0.1.<run number>`. A separate `publish` job uploads
+  the signed installer, then `latest.json` last. Its Cloudflare token (`CLOUDFLARE_API_TOKEN`,
+  or `CLOUDFLARE_PRODUCTION_API_TOKEN` for production) needs the account permission
+  **Workers R2 Storage: Edit**. If the upload fails, fix the token and use **Re-run failed
+  jobs**: that repeats only the upload, not the 15-minute build.
 - **Without the key secret,** builds still work but are not published as updates.
 
 ## Locally (Linux)
