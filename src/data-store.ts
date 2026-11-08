@@ -169,6 +169,8 @@ export function androidBlockers(doc: Workspace) {
 }
 let storageName = "remo-web";
 export function setStorageAccount(uid: string | null) { storageName = uid ? "remo-web-user-" + uid : "remo-web"; }
+/** Opens a device-only workspace's databases instead of the account's (see workspaces.ts). */
+export function setStorageName(name: string) { if (!/^remo-web-local-[a-z0-9]{8,32}$/.test(name)) throw Error("Invalid workspace storage."); storageName = name; }
 export const storageAccountKey = () => storageName;
 export const accountLocalKey = (key: string) => storageName === "remo-web" ? key : storageName + ":" + key;
 function openDb(name = storageName): Promise<IDBDatabase> {

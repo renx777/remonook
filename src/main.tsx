@@ -22,6 +22,8 @@ import {useSidebarMotion} from './useSidebarMotion';
 import {restoreDeviceState,historyAfterSync} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
+import {WorkspaceSwitcher} from './WorkspaceSwitcher';
+import {activeLocalWorkspace,protectDeviceStorage} from './workspaces';
 import {ReleaseUpdate} from './ReleaseUpdate';
 import {CloudDeviceSaveIndicator,CloudAccountStatus} from './SaveIndicator';
 import {FlowNumber} from './FlowNumber';
@@ -301,7 +303,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       try {
         const [stored, a] = await Promise.all([load(), getAssets()]);
         let initial = stored;
-        if (!initial) initial = await save(null, cloudUser ? empty() : sample(), "initialize");
+        // Signed-in accounts and device-only workspaces start empty; the guest workspace gets the sample notes.
+        if (!initial) initial = await save(null, cloudUser || activeLocalWorkspace() ? empty() : sample(), "initialize");
+        if (activeLocalWorkspace()) void protectDeviceStorage();
         if (initial.web.studyVersion !== 2) {
           const upgraded = withNodes(initial, initial.tables.bullets as Node[]);
           initial = await save(initial, { ...upgraded, web: { ...upgraded.web, studyVersion: 2 } }, "study upgrade");
@@ -1520,6 +1524,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="sidebarCollapse" />
             </button>
           </div>
+          <WorkspaceSwitcher/>
           <button className="sidebar-jump" onClick={() => {if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="search" size={16} /><span>Commands & notes</span><kbd>{modLabel()} K</kbd></button>
           <nav aria-label="Main navigation">
             {[
@@ -1572,7 +1577,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <span
                 className={failed.current ? "status-dot error-dot" : "status-dot"}
               />
-              {cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
+              {activeLocalWorkspace()?"Device-only workspace · never synced":cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
             </div>
           </div>
         </div>

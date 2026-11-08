@@ -6,13 +6,16 @@ import {onAuthStateChanged,type User} from 'firebase/auth';
 import {auth,googleSignIn,googleSignOut,settleAuthOperation} from './auth-service';
 import {AccountAccess} from './AccountAccess';
 import {CLOUD_ENABLED} from './cloud-config';
-import {setStorageAccount} from './data';
+import {setStorageAccount,setStorageName} from './data';
+import {activeLocalWorkspace,workspaceStorageName,chooseWorkspace} from './workspaces';
 export type {User};
 let prepareTransition:()=>Promise<void>=async()=>{};
 export function setAccountTransitionHandler(handler:()=>Promise<void>){prepareTransition=handler;return ()=>{if(prepareTransition===handler)prepareTransition=async()=>{};};}
 export {googleSignIn,googleSignOut};
 export {authenticatedUid} from './auth-service';
 export {AccountSecurity} from './AccountAccess';
+/** Saves pending edits, then reopens the app in another workspace. */
+export async function switchWorkspace(target:{local:string}|'main'){await prepareTransition();chooseWorkspace(target);window.location.hash='app';location.reload();}
 export async function openAccountSignIn(){window.dispatchEvent(new window.Event('remo-sign-in'));}
 function CloudAuthGate({children}:{children:(user:User|null)=>React.ReactNode}){
  const [route,setRoute]=useState(()=>window.location.hash);
@@ -26,18 +29,21 @@ function CloudAuthGate({children}:{children:(user:User|null)=>React.ReactNode}){
    // Reload after an account transition to discard all in-memory editors, URLs,
    // undo stacks and folder handles before opening the new account's database.
    if(initial.current){try{await prepareTransition();window.location.hash=next?'app':'home';location.reload();}catch(e){setError(e instanceof Error?e.message:String(e));}return;}
-   initial.current=true;setStorageAccount(next?.uid||null);setUser(next);
+   initial.current=true;setStorageAccount(next?.uid||null);const local=activeLocalWorkspace();if(local)setStorageName(workspaceStorageName(local));setUser(next);
  },e=>setError(e.message)),[]);
  if(user===undefined)return <div className="startup"><div className="brand"><RemoLogo/>RemoNook</div><p>{error||'Opening your workspace…'}</p>{error&&<button onClick={()=>location.reload()}>Retry</button>}</div>;
  const connect=new URLSearchParams(window.location.search).get('connect');
  if(connect&&/^[a-f0-9]{32}$/.test(connect))return <ConnectApproval user={user} requestId={connect} onSignIn={openAccountSignIn}/>;
  if(route==='#home'||!user&&route!=='#app')return <Landing onSignIn={openAccountSignIn} signedIn={!!user}/>;
- return <>{error&&<p className="cloud-error" role="alert">{error}</p>}{children(user)}</>;
+ // A device-only workspace runs without a cloud user, so nothing in it can sync.
+ return <>{error&&<p className="cloud-error" role="alert">{error}</p>}{children(activeLocalWorkspace()?null:user)}</>;
 }
 
 function LocalAuthGate({children}:{children:(user:User|null)=>React.ReactNode}){
+ // Choose the storage before the app's first render: child effects run before this gate's.
+ useState(()=>{setStorageAccount(null);const local=activeLocalWorkspace();if(local)setStorageName(workspaceStorageName(local));return null;});
  const [route,setRoute]=useState(()=>window.location.hash);
- useEffect(()=>{setStorageAccount(null);const changed=()=>setRoute(window.location.hash);window.addEventListener('hashchange',changed);return()=>window.removeEventListener('hashchange',changed);},[]);
+ useEffect(()=>{const changed=()=>setRoute(window.location.hash);window.addEventListener('hashchange',changed);return()=>window.removeEventListener('hashchange',changed);},[]);
  return route==='#app'?<>{children(null)}</>:<Landing onSignIn={openAccountSignIn}/>;
 }
 export function AuthGate(props:{children:(user:User|null)=>React.ReactNode}){

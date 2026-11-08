@@ -86,10 +86,17 @@ async function device(browser,name,hold){
 }
 const status=d=>d.page.evaluate(()=>document.querySelector('.save-status')?.title||'');
 const synced=(d,timeout=60000)=>d.page.waitForFunction(()=>document.querySelector('.save-status')?.title.includes('Cloud: Synced'),null,{timeout});
-const texts=d=>d.page.evaluate(()=>[...document.querySelectorAll('[data-node-id]')].map(e=>(e.querySelector('.tiptap')||e.querySelector('.text-button')||e).textContent.trim()));
+// Accounts can be large and the outline only renders rows on screen, so the check reads and
+// edits its notes through the app's search, which filters the outline to matching bullets.
+async function search(d,q){const box=d.page.locator('input[placeholder="Search notes"]');if(await box.inputValue()!==q){await box.fill(q);await sleep(700);}await box.press('Escape');await sleep(250);
+ // Escape closes the suggestions; if it also cleared the search, set it again without focus.
+ if(await box.inputValue()!==q){await box.evaluate((e,v)=>{const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(e,v);e.dispatchEvent(new Event('input',{bubbles:true}));e.blur();},q);await sleep(700);}
+ if(await d.page.locator('text=Combine terms').isVisible().catch(()=>false))throw Error('the search suggestions stayed open');}
+const rows=d=>d.page.evaluate(()=>[...document.querySelectorAll('[data-node-id]')].map(e=>(e.querySelector('.tiptap')||e.querySelector('.text-button')||e).textContent.trim()));
+const texts=async d=>{await search(d,RUN);return rows(d);};
 async function waitFor(d,test,ms=20000){const t=Date.now();while(Date.now()-t<ms){if(test(await texts(d)))return Date.now()-t;await sleep(150);}return -1;}
-async function add(d,text){await d.page.click('[aria-label="Add bullet"]');await d.page.waitForSelector('.tiptap');await d.page.keyboard.type(text);await d.page.keyboard.press('Escape');await sleep(300);}
-async function append(d,match,text){const row=d.page.locator('[data-node-id]',{hasText:match}).first();await row.locator('.text-button').click();await d.page.waitForSelector('.tiptap');await d.page.keyboard.press('End');await d.page.keyboard.type(text);await d.page.keyboard.press('Escape');await sleep(300);}
+async function add(d,text){await search(d,'');await d.page.click('[aria-label="Add bullet"]');await d.page.waitForSelector('.tiptap');await d.page.keyboard.type(text);await d.page.keyboard.press('Escape');await sleep(300);}
+async function append(d,match,text){await search(d,RUN);const row=d.page.locator('[data-node-id]',{hasText:match}).first();await row.locator('.text-button').click();await d.page.waitForSelector('.tiptap');await d.page.keyboard.press('End');await d.page.keyboard.type(text);await d.page.keyboard.press('Escape');await sleep(300);}
 async function online(d,on){await d.ctx.setOffline(!on);if(on)await d.page.evaluate(()=>window.dispatchEvent(new Event('online')));}
 
 const browser=await chromium.launch(process.env.E2E_CHROMIUM?{executablePath:process.env.E2E_CHROMIUM}:{});
@@ -111,7 +118,7 @@ try{
  check('the first device\'s sign-in deletes nothing',before.every(id=>afterA.some(n=>n.id===id)),`${before.filter(id=>afterA.some(n=>n.id===id)).length}/${before.length} notes`);
 
  // 1. A creates notes; a brand-new device B receives all of them and deletes nothing.
- for(const k of [1,2,3])await add(A,`${RUN} #${k}`);await synced(A,30000);
+ for(const k of [1,2,3])await add(A,`${RUN} n${k}`);await synced(A,30000);
  const B=await device(browser,'B');
  const seen=(await texts(B)).filter(t=>t.startsWith(RUN)).length;
  const afterB=(await server()).doc.tables.bullets;
@@ -119,24 +126,24 @@ try{
  check('a new device deletes nothing',before.every(id=>afterB.some(n=>n.id===id)),`${before.filter(id=>afterB.some(n=>n.id===id)).length}/${before.length} earlier notes on the server`);
 
  // 2. Live edits both ways, without reloading.
- await append(B,`${RUN} #1`,' edited on B');let ms=await waitFor(A,t=>t.some(x=>x.includes('edited on B')));
+ await append(B,`${RUN} n1`,' edited on B');let ms=await waitFor(A,t=>t.some(x=>x.includes('edited on B')));
  check('an edit reaches the other device live',ms>=0,ms>=0?`${ms} ms`:'not received in 20 s');
- await add(A,`${RUN} #4`);ms=await waitFor(B,t=>t.some(x=>x.startsWith(`${RUN} #4`)));
+ await add(A,`${RUN} n4`);ms=await waitFor(B,t=>t.some(x=>x.startsWith(`${RUN} n4`)));
  check('a new note reaches the other device live',ms>=0,ms>=0?`${ms} ms`:'not received in 20 s');
 
  // 3. Offline edit, then reconnect.
- await online(B,false);await append(B,`${RUN} #2`,' offline');await sleep(1000);
+ await online(B,false);await append(B,`${RUN} n2`,' offline');await sleep(1000);
  check('offline edits show as pending, never as synced',/sync pending/i.test(await status(B)));
  await online(B,true);ms=await waitFor(A,t=>t.some(x=>x.includes(' offline')),30000);
  check('an offline edit syncs after reconnecting',ms>=0,ms>=0?`${ms} ms after reconnecting`:'not received in 30 s');
 
  // 4. Both devices offline edit the same bullet; both edits survive and the devices agree.
  await online(A,false);await online(B,false);
- await append(A,`${RUN} #3`,' [A]');await append(B,`${RUN} #3`,' [B]');
+ await append(A,`${RUN} n3`,' [A]');await append(B,`${RUN} n3`,' [B]');
  await online(A,true);await online(B,true);
- const both=t=>t.some(x=>x.startsWith(`${RUN} #3`)&&x.includes('[A]')&&x.includes('[B]'));
+ const both=t=>t.some(x=>x.startsWith(`${RUN} n3`)&&x.includes('[A]')&&x.includes('[B]'));
  await waitFor(A,both,30000);await waitFor(B,both,30000);
- const a3=(await texts(A)).find(x=>x.startsWith(`${RUN} #3`)),b3=(await texts(B)).find(x=>x.startsWith(`${RUN} #3`));
+ const a3=(await texts(A)).find(x=>x.startsWith(`${RUN} n3`)),b3=(await texts(B)).find(x=>x.startsWith(`${RUN} n3`));
  check('concurrent edits to one bullet keep both and converge',!!a3&&a3===b3&&a3.includes('[A]')&&a3.includes('[B]'),JSON.stringify([a3,b3]));
 
  // 5. A third brand-new device sees the same outline after everything above.
@@ -144,9 +151,23 @@ try{
  const C=await device(browser,'C'),c=(await texts(C)).filter(t=>t.startsWith(RUN)).sort(),b=(await texts(B)).filter(t=>t.startsWith(RUN)).sort();
  check('a third new device sees the same notes',c.length===4&&JSON.stringify(c)===JSON.stringify(b),`${c.length}/4`);
 
+ // 6. A device-only workspace never sends anything: its note text must not appear in any request,
+ // and the main workspace must not show it. The workspace is deleted afterwards.
+ if(await C.page.$('.workspace-current')){
+  const secret=`${RUN} device-only ${Math.random().toString(36).slice(2,8)}`,leaks=[];let open=false,calls=0;
+  C.page.on('request',r=>{if(((r.url()+(r.postData()||''))).includes(secret))leaks.push(r.url());if(open&&r.url().startsWith(API))calls++;});
+  const reload=action=>Promise.all([C.page.waitForNavigation({waitUntil:'load'}).catch(()=>{}),action()]);
+  await C.page.click('.workspace-current');await C.page.getByText('New device-only workspace').click();await C.page.fill('[aria-label="Workspace name"]','E2E device-only');
+  await reload(()=>C.page.getByRole('button',{name:'Create and open'}).click());open=true;await C.page.waitForSelector('[aria-label="Add bullet"]',{timeout:30000});
+  await add(C,secret);await sleep(2500);
+  check('a device-only workspace makes no sync requests and sends nothing',!leaks.length&&!calls,`${calls} sync requests, ${leaks.length} leaks`);
+  await C.page.click('.workspace-current');await C.page.getByText(/Delete “E2E device-only”/).click();await C.page.fill('[aria-label="Type the workspace name to confirm"]','E2E device-only');
+  await reload(()=>C.page.getByRole('button',{name:'Delete permanently'}).click());open=false;await synced(C,60000);
+  await search(C,secret);check('the main workspace never shows device-only notes',!(await rows(C)).some(t=>t.includes(secret))&&!(await server()).doc.tables.bullets.some(n=>n.text.includes(secret)));
+ }
  const errors=[A,B,C].flatMap(d=>d.errors.map(e=>`${d.name}: ${e}`));
  check('no app errors on any device',!errors.length,errors.slice(0,3).join(' | '));
-}catch(e){check('check completed',false,String(e?.message||e).slice(0,300));}
+}catch(e){check('check completed',false,String(e?.message||e).slice(0,300));try{for(const pg of browser.contexts().flatMap(c=>c.pages()))await pg.screenshot({path:`e2e-failure-${browser.contexts().indexOf(pg.context())}.png`});}catch{}}
 finally{
  try{
   if(token){const removed=await cleanup();const after=(await server()).doc.tables.bullets.filter(n=>!n.text.startsWith(MARK)||before?.includes(n.id)).map(n=>n.id).sort();
