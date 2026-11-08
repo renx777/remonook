@@ -1,8 +1,11 @@
 import {initializeApp} from 'firebase/app';
 import {getAuth,initializeAuth,browserLocalPersistence,browserPopupRedirectResolver,GoogleAuthProvider,signInWithPopup,signOut} from 'firebase/auth';
 import {CLOUD_ENABLED,firebaseConfig} from './cloud-config';
+import {isDesktop} from './desktop';
 const firebaseApp=CLOUD_ENABLED?initializeApp(firebaseConfig):null;
-export const auth=firebaseApp ? (typeof browserPopupRedirectResolver==='function' ? initializeAuth(firebaseApp,{persistence:browserLocalPersistence,popupRedirectResolver:browserPopupRedirectResolver}) : getAuth(firebaseApp)) : null;
+// The desktop app (Tauri) has no Google pop-up sign-in: the pop-up helper loads a page from the
+// auth domain, which never completes inside the app window and would hold up start-up.
+export const auth=firebaseApp ? (isDesktop() ? initializeAuth(firebaseApp,{persistence:browserLocalPersistence}) : typeof browserPopupRedirectResolver==='function' ? initializeAuth(firebaseApp,{persistence:browserLocalPersistence,popupRedirectResolver:browserPopupRedirectResolver}) : getAuth(firebaseApp)) : null;
 export const authenticatedUid=()=>auth?.currentUser?.uid;
 export async function googleSignIn(){if(!auth)throw Error('Cloud sign-in is disabled in local development. Configure staging to test sync.');const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await signInWithPopup(auth,provider);}
 export const googleSignOut=()=>auth?signOut(auth):Promise.resolve();

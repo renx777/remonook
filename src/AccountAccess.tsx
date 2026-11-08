@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import {isDesktop} from './desktop';
 import type {User} from 'firebase/auth';
 import {googleSignIn,emailSignIn,emailSignUp,resetPassword,verifyEmail,checkVerification,addPassword} from './auth-service';
 import './account-access.css';
@@ -35,7 +36,10 @@ export function AccountAccess({onClose,actions=accessActions}:{onClose:()=>void;
  return <dialog ref={dialog} className="account-access" aria-labelledby="access-title" onCancel={e=>{if(busy)e.preventDefault();else onClose();}}>
   <button className="access-close" aria-label="Close sign-in" disabled={busy} onClick={onClose}>×</button>
   <p className="access-eyebrow">REMONOOK</p><h2 id="access-title">{title}</h2><p className="access-muted">{mode==='reset'?'We’ll send a link to help you sign in again.':'Your notes, connected across devices.'}</p>
-  {mode!=='reset'&&<><button className="access-google" disabled={busy} onClick={()=>void run(actions.google)}>Continue with Google</button><div className="access-divider">or use email</div></>}
+  {mode!=='reset'&&(isDesktop()
+    // Google blocks sign-in inside app windows; desktop Google sign-in through the browser comes next.
+    ?<p className="access-note">In the desktop app, sign in with email and password. Google sign-in is coming soon.</p>
+    :<><button className="access-google" disabled={busy} onClick={()=>void run(actions.google)}>Continue with Google</button><div className="access-divider">or use email</div></>)}
   <form onSubmit={e=>{e.preventDefault();if(mode==='signup'&&password!==confirm){setError('Passwords do not match.');return;}void run(async()=>{if(mode==='reset'){try{await actions.reset(email);}catch(e){if((e as {code?:string}).code!=='auth/user-not-found')throw e;}setNotice('If an account uses this email, a password reset link is on its way. Check your inbox and spam folder.');}else await actions[mode](email,password);});}}>
    <fieldset disabled={busy}><label>Email<input autoFocus type="email" autoComplete="email" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)}/></label>
    {mode!=='reset'&&<label>Password<input aria-describedby={mode==='signup'?'access-password-help':undefined} type="password" autoComplete={mode==='signup'?'new-password':'current-password'} required minLength={mode==='signup'?8:undefined} maxLength={4096} value={password} onChange={e=>setPassword(e.target.value)}/></label>}

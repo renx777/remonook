@@ -8,6 +8,7 @@ import {AccountAccess} from './AccountAccess';
 import {CLOUD_ENABLED} from './cloud-config';
 import {setStorageAccount,setStorageName} from './data';
 import {activeLocalWorkspace,workspaceStorageName,chooseWorkspace} from './workspaces';
+import {isDesktop} from './desktop';
 export type {User};
 let prepareTransition:()=>Promise<void>=async()=>{};
 export function setAccountTransitionHandler(handler:()=>Promise<void>){prepareTransition=handler;return ()=>{if(prepareTransition===handler)prepareTransition=async()=>{};};}
@@ -34,7 +35,8 @@ function CloudAuthGate({children}:{children:(user:User|null)=>React.ReactNode}){
  if(user===undefined)return <div className="startup"><div className="brand"><RemoLogo/>RemoNook</div><p>{error||'Opening your workspace…'}</p>{error&&<button onClick={()=>location.reload()}>Retry</button>}</div>;
  const connect=new URLSearchParams(window.location.search).get('connect');
  if(connect&&/^[a-f0-9]{32}$/.test(connect))return <ConnectApproval user={user} requestId={connect} onSignIn={openAccountSignIn}/>;
- if(route==='#home'||!user&&route!=='#app')return <Landing onSignIn={openAccountSignIn} signedIn={!!user}/>;
+ // The desktop app opens straight into the app (no website landing page).
+ if(!isDesktop()&&(route==='#home'||!user&&route!=='#app'))return <Landing onSignIn={openAccountSignIn} signedIn={!!user}/>;
  // A device-only workspace runs without a cloud user, so nothing in it can sync.
  return <>{error&&<p className="cloud-error" role="alert">{error}</p>}{children(activeLocalWorkspace()?null:user)}</>;
 }
@@ -44,7 +46,7 @@ function LocalAuthGate({children}:{children:(user:User|null)=>React.ReactNode}){
  useState(()=>{setStorageAccount(null);const local=activeLocalWorkspace();if(local)setStorageName(workspaceStorageName(local));return null;});
  const [route,setRoute]=useState(()=>window.location.hash);
  useEffect(()=>{const changed=()=>setRoute(window.location.hash);window.addEventListener('hashchange',changed);return()=>window.removeEventListener('hashchange',changed);},[]);
- return route==='#app'?<>{children(null)}</>:<Landing onSignIn={openAccountSignIn}/>;
+ return route==='#app'||isDesktop()?<>{children(null)}</>:<Landing onSignIn={openAccountSignIn}/>;
 }
 export function AuthGate(props:{children:(user:User|null)=>React.ReactNode}){
  const [open,setOpen]=useState(false);

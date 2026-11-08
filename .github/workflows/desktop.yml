@@ -1,0 +1,51 @@
+name: Desktop app
+# Builds the RemoNook desktop app (Tauri) installers on GitHub's machines.
+# Unsigned for now: Windows shows a SmartScreen warning on first launch (More info → Run anyway).
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which sync server and Firebase project the app uses
+        type: choice
+        options: [staging, production]
+        default: staging
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ inputs.environment }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Build the app for ${{ inputs.environment }}
+        shell: bash
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            cp .env.production.example .env.production.local && npm run build:production
+          else
+            cp .env.staging.example .env.staging.local && npm run build:staging
+          fi
+      - name: Build the Windows installers
+        shell: bash
+        run: |
+          extra=""; [ "${{ inputs.environment }}" = "staging" ] && extra="--config src-tauri/tauri.staging.json"
+          npx tauri build $extra
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RemoNook-${{ inputs.environment }}-windows
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
