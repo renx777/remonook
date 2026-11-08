@@ -65,6 +65,8 @@ async function ensureBaseline(){
 }
 
 // ---- devices: a fresh browser context each, so no shared storage
+/** What the page shows when something goes wrong, for the log. */
+const describe=page=>page.evaluate(()=>{const visible=[...document.querySelectorAll('[role=alert],[role=status],.save-status,.access-error,h1,h2')].filter(e=>e.offsetParent||e.classList.contains('save-status')).map(e=>(e.title||e.textContent||'').replace(/\s+/g,' ').trim()).filter(Boolean);return visible.slice(0,6).join(' | ')||document.body.innerText.slice(0,200);}).catch(e=>'page unavailable: '+e.message);
 /** `hold` (optional) is a promise: until it resolves, this device's changes are not sent, so the
  account can be recorded exactly as it was before the device's first sync. */
 async function device(browser,name,hold){
@@ -76,7 +78,10 @@ async function device(browser,name,hold){
  await page.click('[aria-label="Account: not signed in"]');await page.getByText(/Sign in or create account/i).first().click();
  await page.fill('input[type=email]',EMAIL);await page.fill('input[type=password]',PASSWORD);
  await page.getByRole('button',{name:'Sign in',exact:true}).click();
- await synced({page});await sleep(1500);
+ // Signed in and synced, or a visible sign-in error (for example a wrong password secret).
+ const outcome=await page.waitForFunction(()=>{const e=document.querySelector('.access-error');if(e&&e.offsetParent)return 'error:'+e.textContent.trim();return document.querySelector('.save-status')?.title.includes('Cloud: Synced')?'synced':false;},null,{timeout:90000}).then(h=>h.jsonValue(),async()=>'timeout: '+await describe(page));
+ if(outcome!=='synced'){await page.screenshot({path:`e2e-failure-${name}.png`}).catch(()=>{});throw Error(`device ${name} sign-in ${outcome}`);}
+ await sleep(1500);
  return {name,ctx,page,errors};
 }
 const status=d=>d.page.evaluate(()=>document.querySelector('.save-status')?.title||'');
@@ -94,7 +99,9 @@ try{
  // deletes or reverts notes must be visible to the checks below.
  let release;const hold=new Promise(r=>release=r);
  const signingIn=device(browser,'A',hold);
- for(let i=0;i<300&&!token;i++)await sleep(100);if(!token)throw Error('device A did not reach the sync server');
+ let signInError=null;signingIn.catch(e=>{signInError=e;});
+ for(let i=0;i<900&&!token&&!signInError;i++)await sleep(100);
+ if(!token)throw signInError||Error('device A did not reach the sync server within 90 s');
  await ensureBaseline();
  before=(await server()).doc.tables.bullets.filter(n=>!n.text.startsWith(MARK)).map(n=>n.id).sort();
  console.log(`account has ${before.length} notes`);
