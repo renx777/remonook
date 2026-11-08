@@ -1,0 +1,26 @@
+.workspace-switcher { position: relative; margin: 2px 8px 8px; }
+.workspace-current { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border, #e3e3e3); border-radius: 10px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.workspace-current:hover { background: var(--hover, rgba(127,127,127,.08)); }
+.workspace-icon { font-size: 16px; line-height: 1; }
+.workspace-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.workspace-text strong, .workspace-menu strong { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-text small, .workspace-menu small { font-size: 11px; opacity: .65; }
+.workspace-chevron { opacity: .6; font-size: 11px; }
+.workspace-menu { position: absolute; z-index: 50; top: calc(100% + 4px); left: 0; right: 0; min-width: 240px; padding: 6px; border: 1px solid var(--border, #e3e3e3); border-radius: 12px; background: var(--panel, var(--bg, #fff)); box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.workspace-menu > button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; font-size: 13px; }
+.workspace-menu > button > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.workspace-menu > button:hover, .workspace-menu > button:focus-visible { background: var(--hover, rgba(127,127,127,.1)); }
+.workspace-menu > button.danger { color: #c0392b; }
+.workspace-check { font-weight: 700; }
+.workspace-menu hr { border: 0; border-top: 1px solid var(--border, #e3e3e3); margin: 6px 2px; }
+.workspace-menu form { display: flex; flex-direction: column; gap: 8px; padding: 6px; }
+.workspace-menu form p { margin: 0; font-size: 12px; line-height: 1.45; opacity: .8; }
+.workspace-menu input { padding: 7px 9px; border: 1px solid var(--border, #d6d6d6); border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 13px; }
+.workspace-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.workspace-actions button { padding: 6px 12px; border: 1px solid var(--border, #d6d6d6); border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.workspace-actions .primary { background: var(--accent, #2b6f8f); border-color: transparent; color: #fff; }
+.workspace-actions .danger { background: #c0392b; border-color: transparent; color: #fff; }
+.workspace-actions button:disabled { opacity: .5; cursor: default; }
+.workspace-error { color: #c0392b; opacity: 1 !important; }
+@media (max-width: 640px) { .workspace-menu { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; } }
+.profile-note { margin: 4px 8px 8px; font-size: 12px; line-height: 1.45; opacity: .8; }

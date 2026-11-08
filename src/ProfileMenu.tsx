@@ -1,4 +1,5 @@
 import * as Popover from "@radix-ui/react-popover";
+import {activeLocalWorkspace} from './workspaces';
 import { useState } from "react";
 import type { User } from "firebase/auth";
 import { CloudAccountStatus } from "./SaveIndicator";
@@ -50,7 +51,7 @@ export function ProfileMenu({
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className="icon-button profile-trigger" aria-label={user ? `Account: ${user.email || name}` : "Account: not signed in"} title={user?.email || "Not signed in"}>
+        <button className="icon-button profile-trigger" aria-label={user ? `Account: ${user.email || name}` : activeLocalWorkspace() ? "Account: device-only workspace" : "Account: not signed in"} title={user?.email || "Not signed in"}>
           <Avatar user={user} size={26} />
         </button>
       </Popover.Trigger>
@@ -95,7 +96,10 @@ export function ProfileMenu({
               </>
             ) : (
               <>
-                <button className="profile-signin" onClick={act(onSignIn)}>Sign in or create account</button>
+                {activeLocalWorkspace()
+                  ? <p className="profile-note">This is a device-only workspace. Your account and sync are in “My notes” (switch at the top of the sidebar).</p>
+                  : <button className="profile-signin" onClick={act(onSignIn)}>Sign in or create account</button>}
+                <button onClick={act(() => onSettings("backups"))}><Icon name="download" size={16} />Backups</button>
                 <button onClick={act(() => onSettings("appearance"))}><Icon name="settings" size={16} />Settings</button>
               </>
             )}
