@@ -14,3 +14,15 @@ test('desktop Google sign-in: the page only relays to a loopback port with the a
  assert.equal(d.desktopSignInSite('production'),'https://remonook.com');assert.equal(d.desktopSignInSite('staging'),'https://staging.remonook.com');
  assert.equal(d.isDesktop(),false,'not in the desktop app under Node');
 });
+
+test('desktop retires obsolete service worker shells without deleting user caches or storage',async()=>{
+ const keys=['window','navigator','caches','location'],before=new Map(keys.map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));let unregistered=0,reloaded=0;const removed=[];
+ try{
+  Object.defineProperty(globalThis,'window',{configurable:true,value:{__TAURI_INTERNALS__:{invoke:async()=>{}},caches:true}});
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{serviceWorker:{controller:{},getRegistrations:async()=>[{unregister:async()=>{unregistered++;}}]}}});
+  Object.defineProperty(globalThis,'caches',{configurable:true,value:{keys:async()=>['remo-shell-old','remo-reader-assets','local-book-originals','another-cache'],delete:async k=>{removed.push(k);return true;}}});
+  Object.defineProperty(globalThis,'location',{configurable:true,value:{reload:()=>{reloaded++;}}});
+  await d.retireDesktopOfflineShell();assert.equal(unregistered,1);assert.equal(reloaded,0,'cleanup must never interrupt an edit with a reload');assert.deepEqual(removed,['remo-shell-old','remo-reader-assets']);
+  navigator.serviceWorker.controller=null;await d.retireDesktopOfflineShell();assert.equal(reloaded,0,'an already clean desktop must not reload');
+ }finally{for(const key of keys){const descriptor=before.get(key);if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}}
+});

@@ -62,9 +62,7 @@ export const desktopCallback = (port: number, state: string, idToken: string) =>
 /** Retire browser offline shells left by older desktop builds. Keep all user data. */
 export async function retireDesktopOfflineShell(){
  if(!isDesktop()||!('serviceWorker' in navigator))return;
- const controlled=!!navigator.serviceWorker.controller;
  const registrations=await navigator.serviceWorker.getRegistrations();
  await Promise.all(registrations.map(r=>r.unregister()));
  if('caches' in window){for(const key of await caches.keys())if(key.startsWith('remo-shell-')||key==='remo-reader-assets')await caches.delete(key);}
- if(controlled)location.reload();
 }
