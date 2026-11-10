@@ -1,3 +1,4 @@
+import {storageAccountKey} from './data-store';
 import type {User} from 'firebase/auth';
 import {CLOUD_API} from './cloud-config';
 import {authenticatedUid} from './CloudAccount';
@@ -9,7 +10,7 @@ export async function articleRequest(user:User,path:string,init:RequestInit={}){
  if(!response.ok){let message='Article request failed.';try{message=(await response.json()).error||message;}catch{}throw Error(message);}return response;
 }
 export async function getArticle(user:User|null,hash:string){
- const account=articleAccount(user?.uid),local=await cachedArticle(account,hash);if(local)return local.blob;
+ const account=user?articleAccount(user.uid):storageAccountKey(),local=await cachedArticle(account,hash);if(local)return local.blob;
  if(!user)throw Error('This article has not been saved on this device.');
  const blob=await(await articleRequest(user,'/bookmarks/snapshots/'+hash)).blob();await cacheArticle(account,hash,blob);return blob;
 }

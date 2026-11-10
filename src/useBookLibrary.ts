@@ -3,6 +3,7 @@ import type {User} from 'firebase/auth';
 import {authenticatedUid} from './CloudAccount';
 import {CLOUD_API} from './cloud-config';
 import {digest,download,storageAccountKey,type Workspace} from './data';
+import {inspectBook} from './book-files';
 import {bookScope} from './local-books';
 import {checkBook,registerBooks,BOOK_COUNT_LIMIT} from './book-storage.mjs';
 import {cachedBook} from './book-cache';
@@ -29,7 +30,7 @@ export function useBookLibrary({user,doc,onChange}:{user:User|null;doc:Workspace
  useEffect(()=>{alive.current=true;const update=()=>{setOnline(navigator.onLine);if(navigator.onLine&&!lock.current)void refresh().catch(e=>{if(alive.current)setError(e.message);});};void refresh().catch(e=>{if(alive.current)setError(e.message);});window.addEventListener('online',update);window.addEventListener('offline',update);window.addEventListener('focus',update);return()=>{alive.current=false;for(const controller of requests.current)controller.abort();window.removeEventListener('online',update);window.removeEventListener('offline',update);window.removeEventListener('focus',update);};},[user?.uid,storage]);
  const run=async(label:string,action:()=>Promise<void>)=>{if(lock.current)return;lock.current=true;setBusy(label);setError('');setNotice('');try{await action();}catch(e){if(alive.current)setError((e as Error).message);}finally{lock.current=false;if(alive.current){setBusy('');if(navigator.onLine)void refresh().catch(()=>{});}}};
  const upload=(file:File)=>run('Adding book…',async()=>{
-  checkBook(file);const {inspectBook}=await import('./book-files');await inspectBook(file);
+  checkBook(file);await inspectBook(file);
   const hash=await digest(await file.arrayBuffer());verify();
   if(localMode){
    const existing=books.find(b=>b.hash===hash);if(existing){await cachedBook(scope,existing.id+':'+hash,file);verify();window.dispatchEvent(new CustomEvent('remo-local-books',{detail:storage}));setNotice('The original is available offline in this bookshelf.');return;}

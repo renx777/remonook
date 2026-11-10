@@ -1,3 +1,4 @@
+import {retireDesktopOfflineShell} from './desktop';
 import {restoreLocalBook,isBookPath} from './local-books';
 import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
@@ -2496,3 +2497,4 @@ appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.ha
 if (import.meta.env.PROD && "serviceWorker" in navigator && !isDesktop())
   navigator.serviceWorker.register("/sw.js").catch(() => {});
 installDesktopLinks();
+void retireDesktopOfflineShell().catch(()=>{});

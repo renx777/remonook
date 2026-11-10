@@ -101,3 +101,20 @@ There are no backend/schema changes or new synchronized fields. Reader and
 Bookshelf continue to use the already-deployed staging book backend. Production
 still needs the separate book-storage/reader backend release before frontend
 promotion.
+
+### Local desktop import and bookmarks
+
+Local Bookshelf validation is part of the library module, rather than a separate
+on-demand `book-files` chunk. The desktop also retires any old browser service
+worker shell/cache on startup; it keeps IndexedDB, folder originals and drafts.
+This prevents an obsolete offline shell from requesting removed bundle chunks.
+
+Desktop bookmarks can capture a public webpage without signing in. The native
+client fetches the page only after an explicit add/update action, without account
+cookies or the cloud capture endpoint. Public addresses are validated and pinned
+after DNS resolution on every redirect; private/local targets are refused.
+Readable text is sanitized and saved as `articles/<hash>.json` in the workspace,
+with its metadata, highlights and notes following normal persistence, folder,
+backup and paired-device paths. Unreadable/protected pages keep the saved URL
+and explain that reader capture failed. Cloud accounts keep their authenticated
+capture path. Browser-local capture is subject to the website's CORS policy.
