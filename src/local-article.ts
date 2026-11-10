@@ -6,7 +6,7 @@ export async function captureLocalArticle(url:string){
  let page:{url:string;html:string};
  if(isDesktop())page=await desktopInvoke('local_article_fetch',{url});
  else{const response=await fetch(url,{credentials:'omit',signal:AbortSignal.timeout(25000)});if(!response.ok)throw Error('This page could not be saved. Your link is kept.');const html=await response.text();if(html.length>5*1024*1024)throw Error('This page is too large.');page={url:response.url||url,html};}
- const clean=DOMPurify.sanitize(page.html,{FORBID_TAGS:['img','iframe','object','embed','form','video','audio','source','svg','math']});
+ const clean=DOMPurify.sanitize(page.html,{WHOLE_DOCUMENT:true,FORBID_TAGS:['img','iframe','object','embed','form','video','audio','source','svg','math']});
  const doc=new DOMParser().parseFromString(clean,'text/html');
  for(const a of doc.querySelectorAll('a[href]')){try{const link=new URL(a.getAttribute('href')!,page.url);if(!/^https?:$/.test(link.protocol))a.removeAttribute('href');else a.setAttribute('href',link.href);}catch{a.removeAttribute('href');}}
  const parsed=new Readability(doc,{charThreshold:100,maxElemsToParse:30000}).parse();
