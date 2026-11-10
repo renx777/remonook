@@ -79,10 +79,10 @@ export async function deleteLocalWorkspace(id: string) {
   if (w.peerSync) write(DECLINED, JSON.stringify([...declined().filter(x => x !== id), id].slice(-200)));
   if (read(ACTIVE) === 'local:' + id) chooseWorkspace('main');
   const name = workspaceStorageName(w);
-  await Promise.all([name, name + '-articles'].map(db => new Promise<void>(resolve => {
+  await Promise.all([name, name + '-articles', 'remo-books-local:'+name].map(db => new Promise<void>(resolve => {
     try { const r = indexedDB.deleteDatabase(db); r.onsuccess = r.onerror = r.onblocked = () => resolve(); } catch { resolve(); }
   })));
-  try { for (const key of Object.keys(localStorage)) if (key.startsWith(name + ':')) localStorage.removeItem(key); } catch { /* storage unavailable */ }
+  try { for (const key of Object.keys(localStorage)) if (key.startsWith(name + ':')||key.startsWith('remo-reader-location:local:'+name+':')) localStorage.removeItem(key); } catch { /* storage unavailable */ }
 }
 /** Asks the browser not to clear this site's storage under pressure (device-only data has no other copy). */
 export async function protectDeviceStorage(): Promise<boolean> {

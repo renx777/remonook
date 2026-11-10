@@ -1,3 +1,4 @@
+import {localBookFiles,localBookManifest,restoreLocalBook,isBookPath} from './local-books';
 // Local sync (desktop app): workspaces marked "Sync with my devices" sync directly with this
 // person's paired devices on the same network. src-tauri/src/local_sync.rs pairs devices, finds
 // them and carries encrypted messages; this engine decides what to send.
@@ -79,7 +80,7 @@ export class LocalSyncEngine {
     for (const p of [...this.lastSent.keys()]) if (!this.online.has(p.split('|')[0])) this.lastSent.delete(p);
     for (const peer of fresh) {
       await this.send(peer, { t: 'workspaces', list: this.deps.workspaces().map(({ id, name }) => ({ id, name })) });
-      for (const w of this.deps.workspaces()) await this.hello(peer, w, true);
+      for (const w of this.deps.workspaces()){await this.hello(peer,w,true);void this.prefetch(w);}
     }
   }
 
@@ -153,8 +154,10 @@ export class LocalSyncEngine {
     if (msg.t === 'want') {
       if (!Array.isArray(msg.hashes)) return;
       const files = await getAssets(w.storage), wanted = new Set(msg.hashes.filter(h => HASH.test(h)).slice(0, 500)), sent = new Set<string>();
-      for (const blob of files.values()) {
-        const hash = await hashOf(blob);
+      const bookDoc={web:{readingBooks:await op('peer-books')}};
+      for(const [path,blob]of await localBookFiles(bookDoc,w.storage))files.set(path,blob);
+      for (const [path,blob] of files) {
+        const hash = isBookPath(path)?path.slice(6,70):await hashOf(blob);
         if (wanted.has(hash) && !sent.has(hash) && blob.size <= ASSET_LIMIT) { sent.add(hash); await this.send(peer, { t: 'asset', ws: w.id, hash, type: blob.type, data: await toBase64(blob) }); }
       }
       return;
@@ -165,6 +168,8 @@ export class LocalSyncEngine {
       if (await hashOf(blob) !== msg.hash) return;
       const listed: Asset[] = await op('peer-assets'), files = new Map(listed.filter(a => a.hash === msg.hash).map(a => [a.path, blob] as [string, Blob]));
       if (files.size) await putAssets(files, w.storage);
+      const bookDoc={web:{readingBooks:await op('peer-books')}};
+      for(const b of localBookManifest(bookDoc))if(b.hash===msg.hash)await restoreLocalBook(bookDoc,w.storage,b.path,blob);
       for (const resolve of this.waiting.get(msg.hash) || []) resolve(blob);
       this.waiting.delete(msg.hash);
       this.deps.received?.(w.storage);
@@ -174,8 +179,11 @@ export class LocalSyncEngine {
   /** Fetches attachments this device's copy lists but does not hold yet. */
   async prefetch(w: Synced) {
     const listed: Asset[] = await syncOperation('peer-assets', {}, w.storage), files = await getAssets(w.storage);
+    const bookDoc={web:{readingBooks:await syncOperation('peer-books',{},w.storage)}};
+    listed.push(...localBookManifest(bookDoc));
+    for(const [path,blob]of await localBookFiles(bookDoc,w.storage))files.set(path,blob);
     const missing: string[] = [];
-    for (const a of listed) { const blob = files.get(a.path); if (!blob || await hashOf(blob) !== a.hash) missing.push(a.hash); }
+    for (const a of listed) { const blob = files.get(a.path); if (!blob || (isBookPath(a.path)?blob.size!==a.size:await hashOf(blob)!==a.hash)) missing.push(a.hash); }
     if (missing.length) for (const peer of this.online) await this.send(peer, { t: 'want', ws: w.id, hashes: [...new Set(missing)] });
   }
 

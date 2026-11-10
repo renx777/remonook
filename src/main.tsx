@@ -1,3 +1,4 @@
+import {restoreLocalBook,isBookPath} from './local-books';
 import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
 import {aiContext,insertAi} from './ai-assist.mjs';
@@ -1326,6 +1327,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       await flush();
       if (failed.current) throw Error("Current changes could not be saved");
       const restoredAssets=new Map(prepared.assets);
+      if(cloudUser&&[...restoredAssets.keys()].some(isBookPath))throw Error('This backup contains device-local book originals. Restore it in a device-only workspace, or add the originals to your account through Bookshelf.');
+      for(const [path,blob]of restoredAssets)if(isBookPath(path)){if(!await restoreLocalBook(prepared.doc,storageAccountKey(),path,blob))throw Error("A book original in this backup has no matching bookshelf entry. The current notes were kept.");restoredAssets.delete(path);}
       for(const [path,blob]of prepared.assets){const match=path.match(/^articles\/([a-f0-9]{64})\.json$/);if(match){await cacheArticle(articleAccount(cloudUser?.uid),match[1],blob,!!cloudUser);restoredAssets.delete(path);}}
       if(cloudUser){if(!navigator.onLine)throw Error('Reconnect to restore saved webpages to your account. Your backup and current notes are unchanged.');await uploadCachedArticles(cloudUser,articleSnapshotHashes(prepared.doc));}
       const restoredDoc = {
@@ -1816,7 +1819,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "bookmarks" ? (
           <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/></React.Suspense>
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : tab === "mindmap" ? (
@@ -2145,7 +2148,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       </OutlinePopover>}
       <GuidedTours key={cloudUser?.uid||'guest'} open={dialog==='help'} account={storageAccountKey()} signedIn={!!cloudUser} onOpenChange={open=>setDialog(open?'help':null)} onCloseMenus={()=>{setMenu(null);setViewMenu(false);}} onNavigate={async nextTab=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');if(readerTarget)closeReader();setMenu(null);setViewMenu(false);setEditing(null);setTab(nextTab);if(nextTab==='notes'){setScope(null);setSearch('');}}} onBulletMenu={()=>{document.querySelector('[data-tour-active-bullet]')?.removeAttribute('data-tour-active-bullet');const row=[...document.querySelectorAll<HTMLElement>('.outline-row[data-node-id]')].find(el=>el.getClientRects().length>0&&docRef.current?.tables.bullets.some(n=>n.id===el.dataset.nodeId&&n.blockStyle!=='divider')),button=row&&[...row.querySelectorAll<HTMLButtonElement>('[aria-label="Bullet actions"]')].find(el=>el.getClientRects().length>0);if(!button)return false;button.setAttribute('data-tour-active-bullet','');return true;}}/>
       {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader onHelp={()=>setDialog("help")} user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onAi={openReaderAi} onNote={id=>navigateTo(id)} renderNotes={()=> <React.Suspense fallback={<p role="status">Loading book notes…</p>}><ReaderBookNotes onCommit={()=>{if(viewTimer.current)publishView(true);}} doc={doc} hash={readerTarget.hash} assets={assets} disabled={disabled||failed.current} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onFullNotes={id=>{closeReader();navigateTo(id);}} onAdd={()=>{if(failed.current)throw Error('Saving is paused. Open Account settings to retry.');const current=docRef.current!,book=readingBook(current,readerTarget.hash),id=crypto.randomUUID();const next=addReadingNote(current,book,id);commit(withNodes(next,next.tables.bullets as Node[]));return id;}}/></React.Suspense>} onScreenshot={async(unit,blob)=>{
-        if(authenticatedUid()!==cloudUser?.uid)throw Error('Your account changed. Open the book again to capture a page.');
+        if(cloudUser&&authenticatedUid()!==cloudUser.uid)throw Error('Your account changed. Open the book again to capture a page.');
         if(failed.current||working||!readerTarget)throw Error('Wait for saving to finish, then try again.');
         const current=docRef.current!,book=readingBook(current,readerTarget.hash);if(!book)throw Error('The original book is no longer available.');
         const id=crypto.randomUUID(),fileName=id+(blob.type==='image/png'?'.png':'.webp'),path='media/'+fileName;
@@ -2234,7 +2237,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {settingsPanel==="connections"&&<GoogleTasksConnection/>}
           {settingsPanel==="ai"&&<AiApps user={cloudUser}/>}
           {settingsPanel==="desktop"&&isDesktop()&&<DesktopSettings/>}
-          {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
+          {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/>}
           {settingsPanel==="backups" && <section aria-label="Backups"><div className="settings-section-heading"><h3>Your notes. Your copy.</h3><p>A full backup includes notes, media, decks and study progress.</p></div><div className="settings-backup-actions">
           <button
             className="wide action"

@@ -5,8 +5,21 @@ or add a Daily reading widget to a dashboard tab. See [Reading](READING.md) for
 the reader, highlights, source notes and daily progress.
 Books download only when requested and cache in an account-scoped IndexedDB
 separate from note attachments. No book binary enters Yjs, the durable note
-outbox, or the normal attachment download loop. Device-only accounts must sign
-in before adding books. There is no paid API or server-side document processing.
+outbox, or the normal attachment download loop. Signed-out and device-only
+workspaces can add, read, highlight, download and delete books without login,
+including offline. Originals are saved durably before library metadata is added,
+in a cache scoped to the workspace; reading checkpoints and covers use that scope
+too. Account-backed originals keep the existing authenticated cloud path.
+There is no paid API or server-side document processing.
+
+Local originals also travel with a desktop workspace folder under
+`attachments/books/<sha256>.pdf` or `.epub`, and with optional paired-device sync.
+They remain separate from the note attachment manifest and its cloud quotas.
+Full backups include available local originals and identify missing ones in the
+restore warnings. Local backups containing originals are restored into a local
+workspace; signing in never uploads a local library automatically. Reimporting
+an existing book restores a missing original without duplicating its metadata.
+Browser disk/quota failures leave the existing library intact and report an error.
 
 ## Allocation
 

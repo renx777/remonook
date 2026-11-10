@@ -54,6 +54,13 @@ they do not mark pages read or alter synchronized daily completion. Upload, down
 use the same account-bound storage hook as Settings, with existing limits,
 validation, upload durability and deletion confirmation.
 
+Without a cloud user, that shared hook instead saves originals in the open
+workspace's local book cache. Import, reading, highlights, download and deletion
+remain available offline without a login prompt. Reading locations and covers are
+workspace-scoped; folder copies, full backups and paired devices retain originals
+separately from ordinary note attachments. Signing in is required only for the
+existing cloud storage service, not for using a local Bookshelf.
+
 Covers use an existing account-local thumbnail when available. Otherwise a cached
 original can supply a first-page PDF preview or a bounded EPUB cover image. Only
 visible/nearby covers are prepared; at most two extraction tasks run concurrently.

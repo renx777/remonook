@@ -34,6 +34,7 @@ workspace in a folder…**, **Open a workspace folder…**, or **Keep “…” 
   - `RemoNook workspace.json`: the whole workspace (format `remonook-workspace`, version 1), with
     a random `saveId` per write;
   - `attachments/`: images and files, under the same paths as in a backup;
+    local Bookshelf originals are included under `attachments/books/`;
   - `Markdown/`: one `.md` file per top-level bullet, rewritten after each save and never read
     back.
 - **Writing:** the app keeps working from its own storage. 1.2 s after a save (and on start when
