@@ -80,16 +80,46 @@ Off by default; turned on in Settings → Desktop.
 
 ## Origins
 The app's origin is `http://tauri.localhost` on Windows and `tauri://localhost` on macOS and
-Linux. Both are in the sync Worker's `ALLOWED_ORIGINS`: staging is deployed; production needs
+Linux (both already allowed). Both are in the sync Worker's `ALLOWED_ORIGINS`: staging is deployed; production needs
 the next `remo-sync` deploy.
 
 ## Builds
 The **Desktop app** workflow (`.github/workflows/desktop.yml`) is started by hand:
-- **Choose** `staging` or `production`.
-- **Output:** Windows installers (NSIS `.exe` and `.msi`), uploaded as a run artifact.
+- **Choose** `staging` or `production`. Every run builds all three systems with the same version.
+- **Windows:** NSIS `.exe` and `.msi`.
+- **Linux:** `.deb` and AppImage. Built on Ubuntu 22.04 so it also runs on Debian 12 based
+  systems such as Peppermint OS.
+- **macOS:** one universal app (Apple silicon and Intel) as a `.dmg`. Requires macOS 11+.
+- **Run artifacts:** each system's installers are uploaded as `RemoNook-<channel>-<system>`.
 - **Two apps:** staging builds are named "RemoNook Staging" (`com.remonook.desktop.staging`),
   so they install alongside the production app.
-- **Unsigned:** Windows SmartScreen warns on first launch (More info → Run anyway).
+- **Not code-signed yet:**
+  - Windows SmartScreen warns on first launch (More info → Run anyway).
+  - The macOS app is ad-hoc signed. On first launch macOS refuses it; open System Settings →
+    Privacy & Security and choose **Open Anyway** (or run
+    `xattr -dr com.apple.quarantine "/Applications/RemoNook Staging.app"`).
+
+## Installing on each system
+- **Windows:** run the `…_x64-setup.exe`.
+- **macOS:** open the `.dmg`, drag the app to Applications, then allow it once as above.
+- **Linux:** either
+  - the AppImage (updates itself): `sudo apt install libfuse2` once, `chmod +x` the file,
+    then run it; or
+  - the `.deb` (`sudo apt install ./RemoNook…amd64.deb`), which does not update itself.
+    Install a newer `.deb` by hand.
+
+## Differences between systems
+- **Quick capture** is Ctrl+Shift+Space, or ⌘⇧Space on a Mac. On Linux the global shortcut
+  works on X11 (Xfce, Peppermint) but not on Wayland desktops; the tray menu still opens it.
+- **Tray:** on Linux the tray icon has a menu only (Linux trays have no click events). On macOS,
+  clicking the Dock icon also brings back a window hidden to the tray.
+- **Local AI apps:** `connection.json` lives in the app data folder:
+  - Windows: `%APPDATA%\<identifier>`;
+  - macOS: `~/Library/Application Support/<identifier>`;
+  - Linux: `$XDG_DATA_HOME/<identifier>`, or `~/.local/share/<identifier>` if that is unset.
+
+  From an AppImage, the command given to AI apps is the AppImage file itself (`$APPIMAGE`), not
+  its temporary mount.
 
 ## Automatic updates
 - **Plugins:** the updater plugin checks the channel's `latest.json` 15 s after start and every
@@ -106,7 +136,8 @@ The **Desktop app** workflow (`.github/workflows/desktop.yml`) is started by han
   The sync Worker serves `desktop/<channel>/<file>` from R2 publicly (only that prefix and
   plain file names).
 - **Versions:** every workflow build is `0.1.<run number>`. A separate `publish` job uploads
-  the signed installer, then `latest.json` last. Its Cloudflare token (`CLOUDFLARE_API_TOKEN`,
+  each system's signed update (Windows setup `.exe`, Linux AppImage, macOS `.app.tar.gz`),
+  then `latest.json` listing all of them, last. It runs only when all three builds succeeded. Its Cloudflare token (`CLOUDFLARE_API_TOKEN`,
   or `CLOUDFLARE_PRODUCTION_API_TOKEN` for production) needs the account permission
   **Workers R2 Storage: Edit**. If the upload fails, fix the token and use **Re-run failed
   jobs**: that repeats only the upload, not the 15-minute build.
@@ -123,4 +154,6 @@ Install the WebKitGTK development packages, then run `npm run build:staging` fol
 4. Quick capture (global shortcut), tray, start at login. **Done.**
 5. Local AI apps (MCP) on this computer. **Done.**
 - Automatic updates (signed, per channel). **Done.**
-- Later: macOS builds; choosing the quick capture shortcut and destination.
+- Linux and macOS builds. **Done.**
+- Later: code signing (Windows certificate, Apple Developer ID); choosing the quick capture
+  shortcut and destination.

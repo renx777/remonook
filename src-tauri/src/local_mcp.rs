@@ -40,6 +40,11 @@ fn random_token() -> Result<String, String> {
     getrandom::fill(&mut bytes).map_err(|e| e.to_string())?;
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
+/// The program AI apps should start. A Linux AppImage runs from a temporary mount, so its own
+/// file (APPIMAGE) is the stable path; elsewhere it is the running program.
+fn app_path() -> Option<PathBuf> {
+    std::env::var_os("APPIMAGE").map(PathBuf::from).filter(|p| p.is_file()).or_else(|| std::env::current_exe().ok())
+}
 fn connection_file(app: &tauri::AppHandle) -> Option<PathBuf> {
     Some(app.path().app_data_dir().ok()?.join(CONNECTION_FILE))
 }
@@ -189,7 +194,7 @@ pub struct Status {
 fn status(app: &tauri::AppHandle) -> Status {
     let s = app.state::<crate::desktop::State>().0.lock().unwrap().clone();
     let port = app.state::<Server>().running.lock().unwrap().as_ref().map(|r| r.port);
-    let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "RemoNook".into());
+    let exe = app_path().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|| "RemoNook".into());
     Status { on: port.is_some(), url: port.map(|p| format!("http://127.0.0.1:{p}/mcp")), token: port.map(|_| s.local_mcp_token.clone()), command: exe }
 }
 
@@ -275,10 +280,14 @@ fn rpc_error(id: &serde_json::Value, message: &str) -> String {
 
 /// Reads JSON-RPC messages from stdin (one per line) and answers each on stdout.
 pub fn bridge(identifier: &str) {
-    let base = std::env::var_os("APPDATA").map(PathBuf::from).or_else(|| {
-        let home = std::env::var_os("HOME").map(PathBuf::from)?;
-        Some(if cfg!(target_os = "macos") { home.join("Library/Application Support") } else { home.join(".local/share") })
-    });
+    // The app data folder, as Tauri chooses it on each system.
+    let base = if cfg!(windows) {
+        std::env::var_os("APPDATA").map(PathBuf::from)
+    } else if cfg!(target_os = "macos") {
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support"))
+    } else {
+        std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+    };
     let Some(file) = base.map(|b| b.join(identifier).join(CONNECTION_FILE)) else { return };
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
@@ -309,7 +318,7 @@ pub fn bridge(identifier: &str) {
             // Start RemoNook in the tray, then wait for it (up to about 30 seconds).
             if attempt == 0 && !launched {
                 launched = true;
-                if let Ok(exe) = std::env::current_exe() {
+                if let Some(exe) = app_path() {
                     use std::process::Stdio;
                     let _ = std::process::Command::new(exe).arg(crate::desktop::BACKGROUND_ARG).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
                 }

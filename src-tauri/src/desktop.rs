@@ -88,7 +88,7 @@ fn apply_shortcut(app: &tauri::AppHandle, on: bool) -> Result<(), String> {
                     open_capture(app);
                 }
             })
-            .map_err(|_| "Another app already uses Ctrl+Shift+Space, so quick capture cannot use it.".to_string())?;
+            .map_err(|_| "Another app already uses this shortcut, so quick capture cannot use it.".to_string())?;
     } else if !on && registered {
         let _ = shortcuts.unregister(shortcut);
     }
@@ -116,7 +116,7 @@ pub fn setup(app: &tauri::AppHandle) -> tauri::Result<()> {
     let settings = load(app);
     app.manage(State(Mutex::new(settings.clone())));
     let open = MenuItem::with_id(app, "open", "Open RemoNook", true, None::<&str>)?;
-    let capture = MenuItem::with_id(app, "capture", "Quick capture\tCtrl+Shift+Space", true, None::<&str>)?;
+    let capture = MenuItem::with_id(app, "capture", "Quick capture", true, Some(CAPTURE_SHORTCUT))?;
     let quit = MenuItem::with_id(app, "quit", "Quit RemoNook", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &capture, &quit])?;
     TrayIconBuilder::with_id("main")

@@ -74,6 +74,13 @@ pub fn run() {
             local_mcp::local_mcp_reply,
             local_mcp::local_mcp_ready,
         ])
-        .run(context)
-        .expect("error while running RemoNook");
+        .build(context)
+        .expect("error while starting RemoNook")
+        .run(|_app, _event| {
+            // macOS: clicking the Dock icon brings back a window hidden to the tray.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                desktop::show_main(_app);
+            }
+        });
 }

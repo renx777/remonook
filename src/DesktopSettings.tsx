@@ -11,6 +11,9 @@ const ACCESS: [LocalAccess, string, string][] = [
   ['write', 'Read and write', 'Can also add and edit notes, flashcards, MCQs and bookmarks.'],
   ['delete', 'Read, write and delete', 'Can also move notes to Trash (you can restore them).'],
 ];
+const mac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent);
+/** The shortcut as people read it on this system: ⌘⇧Space on a Mac, Ctrl+Shift+Space elsewhere. */
+export const shortcutLabel = (s = 'CommandOrControl+Shift+Space') => mac ? s.replace('CommandOrControl+', '⌘').replace('Shift+', '⇧') : s.replace('CommandOrControl', 'Ctrl');
 const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 export function DesktopSettings() {
@@ -40,7 +43,7 @@ export function DesktopSettings() {
     <div className="settings-section-heading"><h3>RemoNook on this computer.</h3><p>Keep RemoNook a keystroke away, and let AI apps on this computer use your notes.</p></div>
     {error && <p className="ai-apps-error" role="alert">{error}</p>}
     <fieldset><legend>App</legend>
-      {toggle('Quick capture', `Press ${view?.shortcut.replace('CommandOrControl', 'Ctrl') || 'Ctrl+Shift+Space'} anywhere to jot a note into the Inbox of the open workspace.`, view?.quickCapture, v => void change({ quickCapture: v }))}
+      {toggle('Quick capture', `Press ${shortcutLabel(view?.shortcut)} anywhere to jot a note into the Inbox of the open workspace.`, view?.quickCapture, v => void change({ quickCapture: v }))}
       {toggle('Keep running in the tray', 'Closing the window keeps RemoNook in the system tray, so quick capture and AI apps keep working. Quit from the tray icon.', view?.keepInTray, v => void change({ keepInTray: v }))}
       {toggle('Start at login', 'Open RemoNook in the tray when you sign in to this computer.', view?.launchAtLogin, v => void change({ launchAtLogin: v }))}
     </fieldset>

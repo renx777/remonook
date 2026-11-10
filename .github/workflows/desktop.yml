@@ -1,6 +1,8 @@
 name: Desktop app
-# Builds the RemoNook desktop app (Tauri) installers on GitHub's machines.
-# Unsigned for now: Windows shows a SmartScreen warning on first launch (More info → Run anyway).
+# Builds the RemoNook desktop app (Tauri) for Windows, Linux and macOS on GitHub's machines,
+# then publishes one signed update for all three (latest.json lists each platform).
+# Not code-signed yet: Windows shows a SmartScreen warning on first launch (More info → Run
+# anyway); macOS asks once in System Settings → Privacy & Security (Open Anyway).
 on:
   workflow_dispatch:
     inputs:
@@ -15,9 +17,28 @@ concurrency:
   group: desktop-${{ inputs.environment }}
   cancel-in-progress: true
 jobs:
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 45
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+            bundle: src-tauri/target/release/bundle
+            args: ''
+          # Ubuntu 22.04: its older glibc lets the app run on Debian 12 based systems too.
+          - platform: linux
+            os: ubuntu-22.04
+            bundle: src-tauri/target/release/bundle
+            args: --bundles deb,appimage
+          # One app for both Apple silicon and Intel Macs.
+          - platform: macos
+            os: macos-latest
+            bundle: src-tauri/target/universal-apple-darwin/release/bundle
+            args: --target universal-apple-darwin --bundles app,dmg
     env:
       NODE_OPTIONS: --max-old-space-size=4096
       # Secrets cannot appear in step conditions; expose only whether the key is set.
@@ -30,6 +51,14 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Install the Linux build libraries
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2
+      - name: Add the Intel and Apple silicon Rust targets
+        if: matrix.platform == 'macos'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm ci
       - name: Build the app for ${{ inputs.environment }}
         shell: bash
@@ -52,60 +81,76 @@ jobs:
           const config={...base,version:"0.1.${{ github.run_number }}"};
           if(process.env.HAS_UPDATER_KEY!=="true"){config.bundle={...(config.bundle||{}),createUpdaterArtifacts:false};console.log("::warning::TAURI_SIGNING_PRIVATE_KEY is not set: this build cannot be offered as an automatic update.");}
           writeFileSync("src-tauri/tauri.release.json",JSON.stringify(config,null,2));console.log("version",config.version);'
-      - name: Build the Windows installers
+      - name: Build the ${{ matrix.platform }} installers
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         run: |
-          extra="--config src-tauri/tauri.release.json"
-          # The bundler downloads its installer tools (NSIS, WiX); retry brief download failures.
-          # A retry reuses the compiled app, so it only repeats the packaging.
+          extra="--config src-tauri/tauri.release.json ${{ matrix.args }}"
+          # The bundler downloads its packaging tools (NSIS, WiX, linuxdeploy); retry brief
+          # download failures. A retry reuses the compiled app, so it only repeats the packaging.
           for attempt in 1 2 3; do npx tauri build $extra && exit 0; echo "::warning::Packaging attempt $attempt failed; retrying"; sleep 20; done
+          [ "$RUNNER_OS" = "Windows" ] || exit 1
           # If the NSIS (.exe) tool download stays down, still produce the .msi installer.
           echo "::warning::Building the .msi installer only (the .exe packaging tool could not be downloaded)."
           npx tauri build $extra --bundles msi
       - uses: actions/upload-artifact@v4
         with:
-          name: RemoNook-${{ inputs.environment }}-windows
+          name: RemoNook-${{ inputs.environment }}-${{ matrix.platform }}
           path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
+            ${{ matrix.bundle }}/nsis/*.exe
+            ${{ matrix.bundle }}/msi/*.msi
+            ${{ matrix.bundle }}/deb/*.deb
+            ${{ matrix.bundle }}/appimage/*.AppImage
+            ${{ matrix.bundle }}/dmg/*.dmg
           if-no-files-found: error
-      # The signed installer and its signature, for the publish job below.
+      # The signed update file and its signature, for the publish job below. update.json says
+      # which updater platforms it serves and under which published name.
       - name: Collect the update files
-        id: update
+        if: env.HAS_UPDATER_KEY == 'true'
         shell: bash
+        env:
+          CHANNEL: ${{ inputs.environment }}
+          VERSION: 0.1.${{ github.run_number }}
         run: |
-          echo "signed=$HAS_UPDATER_KEY" >> "$GITHUB_OUTPUT"
-          [ "$HAS_UPDATER_KEY" = "true" ] || exit 0
-          dir=src-tauri/target/release/bundle; mkdir update
-          file=$(ls $dir/nsis/*-setup.exe 2>/dev/null | head -1); kind=setup.exe
-          if [ -z "$file" ]; then file=$(ls $dir/msi/*.msi | head -1); kind=installer.msi; fi
+          dir="${{ matrix.bundle }}"; mkdir update
+          case "${{ matrix.platform }}" in
+            windows)
+              file=$(ls $dir/nsis/*-setup.exe 2>/dev/null | head -1); suffix=x64-setup.exe
+              if [ -z "$file" ]; then file=$(ls $dir/msi/*.msi | head -1); suffix=x64-installer.msi; fi
+              platforms='["windows-x86_64"]';;
+            linux) file=$(ls $dir/appimage/*.AppImage | head -1); suffix=amd64.AppImage; platforms='["linux-x86_64"]';;
+            macos) file=$(ls $dir/macos/*.app.tar.gz | head -1); suffix=universal.app.tar.gz; platforms='["darwin-aarch64","darwin-x86_64"]';;
+          esac
           test -f "$file.sig" || { echo "::error::No updater signature for $file"; exit 1; }
-          cp "$file" "update/installer.$kind" && cp "$file.sig" "update/installer.$kind.sig"
-      - if: steps.update.outputs.signed == 'true'
+          name="RemoNook-${CHANNEL}_${VERSION}_${suffix}"
+          cp "$file" "update/$name" && cp "$file.sig" "update/$name.sig"
+          echo "{\"file\":\"$name\",\"platforms\":$platforms}" > update/update.json
+      - if: env.HAS_UPDATER_KEY == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: update-${{ inputs.environment }}
+          name: update-${{ inputs.environment }}-${{ matrix.platform }}
           path: update/
           if-no-files-found: error
-    outputs:
-      signed: ${{ steps.update.outputs.signed }}
-  # Publish the update: the signed installer, then latest.json (last, so the app never sees an
-  # update whose files are missing). Served by the sync Worker at /desktop/<channel>/.
+  # Publish the update: every platform's signed file, then latest.json (last, so the app never sees
+  # an update whose files are missing). Served by the sync Worker at /desktop/<channel>/.
   # A separate job, so a failed upload can be retried ("Re-run failed jobs") without rebuilding.
+  # It runs only when all three builds succeeded, so every platform gets the same version.
   publish:
-    needs: windows
-    if: needs.windows.outputs.signed == 'true'
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
     steps:
-      - uses: actions/download-artifact@v4
+      - if: env.HAS_UPDATER_KEY == 'true'
+        uses: actions/download-artifact@v4
         with:
-          name: update-${{ inputs.environment }}
+          pattern: update-${{ inputs.environment }}-*
           path: update
       - name: Publish the update
+        if: env.HAS_UPDATER_KEY == 'true'
         env:
           CHANNEL: ${{ inputs.environment }}
           VERSION: 0.1.${{ github.run_number }}
@@ -113,13 +158,19 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ inputs.environment == 'production' && secrets.CLOUDFLARE_PRODUCTION_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if [ "$CHANNEL" = "production" ]; then BUCKET=remo-attachments; API=https://remo-sync.remo-978fb.workers.dev; else BUCKET=remo-attachments-staging; API=https://remo-sync-staging.remo-978fb.workers.dev; fi
-          file=$(ls update/installer.* | grep -v '\.sig$' | head -1); kind=${file#update/installer.}
-          name="RemoNook-${CHANNEL}_${VERSION}_x64-${kind}"
-          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/$name" --file "$file" --remote || {
-            echo "::error::Cloudflare refused the upload. The API token needs the account permission Workers R2 Storage: Edit. Fix the token, then use Re-run failed jobs."; exit 1; }
-          node --input-type=module -e '
-          import {readFileSync,writeFileSync} from "node:fs";
-          const [file,url]=process.argv.slice(1);
-          writeFileSync("latest.json",JSON.stringify({version:process.env.VERSION,notes:"RemoNook "+process.env.VERSION,pub_date:new Date().toISOString(),platforms:{"windows-x86_64":{signature:readFileSync(file+".sig","utf8").trim(),url}}},null,2));' "$file" "$API/desktop/$CHANNEL/$name"
+          for meta in update/*/update.json; do
+            dir=$(dirname "$meta"); name=$(node -p "require('./$meta').file")
+            npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/$name" --file "$dir/$name" --remote || {
+              echo "::error::Cloudflare refused the upload. The API token needs the account permission Workers R2 Storage: Edit. Fix the token, then use Re-run failed jobs."; exit 1; }
+          done
+          API="$API" node --input-type=module -e '
+          import {readFileSync,writeFileSync,readdirSync} from "node:fs";
+          const platforms={};
+          for(const d of readdirSync("update")){const m=JSON.parse(readFileSync(`update/${d}/update.json`,"utf8"));
+            const entry={signature:readFileSync(`update/${d}/${m.file}.sig`,"utf8").trim(),url:`${process.env.API}/desktop/${process.env.CHANNEL}/${m.file}`};
+            for(const p of m.platforms)platforms[p]=entry;}
+          if(Object.keys(platforms).length<4)throw Error("Expected Windows, Linux and both macOS entries, got "+Object.keys(platforms).join(", "));
+          writeFileSync("latest.json",JSON.stringify({version:process.env.VERSION,notes:"RemoNook "+process.env.VERSION,pub_date:new Date().toISOString(),platforms},null,2));'
+          cat latest.json
           npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/latest.json" --file latest.json --remote --content-type application/json
           echo "Published $VERSION: $API/desktop/$CHANNEL/latest.json"
