@@ -49,7 +49,10 @@
 .local-sync-pair input, .local-sync-device input { padding: 8px 10px; border: 1px solid var(--line, #d6d6d6); border-radius: 8px; background: transparent; color: inherit; font: inherit; }
 .local-sync-pair input[aria-label="Pairing code"] { width: 9ch; font-size: 20px; letter-spacing: .12em; text-align: center; }
 .link-button { border: 0; background: none; padding: 0; color: var(--accent, #2b6f8f); font: inherit; cursor: pointer; text-decoration: underline; }
-.local-sync-request { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.35); }
+.local-sync-request { padding: 0; border: 0; background: transparent; max-width: calc(100vw - 32px); }
+.local-sync-request::backdrop { background: rgba(0,0,0,.35); }
+.local-sync-incoming { margin: 10px 0; padding: 14px 16px; border: 1px solid var(--accent, #2b6f8f); border-radius: 12px; text-align: center; }
+.local-sync-incoming p { margin: 0 0 6px; }
 .local-sync-request-card { width: min(380px, 100%); padding: 24px; border-radius: 14px; background: var(--panel, #fff); color: var(--text, #222); box-shadow: 0 20px 60px rgba(0,0,0,.25); text-align: center; }
 .local-sync-request-card p { margin: 0 0 10px; line-height: 1.5; }
 .local-sync-code { font-size: 36px !important; font-weight: 700; letter-spacing: .14em; font-variant-numeric: tabular-nums; margin: 6px 0 14px !important; }

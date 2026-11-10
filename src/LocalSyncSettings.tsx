@@ -1,6 +1,6 @@
 // Settings → Desktop → Devices: local sync between this person's computers on the same network,
 // and the pairing window shown when another computer asks to pair.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { desktopInvoke, desktopListen } from './desktop';
 import { localSyncStatus, onLocalSyncChange } from './local-sync';
 import { localWorkspaces } from './workspaces';
@@ -11,11 +11,14 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 export function LocalSyncSettings() {
   const [status, setStatus] = useState<Status | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [pairing, setPairing] = useState<{ session: number; name: string } | null>(null), [code, setCode] = useState(''), [address, setAddress] = useState('');
-  const [name, setName] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null), [incoming, setIncoming] = useState<{ name: string; code: string } | null>(null);
   const refresh = () => localSyncStatus().then(setStatus).catch(e => setError(message(e)));
   useEffect(() => {
     void refresh();
-    const stops = [desktopListen('local-sync-status', () => void refresh()), desktopListen('local-sync-paired', () => void refresh())];
+    const stops = [desktopListen('local-sync-status', () => void refresh()),
+      desktopListen('local-sync-paired', () => { setIncoming(null); void refresh(); }),
+      desktopListen('local-sync-pair-failed', () => setIncoming(null)),
+      desktopListen<{ name: string; code: string }>('local-sync-pair-request', r => setIncoming(r))];
     const off = onLocalSyncChange(() => void refresh());
     return () => { off(); for (const s of stops) void s.then(stop => stop()); };
   }, []);
@@ -35,6 +38,10 @@ export function LocalSyncSettings() {
           <button type="submit" className="primary" disabled={busy || !name.trim()}>Save</button> <button type="button" onClick={() => setName(null)}>Cancel</button>
         </form>}
     </div>}
+    {incoming && <div className="local-sync-incoming" role="status">
+      <p><strong>{incoming.name}</strong> wants to sync with this computer. Type this code on {incoming.name}:</p>
+      <p className="local-sync-code">{incoming.code.slice(0, 3)} {incoming.code.slice(3)}</p>
+    </div>}
     {status?.enabled && <>
       <h4>Paired devices</h4>
       {!status.peers.length ? <p className="ai-apps-muted">None yet. Pair one below.</p>
@@ -42,7 +49,7 @@ export function LocalSyncSettings() {
           <button type="button" disabled={busy} onClick={() => { if (window.confirm(`Stop syncing with ${p.name}? Notes already synced stay on both computers.`)) void act(() => desktopInvoke('local_sync_unpair', { id: p.id })); }}>Remove</button></li>)}</ul>}
       <h4>Pair a device</h4>
       {pairing ? <form className="local-sync-pair" onSubmit={e => { e.preventDefault(); void act(async () => { await desktopInvoke('local_sync_pair_finish', { session: pairing.session, code }); setPairing(null); setCode(''); }); }}>
-          <p><strong>{pairing.name}</strong> now shows a 6-digit code. Type it here.</p>
+          <p>A 6-digit code is now showing on <strong>{pairing.name}</strong> (in a window on top, and in its Settings → Desktop). Type it here.</p>
           <input inputMode="numeric" autoComplete="one-time-code" aria-label="Pairing code" placeholder="123 456" value={code} maxLength={7} autoFocus onChange={e => setCode(e.target.value)} />
           <div><button type="submit" className="primary" disabled={busy || code.replace(/\D/g, '').length !== 6}>{busy ? 'Pairing…' : 'Pair'}</button> <button type="button" onClick={() => { void desktopInvoke('local_sync_pair_cancel', { session: pairing.session }); setPairing(null); setCode(''); }}>Cancel</button></div>
         </form>
@@ -77,15 +84,16 @@ export function LocalSyncPairing() {
     ];
     return () => { for (const s of stops) void s.then(stop => stop()); };
   }, []);
-  if (!request) return null;
-  return <div className="local-sync-request" role="dialog" aria-modal="true" aria-label="Pair a device">
-    <div className="local-sync-request-card">
+  const box = useRef<HTMLDialogElement>(null);
+  useEffect(() => { const d = box.current; if (!d) return; if (request && !d.open) d.showModal(); if (!request && d.open) d.close(); }, [request]);
+  return <dialog ref={box} className="local-sync-request" aria-label="Pair a device" onClose={() => setRequest(null)}>
+    {request && <div className="local-sync-request-card">
       {result ? <><p>{result}</p><button type="button" className="primary" onClick={() => setRequest(null)}>Done</button></>
         : <><p><strong>{request.name}</strong> wants to sync with this computer.</p>
           <p>Type this code on {request.name}:</p>
           <p className="local-sync-code" aria-live="polite">{request.code.slice(0, 3)} {request.code.slice(3)}</p>
           <p className="ai-apps-muted">If you did not start this, close this window. Nothing is shared without the code.</p>
           <button type="button" onClick={() => setRequest(null)}>Close</button></>}
-    </div>
-  </div>;
+    </div>}
+  </dialog>;
 }
