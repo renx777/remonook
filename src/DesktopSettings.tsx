@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { desktopInvoke } from './desktop';
 import { localAccess, setLocalAccess, localActivity, type LocalAccess } from './local-mcp';
+import { LocalSyncSettings } from './LocalSyncSettings';
 import './ai-apps.css';
 
 type View = { keepInTray: boolean; quickCapture: boolean; launchAtLogin: boolean; shortcut: string };
@@ -47,6 +48,7 @@ export function DesktopSettings() {
       {toggle('Keep running in the tray', 'Closing the window keeps RemoNook in the system tray, so quick capture and AI apps keep working. Quit from the tray icon.', view?.keepInTray, v => void change({ keepInTray: v }))}
       {toggle('Start at login', 'Open RemoNook in the tray when you sign in to this computer.', view?.launchAtLogin, v => void change({ launchAtLogin: v }))}
     </fieldset>
+    <LocalSyncSettings />
     <h4>AI apps on this computer</h4>
     <p className="ai-apps-muted">Claude Desktop, Claude Code, Codex and other MCP apps on this computer can use the workspace that is open in RemoNook, including device-only and folder workspaces. Nothing goes through RemoNook cloud, but the AI app sends what it reads to its own service.</p>
     <label className="ai-apps-access"><input type="checkbox" disabled={!mcp || busy} checked={!!mcp?.on} onChange={e => void setServer(e.target.checked)} /><span><strong>Allow AI apps on this computer</strong><small>{mcp?.on ? `Listening on ${mcp.url} (this computer only).` : 'Off. Only apps you set up with the details below can connect.'}</small></span></label>

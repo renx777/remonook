@@ -7,6 +7,7 @@ import { desktopInvoke, desktopListen, isDesktop } from './desktop';
 import { activeLocalWorkspace, workspaceStorageName } from './workspaces';
 import { startFolderMirror, flushFolder } from './workspace-folder';
 import { handleLocalMcp } from './local-mcp';
+import { startLocalSync } from './local-sync';
 
 type Options = {
   ready: boolean;
@@ -33,6 +34,8 @@ export function useDesktop(options: Options) {
   }, [ready]);
   useEffect(() => {
     if (!ready || !isDesktop()) return;
+    // Local sync runs for every synced workspace in the background, open or not.
+    startLocalSync(() => {});
     const apply = async (next: Workspace) => { latest.current.commit(next); await latest.current.flush(); };
     const workspaceName = () => activeLocalWorkspace()?.name || 'My notes';
     const stops = [

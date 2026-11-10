@@ -78,6 +78,45 @@ Off by default; turned on in Settings → Desktop.
   folder, starts RemoNook in the tray if it is closed, and waits for it to be ready (about 30 s
   at most).
 
+## Local sync between your computers (`src/local-sync.ts`, `src-tauri/src/local_sync.rs`)
+Device-only workspaces can sync directly between this person's computers on the same network,
+without RemoNook cloud or any other service. Off by default.
+
+- **Turning it on:**
+  1. Settings → Desktop → Devices: turn on **Local sync on this computer**, on each computer.
+  2. **Pair:** on one computer choose **Pair** next to the other, which then shows a 6-digit
+     code; type it on the first. Pairing works by address too, for networks that hide devices.
+  3. In the workspace menu, turn on **Sync with my devices** for a device-only workspace. Paired
+     computers add it automatically under the same name.
+- **What travels:** the workspace's CRDT state (the same bucketed format as sync v3) and its
+  attachments. Devices exchange per-bucket state vectors and send only what the other lacks,
+  so edits made anywhere, at the same time or offline, merge automatically and in any order.
+  A computer passes on what it received, so two computers that are never on together still
+  converge through a third. Every synced workspace syncs in the background, open or not; the
+  open one is applied to the editor through the same path as cloud sync.
+- **Security:**
+  - **Pairing:** SPAKE2 with the code, so a wrong code fails and an observer cannot guess it
+    offline. Each side then proves its key.
+  - **Sessions:** Noise XX (25519, ChaChaPoly, BLAKE2s). They are refused unless the other key
+    belongs to a paired device.
+  - **Separation:** staging and production apps never connect.
+  - **Storage:** keys and paired devices are in `local-sync.json` (owner-only on macOS and
+    Linux).
+- **Network:**
+  - **Discovery:** mDNS `_remonook._tcp`, with the address used at pairing as a fallback.
+  - **Port:** sync listens on TCP 47914, or a free port.
+  - **Firewall:** Windows asks to allow RemoNook on first use (allow private networks). macOS
+    asks for local network access.
+- **Removing:**
+  - **A device:** stops syncing with it. Notes already synced stay on both computers.
+  - **The workspace:** turning off **Sync with my devices**, or deleting the workspace, stops
+    this computer taking part. Other devices do not add it back.
+- **Tests:**
+  - `tests/local-sync.test.mjs`: three devices; first sync, concurrent edits, relaying while
+    one is offline, attachments, bad messages.
+  - Rust tests: pairing with right and wrong codes, encrypted sessions with large messages,
+    staging and production kept apart.
+
 ## Origins
 The app's origin is `http://tauri.localhost` on Windows and `tauri://localhost` on macOS and
 Linux (both already allowed). Both are in the sync Worker's `ALLOWED_ORIGINS`: staging is deployed; production needs
@@ -155,5 +194,6 @@ Install the WebKitGTK development packages, then run `npm run build:staging` fol
 5. Local AI apps (MCP) on this computer. **Done.**
 - Automatic updates (signed, per channel). **Done.**
 - Linux and macOS builds. **Done.**
+- Local sync between paired computers. **Done.** Android next (same protocol).
 - Later: code signing (Windows certificate, Apple Developer ID); choosing the quick capture
   shortcut and destination.

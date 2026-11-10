@@ -22,10 +22,11 @@ pub struct Settings {
     pub quick_capture: bool,
     pub local_mcp: bool,
     pub local_mcp_token: String,
+    pub local_sync: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
-        Settings { keep_in_tray: true, quick_capture: true, local_mcp: false, local_mcp_token: String::new() }
+        Settings { keep_in_tray: true, quick_capture: true, local_mcp: false, local_mcp_token: String::new(), local_sync: false }
     }
 }
 pub struct State(pub Mutex<Settings>);

@@ -6,12 +6,14 @@
 //! - signed automatic updates (updater plugin; the app offers a restart);
 //! - workspaces kept in a folder on this computer (`folders`);
 //! - tray icon, close to tray, quick capture shortcut and launch at login (`desktop`);
-//! - local AI apps over MCP, and `RemoNook --mcp`, a stdio bridge to them (`local_mcp`).
+//! - local AI apps over MCP, and `RemoNook --mcp`, a stdio bridge to them (`local_mcp`);
+//! - local sync between paired devices on the same network (`local_sync`).
 
 mod desktop;
 mod folders;
 mod google;
 mod local_mcp;
+mod local_sync;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -38,11 +40,13 @@ pub fn run() {
         .manage(google::Pending::default())
         .manage(folders::Allowed::default())
         .manage(local_mcp::Server::default())
+        .manage(local_sync::LocalSync::default())
         .setup(move |app| {
             let handle = app.handle();
             folders::load_allowed(handle);
             desktop::setup(handle)?;
             local_mcp::setup(handle);
+            local_sync::setup(handle);
             if !background {
                 desktop::show_main(handle);
             }
@@ -73,6 +77,14 @@ pub fn run() {
             local_mcp::local_mcp_set,
             local_mcp::local_mcp_reply,
             local_mcp::local_mcp_ready,
+            local_sync::local_sync_status,
+            local_sync::local_sync_set,
+            local_sync::local_sync_rename,
+            local_sync::local_sync_pair_start,
+            local_sync::local_sync_pair_finish,
+            local_sync::local_sync_pair_cancel,
+            local_sync::local_sync_unpair,
+            local_sync::local_sync_send,
         ])
         .build(context)
         .expect("error while starting RemoNook")

@@ -11,6 +11,7 @@ import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox,recei
 /** IndexedDB key of the sync v3 outbox. v2 metadata under 'sync-v2' is no longer used. */
 const SYNC_KEY='sync-v3';
 import {projectBuckets,mergeChanged} from './sync-buckets.mjs';
+import {peerVectors,peerDiff} from './sync-peer.mjs';
 import {recoverRejectedBatch} from './sync-recovery.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
 import {validateOcclusions} from "./occlusion.mjs";
@@ -335,6 +336,17 @@ export async function save(
       await finished.catch(() => {});
       throw error;
     }
+  } finally {
+    db.close();
+  }
+}
+/** Adds files to a workspace's attachment store (local sync fetches them ahead of use). */
+export async function putAssets(files: Map<string, Blob>, name?: string) {
+  const db = await openDb(name);
+  try {
+    const tx = db.transaction("assets", "readwrite"), finished = done(tx);
+    for (const [path, blob] of files) tx.objectStore("assets").put(blob, path);
+    await finished;
   } finally {
     db.close();
   }
@@ -804,6 +816,12 @@ export async function syncOperation(operation:string,args:any={},account=storage
   if(!args.selection)return undefined;
   return readIO((m,io)=>mapSelection(m,args.selection,io));
  }
+ // Local sync (desktop): devices exchange state vectors instead of a server outbox, so the
+ // queued batches are not needed once recorded.
+ if(operation==='peer-settle'){await change(m=>{m.pending=[];m.inflight=null;return m;});return;}
+ if(operation==='peer-vectors')return readIO((m,io)=>peerVectors(m,io,account));
+ if(operation==='peer-diff')return readIO((m,io)=>peerDiff(m,io,account,args.vectors));
+ if(operation==='peer-assets')return readIO((_m,io)=>bucketAssets(io,'R'));
  throw Error('Unknown persistence operation.');
 }
 

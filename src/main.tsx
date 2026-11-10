@@ -27,8 +27,10 @@ import {isDesktop,installDesktopLinks} from './desktop';
 import {DesktopSignIn} from './DesktopSignIn';
 import {DesktopUpdate} from './DesktopUpdate';
 import {DesktopSettings} from './DesktopSettings';
+import {LocalSyncPairing} from './LocalSyncSettings';
 import {QuickCapture} from './QuickCapture';
 import {useDesktop} from './useDesktop';
+import {useLocalSync} from './local-sync';
 import {importFromFolder} from './workspace-folder';
 import './workspaces.css';
 import {activeLocalWorkspace,protectDeviceStorage,workspaceStorageName} from './workspaces';
@@ -398,11 +400,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     });
     return chain.current;
   };
-  const cloud = useCloudSync({onNotice:setNotice,user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
+  // How sync (cloud, or local sync between devices) reads and updates the open workspace.
+  const syncHost = {onNotice:setNotice,revision:doc?.revision,ready:!!doc&&!failed.current,
     get:()=>({doc:docRef.current,assets:assetsRef.current}),flush,
     canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus,.mind-input:focus')&&!working&&!failed.current&&!cloudApplying.current,
     selection:()=>editing&&activeEditor?.isFocused?{id:editing,anchor:Math.max(0,activeEditor.state.selection.anchor-1),head:Math.max(0,activeEditor.state.selection.head-1)}:null,
-    apply:async(remote,remoteAssets,sync)=>{
+    apply:async(remote:Workspace,remoteAssets:Map<string,Blob>,sync?:{state?:string;selection?:any})=>{
       if(dirty.current||activeEditor?.view.composing||document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus,.mind-input:focus')||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
       validate(remote.tables.bullets);validateWorkdays(remote.web.workdays);
       const previous=docRef.current!;
@@ -426,7 +429,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       chain.current=applying.catch(e=>{failed.current=true;dirty.current=true;setStatus('Changes not saved');showError(e);});
       try{await applying;}finally{cloudApplying.current=false;}
     }
-  });
+  };
+  const cloud = useCloudSync({...syncHost,user:cloudUser});
+  useLocalSync(syncHost);
   useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
   const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await openAccountSignIn();}catch(e){showError(e);}};
   const commit = (next: Workspace, group?: string, record = true, immediate = true) => {
@@ -1593,12 +1598,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <span
                 className={failed.current ? "status-dot error-dot" : "status-dot"}
               />
-              {activeLocalWorkspace()?.folder?"Folder workspace · this computer · never synced":activeLocalWorkspace()?"Device-only workspace · never synced":cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
+              {activeLocalWorkspace()?.peerSync?"Syncs with your devices · never RemoNook cloud":activeLocalWorkspace()?.folder?"Folder workspace · this computer · never synced":activeLocalWorkspace()?"Device-only workspace · never synced":cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
             </div>
           </div>
         </div>
       </aside>
       {isDesktop()&&<DesktopUpdate flush={flush}/>}
+      {isDesktop()&&<LocalSyncPairing/>}
       <main ref={sidebarMotion.mainRef}>
         <header className="topbar">
           <button
