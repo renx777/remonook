@@ -7,7 +7,7 @@
 import { desktopInvoke, isDesktop } from './desktop';
 import { load, save, getAssets, onWorkspaceSaved, type Workspace } from './data-store';
 import { type LocalWorkspace } from './workspaces';
-import { localBookFiles, restoreLocalBook, isBookPath } from './local-books';
+import { localBookFiles, localBookManifest, restoreLocalBook, isBookPath } from './local-books';
 import { workspaceMarkdown } from './folder-markdown.mjs';
 
 export const FOLDER_FORMAT = 'remonook-workspace';
@@ -99,7 +99,8 @@ export function startFolderMirror(w: LocalWorkspace, storage: string, { flush, o
       const file: FolderFile = { format: FOLDER_FORMAT, version: 1, name: w.name, saveId, savedAt: Date.now(), assetTypes, workspace: doc };
       const add: [string, string][] = [];
       for (const [path, blob] of assets) if (!written.has(path)) add.push([path, await toBase64(blob)]);
-      const remove = [...written].filter(p => !assets.has(p));
+      const expectedBooks=new Set(localBookManifest(doc).map(b=>b.path));
+      const remove = [...written].filter(p => !assets.has(p)&&!expectedBooks.has(p));
       const stamp = await desktopInvoke<string>('folder_write', { path: folder, write: { doc: JSON.stringify(file), expect: readKnown(storage).stamp, markdown: workspaceMarkdown(doc), assets: add, remove_assets: remove } });
       for (const [p] of add) written.add(p); for (const p of remove) written.delete(p);
       writeKnown(storage, { stamp, saveId, revision: doc.revision });

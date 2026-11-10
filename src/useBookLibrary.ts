@@ -32,7 +32,7 @@ export function useBookLibrary({user,doc,onChange}:{user:User|null;doc:Workspace
   checkBook(file);const {inspectBook}=await import('./book-files');await inspectBook(file);
   const hash=await digest(await file.arrayBuffer());verify();
   if(localMode){
-   const existing=books.find(b=>b.hash===hash);if(existing){await cachedBook(scope,existing.id+':'+hash,file);verify();setNotice('The original is available offline in this bookshelf.');return;}
+   const existing=books.find(b=>b.hash===hash);if(existing){await cachedBook(scope,existing.id+':'+hash,file);verify();window.dispatchEvent(new CustomEvent('remo-local-books',{detail:storage}));setNotice('The original is available offline in this bookshelf.');return;}
    if(books.length>=BOOK_COUNT_LIMIT)throw Error('The bookshelf supports up to 100 books.');
    const book={id:crypto.randomUUID(),name:file.name,format:checkBook(file),size:file.size,hash,createdAt:Date.now()};
    await cachedBook(scope,book.id+':'+hash,file);verify();

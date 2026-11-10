@@ -9,8 +9,9 @@ test('folder copy includes local originals and reopening the folder restores the
  await m.cachedBook(m.localBookScope(storage),id+':'+hash,blob);await m.save(null,doc,'seed',undefined,false,[],undefined,storage);
  globalThis.folderNative=async(command,args)=>{if(command==='folder_stamp')return null;if(command==='folder_assets')return [];if(command==='folder_write'){written=args.write;return 'stamp-1';}throw Error(command);};
  const stop=m.startFolderMirror({id:'bookfolder01',name:'Folder',folder:'/chosen'},storage,{flush:async()=>{},onError:message=>{if(message)assert.fail(message);}});
- try{await new Promise(r=>setTimeout(r,20));await m.flushFolder();assert.ok(written);const path=m.bookPath(doc.web.readingBooks[id]);assert.equal(written.assets[0][0],path);
-  globalThis.folderNative=async command=>command==='folder_read'?{doc:written.doc,stamp:'stamp-2'}:command==='folder_assets'?[path]:command==='folder_read_asset'?written.assets[0][1]:Promise.reject(Error(command));
+ try{await new Promise(r=>setTimeout(r,20));await m.flushFolder();assert.ok(written);const path=m.bookPath(doc.web.readingBooks[id]);assert.equal(written.assets[0][0],path);const original=written.assets[0][1];
+  await m.cachedBook(m.localBookScope(storage),id+':'+hash,null);window.dispatchEvent(new CustomEvent('remo-local-books',{detail:storage}));const current=await m.load(storage);await m.save(current,{...current,web:{...current.web,bookFolderCheck:true}},'changed',undefined,false,[],undefined,storage);await m.flushFolder();assert.ok(!written.remove_assets.includes(path),'an unavailable cache copy must not delete the folder original');
+  globalThis.folderNative=async command=>command==='folder_read'?{doc:written.doc,stamp:'stamp-2'}:command==='folder_assets'?[path]:command==='folder_read_asset'?original:Promise.reject(Error(command));
   await m.importFromFolder({id:'bookfolder02',name:'Reopened',folder:'/chosen'},other);
   const restored=await m.cachedBook(m.localBookScope(other),id+':'+hash);assert.equal(await restored.text(),await blob.text());assert.equal((await m.load(other)).web.readingBooks[id].hash,hash);assert.equal((await m.getAssets(other)).size,0);
  }finally{stop();}
