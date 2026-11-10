@@ -2,6 +2,30 @@
 
 ## Current state
 
+### Local Bookshelf desktop update, 10 November 2026
+
+Source branch `ccr-641b18bf-2fe80f`, application commit
+`3e1cbee16198d4642236f0709d5174326a94a4fb` (following `6f097c7`): local/device-only
+and folder workspaces can import PDF/EPUB originals, read offline and capture highlights
+without signing in. Originals are isolated by workspace and included in local full backups,
+folder copies and paired-device transfers. Cloud Bookshelf retains its account authentication
+and storage limits. Missing cache files cannot delete a still-referenced folder original.
+
+The **Desktop app** workflow was dispatched with `environment=staging`:
+[run #12](https://github.com/renx777/remonook/actions/runs/42846469459), desktop version
+`0.1.12`. All three native build jobs and the publish job succeeded. The staging
+`/desktop/staging/latest.json` manifest reports version `0.1.12`, published
+`2026-11-10T15:57:33.911Z`; signatures are present and all four platform download entries
+(Windows x64, Linux x64, macOS Apple silicon and Intel) returned HTTP 200. The previous
+manifest was `0.1.10`. GitHub CI also passed for the application commit
+([run #285](https://github.com/renx777/remonook/actions/runs/42846482263)).
+This desktop build does not replace the staging website or redeploy the sync Worker. Production is unchanged.
+
+Local validation: TypeScript checks and the full 151-file test suite passed; real Chromium
+checks imported/read PDF and EPUB offline, saved a highlight into Notes, reopened after reload,
+and observed zero cloud requests or browser errors. The final folder-cache safeguard also
+has a regression test. See [BOOK-STORAGE.md](BOOK-STORAGE.md) for local-original behavior.
+
 Staging, 7 November 2026: sign-in for AI apps (OAuth) is on staging. `cloud/mcp-oauth.sql` was applied to D1
 `remo-sync-staging`. `remo-sync-staging` version `86cc6d0d-3c3e-419e-aebf-5f96e5621f5b` and the staging frontend
 (workflow run on `ccr-641b18bf-2fe80f`) were deployed. Discovery, registration, the authorize redirect to the consent screen and the
