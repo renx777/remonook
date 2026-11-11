@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "RemoNook desktop app"
 edition = "2021"
 publish = false
+license-file = "../LICENSE"
 
 [lib]
 name = "remonook_desktop_lib"

@@ -4,6 +4,8 @@ Remo means **remember more**. An outline-first notes and study application: nest
 
 Production: https://remonook.com
 
+**Not open source.** This repository is publicly visible, but RemoNook is proprietary: all rights reserved. See [LICENSE](LICENSE). Third-party components keep their own licences ([THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
+
 This source snapshot comes from the deployed Sites version 43, commit `bc3c0bf160699f140ca08cb8ae337cf853391fa8`. The GitHub import includes environment isolation and CI changes that have **not** been deployed to production. Generated builds and historical build artifacts are deliberately excluded. This is a clean source import, not a copy of the original Git history.
 
 ## Start locally
