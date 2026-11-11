@@ -215,7 +215,7 @@ test("production bundle: interaction smoke test", async context => {
   assert.ok([...document.querySelectorAll('button')].some(b=>b.textContent.includes('Restore from backup')));
   assert.equal(document.querySelector('.settings-folder'),null,'Folder autosync controls must not ship');
   assert.match(document.querySelector('[aria-label="Backups"]').textContent,/Existing RemoNook folder ZIPs were not deleted/);
-  await click([...document.querySelectorAll('.settings-navigation button')].find(b=>b.textContent==='Account'));
+  await click([...document.querySelectorAll('.settings-navigation button')].find(b=>b.textContent==='Account and sync'));
   assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent==='Sign in or create account'), 'Account entry ships in settings');
   dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
   await click([...document.querySelectorAll('.cloud-account button')].find(button=>button.textContent==='Sign in or create account'));

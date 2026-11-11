@@ -8,13 +8,21 @@ import {cacheArticle,articleAccount} from './article-cache.mjs';
 import {uploadCachedArticles} from './article-api';
 import {createUiSignal} from './ui-signal';
 import {KeyboardShortcuts} from './KeyboardShortcuts';
+import {FsrsPreferences} from './FsrsPreferences';
+/** Settings sections, grouped as shown in the section list. */
+const SETTINGS_GROUPS:[string,[string,string,string][]][]=[
+  ["You",[["appearance","Appearance","settings"],["account","Account and sync","people"]]],
+  ["Notes",[["study","Study","study"],["storage","Storage","folder"],["backups","Backups","folder"]]],
+  ["Apps",[["ai","AI apps","globe"],["connections","Connections","connections"],["desktop","Desktop","settings"]]],
+  ["Help",[["shortcuts","Keyboard shortcuts","help"]]],
+];
 import {CommandPalette} from './CommandPalette';
 import {bindWorkspaceShortcuts,modLabel,shortcutAllowed} from './workspace-shortcuts';
 import {GuidedTours} from './GuidedTours';
 import {VisualToolsContext,VisualToolLoader,type DiagramTarget} from './VisualTools';
 import {saveDiagram} from './visual-notes.mjs';
 import {ReadingSources,ReaderBoundary,ReaderStartup} from './ReadingSources';
-import {addReadingNote,captureReadingImage,readingBook,readingSources,validateReading} from './reading.mjs';
+import {addReadingNote,captureReadingImage,readingBook,readingPosition,readingSources,validateReading} from './reading.mjs';
 import {BookStorage} from './BookStorage';
 import {GoogleTasksProvider,GoogleTasksConnection} from './GoogleTasks';
 import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
@@ -27,6 +35,8 @@ import {isDesktop,installDesktopLinks} from './desktop';
 import {DesktopSignIn} from './DesktopSignIn';
 import {DesktopUpdate} from './DesktopUpdate';
 import {DesktopSettings} from './DesktopSettings';
+import {ensureLibrary} from './library-outline.mjs';
+import {FocusPill} from './FocusPill';
 import {LocalSyncPairing} from './LocalSyncSettings';
 import {QuickCapture} from './QuickCapture';
 import {useDesktop} from './useDesktop';
@@ -258,6 +268,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     cloudApplying = useRef(false),
     [dialog, setDialog] = useState<string | null>(null),
     [settingsPanel,setSettingsPanel] = useState("appearance"),
+    // On a phone, Settings opens as a list of sections; a section then fills the screen.
+    [settingsList,setSettingsList] = useState(true),
     [mcqEditing, setMcqEditing] = useState<string | null>(null),
     [bulkMcqEditing, setBulkMcqEditing] = useState<string | null>(null),
     [menu, setMenu] = useState<string | null>(null),
@@ -432,6 +444,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const cloud = useCloudSync({...syncHost,user:cloudUser});
   useLocalSync(syncHost);
+  useEffect(()=>{const open=(e:Event)=>{const panel=(e as CustomEvent).detail;if(typeof panel==='string')setSettingsPanel(panel);setSettingsList(false);setDialog('settings');};window.addEventListener('remo-open-settings',open);return()=>window.removeEventListener('remo-open-settings',open);},[]);
   useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
   const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await openAccountSignIn();}catch(e){showError(e);}};
   const commit = (next: Workspace, group?: string, record = true, immediate = true) => {
@@ -1425,7 +1438,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     return()=>{unbind();window.removeEventListener('keydown',undoKey);};
   }, [editing, dialog, menu, doc, views.panes, views.activePane, tab]);
   readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
-  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,snapshotHash:s.snapshotHash,label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
+  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,snapshotHash:s.snapshotHash,label:s.title||"Web article"}])),
+    // Each saved article's and book's own bullet opens it (Library, src/library-outline.mjs).
+    ...Object.fromEntries(Object.entries(doc.web.bookmarkNoteRoots||{}).filter(([id])=>doc.web.bookmarks?.[id]&&!doc.web.bookmarks[id].deleted).map(([id,root]:[string,any])=>[root,{kind:"web",bookmarkId:id,highlightId:"",url:doc.web.bookmarks[id].url,label:"Article",chip:true}])),
+    ...Object.fromEntries(Object.entries(doc.web.readingNoteRoots||{}).filter(([hash])=>readingBook(doc,hash)).map(([hash,root]:[string,any])=>[root,{hash,unit:readingPosition(doc,readingBook(doc,hash)),id:"",label:"Book",chip:true}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,doc?.web.bookmarks,doc?.web.readingBooks,doc?.web.readingProgress]);
+  // Every bookmark and book gets its bullet (new ones under Library).
+  useEffect(()=>{if(!doc||working||failed.current)return;const next=ensureLibrary(doc);if(next!==doc)commit(next,undefined,false);},[doc?.web.bookmarks,doc?.web.readingBooks,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,doc?.web.libraryVersion,!!doc,working]);
   const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader,openWeb:(id:string,highlight:string,snapshotHash?:string)=>{setEditing(null);setBookmarkTarget({id,highlight,snapshotHash});setTab("bookmarks");}}),[readingSourceMap,openReader]);
   if (!doc)
     return (
@@ -1667,6 +1685,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <ReminderTabs doc={doc} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>
           </div>
           <div className="topbar-right">
+            <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
             <button className="icon-button reminders-toggle" aria-label={remindersVisible?'Hide reminders':'Show reminders'} title={remindersVisible?'Hide reminders':'Show reminders'} aria-expanded={remindersVisible} aria-controls="topbar-reminders" onClick={()=>setRemindersVisible(visible=>!visible)}><Icon name="bell" size={18}/></button>
             {tab !== "bookmarks" && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
@@ -1816,7 +1835,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "bookmarks" ? (
           <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onNotes={id=>navigateTo(id)} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : tab === "mindmap" ? (
@@ -2164,11 +2183,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {dialog === "shortcuts" && <Dialog title="Keyboard shortcuts" className="shortcuts-dialog" onClose={() => setDialog(null)}><KeyboardShortcuts/></Dialog>}
       {dialog === "settings" && (
         <Dialog title="Settings" className="settings-dialog" onClose={() => setDialog(null)}>
-          <p className="settings-subtitle">Make a little space for yourself.</p>
-          <nav className="settings-navigation" aria-label="Settings sections">
-            {[["appearance","Appearance","settings"],["account","Account","people"],["connections","Connections","connections"],["ai","AI apps","globe"],["storage","Storage","folder"],["backups","Backups","folder"],...(isDesktop()?[["desktop","Desktop","settings"]]:[])].map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>setSettingsPanel(id)}><Icon name={icon} size={15}/>{label}</button>)}
+          <nav className="settings-navigation" aria-label="Settings sections" data-mobile-shown={settingsList}>
+            {SETTINGS_GROUPS.map(([group,items])=><div key={group} className="settings-group"><span className="settings-group-title">{group}</span>
+              {items.filter(([id])=>id!=='desktop'||isDesktop()).map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>{setSettingsPanel(id);setSettingsList(false);}}><Icon name={icon} size={15}/><span>{label}</span><Icon name="forward" size={14}/></button>)}
+            </div>)}
           </nav>
-          <div className="settings-content" key={settingsPanel}>
+          <div className="settings-content" key={settingsPanel} data-mobile-shown={!settingsList}>
+          <button className="settings-back" onClick={()=>setSettingsList(true)}><Icon name="back" size={16}/>All settings</button>
+          {settingsPanel==="study" && <section aria-label="Study"><div className="settings-section-heading"><h3>Study</h3><p>How Study Desk schedules your flashcards and multiple-choice questions.</p></div><FsrsPreferences open doc={doc} disabled={disabled} onChange={next=>commit(next,undefined,false)}/></section>}
+          {settingsPanel==="shortcuts" && <section aria-label="Keyboard shortcuts"><KeyboardShortcuts/></section>}
           {settingsPanel==="appearance" && <section aria-label="Appearance"><div className="settings-section-heading"><h3>Feel at home.</h3><p>Choose how your workspace looks and reads.</p></div>
           <div className="settings-tabs">
             <label className="field-label">
