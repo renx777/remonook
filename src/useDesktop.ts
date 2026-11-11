@@ -3,7 +3,7 @@
 // runs on the website.
 import { useEffect, useRef } from 'react';
 import type { Workspace } from './data-store';
-import { desktopInvoke, desktopListen, isDesktop } from './desktop';
+import { desktopInvoke, desktopListen, isApp, isDesktop } from './desktop';
 import { activeLocalWorkspace, workspaceStorageName } from './workspaces';
 import { startFolderMirror, flushFolder } from './workspace-folder';
 import { handleLocalMcp } from './local-mcp';
@@ -33,7 +33,7 @@ export function useDesktop(options: Options) {
     });
   }, [ready]);
   useEffect(() => {
-    if (!ready || !isDesktop()) return;
+    if (!ready || !isApp()) return;
     // Local sync runs for every synced workspace in the background, open or not.
     startLocalSync(() => {});
     const apply = async (next: Workspace) => { latest.current.commit(next); await latest.current.flush(); };

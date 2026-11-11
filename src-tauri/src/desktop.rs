@@ -2,13 +2,21 @@
 //! shortcut, and launching at login. The choices are kept in `settings.json` in the app data
 //! folder and changed from Settings → Desktop.
 
+#![cfg_attr(mobile, allow(dead_code))]
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::Mutex;
+use tauri::{Emitter, Manager};
+#[cfg(desktop)]
 use tauri::menu::{Menu, MenuItem};
+#[cfg(desktop)]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+#[cfg(desktop)]
+use tauri::{WebviewUrl, WebviewWindowBuilder};
+#[cfg(desktop)]
 use tauri_plugin_autostart::ManagerExt as _;
+#[cfg(desktop)]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub const CAPTURE_SHORTCUT: &str = "CommandOrControl+Shift+Space";
@@ -46,14 +54,18 @@ pub fn store(app: &tauri::AppHandle, settings: &Settings) {
 }
 
 pub fn show_main(app: &tauri::AppHandle) {
+    #[cfg(desktop)]
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
     }
+    #[cfg(mobile)]
+    let _ = app;
 }
 
 /// Opens the quick capture box, creating its window the first time.
+#[cfg(desktop)]
 pub fn open_capture(app: &tauri::AppHandle) {
     let window = match app.get_webview_window("capture") {
         Some(w) => w,
@@ -78,6 +90,7 @@ pub fn open_capture(app: &tauri::AppHandle) {
     let _ = window.emit("capture-open", ());
 }
 
+#[cfg(desktop)]
 fn apply_shortcut(app: &tauri::AppHandle, on: bool) -> Result<(), String> {
     let shortcuts = app.global_shortcut();
     let shortcut: Shortcut = CAPTURE_SHORTCUT.parse().map_err(|e| format!("{e}"))?;
@@ -97,6 +110,7 @@ fn apply_shortcut(app: &tauri::AppHandle, on: bool) -> Result<(), String> {
 }
 
 /// Asks the app window to save pending edits, then quits (after 4 seconds at most).
+#[cfg(desktop)]
 fn request_quit(app: &tauri::AppHandle) {
     if app.emit_to("main", "app-quit", ()).is_err() {
         return app.exit(0);
@@ -112,10 +126,17 @@ pub fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
-/// Tray icon, close-to-tray and the capture shortcut, set up once at start.
+/// The settings, and on desktop the tray icon, close-to-tray and the capture shortcut, set up
+/// once at start.
 pub fn setup(app: &tauri::AppHandle) -> tauri::Result<()> {
     let settings = load(app);
     app.manage(State(Mutex::new(settings.clone())));
+    #[cfg(desktop)]
+    setup_tray(app, &settings)?;
+    Ok(())
+}
+#[cfg(desktop)]
+fn setup_tray(app: &tauri::AppHandle, settings: &Settings) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open RemoNook", true, None::<&str>)?;
     let capture = MenuItem::with_id(app, "capture", "Quick capture", true, Some(CAPTURE_SHORTCUT))?;
     let quit = MenuItem::with_id(app, "quit", "Quit RemoNook", true, None::<&str>)?;
@@ -163,7 +184,11 @@ pub struct View {
 }
 fn view(app: &tauri::AppHandle) -> View {
     let s = app.state::<State>().0.lock().unwrap().clone();
-    View { keep_in_tray: s.keep_in_tray, quick_capture: s.quick_capture, launch_at_login: app.autolaunch().is_enabled().unwrap_or(false), shortcut: CAPTURE_SHORTCUT }
+    #[cfg(desktop)]
+    let launch_at_login = app.autolaunch().is_enabled().unwrap_or(false);
+    #[cfg(mobile)]
+    let launch_at_login = false;
+    View { keep_in_tray: s.keep_in_tray, quick_capture: s.quick_capture, launch_at_login, shortcut: CAPTURE_SHORTCUT }
 }
 
 #[tauri::command]
@@ -180,9 +205,11 @@ pub struct Change {
 }
 #[tauri::command]
 pub fn desktop_settings_set(app: tauri::AppHandle, change: Change) -> Result<View, String> {
+    #[cfg(desktop)]
     if let Some(on) = change.quick_capture {
         apply_shortcut(&app, on)?;
     }
+    #[cfg(desktop)]
     if let Some(on) = change.launch_at_login {
         let auto = app.autolaunch();
         if on { auto.enable() } else { auto.disable() }.map_err(|e| format!("Could not change launch at login: {e}"))?;

@@ -33,12 +33,13 @@ import {restoreDeviceState,historyAfterSync} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
 import {WorkspaceSwitcher} from './WorkspaceSwitcher';
-import {isDesktop,installDesktopLinks} from './desktop';
+import {isApp,isDesktop,isMobileApp,installDesktopLinks} from './desktop';
 import {DesktopSignIn} from './DesktopSignIn';
 import {DesktopUpdate} from './DesktopUpdate';
 import {DesktopSettings} from './DesktopSettings';
+import {AndroidUpdate} from './AndroidUpdate';
 import {FocusPill} from './FocusPill';
-import {LocalSyncPairing} from './LocalSyncSettings';
+import {LocalSyncPairing,LocalSyncSettings} from './LocalSyncSettings';
 import {QuickCapture} from './QuickCapture';
 import {useDesktop} from './useDesktop';
 import {useLocalSync} from './local-sync';
@@ -1554,7 +1555,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               }}
             >
               <RemoLogo/>RemoNook
-              <span className="local-label">{isDesktop()?"DESKTOP":"WEB"}</span>
+              <span className="local-label">{isMobileApp()?"APP":isDesktop()?"DESKTOP":"WEB"}</span>
             </a>
             <button
               className="icon-button sidebar-toggle-btn"
@@ -1624,7 +1625,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         </div>
       </aside>
       {isDesktop()&&<DesktopUpdate flush={flush}/>}
-      {isDesktop()&&<LocalSyncPairing/>}
+      {isMobileApp()&&<AndroidUpdate/>}
+      {isApp()&&<LocalSyncPairing/>}
       <main ref={sidebarMotion.mainRef}>
         <header className="topbar">
           <button
@@ -2187,7 +2189,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <Dialog title="Settings" className="settings-dialog" onClose={() => setDialog(null)}>
           <nav className="settings-navigation" aria-label="Settings sections" data-mobile-shown={settingsList}>
             {SETTINGS_GROUPS.map(([group,items])=><div key={group} className="settings-group"><span className="settings-group-title">{group}</span>
-              {items.filter(([id])=>id!=='desktop'||isDesktop()).map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>{setSettingsPanel(id);setSettingsList(false);}}><Icon name={icon} size={15}/><span>{label}</span><Icon name="forward" size={14}/></button>)}
+              {items.filter(([id])=>id!=='desktop'||isApp()).map(([id,label,icon])=>[id,id==='desktop'&&isMobileApp()?'This device':label,icon]).map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>{setSettingsPanel(id);setSettingsList(false);}}><Icon name={icon} size={15}/><span>{label}</span><Icon name="forward" size={14}/></button>)}
             </div>)}
           </nav>
           <div className="settings-content" key={settingsPanel} data-mobile-shown={!settingsList}>
@@ -2259,6 +2261,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {settingsPanel==="connections"&&<GoogleTasksConnection/>}
           {settingsPanel==="ai"&&<AiApps user={cloudUser}/>}
           {settingsPanel==="desktop"&&isDesktop()&&<DesktopSettings/>}
+          {settingsPanel==="desktop"&&isMobileApp()&&<section className="ai-apps" aria-label="This device"><LocalSyncSettings/></section>}
           {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/>}
           {settingsPanel==="backups" && <section aria-label="Backups"><div className="settings-section-heading"><h3>Your notes. Your copy.</h3><p>A full backup includes notes, media, decks and study progress.</p></div><div className="settings-backup-actions">
           <button
@@ -2512,10 +2515,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 }
 export const appRoot = createRoot(document.getElementById("root")!);
 // The browser half of desktop Google sign-in runs on its own page (see DesktopSignIn).
-appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isDesktop() ? <DesktopSignIn/> : window.location.hash === "#quick-capture" && isDesktop() ? <QuickCapture/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
+appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isApp() ? <DesktopSignIn/> : window.location.hash === "#quick-capture" && isDesktop() ? <QuickCapture/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
 
 // The desktop app bundles its files, so it needs no offline service worker.
-if (import.meta.env.PROD && "serviceWorker" in navigator && !isDesktop())
+if (import.meta.env.PROD && "serviceWorker" in navigator && !isApp())
   navigator.serviceWorker.register("/sw.js").catch(() => {});
 installDesktopLinks();
 void retireDesktopOfflineShell().catch(()=>{});

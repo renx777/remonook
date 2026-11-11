@@ -1,0 +1,99 @@
+name: Android app
+# Builds the Android app (src-tauri/gen/android) as an APK for phones and tablets, signs it with
+# the release key from the repository secrets, and publishes it with the desktop builds:
+#   <sync server>/desktop/<channel>/RemoNook-<channel>_<version>_android.apk
+#   <sync server>/desktop/<channel>/android.json   ({version, url}; the app offers the update)
+# Staging installs as "RemoNook Staging" (com.remonook.app.staging), next to production.
+#
+# Signing secrets (create once; see docs/ANDROID.md). Every build must use the same key, or
+# Android refuses to install the update over the app already installed:
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which sync server and Firebase project the app uses
+        type: choice
+        options: [staging, production]
+        default: staging
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ inputs.environment }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      NDK_VERSION: 28.2.13676358
+      VERSION: 0.1.${{ github.run_number }}
+      CHANNEL: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Check the signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::Add the Android signing secrets first (docs/ANDROID.md). Without a fixed key, each build would need the app uninstalled, which deletes notes kept only on the phone."
+            exit 1
+          fi
+      - name: Install the Android NDK and Rust targets
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+      - run: npm ci
+      - name: Build the app for ${{ inputs.environment }}
+        run: |
+          if [ "$CHANNEL" = "production" ]; then
+            cp .env.production.example .env.production.local && npm run build:production
+          else
+            cp .env.staging.example .env.staging.local && npm run build:staging
+          fi
+      - name: Build and sign the APK
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+          ORG_GRADLE_PROJECT_remonookChannel: ${{ inputs.environment }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+          # Local sync: staging phones only pair with staging computers (see local_sync.rs).
+          if [ "$CHANNEL" = "production" ]; then export REMONOOK_CHANNEL=com.remonook.desktop; else export REMONOOK_CHANNEL=com.remonook.desktop.staging; fi
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          echo "{\"version\":\"$VERSION\"}" > src-tauri/tauri.release.json
+          npx tauri android build --apk --target aarch64 armv7 x86_64 --config src-tauri/tauri.release.json --ci
+          rm -f "$ANDROID_KEYSTORE_PATH"
+          apk=$(ls src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk | head -1)
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | head -3
+          mkdir out && cp "$apk" "out/RemoNook-${CHANNEL}_${VERSION}_android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RemoNook-${{ inputs.environment }}-android
+          path: out/*.apk
+          if-no-files-found: error
+      - name: Publish the APK
+        env:
+          CLOUDFLARE_ACCOUNT_ID: e9a5c70b0fbe2e2d493fc21de0bbb40f
+          CLOUDFLARE_API_TOKEN: ${{ inputs.environment == 'production' && secrets.CLOUDFLARE_PRODUCTION_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ "$CHANNEL" = "production" ]; then BUCKET=remo-attachments; API=https://remo-sync.remo-978fb.workers.dev; else BUCKET=remo-attachments-staging; API=https://remo-sync-staging.remo-978fb.workers.dev; fi
+          name="RemoNook-${CHANNEL}_${VERSION}_android.apk"
+          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/$name" --file "out/$name" --remote || {
+            echo "::error::Cloudflare refused the upload. The API token needs the account permission Workers R2 Storage: Edit."; exit 1; }
+          echo "{\"version\":\"$VERSION\",\"url\":\"$API/desktop/$CHANNEL/$name\"}" > android.json
+          cat android.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/android.json" --file android.json --remote --content-type application/json
+          echo "Download: $API/desktop/$CHANNEL/$name"

@@ -35,6 +35,8 @@ See [the development and deployment guide](docs/ENVIRONMENTS.md).
 - `staging`: live at https://staging.remonook.com with a separate Firebase project, sync Worker, D1 database and R2 bucket.
 - `production`: existing services, explicitly selected configuration. Still hosted through the existing Sites workflow.
 
+Apps: the desktop apps for Windows, macOS and Linux ([docs/DESKTOP.md](docs/DESKTOP.md)) and the Android app ([docs/ANDROID.md](docs/ANDROID.md)) are built from the same code in `src-tauri/`.
+
 Feature branch → pull request → CI → merge to `main` → staging → explicit production release. Do not create an independent long-lived `develop` branch at this stage.
 
 The current public application is unchanged by pushing this repository. GitHub CI and automatic staging frontend deployment are enabled. Pushes to `main` build, test and deploy staging; production remains an explicit release. See the guide for token rotation and backend deployment.

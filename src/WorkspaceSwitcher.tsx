@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { authenticatedUid, switchWorkspace } from './CloudAccount';
 import { activeLocalWorkspace, createLocalWorkspace, deleteLocalWorkspace, localWorkspaces, renameLocalWorkspace, setWorkspaceFolder, setWorkspacePeerSync, workspaceStorageName, type LocalWorkspace } from './workspaces';
 import { announceWorkspaces } from './local-sync';
-import { isDesktop } from './desktop';
+import { isApp, isDesktop } from './desktop';
 import { pickFolder, folderWorkspaceName, showFolder, forgetFolder } from './workspace-folder';
 import './workspaces.css';
 
@@ -62,7 +62,7 @@ export function WorkspaceSwitcher() {
         {isDesktop() && <button role="menuitem" onClick={() => open({ kind: 'create', folder: true })}><span aria-hidden="true">📁</span><span>New workspace in a folder…</span></button>}
         {isDesktop() && <button role="menuitem" disabled={busy} onClick={() => void openFolder()}><span aria-hidden="true">📂</span><span>Open a workspace folder…</span></button>}
         {isDesktop() && active && !active.folder && <button role="menuitem" disabled={busy} onClick={async () => { try { const path = await emptyFolder(); if (!path) return; setWorkspaceFolder(active.id, path); forgetFolder(workspaceStorageName(active)); await go({ local: active.id }); } catch (e) { fail(e); } }}><span aria-hidden="true">📁</span><span>Keep “{active.name}” in a folder…</span></button>}
-        {isDesktop() && active && <button role="menuitemcheckbox" aria-checked={!!active.peerSync} disabled={busy} onClick={async () => { setWorkspacePeerSync(active.id, !active.peerSync); await announceWorkspaces(); await go({ local: active.id }); }}><span aria-hidden="true">⇄</span><span><span>Sync with my devices</span><small>{active.peerSync ? 'On · paired computers on this network keep it in step' : 'Share it with your paired computers (Settings → Desktop)'}</small></span>{active.peerSync && <span className="workspace-check">✓</span>}</button>}
+        {isApp() && active && <button role="menuitemcheckbox" aria-checked={!!active.peerSync} disabled={busy} onClick={async () => { setWorkspacePeerSync(active.id, !active.peerSync); await announceWorkspaces(); await go({ local: active.id }); }}><span aria-hidden="true">⇄</span><span><span>Sync with my devices</span><small>{active.peerSync ? 'On · paired computers on this network keep it in step' : 'Share it with your paired computers (Settings → Desktop)'}</small></span>{active.peerSync && <span className="workspace-check">✓</span>}</button>}
         {isDesktop() && active?.folder && <button role="menuitem" onClick={() => void showFolder(active.folder!).catch(fail)}><span aria-hidden="true">📂</span><span>Show folder</span></button>}
         {isDesktop() && active?.folder && <button role="menuitem" onClick={() => open({ kind: 'unfolder', workspace: active })}><span aria-hidden="true">⏏</span><span>Stop using the folder…</span></button>}
         {error && <p role="alert" className="workspace-error">{error}</p>}
@@ -73,7 +73,7 @@ export function WorkspaceSwitcher() {
         <strong>{mode.folder ? 'New workspace in a folder' : 'New device-only workspace'}</strong>
         {mode.folder
           ? <p>A separate workspace kept in a folder you choose on this computer, with a readable Markdown copy of your notes. It never syncs to RemoNook cloud. You can back the folder up or copy it to another computer.</p>
-          : <p>{isDesktop() ? 'A separate workspace stored in this app, never in RemoNook cloud. To have it on your other computers, turn on Sync with my devices in this menu afterwards.' : 'A separate workspace stored only in this browser. It never syncs, so it is not on your other devices, and AI apps cannot reach it. Export backups from Settings.'}</p>}
+          : <p>{isApp() ? 'A separate workspace stored in this app, never in RemoNook cloud. To have it on your other computers, turn on Sync with my devices in this menu afterwards.' : 'A separate workspace stored only in this browser. It never syncs, so it is not on your other devices, and AI apps cannot reach it. Export backups from Settings.'}</p>}
         <input autoFocus aria-label="Workspace name" placeholder="e.g. Private journal" value={name} maxLength={60} onChange={e => setName(e.target.value)} />
         {error && <p role="alert" className="workspace-error">{error}</p>}
         <div className="workspace-actions"><button type="button" onClick={() => open({ kind: 'menu' })}>Back</button><button type="submit" className="primary" disabled={busy || !name.trim()}>{mode.folder ? 'Choose folder…' : 'Create and open'}</button></div>

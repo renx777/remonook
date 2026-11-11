@@ -1,10 +1,10 @@
 import {Readability} from '@mozilla/readability';
 import DOMPurify from 'dompurify';
-import {desktopInvoke,isDesktop} from './desktop';
+import {desktopInvoke,isApp} from './desktop';
 import {digest} from './data-store';
 export async function captureLocalArticle(url:string){
  let page:{url:string;html:string};
- if(isDesktop())page=await desktopInvoke('local_article_fetch',{url});
+ if(isApp())page=await desktopInvoke('local_article_fetch',{url});
  else{const response=await fetch(url,{credentials:'omit',signal:AbortSignal.timeout(25000)});if(!response.ok)throw Error('This page could not be saved. Your link is kept.');const html=await response.text();if(html.length>5*1024*1024)throw Error('This page is too large.');page={url:response.url||url,html};}
  const clean=DOMPurify.sanitize(page.html,{WHOLE_DOCUMENT:true,FORBID_TAGS:['img','iframe','object','embed','form','video','audio','source','svg','math']});
  const doc=new DOMParser().parseFromString(clean,'text/html');

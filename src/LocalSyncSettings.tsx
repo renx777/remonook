@@ -1,5 +1,5 @@
-// Settings → Desktop → Devices: local sync between this person's computers on the same network,
-// and the pairing window shown when another computer asks to pair.
+// Settings → Desktop → Devices: local sync between this person's devices on the same network,
+// and the pairing window shown when another device asks to pair.
 import React, { useEffect, useRef, useState } from 'react';
 import { desktopInvoke, desktopListen } from './desktop';
 import { localSyncStatus, onLocalSyncChange } from './local-sync';
@@ -26,54 +26,54 @@ export function LocalSyncSettings() {
   const synced = localWorkspaces().filter(w => w.peerSync);
   return <>
     <h4>Sync with my devices</h4>
-    <p className="ai-apps-muted">RemoNook on your other computers on the same network keeps chosen workspaces in sync directly, encrypted, without RemoNook cloud. Turn on <strong>Sync with my devices</strong> for a workspace in the workspace menu.</p>
+    <p className="ai-apps-muted">RemoNook on your other devices on the same network keeps chosen workspaces in sync directly, encrypted, without RemoNook cloud. Turn on <strong>Sync with my devices</strong> for a workspace in the workspace menu.</p>
     {error && <p className="ai-apps-error" role="alert">{error}</p>}
     <label className="ai-apps-access"><input type="checkbox" disabled={!status || busy} checked={!!status?.enabled} onChange={e => void act(() => desktopInvoke('local_sync_set', { on: e.target.checked }))} />
-      <span><strong>Local sync on this computer</strong><small>{status?.enabled ? `On. Its address on this network is ${status.address || 'unknown'}${status.port && status.port !== 47914 ? ':' + status.port : ''}.` : 'Off. Paired devices cannot reach this computer.'}</small></span></label>
+      <span><strong>Local sync on this device</strong><small>{status?.enabled ? `On. Its address on this network is ${status.address || 'unknown'}${status.port && status.port !== 47914 ? ':' + status.port : ''}.` : 'Off. Paired devices cannot reach this device.'}</small></span></label>
     {status && <div className="local-sync-device">
       {name === null
-        ? <p>This computer is called <strong>{status.deviceName}</strong>. <button type="button" className="link-button" onClick={() => setName(status.deviceName)}>Rename</button></p>
+        ? <p>This device is called <strong>{status.deviceName}</strong>. <button type="button" className="link-button" onClick={() => setName(status.deviceName)}>Rename</button></p>
         : <form onSubmit={e => { e.preventDefault(); void act(() => desktopInvoke('local_sync_rename', { name })).then(() => setName(null)); }}>
-          <label>Name of this computer <input value={name} maxLength={60} autoFocus onChange={e => setName(e.target.value)} /></label>
+          <label>Name of this device <input value={name} maxLength={60} autoFocus onChange={e => setName(e.target.value)} /></label>
           <button type="submit" className="primary" disabled={busy || !name.trim()}>Save</button> <button type="button" onClick={() => setName(null)}>Cancel</button>
         </form>}
     </div>}
     {incoming && <div className="local-sync-incoming" role="status">
-      <p><strong>{incoming.name}</strong> wants to sync with this computer. Type this code on {incoming.name}:</p>
+      <p><strong>{incoming.name}</strong> wants to sync with this device. Type this code on {incoming.name}:</p>
       <p className="local-sync-code">{incoming.code.slice(0, 3)} {incoming.code.slice(3)}</p>
     </div>}
     {status?.enabled && <>
       <h4>Paired devices</h4>
       {!status.peers.length ? <p className="ai-apps-muted">None yet. Pair one below.</p>
         : <ul className="ai-apps-list">{status.peers.map(p => <li key={p.id}><span><strong>{p.name}</strong><small>{p.online ? '● Connected' : 'Not on this network right now'}</small></span>
-          <button type="button" disabled={busy} onClick={() => { if (window.confirm(`Stop syncing with ${p.name}? Notes already synced stay on both computers.`)) void act(() => desktopInvoke('local_sync_unpair', { id: p.id })); }}>Remove</button></li>)}</ul>}
+          <button type="button" disabled={busy} onClick={() => { if (window.confirm(`Stop syncing with ${p.name}? Notes already synced stay on both devices.`)) void act(() => desktopInvoke('local_sync_unpair', { id: p.id })); }}>Remove</button></li>)}</ul>}
       <h4>Pair a device</h4>
       {pairing ? <form className="local-sync-pair" onSubmit={e => { e.preventDefault(); void act(async () => { await desktopInvoke('local_sync_pair_finish', { session: pairing.session, code }); setPairing(null); setCode(''); }); }}>
-          <p>A 6-digit code is now showing on <strong>{pairing.name}</strong> (in a window on top, and in its Settings → Desktop). Type it here.</p>
+          <p>A 6-digit code is now showing on <strong>{pairing.name}</strong> (in a window on top, and in its Settings → Desktop, or This device on a phone). Type it here.</p>
           <input inputMode="numeric" autoComplete="one-time-code" aria-label="Pairing code" placeholder="123 456" value={code} maxLength={7} autoFocus onChange={e => setCode(e.target.value)} />
           <div><button type="submit" className="primary" disabled={busy || code.replace(/\D/g, '').length !== 6}>{busy ? 'Pairing…' : 'Pair'}</button> <button type="button" onClick={() => { void desktopInvoke('local_sync_pair_cancel', { session: pairing.session }); setPairing(null); setCode(''); }}>Cancel</button></div>
         </form>
         : <>
-          <p className="ai-apps-muted">Open RemoNook on the other computer and turn on local sync there too. It appears here when it is on the same network.</p>
-          {!status.nearby.length ? <p className="ai-apps-muted">Looking for computers…</p>
+          <p className="ai-apps-muted">Open RemoNook on the other device and turn on local sync there too. It appears here when it is on the same network.</p>
+          {!status.nearby.length ? <p className="ai-apps-muted">Looking for devices…</p>
             : <ul className="ai-apps-list">{status.nearby.map(n => <li key={n.id}><span><strong>{n.name}</strong><small>{n.address}</small></span>
               <button type="button" className="primary" disabled={busy} onClick={() => void act(async () => setPairing(await desktopInvoke('local_sync_pair_start', { target: n.id })))}>Pair</button></li>)}</ul>}
           <details><summary>Not listed? Pair by address</summary>
             <form onSubmit={e => { e.preventDefault(); void act(async () => setPairing(await desktopInvoke('local_sync_pair_start', { target: address.trim() }))); }}>
-              <p className="ai-apps-muted">Some networks hide devices from each other. Enter the other computer's address, shown in its Settings → Desktop.</p>
-              <input aria-label="Address of the other computer" placeholder="192.168.1.20" value={address} onChange={e => setAddress(e.target.value)} />
+              <p className="ai-apps-muted">Some networks hide devices from each other. Enter the other device's address, shown in its Settings → Desktop (This device on a phone).</p>
+              <input aria-label="Address of the other device" placeholder="192.168.1.20" value={address} onChange={e => setAddress(e.target.value)} />
               <button type="submit" disabled={busy || !address.trim()}>Pair</button>
             </form>
           </details>
         </>}
-      <h4>Synced workspaces on this computer</h4>
+      <h4>Synced workspaces on this device</h4>
       {!synced.length ? <p className="ai-apps-muted">None. Open a device-only workspace and choose <strong>Sync with my devices</strong> in the workspace menu.</p>
         : <ul className="ai-apps-activity">{synced.map(w => <li key={w.id}><span>{w.name}</span></li>)}</ul>}
     </>}
   </>;
 }
 
-/** Shown on this computer when another one asks to pair: the code to type there. */
+/** Shown on this device when another one asks to pair: the code to type there. */
 export function LocalSyncPairing() {
   const [request, setRequest] = useState<{ name: string; code: string } | null>(null), [result, setResult] = useState('');
   useEffect(() => {
@@ -89,7 +89,7 @@ export function LocalSyncPairing() {
   return <dialog ref={box} className="local-sync-request" aria-label="Pair a device" onClose={() => setRequest(null)}>
     {request && <div className="local-sync-request-card">
       {result ? <><p>{result}</p><button type="button" className="primary" onClick={() => setRequest(null)}>Done</button></>
-        : <><p><strong>{request.name}</strong> wants to sync with this computer.</p>
+        : <><p><strong>{request.name}</strong> wants to sync with this device.</p>
           <p>Type this code on {request.name}:</p>
           <p className="local-sync-code" aria-live="polite">{request.code.slice(0, 3)} {request.code.slice(3)}</p>
           <p className="ai-apps-muted">If you did not start this, close this window. Nothing is shared without the code.</p>

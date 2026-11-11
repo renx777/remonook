@@ -14,7 +14,7 @@ import { syncOperation, load, save, empty, getAssets, putAssets, digest, type Wo
 import { lacks, validVectors } from './sync-peer.mjs';
 import { isBucket } from './sync-buckets.mjs';
 import { activeLocalWorkspace, addPeerWorkspace, localWorkspaces, workspaceStorageName } from './workspaces';
-import { desktopInvoke, desktopListen, isDesktop } from './desktop';
+import { desktopInvoke, desktopListen, isApp } from './desktop';
 
 export type Transport = { send: (peer: string, data: string) => Promise<void> };
 type Asset = { path: string; hash: string; size: number; type: string };
@@ -213,7 +213,7 @@ export const localSyncStatus = () => desktopInvoke<Status>('local_sync_status');
 
 /** Starts the desktop app's engine once (it runs for every synced workspace in the background). */
 export function startLocalSync(received: (storage: string) => void) {
-  if (!isDesktop() || started) return;
+  if (!isApp() || started) return;
   started = true;
   engine = new LocalSyncEngine({ send: (peer, data) => desktopInvoke('local_sync_send', { peer, data }) }, {
     workspaces: syncedWorkspaces,
@@ -253,7 +253,7 @@ type Host = {
 export function useLocalSync(host: Host) {
   const latest = useRef(host); latest.current = host;
   const busy = useRef(false), again = useRef(false), timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const w = activeLocalWorkspace(), active = isDesktop() && !!w?.peerSync;
+  const w = activeLocalWorkspace(), active = isApp() && !!w?.peerSync;
   const storage = w ? workspaceStorageName(w) : '';
   const run = useRef<() => Promise<void>>(async () => {});
   run.current = async () => {

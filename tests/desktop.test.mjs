@@ -26,3 +26,13 @@ test('desktop retires obsolete service worker shells without deleting user cache
   navigator.serviceWorker.controller=null;await d.retireDesktopOfflineShell();assert.equal(reloaded,0,'an already clean desktop must not reload');
  }finally{for(const key of keys){const descriptor=before.get(key);if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}}
 });
+
+test('Android app: counts as the app but not as the desktop app; desktop stays desktop',()=>{
+ const keys=['window','navigator'],before=new Map(keys.map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
+ const as=(ua,app)=>{Object.defineProperty(globalThis,'window',{configurable:true,value:app?{__TAURI_INTERNALS__:{invoke:async()=>{}}}:{}});Object.defineProperty(globalThis,'navigator',{configurable:true,value:{userAgent:ua}});return [d.isApp(),d.isDesktop(),d.isMobileApp()];};
+ try{
+  assert.deepEqual(as('Mozilla/5.0 (Linux; Android 15; CPH2621) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36',true),[true,false,true]);
+  assert.deepEqual(as('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/140',true),[true,true,false]);
+  assert.deepEqual(as('Mozilla/5.0 (Linux; Android 15) Chrome/140 Mobile Safari/537.36',false),[false,false,false],'the website on a phone is not the app');
+ }finally{for(const key of keys){const v=before.get(key);if(v)Object.defineProperty(globalThis,key,v);else delete globalThis[key];}}
+});

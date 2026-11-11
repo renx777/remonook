@@ -288,7 +288,10 @@ fn identity(app: &tauri::AppHandle) -> Result<Stored, String> {
         None => {
             let keys = snow::Builder::new(NOISE.parse().map_err(err)?).generate_keypair().map_err(err)?;
             let name = gethostname::gethostname().to_string_lossy().trim().chars().take(60).collect::<String>();
-            let s = Stored { device_id: random_hex(16)?, name: if name.is_empty() { "This computer".into() } else { name }, private_key: B64.encode(keys.private), public_key: B64.encode(keys.public), peers: vec![] };
+            // Phones report "localhost"; the person can rename the device in Settings.
+            let fallback = if cfg!(target_os = "android") { "Android phone" } else if cfg!(target_os = "ios") { "iPad" } else { "This computer" };
+            let name = if name.is_empty() || name == "localhost" { fallback.to_string() } else { name };
+            let s = Stored { device_id: random_hex(16)?, name, private_key: B64.encode(keys.private), public_key: B64.encode(keys.public), peers: vec![] };
             save(app, &s)?;
             s
         }
@@ -303,8 +306,11 @@ fn update_stored(app: &tauri::AppHandle, f: impl FnOnce(&mut Stored)) -> Result<
     *app.state::<LocalSync>().stored.lock().unwrap() = Some(s.clone());
     Ok(s)
 }
+/// Which release this device belongs to, so staging and production never connect. Desktop apps
+/// use their identifier; the Android app has one identifier for both and is told its channel at
+/// build time (REMONOOK_CHANNEL, see .github/workflows/android.yml).
 fn channel(app: &tauri::AppHandle) -> String {
-    app.config().identifier.clone()
+    option_env!("REMONOOK_CHANNEL").map(str::to_string).unwrap_or_else(|| app.config().identifier.clone())
 }
 fn changed(app: &tauri::AppHandle) {
     let _ = app.emit_to("main", "local-sync-status", ());
@@ -498,21 +504,22 @@ fn start(app: &tauri::AppHandle) -> Result<(), String> {
     }
     // Discovery. A failure here (no multicast) still leaves connecting by address.
     let mdns = mdns_sd::ServiceDaemon::new().ok();
+    let chan = channel(app);
     if let Some(daemon) = &mdns {
         let host = format!("remonook-{}.local.", &s.device_id[..12]);
-        let props = [("id", s.device_id.as_str()), ("name", s.name.as_str()), ("chan", app.config().identifier.as_str())];
+        let props = [("id", s.device_id.as_str()), ("name", s.name.as_str()), ("chan", chan.as_str())];
         if let Ok(info) = mdns_sd::ServiceInfo::new(SERVICE, &s.device_id, &host, "", port, &props[..]) {
             let _ = daemon.register(info.enable_addr_auto());
         }
         if let Ok(events) = daemon.browse(SERVICE) {
-            let (app, stop, me) = (app.clone(), stop.clone(), s.device_id.clone());
+            let (app, stop, me, mine) = (app.clone(), stop.clone(), s.device_id.clone(), chan.clone());
             std::thread::spawn(move || {
                 while !stop.load(Ordering::Relaxed) {
                     let Ok(event) = events.recv_timeout(Duration::from_millis(500)) else { continue };
                     match event {
                         mdns_sd::ServiceEvent::ServiceResolved(info) => {
                             let (Some(id), Some(chan)) = (info.get_property_val_str("id"), info.get_property_val_str("chan")) else { continue };
-                            if id == me || chan != app.config().identifier {
+                            if id == me || chan != mine {
                                 continue;
                             }
                             let name = info.get_property_val_str("name").unwrap_or("RemoNook").to_string();

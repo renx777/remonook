@@ -3,16 +3,21 @@
 // and (until Google sign-in through the browser lands) offers email sign-in only.
 type TauriInternals = { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
 const internals = (): TauriInternals | undefined => (typeof window === 'undefined' ? undefined : (window as any).__TAURI_INTERNALS__);
-export const isDesktop = () => !!internals();
+/** Any RemoNook app (desktop or Android), as opposed to the website. */
+export const isApp = () => !!internals();
+/** The Android (later iPad) app: no tray, folders, quick capture, AI-app server or updater. */
+export const isMobileApp = () => isApp() && typeof navigator !== 'undefined' && /Android|iPhone|iPad/i.test(navigator.userAgent);
+/** The desktop app (Windows, macOS, Linux). */
+export const isDesktop = () => isApp() && !isMobileApp();
 
 /** Calls a RemoNook desktop command (src-tauri). Errors arrive as plain messages. */
 export async function desktopInvoke<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const tauri = internals(); if (!tauri) throw Error('Not in the desktop app.');
+  const tauri = internals(); if (!tauri) throw Error('Not in the RemoNook app.');
   try { return await tauri.invoke(cmd, args) as T; } catch (e) { throw Error(typeof e === 'string' ? e : (e as any)?.message || String(e)); }
 }
 /** Listens for an event from the desktop app; resolves to an unsubscribe function. */
 export async function desktopListen<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
-  if (!isDesktop()) return () => {};
+  if (!isApp()) return () => {};
   const { listen } = await import('@tauri-apps/api/event');
   return listen<T>(event, e => handler(e.payload));
 }
@@ -25,7 +30,7 @@ const external = (href: string) => { try { const u = new URL(href, location.href
 
 /** Sends links to other sites, and window.open calls for them, to the system browser. */
 export function installDesktopLinks() {
-  if (!isDesktop()) return;
+  if (!isApp()) return;
   document.addEventListener('click', e => {
     const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
     if (a && external(a.href)) { e.preventDefault(); void openExternal(a.href); }
@@ -61,7 +66,7 @@ export const desktopCallback = (port: number, state: string, idToken: string) =>
 
 /** Retire browser offline shells left by older desktop builds. Keep all user data. */
 export async function retireDesktopOfflineShell(){
- if(!isDesktop()||!('serviceWorker' in navigator))return;
+ if(!isApp()||!('serviceWorker' in navigator))return;
  const registrations=await navigator.serviceWorker.getRegistrations();
  await Promise.all(registrations.map(r=>r.unregister()));
  if('caches' in window){for(const key of await caches.keys())if(key.startsWith('remo-shell-')||key==='remo-reader-assets')await caches.delete(key);}
