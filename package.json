@@ -14,7 +14,8 @@
     "build:production": "node scripts/build-environment.mjs production",
     "postinstall": "node scripts/build-visual-assets.mjs && node scripts/build-workdays-assets.mjs",
     "dev:staging": "node scripts/dev-staging.mjs",
-    "e2e:sync": "node scripts/e2e-sync.mjs"
+    "e2e:sync": "node scripts/e2e-sync.mjs",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

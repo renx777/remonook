@@ -36,6 +36,8 @@ export function useDesktop(options: Options) {
     if (!ready || !isApp()) return;
     // Local sync runs for every synced workspace in the background, open or not.
     startLocalSync(() => {});
+    // The rest (tray quit, quick capture, local AI apps) exists only in the desktop app.
+    if (!isDesktop()) return;
     const apply = async (next: Workspace) => { latest.current.commit(next); await latest.current.flush(); };
     const workspaceName = () => activeLocalWorkspace()?.name || 'My notes';
     const stops = [
