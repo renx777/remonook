@@ -37,7 +37,7 @@ export function LibraryNavigator({ doc, kind, folder, onFolder, onOpenNotes }: {
     <button className="lib-nav-fixed" aria-current={folder === null ? 'true' : undefined} onClick={() => onFolder(null)}><span>All</span><small>{tree.visible.length}</small></button>
     <button className="lib-nav-fixed" aria-current={folder === 'unsorted' ? 'true' : undefined} onClick={() => onFolder('unsorted')}><span>Not organized yet</span><small>{tree.unsorted.length}</small></button>
     {top.length > 0 && <><div className="lib-nav-title">From your notes</div><ul className="lib-nav-tree">{top.map((f: any) => row(f, 0))}</ul></>}
-    <p className="lib-nav-hint">These follow the bullets your {kind === 'bookmark' ? 'bookmarks' : 'books'} sit under in Notes. Move one there, or with <strong>Move to…</strong>, and this list follows.{doc.tables.bullets.some(n => n.id === LIBRARY_ID) ? <> New ones start in <button className="lib-nav-link" onClick={() => onOpenNotes(LIBRARY_ID)}>Library</button>.</> : null}</p>
+    <p className="lib-nav-hint">These follow the bullets your {kind === 'bookmark' ? 'bookmarks' : 'books'} sit under in Notes. File one with <strong>Move to…</strong> or by moving its bullet in Notes, and this list follows.{doc.tables.bullets.some(n => n.id === LIBRARY_ID) ? <> Filed items you have not placed yet are in <button className="lib-nav-link" onClick={() => onOpenNotes(LIBRARY_ID)}>Library</button>.</> : null}</p>
   </nav>;
 }
 

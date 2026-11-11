@@ -8,7 +8,7 @@ import {BookCover} from './BookCover';
 import {Icon} from './icons';
 import './bookshelf.css';
 import {LibraryNavigator,MovePicker,useLibraryTree,type Folder} from './LibraryNavigator';
-import {ensureLibrary,moveLibraryItem,inFolder} from './library-outline.mjs';
+import {moveLibraryItem,inFolder} from './library-outline.mjs';
 export function Bookshelf({user,doc,disabled,onChange,onSignIn,onRead,onNotes}:{user:User|null;doc:Workspace;disabled:boolean;onChange:(update:(doc:Workspace)=>Workspace)=>void;onSignIn:()=>Promise<void>;onRead:(hash:string)=>void;onNotes?:(id:string)=>void}){
  const [folder,setFolder]=useState<Folder>(null),[moveTarget,setMoveTarget]=useState<any>(null),tree=useLibraryTree(doc,'book');
  const library=useBookLibrary({user,doc,onChange}),{books,usage,busy,error,notice,online,upload}=library;
@@ -26,6 +26,6 @@ export function Bookshelf({user,doc,disabled,onChange,onSignIn,onRead,onNotes}:{
  </section>;
  if(!user&&!library.localMode)return shelf;
  return <div className="library-with-nav"><LibraryNavigator doc={doc} kind="book" folder={folder} onFolder={setFolder} onOpenNotes={id=>onNotes?.(id)}/>{shelf}
-  {moveTarget&&<MovePicker doc={doc} title={moveTarget.title} exclude={doc.web.readingNoteRoots?.[moveTarget.hash]} onClose={()=>setMoveTarget(null)} onPick={parent=>{const hash=moveTarget.hash;setMoveTarget(null);if(disabled)return;onChange(d=>{const e=ensureLibrary(d);return moveLibraryItem(e,e.web.readingNoteRoots[hash],parent);});}}/>}
+  {moveTarget&&<MovePicker doc={doc} title={moveTarget.title} exclude={doc.web.readingNoteRoots?.[moveTarget.hash]} onClose={()=>setMoveTarget(null)} onPick={parent=>{const hash=moveTarget.hash;setMoveTarget(null);if(disabled)return;onChange(d=>moveLibraryItem(d,'book',hash,parent));}}/>}
  </div>;
 }

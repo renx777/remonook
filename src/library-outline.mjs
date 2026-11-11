@@ -1,20 +1,20 @@
-// Bookmarks and books organized with the outline. Every saved article and every book has one
-// bullet in Notes (its "note root": web.bookmarkNoteRoots / web.readingNoteRoots, where its
-// highlights and notes already go). New ones start under a "Library" bullet at the top of Notes;
-// moving that bullet anywhere organizes the item. The bullets above it become the folders shown
-// in the Bookmarks and Bookshelf navigators.
+// Bookmarks and books organized with the outline. A saved article or book can have one bullet in
+// Notes (its "note root": web.bookmarkNoteRoots / web.readingNoteRoots, where its highlights and
+// notes already go). Moving that bullet anywhere organizes the item; the bullets above it become
+// the folders shown in the Bookmarks and Bookshelf navigators.
 //
+// - Nothing is added to Notes on its own: an item gets its bullet only when the user files it
+//   (Move to…, or saving while a folder is open). Items without one are "Not organized yet".
 // - Ids are deterministic ('web-<bookmark id>', 'book-<hash>', 'library'), so two devices doing
 //   this at the same time create the same bullets, which sync merges.
-// - Deleting an item's bullet in Notes hides the item (it is in Trash with the bullet); restoring
-//   the bullet brings it back. Only the first run (libraryVersion 1) recreates missing bullets,
-//   for notes removed before this existed.
+// - Deleting an item's bullet in Notes hides the item while the bullet is in Trash; restoring the
+//   bullet brings it back. A bullet that is gone for good leaves the item not organized.
 import {bullet,index,move,descendants} from './domain.mjs';
 import {withNodes} from './workspace-nodes.mjs';
 
 export const LIBRARY_ID='library';
-const usedIds=doc=>{
- const ids=new Set(doc.tables.bullets.map(n=>n.id));
+const trashedIds=doc=>{
+ const ids=new Set();
  for(const entry of doc.tables.trash||[]){let nodes=entry.nodes;try{if(!Array.isArray(nodes)&&typeof entry.payload==='string')nodes=JSON.parse(entry.payload).nodes;}catch{/* ignore */}if(Array.isArray(nodes))for(const n of nodes)if(typeof n?.id==='string')ids.add(n.id);}
  return ids;
 };
@@ -28,26 +28,26 @@ export function libraryItems(doc){
  return out;
 }
 
-/** Gives every item a bullet (new items under Library). Returns the same document when nothing changes. */
-export function ensureLibrary(doc){
- const first=doc.web.libraryVersion!==1,ids=new Set(doc.tables.bullets.map(n=>n.id));
- const missing=libraryItems(doc).filter(i=>!i.rootId||(first&&!ids.has(i.rootId)));
- if(!missing.length)return first?{...doc,web:{...doc.web,libraryVersion:1}}:doc;
- let nodes=[...doc.tables.bullets];const used=usedIds(doc);
- if(!ids.has(LIBRARY_ID)){
-  // The Library bullet goes first at the top level.
-  nodes=nodes.map(n=>n.parentId===null?{...n,position:n.position+1}:n);
-  nodes.push(bullet(LIBRARY_ID,{text:'Library',position:0}));used.add(LIBRARY_ID);
- }
- let position=Math.max(-1,...nodes.filter(n=>n.parentId===LIBRARY_ID).map(n=>n.position))+1;
- const bookmarkRoots={...doc.web.bookmarkNoteRoots},bookRoots={...doc.web.readingNoteRoots};
- for(const item of missing){
-  const id=available(item.kind==='bookmark'?'web-'+item.key:'book-'+item.key,used);used.add(id);
-  nodes.push(bullet(id,{parentId:LIBRARY_ID,position:position++,text:item.title,collapsed:true}));
-  if(item.kind==='bookmark')bookmarkRoots[item.key]=id;else bookRoots[item.key]=id;
- }
- const next=withNodes(doc,nodes);
- return {...next,web:{...next.web,bookmarkNoteRoots:bookmarkRoots,readingNoteRoots:bookRoots,libraryVersion:1}};
+/** Adds the Library bullet (last at the top level, so nothing else moves). */
+function withLibrary(doc){
+ if(doc.tables.bullets.some(n=>n.id===LIBRARY_ID))return doc;
+ const position=Math.max(-1,...doc.tables.bullets.filter(n=>n.parentId===null).map(n=>n.position))+1;
+ return withNodes(doc,[...doc.tables.bullets,bullet(LIBRARY_ID,{text:'Library',position})]);
+}
+
+/** Gives one item a bullet, at the end of `parentId` (Library by default), when it has none.
+ Returns the same document otherwise. */
+export function ensureItem(doc,kind,key,parentId=LIBRARY_ID){
+ const item=libraryItems(doc).find(i=>i.kind===kind&&i.key===key);
+ if(!item)throw Error(kind==='bookmark'?'This bookmark no longer exists.':'This book no longer exists.');
+ if(item.rootId&&doc.tables.bullets.some(n=>n.id===item.rootId))return doc;
+ const base=parentId===LIBRARY_ID?withLibrary(doc):doc;
+ if(!base.tables.bullets.some(n=>n.id===parentId))throw Error('That bullet no longer exists.');
+ const used=new Set([...base.tables.bullets.map(n=>n.id),...trashedIds(doc)]);
+ const id=available(kind==='bookmark'?'web-'+key:'book-'+key,used);
+ const position=base.tables.bullets.filter(n=>n.parentId===parentId).length;
+ const next=withNodes(base,[...base.tables.bullets,bullet(id,{parentId,position,text:item.title,collapsed:true})]);
+ return kind==='bookmark'?{...next,web:{...next.web,bookmarkNoteRoots:{...next.web.bookmarkNoteRoots,[key]:id}}}:{...next,web:{...next.web,readingNoteRoots:{...next.web.readingNoteRoots,[key]:id}}};
 }
 
 /**
@@ -55,13 +55,12 @@ export function ensureLibrary(doc){
  * Library excluded) as a tree with counts, each item's folder chain, and items not placed yet.
  */
 export function libraryTree(doc,kind){
- const idx=index(doc.tables.bullets),items=libraryItems(doc).filter(i=>i.kind===kind);
+ const idx=index(doc.tables.bullets),trashed=trashedIds(doc),items=libraryItems(doc).filter(i=>i.kind===kind);
  const folders=new Map(),itemFolders=new Map(),visible=[],unsorted=[];
  for(const item of items){
-  // No bullet yet (just saved): not organized. A bullet that was deleted: the item is in Trash with it.
-  if(!item.rootId){visible.push(item);itemFolders.set(item.key,[]);unsorted.push(item.key);continue;}
-  const root=idx.byId.get(item.rootId);
-  if(!root)continue;
+  // No bullet: not organized. A bullet in Trash: the item is hidden until it is restored.
+  const root=item.rootId?idx.byId.get(item.rootId):null;
+  if(!root){if(item.rootId&&trashed.has(item.rootId))continue;visible.push(item);itemFolders.set(item.key,[]);unsorted.push(item.key);continue;}
   visible.push(item);
   const chain=[];let p=root.parentId;
   while(p&&p!==LIBRARY_ID){const n=idx.byId.get(p);if(!n)break;chain.unshift(n.id);p=n.parentId;}
@@ -78,19 +77,21 @@ export function libraryTree(doc,kind){
 /** Whether an item is inside a folder (or, for null, anywhere). */
 export const inFolder=(tree,key,folder)=>folder===null||(folder==='unsorted'?tree.unsorted.includes(key):(tree.itemFolders.get(key)||[]).includes(folder));
 
-/** Moves an item's bullet (with its notes) under another bullet, at the end. */
-export function moveLibraryItem(doc,rootId,parentId){
- const nodes=doc.tables.bullets;
- if(!nodes.some(n=>n.id===rootId))throw Error('This item has no bullet in Notes.');
- if(parentId&&!nodes.some(n=>n.id===parentId))throw Error('That bullet no longer exists.');
- if(parentId&&descendants(nodes,rootId).has(parentId))throw Error('An item cannot move inside its own notes.');
- const target=parentId||LIBRARY_ID,count=nodes.filter(n=>n.parentId===target&&n.id!==rootId).length;
- return withNodes(doc,move(nodes,rootId,target,count));
+/** Moves an item's bullet (with its notes) to the end of another bullet (Library when none is
+ given), creating the item's bullet there if it has none. */
+export function moveLibraryItem(doc,kind,key,parentId){
+ const target=parentId||LIBRARY_ID,before=ensureItem(doc,kind,key,target);
+ if(before!==doc)return before;
+ const nodes=doc.tables.bullets,rootId=(kind==='bookmark'?doc.web.bookmarkNoteRoots:doc.web.readingNoteRoots)[key];
+ const base=target===LIBRARY_ID?withLibrary(doc):doc;
+ if(!base.tables.bullets.some(n=>n.id===target))throw Error('That bullet no longer exists.');
+ if(descendants(nodes,rootId).has(target))throw Error('An item cannot move inside its own notes.');
+ const count=base.tables.bullets.filter(n=>n.parentId===target&&n.id!==rootId).length;
+ return withNodes(base,move(base.tables.bullets,rootId,target,count));
 }
 
-/** Where a new item goes: the folder being viewed, or Library. */
+/** Where a new item goes: into the folder being viewed; otherwise it stays not organized. */
 export function placeNewItem(doc,kind,key,folder){
- const roots=kind==='bookmark'?doc.web.bookmarkNoteRoots:doc.web.readingNoteRoots,rootId=roots?.[key];
- if(!rootId||!folder||folder==='unsorted')return doc;
- return doc.tables.bullets.some(n=>n.id===folder)?moveLibraryItem(doc,rootId,folder):doc;
+ if(!folder||folder==='unsorted'||!doc.tables.bullets.some(n=>n.id===folder))return doc;
+ return moveLibraryItem(doc,kind,key,folder);
 }

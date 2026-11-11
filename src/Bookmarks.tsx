@@ -3,7 +3,7 @@ import {captureLocalArticle} from './local-article';
 import {storageAccountKey} from './data-store';
 import {BookmarkLibrary} from './BookmarkLibrary';
 import {LibraryNavigator,MovePicker,useLibraryTree,type Folder} from './LibraryNavigator';
-import {ensureLibrary,moveLibraryItem,placeNewItem,inFolder} from './library-outline.mjs';
+import {moveLibraryItem,placeNewItem,inFolder} from './library-outline.mjs';
 import {selectionText} from './article-selection-text.mjs';
 import {useArticleTouchSelection} from './useArticleTouchSelection';
 import {BookmarkTagsDialog} from './BookmarkTagsDialog';
@@ -55,7 +55,7 @@ export function Bookmarks({doc,user,assets,disabled,onChange,onNotes,target,onTe
  function jump(start:number,end:number){const range=article.current&&articleRange(article.current,start,end);if(range){range.startContainer.parentElement?.scrollIntoView({block:'center'});const registry=(globalThis.CSS as any)?.highlights,H=(globalThis as any).Highlight;if(registry&&H)registry.set('web-search',new H(range));}}
  useEffect(()=>{const id=jumpHighlight||target?.highlight,h=id&&doc.web.webHighlights?.[id];if(snapshot&&h&&h.hash===snapshot._readerHash&&h.bookmarkId===book?.id&&article.current){const found=resolveQuote(article.current.textContent||'',h);if(found)jump(found.start,found.end);else setError('This passage could not be located. Its saved note is unchanged.');}},[target,snapshot,jumpHighlight]);
  const patch=(b:any,p:any)=>onChange(d=>patchBookmark(d,b.id,p));
- async function save(value:string){try{setError('');const result=addBookmark(latest.current.doc,value);onChange(d=>placeNewItem(ensureLibrary(patchBookmark(d,result.bookmark.id,result.bookmark)),'bookmark',result.bookmark.id,folder));if((user||isDesktop())&&!result.bookmark.snapshotHash)await extract(result.bookmark);else setActive(result.bookmark.id);return true;}catch(e){setError((e as Error).message);return false;}}
+ async function save(value:string){try{setError('');const result=addBookmark(latest.current.doc,value);onChange(d=>placeNewItem(patchBookmark(d,result.bookmark.id,result.bookmark),'bookmark',result.bookmark.id,folder));if((user||isDesktop())&&!result.bookmark.snapshotHash)await extract(result.bookmark);else setActive(result.bookmark.id);return true;}catch(e){setError((e as Error).message);return false;}}
  async function extract(b:any){
   if(!user){const account=storageAccountKey();setBusy(b.id);setError('');try{const {article,blob,hash}=await captureLocalArticle(b.url);if(storageAccountKey()!==account)throw Error('The workspace changed. Open the article again.');await cacheArticle(account,hash,blob);const path='articles/'+hash+'.json';onChange(d=>refreshBookmark(d,b.id,{title:article.title,excerpt:article.excerpt,snapshotHash:hash,snapshotSize:blob.size,readingMinutes:Math.max(1,Math.ceil(article.text.split(/\s+/).length/220)),capturedAt:article.capturedAt,snapshotPath:path}),new Map([[path,blob]]));setSourceHash(null);setActive(b.id);}catch(e){setError((e as Error).message);setActive(b.id);}finally{setBusy('');}return;}
   const uid=user.uid;setBusy(b.id);setError('');try{
@@ -85,7 +85,7 @@ export function Bookmarks({doc,user,assets,disabled,onChange,onNotes,target,onTe
  {capture&&<ArticleCapturePreview url={capture.preview} error={error} disabled={disabled} onSave={()=>{try{keepCapture();}catch(e){setError((e as Error).message);}}} onClose={()=>{URL.revokeObjectURL(capture.preview);setCapture(null);}}/>}
  </>:<div className="library-with-nav"><LibraryNavigator doc={doc} kind="bookmark" folder={folder} onFolder={setFolder} onOpenNotes={id=>onNotes?.(id)}/><BookmarkLibrary bookmarks={shown} noteCounts={noteCounts} progress={progress} offline={offlineHashes} thumbnails={thumbnails} assets={assets} busy={busy} error={error} disabled={disabled} onSave={save} onOpen={(id,showNotes=false)=>{setSourceHash(null);setActive(id);setNotes(showNotes);setEditingNote(null);}} onPatch={(ids,patch)=>{if(!disabled)onChange(d=>patchBookmarks(d,ids,patch));}} onTags={b=>setTagsTarget({id:b.id,value:b.tags.join(', ')})} onMove={(b:any)=>setMoveTarget(b)}/></div>}
 
- {moveTarget&&<MovePicker doc={doc} title={moveTarget.title} exclude={doc.web.bookmarkNoteRoots?.[moveTarget.id]} onClose={()=>setMoveTarget(null)} onPick={parent=>{const id=moveTarget.id;setMoveTarget(null);if(disabled)return;try{onChange(d=>{const e=ensureLibrary(d);return moveLibraryItem(e,e.web.bookmarkNoteRoots[id],parent);});}catch(e){setError((e as Error).message);}}}/>}
+ {moveTarget&&<MovePicker doc={doc} title={moveTarget.title} exclude={doc.web.bookmarkNoteRoots?.[moveTarget.id]} onClose={()=>setMoveTarget(null)} onPick={parent=>{const id=moveTarget.id;setMoveTarget(null);if(disabled)return;try{onChange(d=>moveLibraryItem(d,'bookmark',id,parent));}catch(e){setError((e as Error).message);}}}/>}
  {tagsTarget&&<BookmarkTagsDialog value={tagsTarget.value} onClose={()=>setTagsTarget(null)} onSave={value=>{onChange(d=>patchBookmark(d,tagsTarget.id,{tags:value.split(',').map(t=>t.trim().slice(0,100)).filter(Boolean).slice(0,30)}));setTagsTarget(null);}}/>}
  </section>;
 }

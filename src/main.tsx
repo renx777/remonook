@@ -37,7 +37,6 @@ import {isDesktop,installDesktopLinks} from './desktop';
 import {DesktopSignIn} from './DesktopSignIn';
 import {DesktopUpdate} from './DesktopUpdate';
 import {DesktopSettings} from './DesktopSettings';
-import {ensureLibrary} from './library-outline.mjs';
 import {FocusPill} from './FocusPill';
 import {LocalSyncPairing} from './LocalSyncSettings';
 import {QuickCapture} from './QuickCapture';
@@ -1447,7 +1446,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     ...Object.fromEntries(Object.entries(doc.web.bookmarkNoteRoots||{}).filter(([id])=>doc.web.bookmarks?.[id]&&!doc.web.bookmarks[id].deleted).map(([id,root]:[string,any])=>[root,{kind:"web",bookmarkId:id,highlightId:"",url:doc.web.bookmarks[id].url,label:"Article",chip:true}])),
     ...Object.fromEntries(Object.entries(doc.web.readingNoteRoots||{}).filter(([hash])=>readingBook(doc,hash)).map(([hash,root]:[string,any])=>[root,{hash,unit:readingPosition(doc,readingBook(doc,hash)),id:"",label:"Book",chip:true}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,doc?.web.bookmarks,doc?.web.readingBooks,doc?.web.readingProgress]);
   // Every bookmark and book gets its bullet (new ones under Library).
-  useEffect(()=>{if(!doc||working||failed.current)return;const next=ensureLibrary(doc);if(next!==doc)commit(next,undefined,false);},[doc?.web.bookmarks,doc?.web.readingBooks,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,doc?.web.libraryVersion,!!doc,working]);
   const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader,openWeb:(id:string,highlight:string,snapshotHash?:string)=>{setEditing(null);setBookmarkTarget({id,highlight,snapshotHash});setTab("bookmarks");}}),[readingSourceMap,openReader]);
   if (!doc)
     return (
