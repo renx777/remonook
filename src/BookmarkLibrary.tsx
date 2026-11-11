@@ -831,7 +831,7 @@ function SavePage({
           />
         </label>
         <p className="bl-dialog-copy">
-          Keep the link in your reading list. Sign in to save a clean article
+          Keep the link in your reading list. Save a clean article
           copy for offline reading.
         </p>
         {error && (

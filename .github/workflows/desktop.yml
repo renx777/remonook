@@ -34,9 +34,10 @@ jobs:
             os: ubuntu-22.04
             bundle: src-tauri/target/release/bundle
             args: --bundles deb,appimage
-          # One app for both Apple silicon and Intel Macs.
+          # One app for both Apple silicon and Intel Macs. Use the Intel host: hosted
+          # ARM runners can exhaust capacity and cancel queued release jobs.
           - platform: macos
-            os: macos-latest
+            os: macos-15-intel
             bundle: src-tauri/target/universal-apple-darwin/release/bundle
             args: --target universal-apple-darwin --bundles app,dmg
     env:

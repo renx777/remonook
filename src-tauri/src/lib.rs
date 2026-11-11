@@ -9,6 +9,7 @@
 //! - local AI apps over MCP, and `RemoNook --mcp`, a stdio bridge to them (`local_mcp`);
 //! - local sync between paired devices on the same network (`local_sync`).
 
+mod local_article;
 mod desktop;
 mod folders;
 mod google;
@@ -58,6 +59,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            local_article::local_article_fetch,
             google::google_sign_in_start,
             google::google_sign_in_wait,
             folders::folder_pick,

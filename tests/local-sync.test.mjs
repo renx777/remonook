@@ -83,3 +83,15 @@ test('local sync: attachments travel by content hash',async()=>{
  assert.deepEqual([...new Uint8Array(await got.arrayBuffer())],[137,80,78,71,1,2,3,4]);
  assert.equal(got.type,'image/png');
 });
+
+test('local sync carries bookshelf originals separately from note attachments',async()=>{
+ const {cachedBook,localBookScope,bookPath}=await import('./.build/local-books.mjs');const {digest}=await import('./.build/data-store.mjs');
+ const net=network(),a=net.add('A','remo-web-local-bookspeer01'),b=net.add('B','remo-web-local-bookspeer02');
+ const original=new Blob(['%PDF-1.7\noriginal on A'],{type:'application/pdf'}),hash=await digest(await original.arrayBuffer()),id=crypto.randomUUID();
+ const doc=empty();doc.web.readingBooks={[id]:{id,name:'Local.pdf',title:'Local',format:'pdf',size:original.size,hash,createdAt:1,position:0,deleted:false}};
+ await cachedBook(localBookScope(a.storage),id+':'+hash,original);await save(null,doc,'book',undefined,false,[],undefined,a.storage);
+ net.link('A','B');await net.connect();await net.settle();
+ const received=await cachedBook(localBookScope(b.storage),id+':'+hash);assert.ok(received);assert.equal(await received.text(),await original.text());
+ assert.deepEqual(await syncOperation('peer-assets',{},b.storage),[],'books do not enter the note attachment manifest');
+ assert.equal((await projection(b.storage)).web.readingBooks[id].hash,hash);
+});

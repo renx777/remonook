@@ -64,7 +64,7 @@ pub(crate) fn plain_name(name: &str) -> bool {
 pub(crate) fn asset_path(path: &str) -> bool {
     let mut parts = path.split('/');
     let (Some(dir), Some(file), None) = (parts.next(), parts.next(), parts.next()) else { return false };
-    ["media", "emoji", "articles"].contains(&dir)
+    ["media", "emoji", "articles", "books"].contains(&dir)
         && file != "."
         && file != ".."
         && !file.is_empty()
@@ -198,7 +198,7 @@ pub(crate) fn write_folder(dir: &Path, write: &Write) -> Result<String, String> 
 pub fn folder_assets(app: tauri::AppHandle, path: String) -> Result<Vec<String>, String> {
     let dir = root(&app, &path)?.join("attachments");
     let mut out = vec![];
-    for sub in ["media", "emoji", "articles"] {
+    for sub in ["media", "emoji", "articles", "books"] {
         if let Ok(entries) = fs::read_dir(dir.join(sub)) {
             for entry in entries.flatten() {
                 let name = format!("{sub}/{}", entry.file_name().to_string_lossy());
@@ -280,6 +280,7 @@ mod tests {
         }
         assert!(asset_path("media/abc_1.png"));
         assert!(asset_path("articles/0123abcd.json"));
+        assert!(asset_path("books/0123abcd.pdf"));
         for bad in ["media/../x", "media/a/b.png", "other/a.png", "media/", "media/a b.png", "/media/a.png"] {
             assert!(!asset_path(bad), "{bad}");
         }

@@ -7,6 +7,7 @@
 import { desktopInvoke, isDesktop } from './desktop';
 import { load, save, getAssets, onWorkspaceSaved, type Workspace } from './data-store';
 import { type LocalWorkspace } from './workspaces';
+import { localBookFiles, localBookManifest, restoreLocalBook, isBookPath } from './local-books';
 import { workspaceMarkdown } from './folder-markdown.mjs';
 
 export const FOLDER_FORMAT = 'remonook-workspace';
@@ -53,7 +54,8 @@ export async function importFromFolder(w: LocalWorkspace, storage: string): Prom
   if (file.saveId === known.saveId) { writeKnown(storage, { ...known, stamp: r.stamp }); return false; }
   const assets = new Map<string, Blob>();
   for (const path of await desktopInvoke<string[]>('folder_assets', { path: w.folder })) {
-    assets.set(path, fromBase64(await desktopInvoke<string>('folder_read_asset', { path: w.folder, asset: path }), file.assetTypes[path] || ''));
+    const blob=fromBase64(await desktopInvoke<string>('folder_read_asset', { path: w.folder, asset: path }), file.assetTypes[path] || '');
+    if(isBookPath(path))await restoreLocalBook(file.workspace,storage,path,blob);else assets.set(path,blob);
   }
   const current = await load(storage);
   const incoming: Workspace = { ...file.workspace, web: { ...file.workspace.web, ...(current?.web?.deviceId ? { deviceId: current.web.deviceId } : {}) } };
@@ -91,12 +93,14 @@ export function startFolderMirror(w: LocalWorkspace, storage: string, { flush, o
       written ||= new Set(await desktopInvoke<string[]>('folder_assets', { path: folder }));
       const [doc, assets] = await Promise.all([load(storage), getAssets(storage)]);
       if (!doc) return;
+      for(const [path,blob] of await localBookFiles(doc,storage))assets.set(path,blob);
       const saveId = crypto.randomUUID(), assetTypes: Record<string, string> = {};
       for (const [path, blob] of assets) if (blob.type) assetTypes[path] = blob.type;
       const file: FolderFile = { format: FOLDER_FORMAT, version: 1, name: w.name, saveId, savedAt: Date.now(), assetTypes, workspace: doc };
       const add: [string, string][] = [];
       for (const [path, blob] of assets) if (!written.has(path)) add.push([path, await toBase64(blob)]);
-      const remove = [...written].filter(p => !assets.has(p));
+      const expectedBooks=new Set(localBookManifest(doc).map(b=>b.path));
+      const remove = [...written].filter(p => !assets.has(p)&&!expectedBooks.has(p));
       const stamp = await desktopInvoke<string>('folder_write', { path: folder, write: { doc: JSON.stringify(file), expect: readKnown(storage).stamp, markdown: workspaceMarkdown(doc), assets: add, remove_assets: remove } });
       for (const [p] of add) written.add(p); for (const p of remove) written.delete(p);
       writeKnown(storage, { stamp, saveId, revision: doc.revision });
@@ -117,6 +121,8 @@ export function startFolderMirror(w: LocalWorkspace, storage: string, { flush, o
   }).catch(failed);
   // Changes made elsewhere are picked up when the window comes back to the front.
   const focus = () => { void desktopInvoke<string | null>('folder_stamp', { path: folder }).then(stamp => { if (stamp && stamp !== readKnown(storage).stamp) void external(); }).catch(() => {}); };
+  const books=(event:Event)=>{if((event as CustomEvent).detail===storage)schedule();};
+  window.addEventListener('remo-local-books',books);
   window.addEventListener('focus', focus);
-  return () => { onWorkspaceSaved(null); flushMirror = async () => {}; window.removeEventListener('focus', focus); if (timer) clearTimeout(timer); };
+  return () => { window.removeEventListener('remo-local-books',books);onWorkspaceSaved(null); flushMirror = async () => {}; window.removeEventListener('focus', focus); if (timer) clearTimeout(timer); };
 }

@@ -43,7 +43,7 @@ export function inspectZip(buffer: ArrayBuffer) {
     seen.add(name);
     if (
       name !== "remo.json" &&
-      (!(/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(name)||/^articles\/[a-f0-9]{64}\.json$/.test(name)) ||
+      (!(/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(name)||/^articles\/[a-f0-9]{64}\.json$/.test(name)||/^books\/[a-f0-9]{64}\.(pdf|epub)$/.test(name)) ||
         [".", ".."].includes(name.split("/")[1]))
     )
       throw Error("Unsafe backup entry");
