@@ -2035,7 +2035,12 @@ hr {
 
 /* Quiet, rounded scrollbars across notes, menus, dialogs, shelves and study. */
 :root, .app { --scroll-thumb: color-mix(in srgb, var(--muted, #888) 36%, transparent); --scroll-thumb-hover: color-mix(in srgb, var(--muted, #888) 65%, transparent); }
-*, *::before, *::after { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+/* Standard properties where supported (Chromium, Firefox). Safari ignores the ::-webkit-scrollbar
+   rules below once scrollbar-width is set, which showed a plain white bar in the macOS app. */
+@supports (scrollbar-color: red blue) { *, *::before, *::after { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; } }
+/* Native parts (scrollbars, form controls) follow the theme. */
+.app[data-theme="Dark"], .app[data-theme="Dracula"], .app[data-theme="Nord"], .app[data-theme="Gruvbox"], .app[data-theme="Catppuccin Mocha"] { color-scheme: dark; }
+.app[data-theme="Light"], .app[data-theme="Catppuccin Latte"] { color-scheme: light; }
 *::-webkit-scrollbar { width: 7px; height: 7px; }
 *::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: transparent; }
 *::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border: 2px solid transparent; background-clip: padding-box; border-radius: 999px; }

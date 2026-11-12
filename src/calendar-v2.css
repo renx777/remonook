@@ -6,6 +6,8 @@
   height: 100%;
   overflow: hidden;
 }
+.calendar-view.cal2.cal2-aside-hidden { grid-template-columns: minmax(0, 1fr); }
+.cal2-aside-hidden > .cal2-aside { display: none; }
 .cal2-page {
   min-width: 0;
   overflow-y: auto;
@@ -647,3 +649,6 @@
 .cal2-add {
   gap: 0;
 }
+
+/* Phones stack the month and agenda under the day, so there is nothing to hide. */
+@media (max-width: 760px) { .cal2-aside-toggle { display: none; } .calendar-view.cal2.cal2-aside-hidden > .cal2-aside { display: contents; } }

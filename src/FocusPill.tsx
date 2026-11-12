@@ -39,7 +39,7 @@ export function FocusPill({ doc, disabled, onChange, onOpen }: { doc: Workspace;
   const done = 1 - remaining / Math.max(1, timer.duration);
   return <div className="focus-pill-wrap" ref={box}>
     <button className={`focus-pill is-${running ? (mode === 'focus' ? 'focus' : 'break') : 'paused'}`} aria-expanded={open} aria-label={`${label} timer, ${fmt(remaining)} left. Open timer`} onClick={() => setOpen(v => !v)}>
-      {running ? <span className="focus-pill-dot" aria-hidden="true" /> : <Icon name="pause" size={12} />}{label} <span className="focus-pill-time">{fmt(remaining)}</span>
+      {running ? <span className="focus-pill-dot" aria-hidden="true" /> : <Icon name="pause" size={12} />}<span className="focus-pill-label">{label}</span> <span className="focus-pill-time">{fmt(remaining)}</span>
     </button>
     {open && <div className="focus-pill-pop" role="dialog" aria-label="Focus timer">
       <div className="focus-pill-kind">{mode === 'focus' ? 'Focus' : mode === 'short' ? 'Short break' : 'Long break'}{running ? '' : ' · paused'}</div>

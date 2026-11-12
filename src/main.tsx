@@ -38,6 +38,9 @@ import {DesktopSignIn} from './DesktopSignIn';
 import {DesktopUpdate} from './DesktopUpdate';
 import {DesktopSettings} from './DesktopSettings';
 import {AndroidUpdate} from './AndroidUpdate';
+import {useBackClose} from './back-stack';
+import {MobileNav} from './MobileNav';
+import {ViewStats} from './ViewStats';
 import {FocusPill} from './FocusPill';
 import {LocalSyncPairing,LocalSyncSettings} from './LocalSyncSettings';
 import {QuickCapture} from './QuickCapture';
@@ -190,6 +193,7 @@ function Dialog({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  useBackClose(true, onClose);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -308,6 +312,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const cancelView=()=>{if(viewTimer.current)clearTimeout(viewTimer.current);viewTimer.current=null;};
   const publishView=(immediate=false)=>{cancelView();if(!docRef.current)return;const publish=()=>{setDoc(docRef.current);setHistoryTick(t=>t+1);};if(immediate)publish();else startTransition(publish);};
   const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);setEditingState(value);};
+  // Phones: the back button finishes editing (and so brings back the bottom navigation).
+  useBackClose(!!editing, () => setEditing(null));
   const queueView=()=>{cancelView();viewTimer.current=setTimeout(()=>publishView(),220);};
   useEffect(()=>()=>{if(viewTimer.current)clearTimeout(viewTimer.current);},[]);
   // Keep the active mobile destination visible by scrolling only the bottom bar, never the page.
@@ -1724,6 +1730,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="redo" />
             </button>
             <button className="icon-button" aria-label="Commands & notes" title={`Commands & notes (${modLabel()} K)`} onClick={()=>{if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="commands" size={17}/></button>
+            {doc&&<ViewStats doc={doc} tab={tab} scope={scope} scopeTitle={String(current?.text||'').replace(/<[^>]*>/g,'').trim()} calendarDate={calendarDate} counts={notesFilterCounts} kinds={NOTE_FILTERS as any}/>}
             <button data-guide-help className="icon-button" aria-label="Show me how" title="Show me how" onClick={()=>{setViewMenu(false);setMenu(null);setDialog("help");}}><Icon name="help" size={17}/></button>
             <CloudDeviceSaveIndicator signal={deviceStatus} isPending={()=>!!cloudUser&&(dirty.current||persisted.current?.revision!==cloud.acknowledgedRevision)} cloudSignal={cloud.signal} connected={!!cloudUser} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
             {<button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
@@ -1765,7 +1772,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               const tabs=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')),at=tabs.indexOf(document.activeElement as HTMLButtonElement);
               if(at<0)return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(at+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click();
             }}>
-              {NOTE_FILTERS.filter(([kind])=>['all','notes','calendar'].includes(kind)||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} id={`notes-filter-${kind}`} role="tab" aria-controls="notes-filter-panel" tabIndex={notesFilter===kind?0:-1} aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}{kind!=='all'&&<span>{notesFilterCounts[kind]||0}</span>}</button>)}
+              {NOTE_FILTERS.filter(([kind])=>['all','notes','calendar'].includes(kind)||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} id={`notes-filter-${kind}`} role="tab" aria-controls="notes-filter-panel" tabIndex={notesFilter===kind?0:-1} aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}</button>)}
             </div>
             <div id="notes-filter-panel" role="tabpanel" aria-labelledby={`notes-filter-${notesFilter}`} className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
             {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
@@ -1932,30 +1939,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </>
         )}
         {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
-        <nav className="mobile-nav" aria-label="Mobile navigation">
-          {[
-            ["dashboard", "Dashboard", "dashboard"],
-            ["notes", "Notes", "notes"],
-            ["calendar", "Calendar", "calendar"],
-            ["study", "Study Desk", "study"],
-              ["bookshelf", "Bookshelf", "study"],
-              ["mindmap", "Mindmap", "mindmap"],
-              ["bookmarks", "Bookmarks", "link"],
-          ].map(([id, label, icon]) => (
-            <button
-              key={id}
-              aria-current={tab===id?"page":undefined}
-              className={tab === id ? "nav-active" : ""}
-              onClick={() => {
-                if(id==='mindmap')setMindmapTarget(null);setTab(id);
-                setEditing(null);
-              }}
-            >
-              <Icon name={icon} />
-              {label}
-            </button>
-          ))}
-        </nav>
+        <MobileNav tab={tab} onTab={id=>{if(id==='mindmap')setMindmapTarget(null);setTab(id);setEditing(null);}}/>
       </main>
       {tagEditor&&<Dialog title={`Tag settings · #${tagEditor}`} onClose={()=>setTagEditor(null)}><TagSettingsForm key={tagEditor} nodes={nodes} tag={tagEditor} settings={tagSettings} disabled={disabled} onSave={saveTagSetting} onRename={renameTag} onClose={()=>setTagEditor(null)}/></Dialog>}
       {nodeDate&&<Dialog title="Bullet date" onClose={()=>setNodeDate(null)}><form onSubmit={e=>{e.preventDefault();mutate(ns=>ns.map(n=>n.id===nodeDate.id?{...n,dueDate:nodeDate.date}:n));setNodeDate(null);}}><label className="field-label">Date<input data-autofocus type="date" aria-label="Bullet date" value={nodeDate.date} onChange={e=>setNodeDate({...nodeDate,date:e.target.value})}/></label><button type="submit" className="study-primary">Save date</button></form></Dialog>}

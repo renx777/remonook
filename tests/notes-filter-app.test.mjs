@@ -6,7 +6,7 @@ test('Notes filter shows whole flashcard bullets editable in place, and a two-fi
  await save(null,withNodes(empty(),[bullet('ml',{text:'Machine Learning'}),bullet('q',{parentId:'ml',text:'What is overfitting?',kind:'QUESTION'}),bullet('a',{parentId:'q',text:'Memorising training data'}),bullet('other',{parentId:'ml',position:1,text:'Plain note'})]));let app;
  try{await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="ml"]'));
   const tabs=()=>[...document.querySelectorAll('.notes-filter [role="tab"]')];
-  assert.deepEqual(tabs().map(t=>t.textContent),['All','Notes1','📅Calendar0','🃏Flashcards1'],'All, Notes and Calendar stay available; other filters show when populated');
+  assert.deepEqual(tabs().map(t=>t.textContent),['All','Notes','📅Calendar','🃏Flashcards'],'All, Notes and Calendar stay available; other filters show when populated');
   await act(async()=>{tabs()[0].focus();tabs()[0].dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));});
   assert.equal(tabs()[1].getAttribute('aria-selected'),'true');assert.equal(document.querySelector('[data-node-id="q"]'),null,'arrow navigation activates Notes');
   await click(tabs().find(t=>t.textContent.includes('Flashcards')));await wait(()=>!document.querySelector('[data-node-id="other"]'));

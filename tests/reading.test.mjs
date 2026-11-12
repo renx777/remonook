@@ -81,3 +81,12 @@ test('new book notes do not reuse IDs stored in the real serialized Trash payloa
  const trashed={...one,tables:{...one.tables,bullets:[],trash:[{id:crypto.randomUUID(),payload:JSON.stringify({nodes:one.tables.bullets,media:[]})}]}};
  const next=addReadingNote(trashed,book,crypto.randomUUID());assert.notEqual(next.web.readingNoteRoots[hash],oldRoot);assert.equal(JSON.parse(next.tables.trash[0].payload).nodes[0].id,oldRoot);assert.equal(next.tables.bullets.filter(n=>!n.parentId).length,1);
 });
+test('book text colour: stored as style text, switches with a highlight, and validates',()=>{
+ const one=captureReadingHighlight(base(),book,select,fingerprint,{color:'rose',style:'text'}).doc,h=Object.values(one.web.readingHighlights)[0];
+ assert.equal(h.style,'text');assert.equal(h.color,'rose');validateReading(one.web);
+ const back=captureReadingHighlight(one,book,select,fingerprint,{color:'rose'}).doc,h2=Object.values(back.web.readingHighlights)[0];
+ assert.equal('style' in h2,false,'choosing a highlight again turns the text colour back into a highlight');
+ const plain=captureReadingHighlight(base(),book,select,fingerprint,{color:'green'}).doc;
+ assert.equal('style' in Object.values(plain.web.readingHighlights)[0],false,'ordinary highlights keep their old shape');
+ assert.throws(()=>validateReading({...one.web,readingHighlights:{[h.id]:{...h,style:'glow'}}}),/Invalid reading highlight/);
+});
