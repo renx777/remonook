@@ -44,7 +44,7 @@ export function WorkspaceSwitcher() {
   const mainLabel = signedIn ? 'Synced to your account' : 'On this device · not signed in';
   const list = localWorkspaces();
   return <div className="workspace-switcher" ref={box}>
-    <button className="workspace-current" aria-haspopup="menu" aria-expanded={!!mode} onClick={() => mode ? setMode(null) : open({ kind: 'menu' })}>
+    <button className="workspace-current" title={`Workspace: ${active ? active.name : 'My notes'}`} aria-haspopup="menu" aria-expanded={!!mode} onClick={() => mode ? setMode(null) : open({ kind: 'menu' })}>
       <span className="workspace-icon" aria-hidden="true">{active ? '💻' : signedIn ? '☁️' : '🏠'}</span>
       <span className="workspace-text"><strong>{active ? active.name : 'My notes'}</strong><small>{active ? (active.folder || active.peerSync ? folderLabel(active) : 'This device only · never synced') : mainLabel}</small></span>
       <span className="workspace-chevron" aria-hidden="true">▾</span>

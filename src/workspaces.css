@@ -58,3 +58,12 @@
 .local-sync-code { font-size: 36px !important; font-weight: 700; letter-spacing: .14em; font-variant-numeric: tabular-nums; margin: 6px 0 14px !important; }
 .local-sync-request-card button { margin-top: 6px; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line, #d6d6d6); background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .local-sync-request-card .primary { background: var(--accent, #2b6f8f); border-color: transparent; color: #fff; }
+/* Phones: a compact switcher in the top bar (the sidebar is hidden below 760px). */
+.mobile-workspace { display: none; }
+@media (max-width: 760px) {
+  .mobile-workspace { display: block; flex: 0 0 auto; }
+  .mobile-workspace .workspace-switcher { margin: 0; position: static; }
+  .mobile-workspace .workspace-current { gap: 2px; padding: 4px 6px; border-radius: 9px; min-height: 36px; }
+  .mobile-workspace .workspace-text { display: none; }
+  .mobile-workspace .workspace-menu { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; max-height: 70vh; overflow-y: auto; }
+}

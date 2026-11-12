@@ -1637,6 +1637,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           >
             <Icon name={sidebarShown ? "sidebarCollapse" : "menu"} />
           </button>
+          {/* Phones have no sidebar: the workspace switcher sits at the start of the top bar. */}
+          <div className="mobile-workspace"><WorkspaceSwitcher/></div>
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
           <div className="breadcrumbs">
