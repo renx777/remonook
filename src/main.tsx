@@ -41,6 +41,7 @@ import {AndroidUpdate} from './AndroidUpdate';
 import {useBackClose} from './back-stack';
 import {MobileNav} from './MobileNav';
 import {ViewStats} from './ViewStats';
+import {BreakOverlay,useDayBaseline} from './BreakOverlay';
 import {FocusPill} from './FocusPill';
 import {LocalSyncPairing,LocalSyncSettings} from './LocalSyncSettings';
 import {QuickCapture} from './QuickCapture';
@@ -314,6 +315,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);setEditingState(value);};
   // Phones: the back button finishes editing (and so brings back the bottom navigation).
   useBackClose(!!editing, () => setEditing(null));
+  useDayBaseline(doc, storageAccountKey());
   const queueView=()=>{cancelView();viewTimer.current=setTimeout(()=>publishView(),220);};
   useEffect(()=>()=>{if(viewTimer.current)clearTimeout(viewTimer.current);},[]);
   // Keep the active mobile destination visible by scrolling only the bottom bar, never the page.
@@ -1632,6 +1634,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       </aside>
       {isDesktop()&&<DesktopUpdate flush={flush}/>}
       {isMobileApp()&&<AndroidUpdate/>}
+      {doc&&<BreakOverlay doc={doc} storageKey={storageAccountKey()} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
       {isApp()&&<LocalSyncPairing/>}
       <main ref={sidebarMotion.mainRef}>
         <header className="topbar">

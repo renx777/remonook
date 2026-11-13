@@ -62,8 +62,14 @@ test('dashboard widgets customize, save habits, survive timer suspension, captur
   await click(textButton('.dash-timer-controls button','Start'));
   state=await stored();const deadline=state.web.dashboard.widgets['default-focus'].timer.endsAt;
   await act(async()=>{Date.now=()=>deadline+1000;window.dispatchEvent(new window.Event('focus'));});
-  await wait(()=>document.querySelector('.dash-focus-foot').textContent.includes('Session complete'));
+  // The finished session is recorded and the break starts on its own, with the break screen up.
+  await wait(()=>document.querySelector('.break-overlay .break-time'));
   state=await stored();assert.equal(Object.keys(state.web.dashboard.focusSessions).length,1);
+  assert.equal(state.web.dashboard.widgets['default-focus'].timer.mode,'short');assert.match(document.querySelector('.break-overlay').textContent,/Today so far.*1Focus sessions/);
+  // When the break is over the screen goes and the timer is ready for the next session.
+  const breakEnds=state.web.dashboard.widgets['default-focus'].timer.endsAt;
+  await act(async()=>{Date.now=()=>breakEnds+1000;window.dispatchEvent(new window.Event('focus'));});
+  await wait(()=>!document.querySelector('.break-overlay .break-time'));
   Date.now=realNow;await act(async()=>window.dispatchEvent(new window.Event('focus')));
   const today=localDate();await click(`[aria-label="Read for 10 minutes on ${today}"]`);
   assert.equal((await stored()).web.dashboard.checks['habit-read:'+today],true);

@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { Workspace } from './data';
 import { dashboard, timerRemaining, timerDuration, updateWidget, finishTimer } from './dashboard.mjs';
 import { Icon } from './icons';
+import { endTimer } from './focus-break.mjs';
 import './dashboard.css';
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -23,7 +24,7 @@ export function FocusPill({ doc, disabled, onChange, onOpen }: { doc: Workspace;
   useEffect(() => { if (!running) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [running]);
   const remaining = widget ? timerRemaining(widget, now) : 0;
   // The timer ends here too when the Dashboard is not open.
-  useEffect(() => { if (widget && running && remaining === 0 && !disabled) onChange(d => finishTimer(d, widget.id)); }, [widget?.id, running, remaining, disabled]);
+  useEffect(() => { if (widget && running && remaining === 0 && !disabled) onChange(d => endTimer(d, widget.id)); }, [widget?.id, running, remaining, disabled]);
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === 'Escape' : !box.current?.contains(e.target as Node)) setOpen(false); };

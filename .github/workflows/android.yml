@@ -16,12 +16,6 @@ on:
         type: choice
         options: [staging, production]
         default: staging
-  # Until this workflow is on main (GitHub only offers "Run workflow" for files on the default
-  # branch), changes to the Android app on this branch build a staging APK. Remove this trigger
-  # when merging.
-  push:
-    branches: [ccr-641b18bf-2fe80f]
-    paths: ['.github/workflows/android.yml', 'src/**', 'src-tauri/**', 'package.json']
 permissions:
   contents: read
 concurrency:

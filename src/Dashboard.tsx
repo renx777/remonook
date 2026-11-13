@@ -1,3 +1,4 @@
+import {endTimer} from './focus-break.mjs';
 import {ReadingWidget} from './ReadingWidget';
 import {GoogleTasksWidget} from './GoogleTasksWidget';
 import {QuotesWidget} from './QuotesWidget';
@@ -187,7 +188,7 @@ export function Dashboard({doc,disabled,onChange,onCapture,onNote,onStudy,onCale
       </div></header>
       <div className="dash-widget-body">
        {widget.kind==='clock'&&<ClockWidget widget={widget}/>}
-       {widget.kind==='focus'&&<FocusWidget widget={widget} disabled={disabled} sessions={value.focusSessions} onUpdate={timer=>change(doc=>updateWidget(doc,widget.id,{timer}))} onFinish={()=>change(doc=>finishTimer(doc,widget.id))}/>}
+       {widget.kind==='focus'&&<FocusWidget widget={widget} disabled={disabled} sessions={value.focusSessions} onUpdate={timer=>change(doc=>updateWidget(doc,widget.id,{timer}))} onFinish={()=>change(doc=>endTimer(doc,widget.id))}/>}
        {widget.kind==='habits'&&<HabitsWidget widgetId={widget.id} mobile={mobile} expanded={!mobile||!!widget.settings.mobileExpanded} value={value} today={today} disabled={disabled} onChange={change}/>}
        {widget.kind==='capture'&&<CaptureWidget widget={widget} disabled={disabled} onCapture={onCapture} onNote={onNote}/>}
        {widget.kind==='agenda'&&<AgendaWidget doc={doc} today={today} disabled={disabled} onNote={onNote} onTask={onTask} onCalendar={onCalendar}/>}
