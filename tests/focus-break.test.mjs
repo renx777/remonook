@@ -44,3 +44,25 @@ test('today on the break screen: focus, new bullets since the day began, cards, 
  assert.deepEqual(s,{focusSessions:1,focusMinutes:25,bullets:2,cards:1,pages:2,saved:1,tasksDone:1,tasks:1});
  assert.equal(base.size,1);assert.equal(todayStats(doc,{now}).bullets,null,'without a baseline the count is left out, not guessed');
 });
+
+import {breakExtras} from '../src/focus-break.mjs';
+test('break screen extras: open to-dos (overdue first), coming reminders, and your own quote',()=>{
+ const doc=workspace(),today='2026-11-13';
+ doc.tables.bullets=[bullet('a',{text:'Later thing',taskState:'TODO'}),bullet('b',{text:'Late <b>report</b> #work',taskState:'TODO',dueDate:'2026-11-10'}),bullet('c',{text:'Done one',taskState:'DONE'}),bullet('d',{text:'Due today',taskState:'TODO',dueDate:today}),bullet('q',{text:'Stay hungry #quote\n— Someone'})];
+ doc.web.calendarEvents=[{id:'e1',kind:'bill',title:'Rent',date:'2026-11-14',time:'',repeat:'none',leadDays:3,countdown:false,completed:[]}];
+ const x=breakExtras(doc,{today,seed:'cycle-1'});
+ assert.deepEqual(x.todos.map(t=>[t.text,t.when]),[['Late report','Overdue'],['Due today','Today'],['Later thing','']]);
+ assert.equal(x.openTodos,3);
+ assert.deepEqual(x.reminders.map(r=>[r.title,r.when]),[['Rent','Tomorrow']]);
+ assert.equal(x.quote.text,'Stay hungry');assert.equal(x.quote.author,'Someone');
+ assert.deepEqual(breakExtras(doc,{today,seed:'cycle-1'}).quote,x.quote,'the same quote for the whole break');
+ const library=breakExtras({...doc,tables:{...doc.tables,bullets:[]}},{today,seed:'x'});
+ assert.equal(library.quote.source,'library','without quotes of your own, the library');
+});
+
+test('focus widget: ending a break early can be turned off, and old data stays valid',()=>{
+ let doc=workspace();const w=dashboard(doc).widgets['default-focus'];
+ doc=updateWidget(doc,'default-focus',{settings:{...w.settings,breakSkip:false}});
+ validateDashboard(dashboard(doc));
+ assert.throws(()=>validateDashboard({...dashboard(doc),widgets:{...dashboard(doc).widgets,'default-focus':{...w,settings:{...w.settings,breakSkip:'no'}}}}),/focus timer settings/);
+});

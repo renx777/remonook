@@ -16,3 +16,16 @@
 .break-skip{margin-top:28px;border:0;background:transparent;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer}
 .break-skip:hover{color:var(--text)}
 @media(prefers-reduced-motion:reduce){.break-progress span{transition:none}}
+.break-quote{margin:0 auto 26px;max-width:460px}
+.break-quote blockquote{margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.5;font-style:italic}
+.break-quote figcaption{margin-top:6px;font-size:13px;color:var(--muted)}
+.break-lists{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:22px;text-align:left}
+.break-lists section{padding:14px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.break-lists h2{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--muted);text-align:left}
+.break-lists ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.break-lists li{display:flex;align-items:baseline;gap:8px;font-size:14px;line-height:1.35}
+.break-lists li>span:not(.break-check){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.break-lists small{flex:0 0 auto;font-size:12px;color:var(--muted)}
+.break-lists small.is-late{color:#c0392b}
+.break-check{flex:0 0 auto;width:12px;height:12px;border:1.5px solid var(--muted);border-radius:4px;transform:translateY(1px)}
+.break-card{width:min(640px,100%)}

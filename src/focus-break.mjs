@@ -3,7 +3,8 @@
 // covered by the break screen (BreakOverlay.tsx). When the break ends, the timer is ready for
 // the next focus session. finishTimer (dashboard.mjs) still records the session.
 import {dashboard,finishTimer,timerDuration,changeDashboard} from './dashboard.mjs';
-import {localDate} from './calendar-events.mjs';
+import {localDate,calendarEvents,upcomingEvents,reminderWhen} from './calendar-events.mjs';
+import {noteQuotes,quotePool} from './quotes.mjs';
 
 const dayOf=ms=>localDate(new Date(ms));
 
@@ -56,4 +57,21 @@ export function dayBaseline(storageKey,ids,now=Date.now(),storage=globalThis.loc
   storage?.setItem(key,JSON.stringify({day:today,ids}));
  }catch{/* storage full or unavailable: count nothing rather than guess */return null;}
  return new Set(ids);
+}
+
+/** The rest of the break screen: open to-dos (overdue and due today first), the reminders coming
+ up, and a quote — one of yours (bullets tagged #quote) when you have any, otherwise from the
+ library, following the Quotes widget's source. The quote stays the same for the whole break. */
+export function breakExtras(doc,{today=localDate(),seed='',limit=5}={}){
+ const plainText=t=>String(t||'').replace(/<[^>]*>/g,' ').replace(/#\S+/g,'').replace(/\s+/g,' ').trim();
+ const open=doc.tables.bullets.filter(n=>n.taskState==='TODO'&&plainText(n.text));
+ const rank=n=>n.dueDate&&n.dueDate<today?0:n.dueDate===today||n.journalDate===today?1:n.dueDate?2:3;
+ const todos=open.slice().sort((a,b)=>rank(a)-rank(b)||String(a.dueDate||'9').localeCompare(String(b.dueDate||'9'))).slice(0,limit)
+  .map(n=>({id:n.id,text:plainText(n.text).slice(0,120),when:n.dueDate?(n.dueDate<today?'Overdue':n.dueDate===today?'Today':n.dueDate):n.journalDate===today?'Today':''}));
+ const reminders=upcomingEvents(calendarEvents(doc),today).slice(0,limit).map(e=>({key:e.key,title:e.title,when:reminderWhen(e)}));
+ const quoteWidget=Object.values(dashboard(doc).widgets||{}).find(w=>w?.kind==='quotes'&&!w.removed);
+ const mine=noteQuotes(doc.tables.bullets),pool=mine.length?mine:quotePool(mine,quoteWidget?.settings?.source||'all');
+ let h=0;for(const c of String(seed))h=(h*31+c.charCodeAt(0))>>>0;
+ const quote=pool.length?pool[h%pool.length]:null;
+ return {todos,openTodos:open.length,reminders,quote};
 }
