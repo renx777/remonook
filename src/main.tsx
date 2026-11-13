@@ -1,3 +1,5 @@
+import {retireDesktopOfflineShell} from './desktop';
+import {restoreLocalBook,isBookPath} from './local-books';
 import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
 import {aiContext,insertAi} from './ai-assist.mjs';
@@ -8,13 +10,21 @@ import {cacheArticle,articleAccount} from './article-cache.mjs';
 import {uploadCachedArticles} from './article-api';
 import {createUiSignal} from './ui-signal';
 import {KeyboardShortcuts} from './KeyboardShortcuts';
+import {FsrsPreferences} from './FsrsPreferences';
+/** Settings sections, grouped as shown in the section list. */
+const SETTINGS_GROUPS:[string,[string,string,string][]][]=[
+  ["You",[["appearance","Appearance","settings"],["account","Account and sync","people"]]],
+  ["Notes",[["study","Study","study"],["storage","Storage","folder"],["backups","Backups","folder"]]],
+  ["Apps",[["ai","AI apps","globe"],["connections","Connections","connections"],["desktop","Desktop","settings"]]],
+  ["Help",[["shortcuts","Keyboard shortcuts","help"]]],
+];
 import {CommandPalette} from './CommandPalette';
 import {bindWorkspaceShortcuts,modLabel,shortcutAllowed} from './workspace-shortcuts';
 import {GuidedTours} from './GuidedTours';
 import {VisualToolsContext,VisualToolLoader,type DiagramTarget} from './VisualTools';
 import {saveDiagram} from './visual-notes.mjs';
 import {ReadingSources,ReaderBoundary,ReaderStartup} from './ReadingSources';
-import {addReadingNote,captureReadingImage,readingBook,readingSources,validateReading} from './reading.mjs';
+import {addReadingNote,captureReadingImage,readingBook,readingPosition,readingSources,validateReading} from './reading.mjs';
 import {BookStorage} from './BookStorage';
 import {GoogleTasksProvider,GoogleTasksConnection} from './GoogleTasks';
 import {snapshotIndex,paneSnapshot} from './outline-snapshot.mjs';
@@ -23,11 +33,23 @@ import {restoreDeviceState,historyAfterSync} from './cloud-model.mjs';
 import {MobileEditToolbar} from './MobileEditToolbar';
 import {RemoLogo} from './RemoLogo';
 import {WorkspaceSwitcher} from './WorkspaceSwitcher';
-import {isDesktop,installDesktopLinks} from './desktop';
+import {isApp,isDesktop,isMobileApp,installDesktopLinks} from './desktop';
 import {DesktopSignIn} from './DesktopSignIn';
 import {DesktopUpdate} from './DesktopUpdate';
+import {DesktopSettings} from './DesktopSettings';
+import {AndroidUpdate} from './AndroidUpdate';
+import {useBackClose} from './back-stack';
+import {MobileNav} from './MobileNav';
+import {ViewStats} from './ViewStats';
+import {BreakOverlay,useDayBaseline} from './BreakOverlay';
+import {FocusPill} from './FocusPill';
+import {LocalSyncPairing,LocalSyncSettings} from './LocalSyncSettings';
+import {QuickCapture} from './QuickCapture';
+import {useDesktop} from './useDesktop';
+import {useLocalSync} from './local-sync';
+import {importFromFolder} from './workspace-folder';
 import './workspaces.css';
-import {activeLocalWorkspace,protectDeviceStorage} from './workspaces';
+import {activeLocalWorkspace,protectDeviceStorage,workspaceStorageName} from './workspaces';
 import {copyTargets,copyBranch} from './workspace-copy';
 import {ReleaseUpdate} from './ReleaseUpdate';
 import {CloudDeviceSaveIndicator,CloudAccountStatus} from './SaveIndicator';
@@ -172,6 +194,7 @@ function Dialog({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  useBackClose(true, onClose);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -252,6 +275,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     cloudApplying = useRef(false),
     [dialog, setDialog] = useState<string | null>(null),
     [settingsPanel,setSettingsPanel] = useState("appearance"),
+    // On a phone, Settings opens as a list of sections; a section then fills the screen.
+    [settingsList,setSettingsList] = useState(true),
     [mcqEditing, setMcqEditing] = useState<string | null>(null),
     [bulkMcqEditing, setBulkMcqEditing] = useState<string | null>(null),
     [menu, setMenu] = useState<string | null>(null),
@@ -288,6 +313,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const cancelView=()=>{if(viewTimer.current)clearTimeout(viewTimer.current);viewTimer.current=null;};
   const publishView=(immediate=false)=>{cancelView();if(!docRef.current)return;const publish=()=>{setDoc(docRef.current);setHistoryTick(t=>t+1);};if(immediate)publish();else startTransition(publish);};
   const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);setEditingState(value);};
+  // Phones: the back button finishes editing (and so brings back the bottom navigation).
+  useBackClose(!!editing, () => setEditing(null));
+  useDayBaseline(doc, storageAccountKey());
   const queueView=()=>{cancelView();viewTimer.current=setTimeout(()=>publishView(),220);};
   useEffect(()=>()=>{if(viewTimer.current)clearTimeout(viewTimer.current);},[]);
   // Keep the active mobile destination visible by scrolling only the bottom bar, never the page.
@@ -306,6 +334,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   useEffect(() => {
     (async () => {
       try {
+        // Desktop: a folder workspace opens the folder's version when it was changed elsewhere.
+        const folderWorkspace = activeLocalWorkspace();
+        if (isDesktop() && folderWorkspace?.folder) {
+          try { await importFromFolder(folderWorkspace, workspaceStorageName(folderWorkspace)); }
+          catch (e) { setError(`Could not read the folder “${folderWorkspace.folder}”: ${e instanceof Error ? e.message : String(e)} This workspace opens from the app's own copy.`); }
+        }
         const [stored, a] = await Promise.all([load(), getAssets()]);
         let initial = stored;
         // Signed-in accounts and device-only workspaces start empty; the guest workspace gets the sample notes.
@@ -388,11 +422,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     });
     return chain.current;
   };
-  const cloud = useCloudSync({onNotice:setNotice,user:cloudUser,revision:doc?.revision,ready:!!doc&&!failed.current,
+  // How sync (cloud, or local sync between devices) reads and updates the open workspace.
+  const syncHost = {onNotice:setNotice,revision:doc?.revision,ready:!!doc&&!failed.current,
     get:()=>({doc:docRef.current,assets:assetsRef.current}),flush,
     canApply:()=>!dirty.current&&!activeEditor?.view.composing&&!document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus,.mind-input:focus')&&!working&&!failed.current&&!cloudApplying.current,
     selection:()=>editing&&activeEditor?.isFocused?{id:editing,anchor:Math.max(0,activeEditor.state.selection.anchor-1),head:Math.max(0,activeEditor.state.selection.head-1)}:null,
-    apply:async(remote,remoteAssets,sync)=>{
+    apply:async(remote:Workspace,remoteAssets:Map<string,Blob>,sync?:{state?:string;selection?:any})=>{
       if(dirty.current||activeEditor?.view.composing||document.querySelector('[data-composing="true"],[data-article-note]:focus,[data-article-editing="true"],.calendar-draft:focus,.mind-input:focus')||working||failed.current||cloudApplying.current)throw Object.assign(Error('Waiting for this edit to save.'),{deferred:true});
       validate(remote.tables.bullets);validateWorkdays(remote.web.workdays);
       const previous=docRef.current!;
@@ -416,7 +451,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       chain.current=applying.catch(e=>{failed.current=true;dirty.current=true;setStatus('Changes not saved');showError(e);});
       try{await applying;}finally{cloudApplying.current=false;}
     }
-  });
+  };
+  const cloud = useCloudSync({...syncHost,user:cloudUser});
+  useLocalSync(syncHost);
+  useEffect(()=>{const open=(e:Event)=>{const panel=(e as CustomEvent).detail;if(typeof panel==='string')setSettingsPanel(panel);setSettingsList(false);setDialog('settings');};window.addEventListener('remo-open-settings',open);return()=>window.removeEventListener('remo-open-settings',open);},[]);
   useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
   const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await openAccountSignIn();}catch(e){showError(e);}};
   const commit = (next: Workspace, group?: string, record = true, immediate = true) => {
@@ -455,6 +493,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
+  useDesktop({ready:!!doc&&!failed.current,getDoc:()=>docRef.current,commit:next=>commit(next),flush,onError:message=>setError(message||null),onNotice:setNotice});
   useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{
     const current=docRef.current;
     if(!current||failed.current||!current.tables.emojis.some(e=>e.token===item.token))return;
@@ -1310,6 +1349,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       await flush();
       if (failed.current) throw Error("Current changes could not be saved");
       const restoredAssets=new Map(prepared.assets);
+      if(cloudUser&&[...restoredAssets.keys()].some(isBookPath))throw Error('This backup contains device-local book originals. Restore it in a device-only workspace, or add the originals to your account through Bookshelf.');
+      for(const [path,blob]of restoredAssets)if(isBookPath(path)){if(!await restoreLocalBook(prepared.doc,storageAccountKey(),path,blob))throw Error("A book original in this backup has no matching bookshelf entry. The current notes were kept.");restoredAssets.delete(path);}
       for(const [path,blob]of prepared.assets){const match=path.match(/^articles\/([a-f0-9]{64})\.json$/);if(match){await cacheArticle(articleAccount(cloudUser?.uid),match[1],blob,!!cloudUser);restoredAssets.delete(path);}}
       if(cloudUser){if(!navigator.onLine)throw Error('Reconnect to restore saved webpages to your account. Your backup and current notes are unchanged.');await uploadCachedArticles(cloudUser,articleSnapshotHashes(prepared.doc));}
       const restoredDoc = {
@@ -1409,7 +1450,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     return()=>{unbind();window.removeEventListener('keydown',undoKey);};
   }, [editing, dialog, menu, doc, views.panes, views.activePane, tab]);
   readerOpenHandler.current=(hash,unit,id)=>{void (async()=>{try{await flush();if(failed.current)throw Error('Save your changes before opening a book.');readerOrigin.current=document.activeElement as HTMLElement|null;setEditing(null);setDialog(null);setReaderTarget({hash,unit,id});}catch(e){showError(e);}})();};
-  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,snapshotHash:s.snapshotHash,label:s.title||"Web article"}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources]);
+  const readingSourceMap=React.useMemo(()=>doc?{...readingSources(doc),...Object.fromEntries(Object.entries(doc.web.bookmarkSources||{}).map(([id,s]:[string,any])=>[id,{kind:"web",bookmarkId:s.bookmarkId,highlightId:s.highlightId||"",url:s.url,snapshotHash:s.snapshotHash,label:s.title||"Web article"}])),
+    // Each saved article's and book's own bullet opens it (Library, src/library-outline.mjs).
+    ...Object.fromEntries(Object.entries(doc.web.bookmarkNoteRoots||{}).filter(([id])=>doc.web.bookmarks?.[id]&&!doc.web.bookmarks[id].deleted).map(([id,root]:[string,any])=>[root,{kind:"web",bookmarkId:id,highlightId:"",url:doc.web.bookmarks[id].url,label:"Article",chip:true}])),
+    ...Object.fromEntries(Object.entries(doc.web.readingNoteRoots||{}).filter(([hash])=>readingBook(doc,hash)).map(([hash,root]:[string,any])=>[root,{hash,unit:readingPosition(doc,readingBook(doc,hash)),id:"",label:"Book",chip:true}]))}:{},[doc?.web.readingHighlights,doc?.tables.media,doc?.web.bookmarkSources,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots,doc?.web.bookmarks,doc?.web.readingBooks,doc?.web.readingProgress]);
+  // Every bookmark and book gets its bullet (new ones under Library).
   const readingSourceValue=React.useMemo(()=>({sources:readingSourceMap,open:openReader,openWeb:(id:string,highlight:string,snapshotHash?:string)=>{setEditing(null);setBookmarkTarget({id,highlight,snapshotHash});setTab("bookmarks");}}),[readingSourceMap,openReader]);
   if (!doc)
     return (
@@ -1518,7 +1563,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               }}
             >
               <RemoLogo/>RemoNook
-              <span className="local-label">{isDesktop()?"DESKTOP":"WEB"}</span>
+              <span className="local-label">{isMobileApp()?"APP":isDesktop()?"DESKTOP":"WEB"}</span>
             </a>
             <button
               className="icon-button sidebar-toggle-btn"
@@ -1582,12 +1627,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <span
                 className={failed.current ? "status-dot error-dot" : "status-dot"}
               />
-              {activeLocalWorkspace()?"Device-only workspace · never synced":cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
+              {activeLocalWorkspace()?.peerSync?"Syncs with your devices · never RemoNook cloud":activeLocalWorkspace()?.folder?"Folder workspace · this computer · never synced":activeLocalWorkspace()?"Device-only workspace · never synced":cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
             </div>
           </div>
         </div>
       </aside>
       {isDesktop()&&<DesktopUpdate flush={flush}/>}
+      {isMobileApp()&&<AndroidUpdate/>}
+      {doc&&<BreakOverlay doc={doc} storageKey={storageAccountKey()} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
+      {isApp()&&<LocalSyncPairing/>}
       <main ref={sidebarMotion.mainRef}>
         <header className="topbar">
           <button
@@ -1598,6 +1646,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           >
             <Icon name={sidebarShown ? "sidebarCollapse" : "menu"} />
           </button>
+          {/* Phones have no sidebar: the workspace switcher sits at the start of the top bar. */}
+          <div className="mobile-workspace"><WorkspaceSwitcher/></div>
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
           <div className="breadcrumbs">
@@ -1650,6 +1700,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <ReminderTabs doc={doc} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>
           </div>
           <div className="topbar-right">
+            <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
             <button className="icon-button reminders-toggle" aria-label={remindersVisible?'Hide reminders':'Show reminders'} title={remindersVisible?'Hide reminders':'Show reminders'} aria-expanded={remindersVisible} aria-controls="topbar-reminders" onClick={()=>setRemindersVisible(visible=>!visible)}><Icon name="bell" size={18}/></button>
             {tab !== "bookmarks" && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
@@ -1682,6 +1733,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="redo" />
             </button>
             <button className="icon-button" aria-label="Commands & notes" title={`Commands & notes (${modLabel()} K)`} onClick={()=>{if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="commands" size={17}/></button>
+            {doc&&<ViewStats doc={doc} tab={tab} scope={scope} scopeTitle={String(current?.text||'').replace(/<[^>]*>/g,'').trim()} calendarDate={calendarDate} counts={notesFilterCounts} kinds={NOTE_FILTERS as any}/>}
             <button data-guide-help className="icon-button" aria-label="Show me how" title="Show me how" onClick={()=>{setViewMenu(false);setMenu(null);setDialog("help");}}><Icon name="help" size={17}/></button>
             <CloudDeviceSaveIndicator signal={deviceStatus} isPending={()=>!!cloudUser&&(dirty.current||persisted.current?.revision!==cloud.acknowledgedRevision)} cloudSignal={cloud.signal} connected={!!cloudUser} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
             {<button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
@@ -1723,7 +1775,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               const tabs=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')),at=tabs.indexOf(document.activeElement as HTMLButtonElement);
               if(at<0)return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(at+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click();
             }}>
-              {NOTE_FILTERS.filter(([kind])=>['all','notes','calendar'].includes(kind)||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} id={`notes-filter-${kind}`} role="tab" aria-controls="notes-filter-panel" tabIndex={notesFilter===kind?0:-1} aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}{kind!=='all'&&<span>{notesFilterCounts[kind]||0}</span>}</button>)}
+              {NOTE_FILTERS.filter(([kind])=>['all','notes','calendar'].includes(kind)||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} id={`notes-filter-${kind}`} role="tab" aria-controls="notes-filter-panel" tabIndex={notesFilter===kind?0:-1} aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}</button>)}
             </div>
             <div id="notes-filter-panel" role="tabpanel" aria-labelledby={`notes-filter-${notesFilter}`} className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
             {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
@@ -1799,7 +1851,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "bookmarks" ? (
           <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/></React.Suspense>
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onNotes={id=>navigateTo(id)} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/></React.Suspense>
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : tab === "mindmap" ? (
@@ -1890,30 +1942,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </>
         )}
         {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
-        <nav className="mobile-nav" aria-label="Mobile navigation">
-          {[
-            ["dashboard", "Dashboard", "dashboard"],
-            ["notes", "Notes", "notes"],
-            ["calendar", "Calendar", "calendar"],
-            ["study", "Study Desk", "study"],
-              ["bookshelf", "Bookshelf", "study"],
-              ["mindmap", "Mindmap", "mindmap"],
-              ["bookmarks", "Bookmarks", "link"],
-          ].map(([id, label, icon]) => (
-            <button
-              key={id}
-              aria-current={tab===id?"page":undefined}
-              className={tab === id ? "nav-active" : ""}
-              onClick={() => {
-                if(id==='mindmap')setMindmapTarget(null);setTab(id);
-                setEditing(null);
-              }}
-            >
-              <Icon name={icon} />
-              {label}
-            </button>
-          ))}
-        </nav>
+        <MobileNav tab={tab} onTab={id=>{if(id==='mindmap')setMindmapTarget(null);setTab(id);setEditing(null);}}/>
       </main>
       {tagEditor&&<Dialog title={`Tag settings · #${tagEditor}`} onClose={()=>setTagEditor(null)}><TagSettingsForm key={tagEditor} nodes={nodes} tag={tagEditor} settings={tagSettings} disabled={disabled} onSave={saveTagSetting} onRename={renameTag} onClose={()=>setTagEditor(null)}/></Dialog>}
       {nodeDate&&<Dialog title="Bullet date" onClose={()=>setNodeDate(null)}><form onSubmit={e=>{e.preventDefault();mutate(ns=>ns.map(n=>n.id===nodeDate.id?{...n,dueDate:nodeDate.date}:n));setNodeDate(null);}}><label className="field-label">Date<input data-autofocus type="date" aria-label="Bullet date" value={nodeDate.date} onChange={e=>setNodeDate({...nodeDate,date:e.target.value})}/></label><button type="submit" className="study-primary">Save date</button></form></Dialog>}
@@ -2128,7 +2157,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       </OutlinePopover>}
       <GuidedTours key={cloudUser?.uid||'guest'} open={dialog==='help'} account={storageAccountKey()} signedIn={!!cloudUser} onOpenChange={open=>setDialog(open?'help':null)} onCloseMenus={()=>{setMenu(null);setViewMenu(false);}} onNavigate={async nextTab=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');if(readerTarget)closeReader();setMenu(null);setViewMenu(false);setEditing(null);setTab(nextTab);if(nextTab==='notes'){setScope(null);setSearch('');}}} onBulletMenu={()=>{document.querySelector('[data-tour-active-bullet]')?.removeAttribute('data-tour-active-bullet');const row=[...document.querySelectorAll<HTMLElement>('.outline-row[data-node-id]')].find(el=>el.getClientRects().length>0&&docRef.current?.tables.bullets.some(n=>n.id===el.dataset.nodeId&&n.blockStyle!=='divider')),button=row&&[...row.querySelectorAll<HTMLButtonElement>('[aria-label="Bullet actions"]')].find(el=>el.getClientRects().length>0);if(!button)return false;button.setAttribute('data-tour-active-bullet','');return true;}}/>
       {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader onHelp={()=>setDialog("help")} user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onAi={openReaderAi} onNote={id=>navigateTo(id)} renderNotes={()=> <React.Suspense fallback={<p role="status">Loading book notes…</p>}><ReaderBookNotes onCommit={()=>{if(viewTimer.current)publishView(true);}} doc={doc} hash={readerTarget.hash} assets={assets} disabled={disabled||failed.current} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onFullNotes={id=>{closeReader();navigateTo(id);}} onAdd={()=>{if(failed.current)throw Error('Saving is paused. Open Account settings to retry.');const current=docRef.current!,book=readingBook(current,readerTarget.hash),id=crypto.randomUUID();const next=addReadingNote(current,book,id);commit(withNodes(next,next.tables.bullets as Node[]));return id;}}/></React.Suspense>} onScreenshot={async(unit,blob)=>{
-        if(authenticatedUid()!==cloudUser?.uid)throw Error('Your account changed. Open the book again to capture a page.');
+        if(cloudUser&&authenticatedUid()!==cloudUser.uid)throw Error('Your account changed. Open the book again to capture a page.');
         if(failed.current||working||!readerTarget)throw Error('Wait for saving to finish, then try again.');
         const current=docRef.current!,book=readingBook(current,readerTarget.hash);if(!book)throw Error('The original book is no longer available.');
         const id=crypto.randomUUID(),fileName=id+(blob.type==='image/png'?'.png':'.webp'),path='media/'+fileName;
@@ -2147,11 +2176,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {dialog === "shortcuts" && <Dialog title="Keyboard shortcuts" className="shortcuts-dialog" onClose={() => setDialog(null)}><KeyboardShortcuts/></Dialog>}
       {dialog === "settings" && (
         <Dialog title="Settings" className="settings-dialog" onClose={() => setDialog(null)}>
-          <p className="settings-subtitle">Make a little space for yourself.</p>
-          <nav className="settings-navigation" aria-label="Settings sections">
-            {[["appearance","Appearance","settings"],["account","Account","people"],["connections","Connections","connections"],["ai","AI apps","globe"],["storage","Storage","folder"],["backups","Backups","folder"]].map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>setSettingsPanel(id)}><Icon name={icon} size={15}/>{label}</button>)}
+          <nav className="settings-navigation" aria-label="Settings sections" data-mobile-shown={settingsList}>
+            {SETTINGS_GROUPS.map(([group,items])=><div key={group} className="settings-group"><span className="settings-group-title">{group}</span>
+              {items.filter(([id])=>id!=='desktop'||isApp()).map(([id,label,icon])=>[id,id==='desktop'&&isMobileApp()?'This device':label,icon]).map(([id,label,icon])=><button key={id} aria-current={settingsPanel===id?"page":undefined} onClick={()=>{setSettingsPanel(id);setSettingsList(false);}}><Icon name={icon} size={15}/><span>{label}</span><Icon name="forward" size={14}/></button>)}
+            </div>)}
           </nav>
-          <div className="settings-content" key={settingsPanel}>
+          <div className="settings-content" key={settingsPanel} data-mobile-shown={!settingsList}>
+          <button className="settings-back" onClick={()=>setSettingsList(true)}><Icon name="back" size={16}/>All settings</button>
+          {settingsPanel==="study" && <section aria-label="Study"><div className="settings-section-heading"><h3>Study</h3><p>How Study Desk schedules your flashcards and multiple-choice questions.</p></div><FsrsPreferences open doc={doc} disabled={disabled} onChange={next=>commit(next,undefined,false)}/></section>}
+          {settingsPanel==="shortcuts" && <section aria-label="Keyboard shortcuts"><KeyboardShortcuts/></section>}
           {settingsPanel==="appearance" && <section aria-label="Appearance"><div className="settings-section-heading"><h3>Feel at home.</h3><p>Choose how your workspace looks and reads.</p></div>
           <div className="settings-tabs">
             <label className="field-label">
@@ -2216,7 +2249,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </section>}
           {settingsPanel==="connections"&&<GoogleTasksConnection/>}
           {settingsPanel==="ai"&&<AiApps user={cloudUser}/>}
-          {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
+          {settingsPanel==="desktop"&&isDesktop()&&<DesktopSettings/>}
+          {settingsPanel==="desktop"&&isMobileApp()&&<section className="ai-apps" aria-label="This device"><LocalSyncSettings/></section>}
+          {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/>}
           {settingsPanel==="backups" && <section aria-label="Backups"><div className="settings-section-heading"><h3>Your notes. Your copy.</h3><p>A full backup includes notes, media, decks and study progress.</p></div><div className="settings-backup-actions">
           <button
             className="wide action"
@@ -2469,9 +2504,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 }
 export const appRoot = createRoot(document.getElementById("root")!);
 // The browser half of desktop Google sign-in runs on its own page (see DesktopSignIn).
-appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isDesktop() ? <DesktopSignIn/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
+appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isApp() ? <DesktopSignIn/> : window.location.hash === "#quick-capture" && isDesktop() ? <QuickCapture/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
 
 // The desktop app bundles its files, so it needs no offline service worker.
-if (import.meta.env.PROD && "serviceWorker" in navigator && !isDesktop())
+if (import.meta.env.PROD && "serviceWorker" in navigator && !isApp())
   navigator.serviceWorker.register("/sw.js").catch(() => {});
 installDesktopLinks();
+void retireDesktopOfflineShell().catch(()=>{});

@@ -6,6 +6,7 @@ import {
   Star,
   Check,
   Archive,
+  FolderInput,
   ExternalLink,
   Tag,
   Trash2,
@@ -49,6 +50,7 @@ type Props = {
   onOpen: (id: string, notes?: boolean) => void;
   onPatch: (ids: string[], patch: Record<string, unknown>) => void;
   onTags: (bookmark: Bookmark) => void;
+  onMove?: (bookmark: Bookmark) => void;
 };
 export function BookmarkLibrary({
   bookmarks,
@@ -64,6 +66,7 @@ export function BookmarkLibrary({
   onOpen,
   onPatch,
   onTags,
+  onMove,
 }: Props) {
   const [filter, setFilter] = useState("all"),
     [query, setQuery] = useState(""),
@@ -507,6 +510,16 @@ export function BookmarkLibrary({
                       }
                     >
                       <div className="bookmark-action-menu bl-action-menu">
+                        {onMove && <ActionMenuItem
+                          disabled={disabled}
+                          onClick={() => {
+                            setMenu(null);
+                            onMove(b);
+                          }}
+                        >
+                          <FolderInput size={16} />
+                          Move to…
+                        </ActionMenuItem>}
                         <ActionMenuItem
                           disabled={disabled}
                           onClick={() => {
@@ -818,7 +831,7 @@ function SavePage({
           />
         </label>
         <p className="bl-dialog-copy">
-          Keep the link in your reading list. Sign in to save a clean article
+          Keep the link in your reading list. Save a clean article
           copy for offline reading.
         </p>
         {error && (

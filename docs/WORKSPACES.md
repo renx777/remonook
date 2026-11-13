@@ -4,10 +4,10 @@ RemoNook has one **main workspace** and any number of **device-only workspaces**
 
 | | Main workspace | Device-only workspace |
 |---|---|---|
-| Where | Synced to your account (or this device when signed out) | Only this browser's IndexedDB |
-| Other devices | Yes | No, never |
-| AI apps (MCP) | Yes | No |
-| Contents | Everything | Everything, separately: notes, flashcards, calendar, tags, attachments |
+| Where | Synced to your account (or this device when signed out) | Only this browser's IndexedDB (desktop app: optionally also a folder) |
+| Other devices | Yes | Desktop app: only paired computers, directly, when "Sync with my devices" is on |
+| AI apps (MCP) | Yes | Desktop app only: AI apps on the same computer |
+| Contents | Everything | Everything, separately: notes, flashcards, calendar, tags, attachments, PDF/EPUB books |
 
 - **Choosing:** the sync setting is chosen when a workspace is created and never changes.
   There are no moves between workspaces, so nothing can race an offline edit.
@@ -28,11 +28,23 @@ RemoNook has one **main workspace** and any number of **device-only workspaces**
 - **Switching** saves pending edits, then reloads into the chosen workspace (the same path as
   an account change).
 - **Deleting** removes the workspace's databases and its localStorage keys, after typing its
-  name.
+  name, including its private book cache and reading checkpoints.
 - **Browser storage:** browsers may clear site storage, so opening a device-only workspace asks
   for persistent storage, and the create dialog points to backups.
 
+- **Desktop app:** a device-only workspace can also:
+  - be kept in a folder on the computer, with a readable Markdown copy;
+  - sync directly with the person's paired computers on the same network ("Sync with my
+    devices"), never through RemoNook cloud.
+
+  AI apps on the computer can use the open workspace. See docs/DESKTOP.md.
+
+Bookshelf and Settings → Storage require no sign-in for local workspaces. PDF and
+EPUB originals can be imported and read offline, with highlights and comments
+saved as ordinary notes. Available originals are included in full backups, folder
+copies and optional paired-device transfers; no book request goes to the cloud.
+
 ## Later
 - A one-way "Turn on sync for this workspace" (upload only, which is safe).
-- Desktop and Android apps storing device-only workspaces as files.
+- The Android app storing device-only workspaces as files.
 - Optional same-Wi-Fi or encrypted sync per workspace.

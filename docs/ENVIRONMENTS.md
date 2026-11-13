@@ -2,6 +2,65 @@
 
 ## Current state
 
+### Desktop local PDF and bookmark follow-up, 10 November 2026
+
+Branch `ccr-641b18bf-2fe80f`, release source
+`4946affb0c0244f76b2bf1d4a1247da4c34d3361`, application commit
+`1683bd1a05f54180a38382aca6e3bab0153ebf35` (following `b8ff311` and `6b2d8b1`): PDF validation no
+longer requests a separate `book-files` module. Desktop startup retires old service-worker
+shell caches without deleting user storage or reloading during editing. Local desktop bookmark capture fetches public
+pages directly, without authentication or the cloud capture service, and persists sanitized
+reader snapshots as workspace attachments. Article titles and workspace cache isolation are
+preserved. See [BOOKSHELF-AND-READER.md](BOOKSHELF-AND-READER.md).
+
+**Desktop app** [run #16](https://github.com/renx777/remonook/actions/runs/42857680785)
+was dispatched with `environment=staging` for version `0.1.16`. Runs #13 and #14 were
+cancelled before publication during final verification. Run #15 passed Windows and Linux but GitHub cancelled its queued macOS job:
+"The job was not acquired by Runner of type hosted even after multiple attempts",
+with ARM runner capacity annotations. The workflow now uses `macos-15-intel` to build
+the same universal Apple silicon/Intel app. The previous
+published staging desktop update is `0.1.12`. All three platform builds and publication succeeded. The staging update manifest reports
+`0.1.16`, published `2026-11-10T17:25:56.123Z`. Signatures are present for all four
+platform entries; Windows x64, Linux x64 and both macOS architectures returned HTTP 200
+with nonempty installer downloads (45,563,671 / 125,266,424 / 93,520,821 bytes respectively).
+GitHub CI also passed for the exact release source
+([run](https://github.com/renx777/remonook/actions/runs/42857697262)).
+The staging website, sync Worker and production are unchanged by this desktop release.
+
+Validation: build and TypeScript checks passed; the full 152-file test suite passed.
+GitHub CI passed for the final application commit
+([run #290](https://github.com/renx777/remonook/actions/runs/42854655543)).
+Additional title-preservation and desktop cache-cleanup regression checks passed.
+Chromium verified offline PDF/EPUB imports and reading, highlights in Notes and reload;
+a fixture through the native-capture bridge verified bookmark capture, reading and saved
+snapshot recovery after reload, with zero cloud requests and zero browser errors. The
+native HTTP command is compiled by the platform builds; this browser check does not run
+the owner's Windows WebView or access their actual account/files.
+
+### Local Bookshelf desktop update, 10 November 2026
+
+Source branch `ccr-641b18bf-2fe80f`, application commit
+`3e1cbee16198d4642236f0709d5174326a94a4fb` (following `6f097c7`): local/device-only
+and folder workspaces can import PDF/EPUB originals, read offline and capture highlights
+without signing in. Originals are isolated by workspace and included in local full backups,
+folder copies and paired-device transfers. Cloud Bookshelf retains its account authentication
+and storage limits. Missing cache files cannot delete a still-referenced folder original.
+
+The **Desktop app** workflow was dispatched with `environment=staging`:
+[run #12](https://github.com/renx777/remonook/actions/runs/42846469459), desktop version
+`0.1.12`. All three native build jobs and the publish job succeeded. The staging
+`/desktop/staging/latest.json` manifest reports version `0.1.12`, published
+`2026-11-10T15:57:33.911Z`; signatures are present and all four platform download entries
+(Windows x64, Linux x64, macOS Apple silicon and Intel) returned HTTP 200. The previous
+manifest was `0.1.10`. GitHub CI also passed for the application commit
+([run #285](https://github.com/renx777/remonook/actions/runs/42846482263)).
+This desktop build does not replace the staging website or redeploy the sync Worker. Production is unchanged.
+
+Local validation: TypeScript checks and the full 151-file test suite passed; real Chromium
+checks imported/read PDF and EPUB offline, saved a highlight into Notes, reopened after reload,
+and observed zero cloud requests or browser errors. The final folder-cache safeguard also
+has a regression test. See [BOOK-STORAGE.md](BOOK-STORAGE.md) for local-original behavior.
+
 Staging, 7 November 2026: sign-in for AI apps (OAuth) is on staging. `cloud/mcp-oauth.sql` was applied to D1
 `remo-sync-staging`. `remo-sync-staging` version `86cc6d0d-3c3e-419e-aebf-5f96e5621f5b` and the staging frontend
 (workflow run on `ccr-641b18bf-2fe80f`) were deployed. Discovery, registration, the authorize redirect to the consent screen and the

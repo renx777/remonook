@@ -4,6 +4,8 @@ Remo means **remember more**. An outline-first notes and study application: nest
 
 Production: https://remonook.com
 
+**Not open source.** This repository is publicly visible, but RemoNook is proprietary: all rights reserved. See [LICENSE](LICENSE). Third-party components keep their own licences ([THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
+
 This source snapshot comes from the deployed Sites version 43, commit `bc3c0bf160699f140ca08cb8ae337cf853391fa8`. The GitHub import includes environment isolation and CI changes that have **not** been deployed to production. Generated builds and historical build artifacts are deliberately excluded. This is a clean source import, not a copy of the original Git history.
 
 ## Start locally
@@ -32,6 +34,8 @@ See [the development and deployment guide](docs/ENVIRONMENTS.md).
 - `local`: default, device-only. Safe for feature development.
 - `staging`: live at https://staging.remonook.com with a separate Firebase project, sync Worker, D1 database and R2 bucket.
 - `production`: existing services, explicitly selected configuration. Still hosted through the existing Sites workflow.
+
+Apps: the desktop apps for Windows, macOS and Linux ([docs/DESKTOP.md](docs/DESKTOP.md)) and the Android app ([docs/ANDROID.md](docs/ANDROID.md)) are built from the same code in `src-tauri/`.
 
 Feature branch → pull request → CI → merge to `main` → staging → explicit production release. Do not create an independent long-lived `develop` branch at this stage.
 

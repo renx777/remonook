@@ -1,3 +1,4 @@
+import {localBookFiles,localBookManifest,isBookPath} from './local-books';
 import {cachedArticle,cacheArticle} from './article-cache.mjs';
 import {validateBookmarks,articleSnapshotHashes} from './bookmarks.mjs';
 import {validateFsrs} from './fsrs-scheduler.mjs';
@@ -10,7 +11,8 @@ import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './clo
 import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox,receivedProjection,adopt,mapSelection,bucketAssets,recoverRefused} from './sync-outbox-v3.mjs';
 /** IndexedDB key of the sync v3 outbox. v2 metadata under 'sync-v2' is no longer used. */
 const SYNC_KEY='sync-v3';
-import {projectBuckets,mergeChanged} from './sync-buckets.mjs';
+import {leafBucket,openBucket,projectParts,assembleParts,projectBuckets,mergeChanged} from './sync-buckets.mjs';
+import {peerVectors,peerDiff} from './sync-peer.mjs';
 import {recoverRejectedBatch} from './sync-recovery.mjs';
 import {syncMirrors,validateMirrors} from "./relations.mjs";
 import {validateOcclusions} from "./occlusion.mjs";
@@ -233,6 +235,9 @@ function records(doc: Workspace | null) {
       );
   return m;
 }
+let savedListener: ((account: string) => void) | null = null;
+/** Called after every committed save (the desktop app mirrors folder workspaces from it). */
+export function onWorkspaceSaved(listener: ((account: string) => void) | null) { savedListener = listener; }
 export async function save(
   before: Workspace | null,
   after: Workspace,
@@ -323,6 +328,7 @@ export async function save(
         preferences: next.preferences,
       });
       await finished;
+      try { savedListener?.(account); } catch { /* the mirror reports its own errors */ }
       return next;
     } catch (error) {
       try {
@@ -331,6 +337,17 @@ export async function save(
       await finished.catch(() => {});
       throw error;
     }
+  } finally {
+    db.close();
+  }
+}
+/** Adds files to a workspace's attachment store (local sync fetches them ahead of use). */
+export async function putAssets(files: Map<string, Blob>, name?: string) {
+  const db = await openDb(name);
+  try {
+    const tx = db.transaction("assets", "readwrite"), finished = done(tx);
+    for (const [path, blob] of files) tx.objectStore("assets").put(blob, path);
+    await finished;
   } finally {
     db.close();
   }
@@ -437,7 +454,7 @@ export function references(doc: Workspace) {
   return paths;
 }
 const safe = (p: string) =>
-  (/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(p)||/^articles\/[a-f0-9]{64}\.json$/.test(p)) &&
+  (/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(p)||/^articles\/[a-f0-9]{64}\.json$/.test(p)||isBookPath(p)) &&
   ![".", ".."].includes(p.split("/")[1]);
 export async function archive(
   doc: Workspace,
@@ -450,8 +467,10 @@ export async function archive(
       throw Error("Android export would lose data: " + reasons.join("; "));
   }
   assets=new Map(assets);
+  if(!android&&!storageName.startsWith('remo-web-user-'))for(const [path,blob] of await localBookFiles(doc,storageName))assets.set(path,blob);
   const articleHashes=articleSnapshotHashes(doc);
   if(!android)for(const hash of articleHashes){const path='articles/'+hash+'.json';if(!assets.has(path)){const local=await cachedArticle(storageName,hash);if(local)assets.set(path,local.blob);}}
+  const missingBooks=!storageName.startsWith('remo-web-user-')?localBookManifest(doc).filter(b=>!assets.has(b.path)).map(b=>b.hash):[];
   const missingSnapshots=[...articleHashes].filter(hash=>!assets.has('articles/'+hash+'.json'));
   const zip = new JSZip(),
     declared = [];
@@ -478,7 +497,7 @@ export async function archive(
     tables: tableManifest(doc),
     preferences: doc.preferences,
     assets: declared,
-    ...(!android ? { web: {...doc.web,bookmarkBackupMissing:missingSnapshots} } : {}),
+    ...(!android ? { web: {...doc.web,bookmarkBackupMissing:missingSnapshots,bookBackupMissing:missingBooks} } : {}),
   };
   const json = JSON.stringify(manifest);
   if (new TextEncoder().encode(json).length > 64 * 1024 * 1024)
@@ -701,6 +720,7 @@ export async function parseArchive(
   validateWorkdays(doc.web.workdays);validateDailyTrackers(doc.web.dailyTrackers);
   for(const item of doc.tables.media)if(item.displayWidth!=null&&(!Number.isFinite(item.displayWidth)||item.displayWidth<15||item.displayWidth>100))throw Error("Invalid image display width");
   const warnings = androidBlockers(doc);
+  if(doc.web.bookBackupMissing?.length)warnings.push("Some local book originals were unavailable when this backup was made. Reading notes and metadata are included; reimport the originals to read them.");
   if(doc.web.bookmarkBackupMissing?.length)warnings.push("Some article snapshots were not cached on the exporting device. Their URLs and notes are included.");
   return { doc, assets, warnings };
 }
@@ -800,6 +820,13 @@ export async function syncOperation(operation:string,args:any={},account=storage
   if(!args.selection)return undefined;
   return readIO((m,io)=>mapSelection(m,args.selection,io));
  }
+ // Local sync (desktop): devices exchange state vectors instead of a server outbox, so the
+ // queued batches are not needed once recorded.
+ if(operation==='peer-settle'){await change(m=>{m.pending=[];m.inflight=null;return m;});return;}
+ if(operation==='peer-vectors')return readIO((m,io)=>peerVectors(m,io,account));
+ if(operation==='peer-diff')return readIO((m,io)=>peerDiff(m,io,account,args.vectors));
+ if(operation==='peer-assets')return readIO((_m,io)=>bucketAssets(io,'R'));
+ if(operation==='peer-books')return readIO(async(_m,io)=>{const b=leafBucket(JSON.stringify(['web','readingBooks'])),state=(await io.load('R',[b])).get(b);if(!state)return {};const y=openBucket(state);try{return (assembleParts([projectParts(y)]).doc.web as Record<string,any>).readingBooks||{};}finally{y.destroy();}});
  throw Error('Unknown persistence operation.');
 }
 

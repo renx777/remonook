@@ -18,3 +18,15 @@
 @media(max-width:900px){.reader-navigation{position:absolute;z-index:6;inset:0 auto 0 0;width:min(310px,100%);box-shadow:4px 0 20px #0002}.reader-editable-notes{position:absolute;z-index:6;inset:0 0 0 auto;width:min(390px,100%);box-shadow:-4px 0 20px #0002}}
 @media(max-width:650px){.reader-toolbar .reader-title{display:none}.reader-find-form input{font-size:16px}.reader-editable-notes .reader-note-editor .tiptap{font-size:16px}.reader-annotation-controls{padding-left:0;gap:0}.reader-toolbar>button{min-width:32px;padding:4px}.reader-toolbar{gap:0}}
 .reader-note-read{cursor:pointer;padding:6px;border-radius:4px}.reader-note-read:hover{background:var(--hover)}.reader-note-read[aria-disabled=true]{cursor:default;opacity:.55}
+
+/* Text colour (style "text"). PDF pages are pictures, so a colour layer with lighten turns the dark
+   letters into the colour and leaves the white page white. EPUB passages are text and are recoloured. */
+.reader-pdf-text-colours{position:absolute;inset:0;pointer-events:none;z-index:1;mix-blend-mode:lighten}
+.reader-pdf-text-colours>span{position:absolute;background:#9a6400}
+.reader-pdf-text-colours>span[data-color=green]{background:#1f7a43}
+.reader-pdf-text-colours>span[data-color=blue]{background:#1f5fb8}
+.reader-pdf-text-colours>span[data-color=rose]{background:#c0245c}
+.reader-epub mark[data-style=text]{background:transparent;color:#9a6400}
+.reader-epub mark[data-style=text][data-color=green]{color:#1f7a43}
+.reader-epub mark[data-style=text][data-color=blue]{color:#2b6cc4}
+.reader-epub mark[data-style=text][data-color=rose]{color:#c0245c}

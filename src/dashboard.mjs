@@ -132,6 +132,7 @@ export function validateDashboard(value){
   if(w.kind==='googleTasks'&&(typeof w.settings.listId!=='string'||w.settings.listId.length>1024))throw Error('Invalid Google task list.');
   if(w.kind==='quotes'&&!['all','notes','library'].includes(w.settings.source))throw Error('Invalid quote source.');
   if(w.kind==='focus'&&(!integer(w.settings.focus,1,120)||!integer(w.settings.short,1,60)||!integer(w.settings.long,1,60)))throw Error('Invalid focus timer settings.');
+  if(w.kind==='focus'&&w.settings.breakSkip!==undefined&&typeof w.settings.breakSkip!=='boolean')throw Error('Invalid focus timer settings.');
   for(const [bp,l]of Object.entries(w.layouts||{}))if(!dashboardCols[bp]||!plain(l)||!integer(l.x,0,dashboardCols[bp]-1)||!integer(l.y,0,10000)||!integer(l.w,3,dashboardCols[bp])||!integer(l.h,3,10)||l.x+l.w>dashboardCols[bp])throw Error('Invalid widget layout.');
   const t=w.timer;if(t&&(!plain(t)||!['focus','short','long'].includes(t.mode)||typeof t.running!=='boolean'||!Number.isFinite(t.endsAt)||t.endsAt<0||!Number.isFinite(t.remaining)||t.remaining<0||t.remaining>7200||!Number.isFinite(t.duration)||t.duration<=0||t.duration>7200||!safeId(t.cycle)))throw Error('Invalid focus timer.');
  }

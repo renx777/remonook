@@ -1,15 +1,15 @@
 import {initializeApp} from 'firebase/app';
 import {getAuth,initializeAuth,browserLocalPersistence,browserPopupRedirectResolver,GoogleAuthProvider,signInWithPopup,signInWithCredential,signOut} from 'firebase/auth';
 import {CLOUD_ENABLED,firebaseConfig,APP_ENV} from './cloud-config';
-import {isDesktop,desktopGoogleToken} from './desktop';
+import {isApp,desktopGoogleToken} from './desktop';
 const firebaseApp=CLOUD_ENABLED?initializeApp(firebaseConfig):null;
 // The desktop app (Tauri) has no Google pop-up sign-in: the pop-up helper loads a page from the
 // auth domain, which never completes inside the app window and would hold up start-up.
-export const auth=firebaseApp ? (isDesktop() ? initializeAuth(firebaseApp,{persistence:browserLocalPersistence}) : typeof browserPopupRedirectResolver==='function' ? initializeAuth(firebaseApp,{persistence:browserLocalPersistence,popupRedirectResolver:browserPopupRedirectResolver}) : getAuth(firebaseApp)) : null;
+export const auth=firebaseApp ? (isApp() ? initializeAuth(firebaseApp,{persistence:browserLocalPersistence}) : typeof browserPopupRedirectResolver==='function' ? initializeAuth(firebaseApp,{persistence:browserLocalPersistence,popupRedirectResolver:browserPopupRedirectResolver}) : getAuth(firebaseApp)) : null;
 export const authenticatedUid=()=>auth?.currentUser?.uid;
 /** Desktop: Google sign-in happens in the system browser, which returns a Google ID token. */
 export async function desktopGoogleSignIn(onLink?:(url:string)=>void){if(!auth)throw Error('Cloud sign-in is disabled in local development.');const idToken=await desktopGoogleToken(APP_ENV,onLink);try{await signInWithCredential(auth,GoogleAuthProvider.credential(idToken));}catch(e:any){throw Object.assign(Error('Google sign-in could not be completed. Try again.'),{cause:e});}}
-export async function googleSignIn(){if(isDesktop())return desktopGoogleSignIn();if(!auth)throw Error('Cloud sign-in is disabled in local development. Configure staging to test sync.');const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await signInWithPopup(auth,provider);}
+export async function googleSignIn(){if(isApp())return desktopGoogleSignIn();if(!auth)throw Error('Cloud sign-in is disabled in local development. Configure staging to test sync.');const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await signInWithPopup(auth,provider);}
 export const googleSignOut=()=>auth?signOut(auth):Promise.resolve();
 
 import {createUserWithEmailAndPassword,signInWithEmailAndPassword,sendPasswordResetEmail,sendEmailVerification,EmailAuthProvider,linkWithCredential,reload} from 'firebase/auth';

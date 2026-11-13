@@ -17,7 +17,7 @@
  /* Bottom navigation: four destinations are visible at once; the rest scroll horizontally inside the bar. */
  .mobile-nav{position:relative;display:flex;justify-content:flex-start;align-items:stretch;gap:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-top:1px solid var(--line);padding:3px 0 max(4px,env(safe-area-inset-bottom));background:var(--bg);flex-shrink:0}
  .mobile-nav::-webkit-scrollbar{display:none}
- .mobile-nav button{flex:0 0 25%;min-width:0;scroll-snap-align:start;flex-direction:column;gap:3px;font-size:10px;background:transparent;padding:8px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mobile-nav button{flex:1 1 20%;min-width:0;scroll-snap-align:start;flex-direction:column;gap:3px;font-size:10px;background:transparent;padding:8px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .outline-scroll{margin:10px 4px 0;scroll-padding-bottom:110px}
  .notes-panes,.note-pane{min-width:0}
  .app[data-editing=true] .outline-scroll{padding-bottom:100px}
@@ -101,4 +101,18 @@
  .topbar .search-options { width:100%; max-width:none; left:0; right:0; border-radius:10px; }
 }
 @media(max-width:760px){
+}
+
+/* Bottom navigation: four views and More (no sideways scrolling). */
+@media(max-width:760px){
+ .mobile-nav{overflow:hidden}
+ .mobile-more{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}
+ .mobile-more-sheet{width:100%;background:var(--panel);border-radius:16px 16px 0 0;padding:10px 10px max(14px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(3,1fr);gap:6px;box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+ .mobile-more-sheet button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;border:0;border-radius:12px;background:transparent;color:var(--text);font-size:13px}
+ .mobile-more-sheet button[aria-current=page]{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+ /* One top-bar row: the focus timer shows only its time; Commands lives on desktop keyboards. */
+ .focus-pill .focus-pill-label{display:none}
+ .focus-pill{padding:0 9px;gap:5px;height:30px}
+ .topbar [aria-label="Commands & notes"]{display:none}
+ .topbar .breadcrumbs{min-width:0}
 }

@@ -1,0 +1,33 @@
+.library-with-nav{display:flex;align-items:stretch;min-height:100%}
+.library-with-nav>.lib-nav{width:240px;flex:none}
+.library-with-nav>:last-child{flex:1;min-width:0}
+.lib-nav{box-sizing:border-box;padding:18px 10px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;font-size:14px;position:sticky;top:0;align-self:flex-start;max-height:calc(100dvh - 60px);overflow-y:auto}
+.lib-nav button{font:inherit;color:var(--text);background:none;border:0;cursor:pointer}
+.lib-nav-fixed,.lib-nav-name{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 8px;border-radius:8px;text-align:left}
+.lib-nav-fixed span,.lib-nav-name span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lib-nav small{font-size:12px;color:var(--muted)}
+.lib-nav-fixed:hover,.lib-nav-name:hover{background:var(--hover)}
+.lib-nav [aria-current=true],.lib-nav-row[aria-current=true] .lib-nav-name{background:color-mix(in srgb,var(--accent) 14%,transparent);font-weight:600}
+.lib-nav-title{margin:14px 8px 4px;font-size:12px;font-weight:600;color:var(--muted)}
+.lib-nav-tree,.lib-nav-tree ul{list-style:none;margin:0;padding:0}
+.lib-nav-row{display:flex;align-items:center}
+.lib-nav-row .lib-nav-name{flex:1;min-width:0}
+.lib-nav-toggle{display:grid;place-items:center;width:22px;height:28px;flex:none;color:var(--muted)}
+.lib-nav-hint{margin:auto 8px 0;padding-top:18px;font-size:12px;line-height:1.5;color:var(--muted)}
+.lib-nav-link{padding:0!important;color:var(--accent)!important;text-decoration:underline}
+.lib-move{width:min(520px,calc(100vw - 24px));padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--text)}
+.lib-move::backdrop{background:#0006}
+.lib-move h2{margin:0 0 12px;font-size:17px}
+.lib-move input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit;font:inherit}
+.lib-move ul{list-style:none;margin:10px 0;padding:0;max-height:50dvh;overflow-y:auto}
+.lib-move li button{display:block;width:100%;padding:9px 10px;border:0;border-radius:8px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.lib-move li button:hover{background:var(--hover)}
+.lib-move-empty{padding:10px;color:var(--muted);font-size:14px}
+.lib-move footer{display:flex;justify-content:space-between;gap:8px}
+.lib-move footer button{padding:8px 14px;border-radius:8px}
+.reading-citation.is-chip{display:inline-flex;align-items:center;gap:5px;margin-left:6px;padding:1px 8px;border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:7px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);font-size:12px}
+@media(max-width:760px){.library-with-nav{flex-direction:column}.library-with-nav>.lib-nav{width:auto;position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;gap:4px;padding:10px 12px}.lib-nav-fixed{width:auto}.lib-nav-title,.lib-nav-hint{display:none}.lib-nav-tree{display:flex;flex-wrap:wrap;gap:4px}.lib-nav-tree ul{display:none}.lib-nav-row{padding-left:0!important}.lib-nav-toggle{display:none}}
+.lib-nav .lib-nav-fixed,.lib-nav .lib-nav-name,.lib-nav .lib-nav-toggle{border:0;background:none;box-shadow:none;min-height:34px}
+.lib-nav .lib-nav-fixed:hover,.lib-nav .lib-nav-name:hover{background:var(--hover)}
+.lib-nav .lib-nav-fixed[aria-current=true],.lib-nav .lib-nav-row[aria-current=true] .lib-nav-name{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.lib-nav .lib-nav-link{display:inline;width:auto;min-height:0;border:0;background:none;padding:0;font-size:inherit}
