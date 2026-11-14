@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Icon } from './icons';
 import { useBackClose } from './back-stack';
 
-const MAIN: [string, string, string][] = [['dashboard', 'Today', 'dashboard'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['study', 'Study Desk', 'study']];
+const MAIN: [string, string, string][] = [['dashboard', 'Dashboard', 'dashboard'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['study', 'Study Desk', 'study']];
 const MORE: [string, string, string][] = [['bookshelf', 'Bookshelf', 'study'], ['bookmarks', 'Bookmarks', 'link'], ['mindmap', 'Mindmaps', 'mindmap']];
 
 export function MobileNav({ tab, onTab }: { tab: string; onTab: (id: string) => void }) {

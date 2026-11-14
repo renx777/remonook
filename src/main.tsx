@@ -1574,7 +1574,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
           <nav aria-label="Main navigation" className="sidebar-nav">
             {([
-              ["dashboard", "Today", "dashboard"],
+              ["dashboard", "Dashboard", "dashboard"],
               ["notes", "Notes", "notes"],
               ["calendar", "Calendar", "calendar"],
               ["study", "Study Desk", "study"],
