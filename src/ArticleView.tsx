@@ -1,3 +1,6 @@
+// PARKED (2026-11-14): Article mode is not shown in the app for now. To bring it back, render
+// <NotesBody article={...}> instead of <OutlineView> for a Notes pane in main.tsx and add an
+// Outline / Article switch (see git history: commit 92d5228).
 // Article mode: the bullets of the page you are on, read as one document. Top-level bullets that
 // have children become section headings, the rest paragraphs; headings, quotes, code, dividers,
 // tasks, flashcards and images keep their look. Tap any paragraph to edit it right there with the

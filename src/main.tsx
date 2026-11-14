@@ -41,7 +41,6 @@ import {AndroidUpdate} from './AndroidUpdate';
 import {useBackClose} from './back-stack';
 import {MobileNav} from './MobileNav';
 import {ViewStats} from './ViewStats';
-import {NotesBody} from './ArticleView';
 import {ReminderBell} from './ReminderBell';
 import {About} from './About';
 import {CloudSyncNow,DeviceSyncNow} from './SyncNow';
@@ -316,9 +315,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const viewTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const cancelView=()=>{if(viewTimer.current)clearTimeout(viewTimer.current);viewTimer.current=null;};
   const publishView=(immediate=false)=>{cancelView();if(!docRef.current)return;const publish=()=>{setDoc(docRef.current);setHistoryTick(t=>t+1);};if(immediate)publish();else startTransition(publish);};
-  // Notes as an outline or as one readable page (ArticleView), remembered on this device.
-  const [articleMode,setArticleModeState]=useState(()=>{try{return localStorage.getItem('remo-notes-view')==='article';}catch{return false;}});
-  const setArticleMode=(on:boolean)=>{setArticleModeState(on);try{localStorage.setItem('remo-notes-view',on?'article':'outline');}catch{/* storage unavailable */}};
   const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);setEditingState(value);};
   // Phones: the back button finishes editing (and so brings back the bottom navigation).
   useBackClose(!!editing, () => setEditing(null));
@@ -1775,7 +1771,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <>
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
             {isTagQuery(search)&&<TagHeader nodes={nodes} tag={search.trim()} settings={tagSettings} disabled={disabled} onEdit={setTagEditor} onFlashcards={ids=>{const set=new Set(ids);if(mutate(ns=>ns.map(n=>set.has(n.id)&&n.kind==='NOTE'?{...n,kind:'QUESTION'}:n)))setNotice(`Made ${ids.length} flashcard${ids.length===1?'':'s'}. Answers are the bullets under each question.`);}} onTag={tag=>{setSearch(tag);}} onClose={()=>setSearch('')}/>}
-            <div className="notes-toolbar">
             <div className="notes-filter" hidden={isTagQuery(search)} role="tablist" aria-label="Show bullets" onKeyDown={e=>{
               if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
               const tabs=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')),at=tabs.indexOf(document.activeElement as HTMLButtonElement);
@@ -1783,16 +1778,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             }}>
               {NOTE_FILTERS.filter(([kind])=>['all','notes','calendar'].includes(kind)||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} id={`notes-filter-${kind}`} role="tab" aria-controls="notes-filter-panel" tabIndex={notesFilter===kind?0:-1} aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}</button>)}
             </div>
-            <div className="notes-view-switch" role="group" aria-label="Notes view"><button type="button" aria-pressed={!articleMode} onClick={()=>setArticleMode(false)}>Outline</button><button type="button" aria-pressed={articleMode} onClick={()=>{setArticleMode(true);setEditing(null);}}>Article</button></div>
-            </div>
             <div id="notes-filter-panel" role="tabpanel" aria-labelledby={`notes-filter-${notesFilter}`} className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
             {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
             {views.panes.length>1&&<div className="pane-bar">
              <PaneSearchBar value={pane.search} onChange={q=>views.update(pane.id,{search:q})} label={`Search pane ${i+1}`} onFocus={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}/>
              <button className="icon-button pane-close" aria-label={`Close pane ${i+1}`} title="Close pane" onClick={()=>views.close(pane.id)}><Icon name="close" size={14}/></button>
             </div>}
-            {notesFilter!=='all'&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<NotesBody
-              article={articleMode&&views.panes.length===1}
+            {notesFilter!=='all'&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<OutlineView
               rootIds={notesFilterRoots?.[pane.id]||null}
               excludedIds={notesFilter==='notes'?notesCatalog?.excluded:undefined}
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
