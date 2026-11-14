@@ -2,6 +2,31 @@
 
 ## Current state
 
+### JSON Canvas web staging preview, 14 November 2026 (prepared)
+
+Branch `codex/json-canvas`, release `2026-11-14.1`, based on staging source
+`a0e324fd90753469aabbb6f99dac15bddfff5fe8` after starting from current `origin/main`.
+The existing sidebar, Now bar, Dashboard naming and native work are preserved.
+Canvas is exposed only in local/staging web navigation; native builds and production
+have no entry point. This feature needs only the **Staging frontend** workflow;
+the sync Worker, databases and bindings are unchanged.
+
+The preview uses the existing React Flow library for spatial cards, groups,
+connections, resizing and JSON Canvas 1.0 import/export. Editable text remains in
+ordinary note rows and uses normal save, rich-text CRDT sync and undo. Full backups
+retain layout and notes. External file paths are preserved as references; this
+preview does not embed or fetch external files or group backgrounds. See
+[JSON-CANVAS.md](JSON-CANVAS.md) and [SYNC.md](SYNC.md).
+
+Local browser acceptance covers desktop pointer dragging and corner resizing,
+phone editing, connections, linked note edits, import/export, placement undo and
+reload recovery, with light/dark screenshots. A regression test ensures the
+browser's deferred ResizeObserver notifications do not open the recovery screen;
+real exceptions continue to do so. The final staging build and full local test suite passed, including the Canvas
+format, backup, two-client CRDT and recovery checks. Deployment remains pending
+staging coordination; its result will be recorded here. No production or native release is authorized by this task.
+
+
 ### Desktop local PDF and bookmark follow-up, 10 November 2026
 
 Branch `ccr-641b18bf-2fe80f`, release source
