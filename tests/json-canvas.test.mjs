@@ -25,6 +25,8 @@ import {
   adoptCanvasRoots,
   nextCanvasOrder,
   CANVAS_HOME_TITLE,
+  canvasToOutline,
+  cardsInGroup,
 } from "../src/json-canvas.mjs";
 import { checkRoot } from "../src/sync-checks.mjs";
 import {
@@ -338,4 +340,26 @@ test("an image card exports as a file reference; removing it sends its bullet an
   assert.ok(!removed.tables.bullets.some((n) => n.id === noteId));
   assert.equal(removed.tables.media.length, 0);
   assert.match(removed.tables.trash[0].payload, /pic\.png/);
+});
+
+test("cards become an outline in Notes, top to bottom, and a group knows its cards", () => {
+  const { doc, id } = createCanvas(empty(), "Outline", fixture(), uuid);
+  const b = doc.web.canvases[id];
+  const inside = cardsInGroup(b, "g");
+  assert.ok(inside.includes("t") && !inside.includes("g"));
+  const withLink = changeCanvas(doc, id, (b) => ({
+    ...b,
+    nodes: { ...b.nodes, l: { id: "l", type: "link", url: "https://example.org/", position: [0, -500], size: [200, 100], order: 7 } },
+  }));
+  const { doc: out, id: root } = canvasToOutline(withLink, id, ["t", "l"], "My group", uuid);
+  const kids = out.tables.bullets.filter((n) => n.parentId === root).sort((a, c) => a.position - c.position);
+  assert.equal(out.tables.bullets.find((n) => n.id === root).parentId, null);
+  assert.deepEqual(kids.map((n) => n.text), ["https://example.org/", "**Hello**\n\nworld"]);
+  assert.throws(() => canvasToOutline(doc, id, ["g"], "Empty", uuid), /no text/);
+});
+test("a compact card exports like any other card", () => {
+  const { doc, id } = createCanvas(empty(), "Compact", fixture(), uuid);
+  const compact = changeCanvas(doc, id, (b) => ({ ...b, nodes: { ...b.nodes, t: { ...b.nodes.t, compact: true } } }));
+  validateCanvases(compact.web.canvases);
+  assert.deepEqual(exportCanvas(compact, id), exportCanvas(doc, id));
 });

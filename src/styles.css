@@ -2230,3 +2230,29 @@ html {
     padding: 0 12px;
   }
 }
+
+/* Notes: a board's own bullet opens its canvas. */
+.canvas-open-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sidebar);
+  font-size: 13px;
+  color: var(--muted);
+}
+.canvas-open-banner button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}

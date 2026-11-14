@@ -415,10 +415,60 @@
 .canvas-card-editor .reader-note-format {
   display: none;
 }
-.canvas-card.is-image {
+/* Image and video cards clip their content inside, never the resize handles on their edges. */
+.canvas-card.is-image,
+.canvas-card.is-video {
   padding: 0;
+  overflow: visible;
+}
+.canvas-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  border-radius: 8px;
   background: var(--sidebar);
+}
+.canvas-card.is-video .canvas-card-body {
+  background: #000;
+}
+/* Resize handles: big enough to see and grab, with a wider invisible grab area; edges resize too. */
+.canvas-stage .react-flow__resize-control.handle {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 2px solid var(--accent, #70abbc);
+  background: var(--bg);
+  z-index: 3;
+}
+.canvas-stage .react-flow__resize-control.handle::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+}
+.canvas-stage .react-flow__resize-control.line {
+  border-color: transparent;
+  z-index: 2;
+}
+.canvas-stage .react-flow__resize-control.line.left,
+.canvas-stage .react-flow__resize-control.line.right {
+  width: 14px;
+  border-width: 0;
+}
+.canvas-stage .react-flow__resize-control.line.top,
+.canvas-stage .react-flow__resize-control.line.bottom {
+  height: 14px;
+  border-width: 0;
+}
+.canvas-stage .react-flow__resize-control.line:hover {
+  background: color-mix(in srgb, var(--accent, #70abbc) 25%, transparent);
+}
+/* Players never swallow a drag or resize; an unselected video can't be clicked into by accident. */
+.canvas-stage.is-gesturing iframe,
+.canvas-stage.is-pointer-down iframe,
+.canvas-stage .react-flow__node:not(.selected) .canvas-video {
+  pointer-events: none;
 }
 .canvas-image {
   width: 100%;
@@ -428,11 +478,7 @@
   pointer-events: none;
   user-select: none;
 }
-.canvas-card.is-video {
-  padding: 0;
-  overflow: hidden;
-  background: #000;
-}
+
 .canvas-card-strip {
   display: flex;
   align-items: center;
@@ -462,30 +508,31 @@
   border: 0;
   display: block;
 }
-.canvas-page .canvas-video-poster {
+.canvas-video-poster {
   flex: 1;
   width: 100%;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
   background: #111 center / cover no-repeat;
   display: grid;
   place-items: center;
-  cursor: pointer;
 }
-.canvas-page .canvas-video-poster:hover {
-  background-color: #111;
-  filter: brightness(1.08);
-}
-.canvas-play {
-  width: 56px;
-  height: 40px;
+.canvas-page .canvas-play {
+  width: 60px;
+  height: 42px;
+  border: 0;
   border-radius: 12px;
   background: #e33;
   color: #fff;
   display: grid;
   place-items: center;
+  padding: 0;
   box-shadow: 0 4px 14px #0006;
+  cursor: pointer;
+}
+.canvas-page .canvas-play:hover {
+  background: #f44;
+}
+.canvas-sizes {
+  min-width: 180px;
 }
 .canvas-kicker {
   text-transform: uppercase;
@@ -577,7 +624,7 @@
 }
 .canvas-error {
   position: absolute;
-  bottom: 16px;
+  bottom: 76px;
   left: 16px;
   right: 16px;
   background: var(--sidebar);
@@ -679,4 +726,166 @@
   margin-top: 28px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.canvas-source {
+  margin-top: 6px;
+  flex: none;
+}
+.canvas-source .reading-citation {
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: var(--sidebar);
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-link-title {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-markdown ul {
+  padding-left: 1.2em;
+  margin: 0.3em 0 0;
+}
+
+/* Side panel: notes, highlights, flashcards and bookmarks to put on the board. */
+.canvas-sources {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  bottom: 84px;
+  width: 320px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px #00000029;
+}
+.canvas-sources header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.canvas-sources-tabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+}
+.canvas-page .canvas-sources-tabs button {
+  border: 0;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: transparent;
+  white-space: nowrap;
+}
+.canvas-page .canvas-sources-tabs button[aria-selected="true"] {
+  background: var(--hover);
+  font-weight: 600;
+}
+.canvas-page .canvas-sources-close {
+  border: 0;
+  padding: 4px;
+  background: transparent;
+  display: grid;
+  place-items: center;
+}
+.canvas-sources-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.canvas-sources ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.canvas-sources li {
+  position: relative;
+  padding: 8px 34px 8px 10px;
+  border-radius: 8px;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.canvas-sources li.is-active {
+  background: var(--hover);
+}
+.canvas-src-title {
+  font-size: 13px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.canvas-sources li small {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-page .canvas-src-layout {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  padding: 5px;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.canvas-page .canvas-src-layout:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+li.canvas-src-empty {
+  cursor: default;
+  color: var(--muted);
+  font-size: 12px;
+}
+.canvas-info {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.canvas-info button {
+  margin-left: 0;
+}
+.canvas-page .canvas-dock button[aria-pressed="true"] {
+  background: var(--hover);
+}
+@media (max-width: 700px) {
+  .canvas-sources {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 70px;
+    width: auto;
+    max-height: 60%;
+  }
 }

@@ -98,12 +98,18 @@ try {
       label: "Supervised learning\nClassification and regression",
     });
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Add note from Notes" }).click();
-    await page
-      .locator(".canvas-note-picker button")
-      .filter({ hasText: "Supervised learning" })
-      .first()
-      .click();
+    // The same note from Notes on two cards: editing one updates both.
+    await page.getByRole("button", { name: "Add from Notes and library" }).click();
+    await page.getByRole("textbox", { name: "Search notes" }).fill("Write a bullet");
+    await page.getByRole("option", { name: /Write a bullet/ }).first().click();
+    if (mobile) {
+      // On phones the panel closes after each add.
+      await page.getByRole("button", { name: "Add from Notes and library" }).click();
+      await page.getByRole("textbox", { name: "Search notes" }).fill("Write a bullet");
+    }
+    await page.getByRole("option", { name: /Write a bullet/ }).first().click();
+    if (await page.getByRole("button", { name: "Close panel" }).isVisible())
+      await page.getByRole("button", { name: "Close panel" }).click();
     await page.keyboard.press("Enter");
     await page
       .getByRole("textbox", { name: "Edit canvas note", exact: true })
@@ -127,7 +133,7 @@ try {
         .click();
     const download = await downloadPromise;
     const exported = JSON.parse(await readFile(await download.path(), "utf8"));
-    assert.equal(exported.nodes.length, 3);
+    assert.equal(exported.nodes.length, 4);
     assert.equal(exported.edges.length, 1);
     assert.ok(
       exported.nodes.some(
@@ -151,14 +157,16 @@ try {
     });
     await page.locator(".app").evaluate((el) => (el.dataset.theme = "Light"));
     // Placement removal and the ordinary app undo path.
+    await page.locator(".react-flow__controls-fitview").click();
+    await page.waitForTimeout(300);
     await page.locator(".canvas-markdown").first().click();
     await page.getByRole("button", { name: "Remove", exact: true }).click();
-    assert.equal(await page.locator(".react-flow__node").count(), 2);
+    assert.equal(await page.locator(".react-flow__node").count(), 3);
     await page
       .getByRole("button", { name: "Undo canvas change", exact: true })
       .click();
     await page.waitForFunction(
-      () => document.querySelectorAll(".react-flow__node").length === 3,
+      () => document.querySelectorAll(".react-flow__node").length === 4,
     );
     await page
       .getByRole("button", { name: "All canvases", exact: true })
@@ -171,7 +179,7 @@ try {
         buffer: Buffer.from(JSON.stringify(exported)),
       });
     await page.waitForFunction(
-      () => document.querySelectorAll(".react-flow__node").length === 3,
+      () => document.querySelectorAll(".react-flow__node").length === 4,
     );
     await page.waitForTimeout(500);
     await page.reload();
@@ -183,6 +191,8 @@ try {
         exact: true,
       })
       .click();
+    // Canvas reopens the last board; the list shows both boards.
+    await page.getByRole("button", { name: "All canvases", exact: true }).click();
     await page.waitForFunction(
       () => document.querySelectorAll(".canvas-board").length === 2,
     );

@@ -50,9 +50,9 @@ try {
   assert.equal(await page.locator(".react-flow__node.selected").count(), 2);
   await page.getByRole("toolbar", { name: "Selected cards" }).waitFor();
   const b0 = await nodes.nth(0).boundingBox(), before = await rects(page);
-  await page.mouse.move(b0.x + 20, b0.y + 20);
+  await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
   await page.mouse.down();
-  await page.mouse.move(b0.x + 120, b0.y + 80, { steps: 8 });
+  await page.mouse.move(b0.x + b0.width / 2 + 100, b0.y + b0.height / 2 + 60, { steps: 8 });
   await page.mouse.up();
   await page.waitForTimeout(300);
   const after = await rects(page);

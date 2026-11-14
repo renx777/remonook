@@ -132,7 +132,7 @@ try {
     await page.reload();
     if (mobile) await page.getByRole("button", { name: "Library", exact: true }).click();
     await page.getByRole(mobile ? "menuitem" : "button", { name: "Canvas", exact: true }).click();
-    await page.locator(".canvas-board").first().click();
+    await page.locator(".canvas-board").first().click(); // the list was open when the page reloaded
     await page.locator(".canvas-card.is-image img").first().waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     assert.deepEqual(errors, []);

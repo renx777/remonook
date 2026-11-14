@@ -337,6 +337,7 @@ export function exportCanvas(doc, id) {
       noteId,
       markdown,
       removed,
+      compact,
       extra,
       ...standard
     } = n;
@@ -472,7 +473,7 @@ function checkBoard(id, b) {
       if (!record(e) || edgeId !== e.id) fail("invalid stored connection.");
     // Validate every placement, including tombstones, without requiring deleted edges to resolve.
     const nodes = Object.values(b.nodes).map(
-      ({ position, size, order, noteId, markdown, removed, extra, ...n }) => ({
+      ({ position, size, order, noteId, markdown, removed, compact, extra, ...n }) => ({
         ...n,
         x: position?.[0],
         y: position?.[1],
@@ -525,4 +526,55 @@ export function moveCanvasCards(doc, boardId, positions) {
 }
 export function moveCanvasCard(doc, boardId, nodeId, position) {
   return moveCanvasCards(doc, boardId, { [nodeId]: position });
+}
+
+// Cards to an outline: a new top-level bullet in Notes (named after the group) with one bullet per
+// card, top to bottom then left to right. Text and note cards copy their text and formatting; link
+// and file cards become their address or path. Images stay on the board.
+export function canvasToOutline(doc, boardId, ids, title, uuid = () => crypto.randomUUID()) {
+  const b = doc.web.canvases?.[boardId];
+  if (!b) throw Error("Canvas not found.");
+  const byId = new Map(doc.tables.bullets.map((r) => [r.id, r]));
+  const cards = ids
+    .map((id) => b.nodes[id])
+    .filter((n) => n && !n.removed && n.type !== "group" && !(n.type === "file" && n.noteId))
+    .sort((a, c) => a.position[1] - c.position[1] || a.position[0] - c.position[0]);
+  if (!cards.length) throw Error("There are no text, note or link cards to turn into an outline.");
+  const rootId = uuid(),
+    rows = [...doc.tables.bullets];
+  rows.push(
+    bullet(rootId, {
+      text: title || "From canvas",
+      parentId: null,
+      position: rows.filter((n) => !n.parentId).length,
+    }),
+  );
+  cards.forEach((n, position) => {
+    const note = n.noteId && byId.get(n.noteId);
+    rows.push(
+      bullet(uuid(), {
+        parentId: rootId,
+        position,
+        text: note ? note.text : n.type === "link" ? n.url : n.type === "file" ? n.file : n.text || "",
+        formatting: note ? note.formatting || "" : "",
+      }),
+    );
+  });
+  return { doc: withNodes(doc, rows), id: rootId };
+}
+// Cards that sit inside a group's frame.
+export function cardsInGroup(board, groupId) {
+  const g = board.nodes[groupId];
+  if (!g) return [];
+  return Object.values(board.nodes)
+    .filter(
+      (n) =>
+        n.id !== groupId &&
+        !n.removed &&
+        n.position[0] >= g.position[0] &&
+        n.position[1] >= g.position[1] &&
+        n.position[0] + n.size[0] <= g.position[0] + g.size[0] &&
+        n.position[1] + n.size[1] <= g.position[1] + g.size[1],
+    )
+    .map((n) => n.id);
 }

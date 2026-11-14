@@ -26,7 +26,6 @@ import {
 } from "@xyflow/react";
 import {
   Type,
-  NotebookText,
   ImagePlus,
   Link as LinkIcon,
   SquareDashed,
@@ -45,7 +44,11 @@ import {
   Play,
   Group as GroupIcon,
   ArrowRight,
+  Scaling,
+  ListTree,
+  Library,
 } from "lucide-react";
+import { CanvasSources, CANVAS_DRAG, type SourceItem } from "./CanvasSources";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import {
@@ -64,11 +67,16 @@ import {
   canvasTitle,
   renameCanvas,
   adoptCanvasRoots,
+  canvasToOutline,
+  cardsInGroup,
+  canvasHomeId,
 } from "./json-canvas.mjs";
 import { bullet } from "./domain.mjs";
 import { sourceId } from "./relations.mjs";
 import { mediaLink } from "./media.mjs";
 import { NoteField } from "./ReaderBookNotes";
+import { ReadingCitation } from "./ReadingSources";
+import { bulletMarkdown } from "./ai-markdown.mjs";
 import type { Workspace, Node } from "./data";
 import "./canvas.css";
 type StoredImage = {
@@ -89,6 +97,8 @@ type Props = {
   onOpenNote: (id: string) => void;
   assets?: Map<string, Blob>;
   onStoreImages?: (files: File[]) => Promise<StoredImage[]>;
+  // Opens this board (from an "Open canvas" button in Notes); n changes on every request.
+  open?: { id: string; n: number } | null;
 };
 const palette: Record<string, string> = {
   "1": "#d97878",
@@ -135,22 +145,25 @@ function VideoBody({ url }: { url: string }) {
       />
     );
   }
+  // The poster moves and selects the card like any other; only the play button plays.
   return (
-    <button
-      type="button"
-      className="canvas-video-poster nodrag"
-      aria-label={"Play " + m.title}
-      onClick={() => setPlaying(true)}
+    <div
+      className="canvas-video-poster"
       style={
         id
           ? { backgroundImage: `url(https://i.ytimg.com/vi/${id}/hqdefault.jpg)` }
           : undefined
       }
     >
-      <span className="canvas-play">
+      <button
+        type="button"
+        className="canvas-play nodrag"
+        aria-label={"Play " + m.title}
+        onClick={() => setPlaying(true)}
+      >
         <Play size={22} fill="currentColor" />
-      </span>
-    </button>
+      </button>
+    </div>
   );
 }
 function GroupLabel({ d }: { d: any }) {
@@ -204,9 +217,9 @@ const types = {
       >
         <NodeResizer
           isVisible={selected && !d.disabled}
-          minWidth={d.image ? 60 : 120}
-          minHeight={d.image ? 40 : 60}
-          keepAspectRatio={!!d.image}
+          minWidth={d.image ? 60 : video ? 200 : 120}
+          minHeight={d.image ? 40 : video ? 120 : 60}
+          keepAspectRatio={false}
           onResizeStart={() => d.beginResize()}
           onResizeEnd={(_, p) => d.resize(p)}
         />
@@ -268,14 +281,16 @@ const types = {
             />
           )
         ) : d.image ? (
-          <img
-            className="canvas-image"
-            src={d.image}
-            alt={d.alt || "Canvas image"}
-            draggable={false}
-          />
+          <div className="canvas-card-body">
+            <img
+              className="canvas-image"
+              src={d.image}
+              alt={d.alt || "Canvas image"}
+              draggable={false}
+            />
+          </div>
         ) : video ? (
-          <>
+          <div className="canvas-card-body">
             <div className="canvas-card-strip">
               <Play size={12} />
               <span>{video.title}</span>
@@ -290,10 +305,11 @@ const types = {
               </a>
             </div>
             <VideoBody url={d.url} />
-          </>
+          </div>
         ) : d.kind === "link" ? (
           <>
             <small className="canvas-kicker">{hostOf(d.url)}</small>
+            {d.title && <strong className="canvas-link-title">{d.title}</strong>}
             <p className="canvas-url">{d.url}</p>
             <a
               className="nodrag"
@@ -318,6 +334,11 @@ const types = {
         ) : (
           <GroupLabel d={d} />
         )}
+        {d.kind === "text" && d.noteId && !d.editing && (
+          <div className="canvas-source nodrag">
+            <ReadingCitation id={d.noteId} />
+          </div>
+        )}
         {d.missing && d.kind === "text" && (
           <small className="canvas-missing">
             Note in Trash · last text shown
@@ -330,6 +351,25 @@ const types = {
 type Rect = { x: number; y: number; w: number; h: number };
 const overlaps = (a: Rect, b: Rect) =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+// Images and videos keep their shape: whichever way a handle is dragged, the bigger change wins and
+// the other side follows; the opposite corner stays put (the image letterboxes during the drag).
+function fitResize(n: any, v: { x: number; y: number; width: number; height: number }) {
+  const keep = (n.type === "file" && n.noteId) || (n.type === "link" && playable(n.url));
+  if (!keep)
+    return {
+      position: [Math.round(v.x), Math.round(v.y)],
+      size: [Math.round(v.width), Math.round(v.height)],
+    };
+  const [ow, oh] = n.size,
+    [ox, oy] = n.position,
+    ratio = oh / ow,
+    byWidth = Math.abs(v.width / ow - 1) >= Math.abs(v.height / oh - 1),
+    w = Math.round(byWidth ? v.width : v.height / ratio),
+    h = Math.round(byWidth ? v.width * ratio : v.height),
+    x = Math.round(v.x) !== ox ? ox + ow - w : ox,
+    y = Math.round(v.y) !== oy ? oy + oh - h : oy;
+  return { position: [Math.round(x), Math.round(y)], size: [w, h] };
+}
 // Keys typed into a field, the note editor or a dialog belong to it, not to the board.
 const typing = (target: EventTarget | null) => {
   const el = target as HTMLElement | null;
@@ -410,11 +450,13 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
     [picker, setPicker] = useState(false),
     [ask, setAsk] = useState<null | { kind: "link" | "file"; target?: string }>(null),
     [askValue, setAskValue] = useState(""),
-    [menu, setMenu] = useState<null | "color" | "more" | "edge-color">(null),
+    [menu, setMenu] = useState<null | "color" | "more" | "edge-color" | "size">(null),
     [filter, setFilter] = useState(""),
     [error, setError] = useState(""),
+    [info, setInfo] = useState<null | { text: string; open?: string }>(null),
     [busy, setBusy] = useState(false),
     [dragging, setDragging] = useState(false),
+    [resizing, setResizing] = useState(false),
     [snap, setSnap] = useState(() => stored("remo-canvas-snap", true)),
     [minimap, setMinimap] = useState(() => stored("remo-canvas-minimap", false));
   const run = (fn: () => void) => {
@@ -452,6 +494,40 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
   const rowById = useMemo(
     () => new Map(p.doc.tables.bullets.map((row) => [row.id, row])),
     [p.doc.tables.bullets],
+  );
+  // A note's child bullets show under it on the card (a flashcard shows its answer), up to 3 levels.
+  const childrenOf = useMemo(() => {
+    const map = new Map<string, Node[]>();
+    for (const row of p.doc.tables.bullets as Node[])
+      if (row.parentId && !row.deleted) {
+        const list = map.get(row.parentId) || [];
+        list.push(row);
+        map.set(row.parentId, list);
+      }
+    for (const list of map.values()) list.sort((a, b) => a.position - b.position);
+    return map;
+  }, [p.doc.tables.bullets]);
+  const withChildren = (id: string | undefined, text: string) => {
+    if (!id || !childrenOf.has(id)) return text;
+    const lines: string[] = [];
+    const walk = (parent: string, depth: number) => {
+      for (const child of childrenOf.get(parent) || []) {
+        if (lines.length >= 40) return;
+        lines.push("  ".repeat(depth) + "- " + bulletMarkdown(child).replace(/\n/g, " "));
+        if (depth < 2) walk(child.id, depth + 1);
+      }
+    };
+    walk(id, 0);
+    return text + "\n\n" + lines.join("\n");
+  };
+  const bookmarkTitles = useMemo(
+    () =>
+      new Map(
+        Object.values(p.doc.web.bookmarks || {})
+          .filter((m: any) => !m.deleted)
+          .map((m: any) => [m.url, m.title]),
+      ),
+    [p.doc.web.bookmarks],
   );
   const htmlCache = useRef(new Map<string, { text: string; html: string }>());
   const renderMarkdown = (id: string, text: string) => {
@@ -493,6 +569,7 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
   callbacks.current = {
     startEdit: (id: string) => startEdit(id),
     stopEdit: () => setEditingId(null),
+    setResizing,
     rename: (id: string, value: string | null) => {
       setRenamingId(null);
       if (value !== null && value.trim() !== (b.nodes[id]?.label || "Group"))
@@ -537,16 +614,19 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
               startEdit: () => callbacks.current.startEdit(n.id),
               stopEdit: () => callbacks.current.stopEdit(),
               rename: (v: string | null) => callbacks.current.rename(n.id, v),
-              html: n.type === "text" ? renderMarkdown(n.id, text) : "",
+              html:
+                n.type === "text"
+                  ? renderMarkdown(n.id + (n.compact ? ":c" : ""), note && !n.compact ? withChildren(note.id, text) : text)
+                  : "",
+              title: n.type === "link" ? bookmarkTitles.get(n.url) : undefined,
               beginResize: () => {
                 gesture.current = true;
+                callbacks.current.setResizing(true);
               },
               resize: (v: any) => {
                 gesture.current = false;
-                patchRef.current(n.id, {
-                  position: [Math.round(v.x), Math.round(v.y)],
-                  size: [Math.round(v.width), Math.round(v.height)],
-                });
+                callbacks.current.setResizing(false);
+                patchRef.current(n.id, fitResize(n, v));
               },
             },
           };
@@ -557,6 +637,8 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
       p.doc.tables.trash,
       p.doc.tables.media,
       p.assets,
+      childrenOf,
+      bookmarkTitles,
       p.disabled,
       editingId,
       renamingId,
@@ -703,7 +785,9 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
         y += spot[1];
       }
     }
-    return [Math.round(x), Math.round(y)];
+    // On the grid, so a multi-card drag with snapping keeps cards lined up with each other.
+    const g = snap ? 20 : 1;
+    return [Math.round(x / g) * g, Math.round(y / g) * g];
   };
   const reveal = (x: number, y: number, w: number, h: number) => {
     const r = stage.current?.getBoundingClientRect();
@@ -795,7 +879,6 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           );
         }),
       );
-      setPicker(false);
       setAsk(null);
       if (kind === "text" && created && o.edit !== false) setEditingId(id);
       requestAnimationFrame(() => reveal(x, y, size[0], size[1]));
@@ -881,6 +964,71 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
     if (url && safeCanvasUrl(url)) add("link", { url, at });
     else add("text", { text: v.slice(0, 20000), at, edit: false });
   };
+  // From the side panel: a note (or highlight, flashcard) becomes a live card; a bookmark a link card.
+  const addSource = (item: SourceItem, at?: number[]) => {
+    if (item.type === "note") add("text", { noteId: item.id, at, edit: false });
+    else add("link", { url: item.url, at });
+    if (window.matchMedia?.("(max-width: 700px)").matches) setPicker(false);
+  };
+  // A bullet laid out as a small tree: the bullet's card, its children's cards to the right, connected.
+  const layoutBullet = (id: string, at?: number[]) =>
+    run(() => {
+      const kids = (childrenOf.get(id) || []).slice(0, 24),
+        ps = [260, 120],
+        cs = [260, 120],
+        gap = 20,
+        h = Math.max(ps[1], kids.length * (cs[1] + gap) - gap),
+        w = ps[0] + 120 + cs[0],
+        [x, y] = place(w, h, [], at),
+        parentId = crypto.randomUUID(),
+        childIds = kids.map(() => crypto.randomUUID());
+      withSelection([parentId, ...childIds], () =>
+        p.onChange((doc) => {
+          const board = doc.web.canvases[boardId],
+            rows = doc.tables.bullets;
+          roomFor(board, 1 + kids.length);
+          let order = nextCanvasOrder(board);
+          const nodes = { ...board.nodes },
+            edges = { ...board.edges },
+            card = (cid: string, noteId: string, pos: number[], size: number[], compact = false) => {
+              const src = sourceId(rows, noteId);
+              nodes[cid] = {
+                id: cid,
+                type: "text",
+                noteId: src,
+                markdown: false,
+                text: rows.find((r) => r.id === src)?.text || "",
+                position: pos.map(Math.round),
+                size,
+                order: order++,
+                ...(compact ? { compact: true } : {}),
+              };
+            };
+          card(parentId, id, [x, y + Math.round((h - ps[1]) / 40) * 20], ps, kids.length > 0);
+          kids.forEach((k, i) => {
+            card(childIds[i], k.id, [x + ps[0] + 120, y + i * (cs[1] + gap)], cs);
+            const eid = crypto.randomUUID();
+            edges[eid] = { id: eid, fromNode: parentId, toNode: childIds[i], fromSide: "right", toSide: "left" };
+          });
+          return changeCanvas(doc, boardId, (b: any) => ({ ...b, nodes, edges }));
+        }),
+      );
+      requestAnimationFrame(() => reveal(x, y, w, h));
+    });
+  // A group's cards (or the selected cards) become an outline: a new bullet at the end of Notes.
+  const toOutline = () =>
+    run(() => {
+      const isGroup = card?.type === "group",
+        ids = isGroup ? cardsInGroup(b, card.id) : sel,
+        title = isGroup ? card.label || "Group" : canvasTitle(p.doc, b);
+      let created = "";
+      p.onChange((doc) => {
+        const r = canvasToOutline(doc, boardId, ids, title);
+        created = r.id;
+        return r.doc;
+      });
+      setInfo({ text: `“${title}” added to Notes as an outline.`, open: created });
+    });
   // Group wraps the selected cards; with nothing selected it makes an empty frame.
   const group = () =>
     run(() => {
@@ -1038,6 +1186,29 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
     });
   const zoomTo = (ids: string[]) =>
     flow.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.3, maxZoom: 1.5, duration: 250 });
+  // Image and video cards: one-click sizes that keep the shape (images) or 16:9 (videos).
+  const sizable = (n: any) => (n.type === "file" && !!n.noteId) || (n.type === "link" && !!playable(n.url));
+  const resizeTo = async (n: any, width: number) => {
+    setMenu(null);
+    let w = width,
+      ratio = n.size[1] / n.size[0];
+    if (n.type === "link") ratio = playable(n.url)?.kind === "spotify" ? 0.5 : 9 / 16 + 30 / Math.max(width, 1);
+    if (n.type === "file") {
+      const url = imageFor(n);
+      if (url)
+        try {
+          const img = new Image();
+          img.src = url;
+          await img.decode();
+          ratio = img.naturalHeight / img.naturalWidth;
+          if (!width) w = Math.min(1600, img.naturalWidth);
+        } catch {
+          /* keep the current shape */
+        }
+      if (!w) w = n.size[0];
+    }
+    patch(n.id, { size: [Math.round(w), Math.max(40, Math.round(w * ratio))] });
+  };
   const commitPositions = (nodes: FlowNode[]) =>
     nodes.length &&
     run(() =>
@@ -1186,33 +1357,13 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
   return (
     <div className="canvas-workspace">
       {picker && (
-        <div className="canvas-note-picker">
-          <label>
-            Find an existing note
-            <input
-              autoFocus
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setPicker(false);
-              }}
-            />
-          </label>
-          {p.doc.tables.bullets
-            .filter(
-              (n) =>
-                !n.deleted &&
-                n.text &&
-                n.text.toLowerCase().includes(filter.toLowerCase()),
-            )
-            .slice(0, 30)
-            .map((n) => (
-              <button key={n.id} onClick={() => add("text", { noteId: n.id, edit: false })}>
-                {n.text.slice(0, 100)}
-              </button>
-            ))}
-          <button onClick={() => setPicker(false)}>Cancel</button>
-        </div>
+        <CanvasSources
+          doc={p.doc}
+          homeId={canvasHomeId(p.doc)}
+          onAdd={(item) => addSource(item)}
+          onLayout={(id) => layoutBullet(id)}
+          onClose={() => setPicker(false)}
+        />
       )}
       {ask && (
         <form
@@ -1266,18 +1417,47 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
         </form>
       )}
       <div
-        className={"canvas-stage" + (busy ? " is-busy" : "")}
+        className={
+          "canvas-stage" +
+          (busy ? " is-busy" : "") +
+          (dragging || resizing ? " is-gesturing" : "")
+        }
         ref={stage}
+        // Pressing on a card or a resize handle switches embedded players off at once, before the
+        // first move, so a drag or resize over a playing video keeps going.
+        onPointerDownCapture={(e) => {
+          const el = e.target as HTMLElement;
+          if (!el.closest(".react-flow__resize-control, .react-flow__node")) return;
+          const host = stage.current!;
+          host.classList.add("is-pointer-down");
+          const up = () => {
+            host.classList.remove("is-pointer-down");
+            window.removeEventListener("pointerup", up, true);
+            window.removeEventListener("pointercancel", up, true);
+          };
+          window.addEventListener("pointerup", up, true);
+          window.addEventListener("pointercancel", up, true);
+        }}
         onDragOver={(e) => {
           if (p.disabled) return;
           const t = e.dataTransfer.types;
-          if (t.includes("Files") || t.includes("text/uri-list") || t.includes("text/plain")) {
+          if (t.includes(CANVAS_DRAG) || t.includes("Files") || t.includes("text/uri-list") || t.includes("text/plain")) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
           }
         }}
         onDrop={(e) => {
           if (p.disabled) return;
+          const internal = e.dataTransfer.getData(CANVAS_DRAG);
+          if (internal) {
+            e.preventDefault();
+            try {
+              addSource(JSON.parse(internal), dropPoint(e));
+            } catch {
+              /* not ours */
+            }
+            return;
+          }
           const files = [...e.dataTransfer.files];
           const text =
             e.dataTransfer.getData("text/uri-list").split("\n").find((l) => l && !l.startsWith("#")) ||
@@ -1461,9 +1641,48 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
                   <Pencil size={16} />
                 </button>
               )}
+              {card && sizable(card) && (
+                <div className="canvas-selbar-menu">
+                  <button
+                    aria-label="Size"
+                    title="Size"
+                    aria-expanded={menu === "size"}
+                    onClick={() => setMenu(menu === "size" ? null : "size")}
+                  >
+                    <Scaling size={16} />
+                  </button>
+                  {menu === "size" && (
+                    <div className="canvas-more canvas-sizes" role="menu" aria-label="Card size">
+                      {(
+                        [
+                          ["Small", 240],
+                          ["Medium", 400],
+                          ["Large", 640],
+                          ["Extra large", 960],
+                        ] as [string, number][]
+                      ).map(([name, w]) => (
+                        <button key={name} role="menuitem" onClick={() => resizeTo(card, w)}>
+                          {name}
+                          <kbd>{w}px</kbd>
+                        </button>
+                      ))}
+                      {card.type === "file" && (
+                        <button role="menuitem" onClick={() => resizeTo(card, 0)}>
+                          Original size
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {sel.length > 1 && (
                 <button aria-label="Group" title="Put these cards in a group" onClick={group}>
                   <GroupIcon size={16} />
+                </button>
+              )}
+              {(card?.type === "group" || sel.length > 1) && (
+                <button aria-label="Turn into outline" title="Turn into an outline in Notes" onClick={toOutline}>
+                  <ListTree size={16} />
                 </button>
               )}
               <button aria-label="Zoom to selection" title="Zoom to selection" onClick={() => zoomTo(sel)}>
@@ -1581,14 +1800,15 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           </button>
           <button
             disabled={p.disabled}
-            aria-label="Add note from Notes"
-            title="A note from Notes"
+            aria-label="Add from Notes and library"
+            title="Notes, highlights, flashcards and bookmarks"
+            aria-pressed={picker}
             onClick={() => {
               setAsk(null);
               setPicker(!picker);
             }}
           >
-            <NotebookText size={18} />
+            <Library size={18} />
           </button>
           <button
             disabled={p.disabled || busy}
@@ -1649,6 +1869,15 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           </div>
         )}
       </div>
+      {info && (
+        <div className="canvas-error canvas-info" role="status">
+          {info.text}
+          {info.open && (
+            <button onClick={() => p.onOpenNote(info.open!)}>Open in Notes</button>
+          )}
+          <button onClick={() => setInfo(null)}>Dismiss</button>
+        </div>
+      )}
       {error && (
         <div className="canvas-error" role="alert">
           {error}
@@ -1694,8 +1923,27 @@ function Thumbnail({ board }: { board: any }) {
     </svg>
   );
 }
+const LAST = "remo-canvas-last";
 export default function CanvasStudio(p: Props) {
-  const [active, setActive] = useState<string | null>(null),
+  // The board you had open last opens again.
+  const [active, setActiveState] = useState<string | null>(() => {
+      try {
+        const id = localStorage.getItem(LAST);
+        return id && p.doc.web.canvases?.[id] && !p.doc.web.canvases[id].removed ? id : null;
+      } catch {
+        return null;
+      }
+    }),
+    setActive = (id: string | null) => {
+      setActiveState(id);
+      try {
+        if (id) localStorage.setItem(LAST, id);
+        else localStorage.removeItem(LAST);
+      } catch {
+        /* storage unavailable */
+      }
+    },
+    [copied, setCopied] = useState(false),
     [error, setError] = useState(""),
     [query, setQuery] = useState(""),
     input = useRef<HTMLInputElement>(null);
@@ -1704,6 +1952,21 @@ export default function CanvasStudio(p: Props) {
     title = board ? canvasTitle(p.doc, board) : "",
     [draft, setDraft] = useState<string | null>(null);
   useEffect(() => setDraft(null), [active]);
+  useEffect(() => {
+    if (p.open && p.doc.web.canvases?.[p.open.id] && !p.doc.web.canvases[p.open.id].removed)
+      setActive(p.open.id);
+  }, [p.open?.n]);
+  // A link to this board for any note: [[Title|board bullet]]; the board's bullet offers "Open canvas".
+  const copyLink = async () => {
+    if (!board) return;
+    try {
+      await navigator.clipboard.writeText(`[[${title.replace(/[\[\]|\n]/g, " ")}|${board.rootId}]]`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Copying isn't allowed here.");
+    }
+  };
   // Boards made before the "Canvases" bullet existed are filed under it once.
   const looseRoots = Object.values(p.doc.web.canvases || {}).some(
     (b: any) =>
@@ -1796,6 +2059,7 @@ export default function CanvasStudio(p: Props) {
                 <summary aria-label="Canvas options">⋯</summary>
                 <div className="canvas-options-menu">
                   <button onClick={saveFile}>Export as .canvas file</button>
+                  <button onClick={copyLink}>{copied ? "Link copied: paste it in a note" : "Copy link for notes"}</button>
                   <button
                     disabled={p.disabled}
                     onClick={() => {
