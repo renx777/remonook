@@ -2,6 +2,48 @@
 
 ## Current state
 
+### JSON Canvas web staging preview, 14 November 2026
+
+Deployed branch `codex/json-canvas`, application commit
+`ada624f7abfe1833df33e104ecea31784081f871`, release `2026-11-14.1`, based on staging source
+`a0e324fd90753469aabbb6f99dac15bddfff5fe8` after starting from current `origin/main`.
+The existing sidebar, Now bar, Dashboard naming and native work are preserved.
+Canvas is exposed only in local/staging web navigation; native builds and production
+have no entry point. This feature needs only the **Staging frontend** workflow;
+the sync Worker, databases and bindings are unchanged.
+
+The preview uses the existing React Flow library for spatial cards, groups,
+connections, resizing and JSON Canvas 1.0 import/export. Editable text remains in
+ordinary note rows and uses normal save, rich-text CRDT sync and undo. Full backups
+retain layout and notes. External file paths are preserved as references; this
+preview does not embed or fetch external files or group backgrounds. See
+[JSON-CANVAS.md](JSON-CANVAS.md) and [SYNC.md](SYNC.md).
+
+Local browser acceptance covers desktop pointer dragging and corner resizing,
+phone editing, connections, linked note edits, import/export, placement undo and
+reload recovery, with light/dark screenshots. A regression test ensures the
+browser's deferred ResizeObserver notifications do not open the recovery screen;
+real exceptions continue to do so. The final staging build and all 516 local tests
+passed, including Canvas format, backup, two-client CRDT and recovery checks.
+[GitHub CI](https://github.com/renx777/remonook/actions/runs/43634543259) passed for
+that exact application commit.
+
+The owner approved replacing the previous staging branch. The
+[Staging frontend deployment](https://github.com/renx777/remonook/actions/runs/43635113066)
+passed, including the targeted regression checks, Workdays migration checks,
+integration-backend health verification and live end-to-end sync test. Both
+`https://staging.remonook.com/staging-source.json` and `/release.json` report the
+expected source/release. Chromium acceptance also passed against the live staging
+site at desktop and phone sizes, including pointer dragging and corner resizing,
+linked-note edits, connections, JSON import/export, undo and reload. The test
+browser used the environment's supplied proxy CA with TLS verification enabled.
+The backend still reports `syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`,
+`aiEnabled: true` and `bookmarkReader: 1`; it was not redeployed. Production and
+native releases are unchanged. Implementation and release records remain in
+[draft PR #83](https://github.com/renx777/remonook/pull/83), stacked on the previous
+staging branch; nothing was merged to main.
+
+
 ### Desktop local PDF and bookmark follow-up, 10 November 2026
 
 Branch `ccr-641b18bf-2fe80f`, release source

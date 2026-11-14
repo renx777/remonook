@@ -1,0 +1,380 @@
+@import "@xyflow/react/dist/style.css";
+.canvas-page {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+.canvas-header {
+  padding: 24px 28px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.canvas-header small {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  color: var(--muted);
+}
+.canvas-header h1 {
+  font-size: 26px;
+  font-weight: 500;
+  margin: 8px 0;
+}
+.canvas-header p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+.canvas-header input[aria-label] {
+  display: block;
+  font-size: 22px;
+  font-weight: 500;
+  border: 0;
+  background: transparent;
+  max-width: 48vw;
+  margin-top: 6px;
+}
+.canvas-page button {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px 11px;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+.canvas-page button:hover {
+  background: var(--hover);
+}
+.canvas-page button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.canvas-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.canvas-library {
+  padding: 24px 28px;
+  overflow: auto;
+}
+.canvas-library label,
+.canvas-inspector label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.canvas-library input {
+  max-width: 340px;
+}
+.canvas-page input,
+.canvas-page textarea,
+.canvas-page select {
+  border: 1px solid var(--line);
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  min-width: 0;
+}
+.canvas-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+.canvas-board {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left !important;
+  padding: 0 0 14px !important;
+  overflow: hidden;
+}
+.canvas-board strong,
+.canvas-board > small {
+  margin: 0 14px;
+}
+.canvas-board > small {
+  color: var(--muted);
+}
+.canvas-thumbnail {
+  height: 140px;
+  background: var(--sidebar);
+  position: relative;
+  width: 100%;
+}
+.canvas-thumbnail i {
+  position: absolute;
+  border: 1px solid;
+  width: 16%;
+  height: 13%;
+  border-radius: 3px;
+  background: var(--bg);
+}
+.canvas-empty {
+  max-width: 520px;
+  margin: 12vh auto;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.canvas-empty h2 {
+  font-size: 23px;
+  color: var(--text);
+  font-weight: 500;
+}
+.canvas-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 420px;
+  position: relative;
+  flex-direction: column;
+}
+.canvas-tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 9px 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+}
+.canvas-tools span {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.canvas-stage {
+  flex: 1;
+  min-height: 400px;
+}
+.canvas-stage .react-flow {
+  background: var(--bg);
+}
+.canvas-stage .react-flow__controls button {
+  background: var(--sidebar);
+  color: var(--text);
+  border-radius: 0;
+}
+.canvas-stage .react-flow__controls svg {
+  fill: currentColor;
+}
+.canvas-card {
+  width: 100%;
+  height: 100%;
+  border: 1px solid;
+  border-radius: 9px;
+  background: var(--bg);
+  padding: 16px 18px;
+  overflow: visible;
+  box-shadow: 0 2px 5px #00000009;
+  position: relative;
+  font-size: 14px;
+}
+.react-flow__node.selected .canvas-card {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.canvas-card small,
+.canvas-muted {
+  color: var(--muted);
+  font-size: 11px;
+}
+.canvas-card p {
+  overflow-wrap: anywhere;
+}
+.canvas-card a {
+  color: var(--accent);
+}
+.canvas-group {
+  background: color-mix(in srgb, var(--sidebar) 50%, transparent);
+  border-style: dashed;
+  box-shadow: none;
+}
+.canvas-markdown {
+  max-height: 100%;
+  overflow: hidden;
+  line-height: 1.6;
+}
+.canvas-markdown > :first-child {
+  margin-top: 0;
+}
+.canvas-markdown img {
+  max-width: 100%;
+  display: none;
+}
+.canvas-markdown pre {
+  white-space: pre-wrap;
+}
+.canvas-missing {
+  display: block;
+  margin-top: 8px;
+}
+.canvas-card .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  opacity: 0.2;
+}
+.canvas-card:hover .react-flow__handle,
+.react-flow__node.selected .react-flow__handle {
+  opacity: 1;
+}
+.canvas-inspector {
+  position: absolute;
+  right: 16px;
+  top: 66px;
+  width: 290px;
+  max-height: calc(100% - 90px);
+  overflow: auto;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 12px 30px #0002;
+}
+.canvas-inspector header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.canvas-inspector .reader-note-editor {
+  min-height: 140px;
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 10px;
+}
+.canvas-inspector .tiptap {
+  min-height: 120px;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.canvas-inspector small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.canvas-dimensions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.canvas-note-picker {
+  position: absolute;
+  left: 18px;
+  top: 60px;
+  max-height: 65%;
+  overflow: auto;
+  z-index: 9;
+  padding: 16px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.canvas-error {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  padding: 12px;
+  z-index: 12;
+}
+.canvas-error button {
+  margin-left: 12px;
+}
+@media (max-width: 700px) {
+  .canvas-header {
+    padding: 16px;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .canvas-header h1 {
+    font-size: 21px;
+  }
+  .canvas-header p {
+    max-width: 240px;
+  }
+  .canvas-header-actions {
+    justify-content: flex-end;
+  }
+  .canvas-header-actions button {
+    font-size: 11px;
+    padding: 7px;
+  }
+  .canvas-tools {
+    padding: 8px;
+  }
+  .canvas-tools button {
+    font-size: 11px;
+    padding: 7px;
+  }
+  .canvas-tools span {
+    display: none;
+  }
+  .canvas-library {
+    padding: 18px;
+  }
+  .canvas-inspector {
+    top: auto;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 48%;
+    padding: 12px;
+  }
+  .canvas-workspace {
+    min-height: 400px;
+  }
+  .canvas-stage {
+    min-height: 350px;
+  }
+  .canvas-note-picker {
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+  .canvas-empty {
+    margin: 9vh auto;
+  }
+}
+
+.canvas-options {
+  position: relative;
+  align-self: center;
+}
+.canvas-options summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px;
+}
+.canvas-options[open] button {
+  position: absolute;
+  right: 0;
+  top: 32px;
+  white-space: nowrap;
+  z-index: 15;
+  background: var(--sidebar);
+}
+.canvas-archived {
+  margin-top: 28px;
+  font-size: 12px;
+  color: var(--muted);
+}

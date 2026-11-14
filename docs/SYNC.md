@@ -178,3 +178,16 @@ Books use a separate lazy file transfer path with a 25 MiB/file limit and 100 Mi
 combined account quota. Existing attachment limits remain 2 MiB/file and 20 MiB
 for the attachment category. See [BOOK-STORAGE.md](BOOK-STORAGE.md). Book metadata
 uses the normal CRDT workspace; binary files are never included in note sync.
+
+### Canvas web preview
+
+Canvas layouts use generic root metadata (`web.canvases`), with board/card/edge IDs
+as map keys. Position and size are atomic pairs; distinct cards and independent
+fields merge through the existing v3 buckets. Editable card text is stored as
+ordinary bullet rows under a board root, or references an existing source bullet,
+and retains rich-text CRDT merging. Import creates a new board and backing notes;
+it never replaces a snapshot or trusts imported workspace identities. Removing a
+placement tombstones its metadata and connections, leaving note content intact.
+Full web backups retain this domain; Android-compatible export explicitly refuses
+to omit it. The durable outbox, acknowledgement and pending-status rules are
+unchanged. See [JSON-CANVAS.md](JSON-CANVAS.md) for the preview's limits.

@@ -12,6 +12,10 @@ export class RecoveryBoundary extends React.Component<{
     // is reported as a bare "Script error." with no details. It is not RemoNook's own failure and
     // must not take down the app; RemoNook's own errors carry an Error object.
     if (!event.error && (!event.message || event.message === "Script error." || event.message === "Script error") && !event.filename) return;
+    // Browsers defer ResizeObserver deliveries to the next frame and report this
+    // notification without an Error object. It is not a failed script or save.
+    // Keep real exceptions (even with the same message) on the recovery path.
+    if (!event.error && ["ResizeObserver loop completed with undelivered notifications.", "ResizeObserver loop limit exceeded"].includes(event.message)) return;
     const where = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : "";
     this.setState({ error: event.error instanceof Error ? event.error : new Error((event.message || "Unexpected browser error") + where) });
   };

@@ -27,3 +27,12 @@ test('render failure shows diagnostic and preserves backup callback', async () =
   await act(async () => root.unmount());
   dom.window.close();
 });
+
+
+test('deferred ResizeObserver notifications do not tear down the app; real errors still recover',async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost/'});globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+ const root=createRoot(document.getElementById('root'));await act(async()=>root.render(React.createElement(RecoveryBoundary,{onBackup:async()=>{}},React.createElement('p',null,'Canvas ready'))));
+ for(const message of ['ResizeObserver loop completed with undelivered notifications.','ResizeObserver loop limit exceeded']){await act(async()=>window.dispatchEvent(new window.ErrorEvent('error',{message,filename:'http://localhost/'})));assert.match(document.body.textContent,/Canvas ready/);}
+ const error=new Error('ResizeObserver loop limit exceeded');await act(async()=>window.dispatchEvent(new window.ErrorEvent('error',{message:error.message,error})));assert.match(document.body.textContent,/RemoNook needs to recover/);
+ await act(async()=>root.unmount());dom.window.close();
+});

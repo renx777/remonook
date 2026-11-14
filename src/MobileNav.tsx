@@ -7,10 +7,11 @@ import { useBackClose } from './back-stack';
 const MAIN: [string, string, string][] = [['dashboard', 'Dashboard', 'dashboard'], ['notes', 'Notes', 'notes'], ['calendar', 'Calendar', 'calendar'], ['study', 'Study Desk', 'study']];
 const MORE: [string, string, string][] = [['bookshelf', 'Bookshelf', 'study'], ['bookmarks', 'Bookmarks', 'link'], ['mindmap', 'Mindmaps', 'mindmap']];
 
-export function MobileNav({ tab, onTab }: { tab: string; onTab: (id: string) => void }) {
+export function MobileNav({ tab, onTab, canvas=false }: { canvas?:boolean; tab: string; onTab: (id: string) => void }) {
   const [more, setMore] = useState(false);
   useBackClose(more, () => setMore(false));
-  const inMore = MORE.find(([id]) => id === tab);
+  const items = canvas ? [...MORE, ["canvas","Canvas","mindmap"]] : MORE;
+  const inMore = items.find(([id]) => id === tab);
   const go = (id: string) => { setMore(false); onTab(id); };
   return <>
     <nav className="mobile-nav" aria-label="Mobile navigation">
@@ -21,7 +22,7 @@ export function MobileNav({ tab, onTab }: { tab: string; onTab: (id: string) => 
     </nav>
     {more && <div className="mobile-more" onClick={e => { if (e.target === e.currentTarget) setMore(false); }}>
       <div className="mobile-more-sheet" role="menu" aria-label="Library">
-        {MORE.map(([id, label, icon]) => <button key={id} role="menuitem" aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}><Icon name={icon} size={20} /><span>{label}</span></button>)}
+        {items.map(([id, label, icon]) => <button key={id} role="menuitem" aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}><Icon name={icon} size={20} /><span>{label}</span></button>)}
       </div>
     </div>}
   </>;
