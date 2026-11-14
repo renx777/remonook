@@ -158,10 +158,44 @@
 .canvas-stage .react-flow {
   background: var(--bg);
 }
-.canvas-stage .react-flow__controls button {
+/* The page's button style (padding, border) squeezed the zoom icons to nothing. */
+.canvas-stage .react-flow__controls {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: none;
+}
+.canvas-page .canvas-stage .react-flow__controls button {
+  width: 30px;
+  height: 30px;
+  padding: 7px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
   background: var(--sidebar);
   color: var(--text);
   border-radius: 0;
+}
+.canvas-page .canvas-stage .react-flow__controls button:last-child {
+  border-bottom: 0;
+}
+.canvas-page .canvas-stage .react-flow__controls button:hover {
+  background: var(--hover);
+}
+.canvas-stage .react-flow__controls svg {
+  max-width: 14px;
+  max-height: 14px;
+}
+.canvas-stage .react-flow__attribution {
+  display: none;
+}
+.canvas-stage .react-flow__selection,
+.canvas-stage .react-flow__nodesselection-rect {
+  background: color-mix(in srgb, var(--accent, #70abbc) 10%, transparent);
+  border: 1px dashed var(--accent, #70abbc);
+}
+.canvas-ask-actions {
+  display: flex;
+  gap: 8px;
 }
 .canvas-stage .react-flow__controls svg {
   fill: currentColor;

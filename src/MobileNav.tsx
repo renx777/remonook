@@ -10,7 +10,7 @@ const MORE: [string, string, string][] = [['bookshelf', 'Bookshelf', 'study'], [
 export function MobileNav({ tab, onTab, canvas=false }: { canvas?:boolean; tab: string; onTab: (id: string) => void }) {
   const [more, setMore] = useState(false);
   useBackClose(more, () => setMore(false));
-  const items = canvas ? [...MORE, ["canvas","Canvas","mindmap"]] : MORE;
+  const items = canvas ? [...MORE, ["canvas","Canvas","canvas"]] : MORE;
   const inMore = items.find(([id]) => id === tab);
   const go = (id: string) => { setMore(false); onTab(id); };
   return <>

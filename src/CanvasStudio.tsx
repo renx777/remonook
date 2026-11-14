@@ -28,7 +28,12 @@ import {
   safeCanvasUrl,
   CANVAS_LIMITS,
   canvasNoteText,
-  moveCanvasCard,
+  moveCanvasCards,
+  nextCanvasOrder,
+  trashedBullet,
+  canvasTitle,
+  renameCanvas,
+  adoptCanvasRoots,
 } from "./json-canvas.mjs";
 import { bullet } from "./domain.mjs";
 import { sourceId } from "./relations.mjs";
@@ -145,26 +150,57 @@ const types = {
     );
   }),
 };
+type Rect = { x: number; y: number; w: number; h: number };
+const overlaps = (a: Rect, b: Rect) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+// Keys typed into a field, the note editor or a dialog belong to it, not to the board.
+const typing = (target: EventTarget | null) => {
+  const el = target as HTMLElement | null;
+  return (
+    !!el &&
+    (el.isContentEditable ||
+      /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) ||
+      !!el.closest?.('[role="dialog"], dialog'))
+  );
+};
+const normalUrl = (value: string) => {
+  const v = value.trim();
+  return /^[a-z][\w+.-]*:/i.test(v) ? v : "https://" + v;
+};
+const inside = (card: any, group: any) =>
+  card.position[0] >= group.position[0] &&
+  card.position[1] >= group.position[1] &&
+  card.position[0] + card.size[0] <= group.position[0] + group.size[0] &&
+  card.position[1] + card.size[1] <= group.position[1] + group.size[1];
 function Editor({ boardId, ...p }: Props & { boardId: string }) {
   const b = p.doc.web.canvases?.[boardId],
     flow = useReactFlow(),
-    [selected, setSelected] = useState<string | null>(null),
+    stage = useRef<HTMLDivElement>(null),
     [edgeId, setEdgeId] = useState<string | null>(null),
     [picker, setPicker] = useState(false),
+    [ask, setAsk] = useState<null | "link" | "file">(null),
+    [askValue, setAskValue] = useState(""),
     [filter, setFilter] = useState(""),
     [error, setError] = useState("");
-  const edit = (update: (b: any) => any) => {
+  const run = (fn: () => void) => {
     try {
-      p.onChange((doc) => changeCanvas(doc, boardId, update));
+      fn();
       setError("");
     } catch (e) {
       setError((e as Error).message);
     }
   };
+  const edit = (update: (b: any) => any) =>
+    run(() => p.onChange((doc) => changeCanvas(doc, boardId, update)));
   const patch = (id: string, patch: any) =>
     edit((b) => ({
       ...b,
       nodes: { ...b.nodes, [id]: { ...b.nodes[id], ...patch } },
+    }));
+  const patchEdge = (id: string, patch: any) =>
+    edit((b) => ({
+      ...b,
+      edges: { ...b.edges, [id]: { ...b.edges[id], ...patch } },
     }));
   const patchRef = useRef(patch);
   patchRef.current = patch;
@@ -183,8 +219,10 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
     htmlCache.current.set(id, { text, html });
     return html;
   };
+  // While a drag, resize or nudge is under way, positions stay local; the finished move is saved once.
   const gesture = useRef(false),
-    ignorePaneUntil = useRef(0);
+    pendingSelect = useRef<string[] | null>(null),
+    justAdded = useRef<string | null>(null);
   const projected = useMemo(
     () =>
       Object.values(b.nodes)
@@ -192,14 +230,16 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
         .map((n: any) => {
           const current = rowById.get(n.noteId),
             note = current && !current.deleted ? current : undefined;
-          const text = canvasNoteText(note, n);
+          const text = canvasNoteText(
+            note || (n.noteId ? trashedBullet(p.doc, n.noteId) : undefined),
+            n,
+          );
           return {
             id: n.id,
             type: "card",
             position: { x: n.position[0], y: n.position[1] },
             width: n.size[0],
             height: n.size[1],
-            selected: selected === n.id,
             zIndex: n.order,
             style: { width: n.size[0], height: n.size[1] },
             data: {
@@ -207,17 +247,13 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
               kind: n.type,
               disabled: p.disabled,
               missing: n.noteId && !note,
-              select: () => {
-                setSelected(n.id);
-                setEdgeId(null);
-              },
+              select: () => selectOnly([n.id]),
               html: n.type === "text" ? renderMarkdown(n.id, text) : "",
               beginResize: () => {
                 gesture.current = true;
               },
               resize: (v: any) => {
                 gesture.current = false;
-                ignorePaneUntil.current = Date.now() + 250;
                 patchRef.current(n.id, {
                   position: [Math.round(v.x), Math.round(v.y)],
                   size: [Math.round(v.width), Math.round(v.height)],
@@ -226,19 +262,23 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
             },
           };
         }),
-    [b.nodes, rowById, selected, p.disabled],
+    [b.nodes, rowById, p.doc.tables.trash, p.disabled],
   );
-  // Keep pointer movement local; completed gestures alone enter save, sync and undo.
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(
     projected as FlowNode[],
   );
+  const flowRef = useRef(flowNodes);
+  flowRef.current = flowNodes;
   useEffect(() => {
+    const select = pendingSelect.current;
+    pendingSelect.current = null;
     setFlowNodes((current) => {
       const prior = new Map(current.map((n) => [n.id, n]));
       return (projected as FlowNode[]).map((n) => {
         const old = prior.get(n.id);
         return {
           ...n,
+          selected: select ? select.includes(n.id) : !!old?.selected,
           ...(old?.measured ? { measured: old.measured } : {}),
           ...(gesture.current && old
             ? {
@@ -254,6 +294,18 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
   }, [projected]);
   const handleNodeChanges = (changes: NodeChange<FlowNode>[]) =>
     setFlowNodes((current) => applyNodeChanges<FlowNode>(changes, current));
+  const sel = flowNodes.filter((n) => n.selected).map((n) => n.id);
+  const selectOnly = (ids: string[]) => {
+    setEdgeId(null);
+    setFlowNodes((current) =>
+      current.map((n) =>
+        !!n.selected === ids.includes(n.id)
+          ? n
+          : { ...n, selected: ids.includes(n.id) },
+      ),
+    );
+  };
+  const live = Object.values(b.nodes).filter((n: any) => !n.removed) as any[];
   const edges: FlowEdge[] = Object.values(b.edges)
     .filter(
       (e: any) =>
@@ -275,151 +327,353 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
       markerEnd:
         e.toEnd !== "none" ? { type: MarkerType.ArrowClosed } : undefined,
     }));
-  const card = selected ? b.nodes[selected] : null,
+  const card = sel.length === 1 ? b.nodes[sel[0]] : null,
     note = card?.noteId
       ? p.doc.tables.bullets.find((n) => n.id === card.noteId && !n.deleted)
       : null,
-    edge = edgeId ? b.edges[edgeId] : null;
-  const add = (kind: string, noteId?: string) => {
-    try {
-      const id = crypto.randomUUID(),
-        at = flow.screenToFlowPosition({
-          x: window.innerWidth * 0.5,
-          y: window.innerHeight * 0.4,
+    ownNote = !!note && note.parentId === b.rootId,
+    cardId = card?.id;
+  // Only a card just made puts the cursor in its editor; selecting an existing card keeps the
+  // keyboard on the board (Delete, ⌘D, arrows).
+  useEffect(() => {
+    if (cardId && justAdded.current !== b.nodes[cardId]?.noteId) justAdded.current = null;
+  }, [cardId]);
+  const edge = edgeId && !sel.length ? b.edges[edgeId] : null;
+  // New cards go beside the selected card, or in the middle of the view, moved on until they
+  // overlap nothing. The view only moves if the new card would be out of sight.
+  const place = (w: number, h: number) => {
+    const near = sel
+      .map((id) => b.nodes[id])
+      .filter((n: any) => n && n.type !== "group")
+      .pop() as any;
+    let x: number, y: number;
+    if (near) {
+      x = near.position[0] + near.size[0] + 60;
+      y = near.position[1];
+    } else {
+      const r = stage.current!.getBoundingClientRect(),
+        c = flow.screenToFlowPosition({
+          x: r.left + r.width / 2,
+          y: r.top + r.height / 2,
         });
-      p.onChange((doc) => {
-        const board = doc.web.canvases[boardId];
-        if (
-          Object.values(board.nodes).filter((n: any) => !n.removed).length >=
-          CANVAS_LIMITS.nodes
-        )
-          throw Error("This canvas has reached 400 cards.");
-        let rows = doc.tables.bullets,
-          ref = noteId ? sourceId(rows, noteId) : undefined;
-        if (kind === "text" && !ref) {
-          ref = crypto.randomUUID();
-          rows = [
-            ...rows,
-            bullet(ref, {
-              parentId: board.rootId,
-              text: "",
-              position: rows.filter((n) => n.parentId === board.rootId).length,
-            }),
-          ];
-        }
-        const existing = Object.values(board.nodes).filter(
-          (n: any) => !n.removed && n.type !== "group",
-        ) as any[];
-        const left = existing.length
-            ? Math.min(...existing.map((n) => n.position[0])) - 50
-            : at.x - 300,
-          top = existing.length
-            ? Math.min(...existing.map((n) => n.position[1])) - 60
-            : at.y - 210;
-        const n = {
-          id,
-          type: kind,
-          position:
-            kind === "group"
-              ? [Math.round(left), Math.round(top)]
-              : [Math.round(at.x - 140), Math.round(at.y - 90)],
-          size:
-            kind === "group"
-              ? [
-                  Math.max(
-                    600,
-                    ...existing.map(
-                      (n) => n.position[0] + n.size[0] - left + 50,
-                    ),
-                  ),
-                  Math.max(
-                    420,
-                    ...existing.map(
-                      (n) => n.position[1] + n.size[1] - top + 50,
-                    ),
-                  ),
-                ]
-              : [280, 180],
-          order:
-            kind === "group"
-              ? Math.min(
-                  -1,
-                  ...Object.values(board.nodes).map((n: any) => n.order - 1),
-                )
-              : Object.keys(board.nodes).length,
-          ...(kind === "text"
-            ? {
-                noteId: ref,
-                text: rows.find((n) => n.id === ref)?.text || "",
-                markdown: !noteId,
-              }
-            : kind === "link"
-              ? { url: "https://example.com" }
-              : kind === "file"
-                ? { file: "document.pdf" }
-                : { label: "Group" }),
-        };
-        return changeCanvas(
-          { ...doc, tables: { ...doc.tables, bullets: rows } },
-          boardId,
-          (b: any) => ({ ...b, nodes: { ...b.nodes, [id]: n } }),
-        );
-      });
-      setSelected(id);
-      setEdgeId(null);
-      setPicker(false);
-      setError("");
-      requestAnimationFrame(() =>
-        flow.fitView({ padding: 0.25, maxZoom: 1, duration: 150 }),
-      );
-    } catch (e) {
-      setError((e as Error).message);
+      x = c.x - w / 2;
+      y = c.y - h / 2;
     }
-  };
-  const connect = (c: Connection) =>
-    edit((b) => {
-      if (
-        Object.values(b.edges).filter((e: any) => !e.removed).length >=
-        CANVAS_LIMITS.edges
-      )
-        throw Error("Connection limit reached.");
-      const id = crypto.randomUUID();
-      return {
-        ...b,
-        edges: {
-          ...b.edges,
-          [id]: {
-            id,
-            fromNode: c.source,
-            toNode: c.target,
-            fromSide: c.sourceHandle?.replace("out-", "") || "right",
-            toSide: c.targetHandle?.replace("in-", "") || "left",
-          },
-        },
-      };
-    });
-  const remove = () => {
-    if (selected) {
-      try {
-        p.onChange((doc) => removeCanvasCards(doc, boardId, [selected]));
-        setSelected(null);
-      } catch (e) {
-        setError((e as Error).message);
-      }
-    } else if (edgeId) {
-      edit((b) => ({
-        ...b,
-        edges: { ...b.edges, [edgeId]: { ...b.edges[edgeId], removed: true } },
+    const others = live
+      .filter((n) => n.type !== "group")
+      .map((n) => ({
+        x: n.position[0],
+        y: n.position[1],
+        w: n.size[0],
+        h: n.size[1],
       }));
-      setEdgeId(null);
+    const free = (cx: number, cy: number) =>
+      !others.some((o) => overlaps({ x: cx, y: cy, w, h }, o));
+    if (near) {
+      for (let i = 0; i < 80 && !free(x, y); i++) y += 40;
+    } else if (!free(x, y)) {
+      // The nearest free spot to the middle of the view, on a 40px grid.
+      const spots: number[][] = [];
+      for (let dx = -1200; dx <= 1200; dx += 40)
+        for (let dy = -800; dy <= 800; dy += 40) spots.push([dx, dy]);
+      spots.sort((a, b) => a[0] ** 2 + a[1] ** 2 - (b[0] ** 2 + b[1] ** 2));
+      const spot = spots.find(([dx, dy]) => free(x + dx, y + dy));
+      if (spot) {
+        x += spot[0];
+        y += spot[1];
+      }
+    }
+    return [Math.round(x), Math.round(y)];
+  };
+  const reveal = (x: number, y: number, w: number, h: number) => {
+    const r = stage.current?.getBoundingClientRect();
+    if (!r) return;
+    const a = flow.screenToFlowPosition({ x: r.left, y: r.top }),
+      z = flow.screenToFlowPosition({ x: r.right, y: r.bottom });
+    if (x < a.x || y < a.y || x + w > z.x || y + h > z.y)
+      flow.setCenter(x + w / 2, y + h / 2, {
+        zoom: flow.getZoom(),
+        duration: 200,
+      });
+  };
+  const withSelection = (ids: string[], change: () => void) => {
+    pendingSelect.current = ids;
+    try {
+      change();
+    } catch (e) {
+      pendingSelect.current = null;
+      throw e;
     }
   };
+  const add = (kind: "text" | "link" | "file", value?: string) =>
+    run(() => {
+      const id = crypto.randomUUID(),
+        size = kind === "text" ? [280, 180] : [280, 120],
+        [x, y] = place(size[0], size[1]);
+      withSelection([id], () =>
+        p.onChange((doc) => {
+          const board = doc.web.canvases[boardId];
+          if (
+            Object.values(board.nodes).filter((n: any) => !n.removed).length >=
+            CANVAS_LIMITS.nodes
+          )
+            throw Error("This canvas has reached 400 cards.");
+          let rows = doc.tables.bullets,
+            ref = kind === "text" && value ? sourceId(rows, value) : undefined;
+          if (kind === "text" && !ref) {
+            ref = crypto.randomUUID();
+            justAdded.current = ref;
+            rows = [
+              ...rows,
+              bullet(ref, {
+                parentId: board.rootId,
+                text: "",
+                position: rows.filter((n) => n.parentId === board.rootId)
+                  .length,
+              }),
+            ];
+          }
+          const n = {
+            id,
+            type: kind,
+            position: [x, y],
+            size,
+            order: nextCanvasOrder(board),
+            ...(kind === "text"
+              ? {
+                  noteId: ref,
+                  text: rows.find((n) => n.id === ref)?.text || "",
+                  markdown: !value,
+                }
+              : kind === "link"
+                ? { url: value }
+                : { file: value }),
+          };
+          return changeCanvas(
+            { ...doc, tables: { ...doc.tables, bullets: rows } },
+            boardId,
+            (b: any) => ({ ...b, nodes: { ...b.nodes, [id]: n } }),
+          );
+        }),
+      );
+      setPicker(false);
+      setAsk(null);
+      requestAnimationFrame(() => reveal(x, y, size[0], size[1]));
+    });
+  // Group wraps the selected cards; with nothing selected it makes an empty frame.
+  const group = () =>
+    run(() => {
+      const chosen = sel.map((id) => b.nodes[id]).filter(Boolean) as any[];
+      const id = crypto.randomUUID();
+      let position: number[], size: number[];
+      if (chosen.length) {
+        const l = Math.min(...chosen.map((n) => n.position[0])) - 40,
+          t = Math.min(...chosen.map((n) => n.position[1])) - 56,
+          r = Math.max(...chosen.map((n) => n.position[0] + n.size[0])) + 40,
+          d = Math.max(...chosen.map((n) => n.position[1] + n.size[1])) + 40;
+        position = [l, t];
+        size = [r - l, d - t];
+      } else {
+        size = [480, 320];
+        position = place(480, 320);
+      }
+      withSelection([id], () =>
+        edit((b) => ({
+          ...b,
+          nodes: {
+            ...b.nodes,
+            [id]: {
+              id,
+              type: "group",
+              label: "Group",
+              position: position.map(Math.round),
+              size: size.map(Math.round),
+              order: Math.min(
+                -1,
+                ...Object.values(b.nodes).map((n: any) => n.order - 1),
+              ),
+            },
+          },
+        })),
+      );
+    });
+  // Duplicates the selection 40px down and right. A card's own note is copied; a linked note is
+  // shown again. Connections between duplicated cards are copied too.
+  const duplicate = () => {
+    if (!sel.length) return;
+    run(() => {
+      const map = new Map(sel.map((id) => [id, crypto.randomUUID()]));
+      withSelection([...map.values()], () =>
+        p.onChange((doc) => {
+          const board = doc.web.canvases[boardId];
+          if (
+            Object.values(board.nodes).filter((n: any) => !n.removed).length +
+              map.size >
+            CANVAS_LIMITS.nodes
+          )
+            throw Error("This canvas has reached 400 cards.");
+          let rows = doc.tables.bullets,
+            order = nextCanvasOrder(board);
+          const nodes = { ...board.nodes },
+            edges = { ...board.edges };
+          for (const [from, to] of map) {
+            const n = board.nodes[from];
+            if (!n || n.removed) continue;
+            let noteId = n.noteId;
+            const row = noteId && rows.find((r) => r.id === noteId);
+            if (row && row.parentId === board.rootId) {
+              noteId = crypto.randomUUID();
+              rows = [
+                ...rows,
+                bullet(noteId, {
+                  parentId: board.rootId,
+                  text: row.text,
+                  formatting: row.formatting,
+                  position: rows.filter((r) => r.parentId === board.rootId)
+                    .length,
+                }),
+              ];
+            }
+            nodes[to] = {
+              ...n,
+              id: to,
+              position: [n.position[0] + 40, n.position[1] + 40],
+              order: n.type === "group" ? n.order : order++,
+              ...(noteId ? { noteId } : {}),
+            };
+          }
+          for (const e of Object.values(board.edges) as any[])
+            if (!e.removed && map.has(e.fromNode) && map.has(e.toNode)) {
+              const id = crypto.randomUUID();
+              edges[id] = {
+                ...e,
+                id,
+                fromNode: map.get(e.fromNode),
+                toNode: map.get(e.toNode),
+              };
+            }
+          return changeCanvas(
+            { ...doc, tables: { ...doc.tables, bullets: rows } },
+            boardId,
+            (b: any) => ({ ...b, nodes, edges }),
+          );
+        }),
+      );
+    });
+  };
+  const removeItems = (nodeIds: string[], edgeIds: string[]) => {
+    run(() =>
+      p.onChange((doc) => {
+        let next = nodeIds.length
+          ? removeCanvasCards(doc, boardId, nodeIds)
+          : doc;
+        const board = next.web.canvases[boardId],
+          extra = edgeIds.filter(
+            (id) => board.edges[id] && !board.edges[id].removed,
+          );
+        if (extra.length)
+          next = changeCanvas(next, boardId, (b: any) => ({
+            ...b,
+            edges: {
+              ...b.edges,
+              ...Object.fromEntries(
+                extra.map((id) => [id, { ...b.edges[id], removed: true }]),
+              ),
+            },
+          }));
+        return next;
+      }),
+    );
+    setEdgeId(null);
+  };
+  const commitPositions = (nodes: FlowNode[]) =>
+    nodes.length &&
+    run(() =>
+      p.onChange((doc) =>
+        moveCanvasCards(
+          doc,
+          boardId,
+          Object.fromEntries(
+            nodes.map((n) => [
+              n.id,
+              [Math.round(n.position.x), Math.round(n.position.y)],
+            ]),
+          ),
+        ),
+      ),
+    );
+  // Arrow keys nudge the selection (Shift for bigger steps); a burst of nudges is saved once.
+  const nudgeTimer = useRef(0);
+  const nudge = (dx: number, dy: number) => {
+    gesture.current = true;
+    setFlowNodes((current) =>
+      current.map((n) =>
+        n.selected
+          ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }
+          : n,
+      ),
+    );
+    clearTimeout(nudgeTimer.current);
+    nudgeTimer.current = window.setTimeout(() => {
+      gesture.current = false;
+      commitPositions(flowRef.current.filter((n) => n.selected));
+    }, 400);
+  };
+  useEffect(() => () => clearTimeout(nudgeTimer.current), []);
+  const keys = useRef<(e: KeyboardEvent) => void>(() => {});
+  keys.current = (e) => {
+    if (p.disabled || typing(e.target)) return;
+    const mod = e.metaKey || e.ctrlKey,
+      key = e.key.toLowerCase();
+    if (e.key === "Escape") {
+      if (picker || ask) {
+        setPicker(false);
+        setAsk(null);
+      } else selectOnly([]);
+      return;
+    }
+    if (mod && key === "a") {
+      e.preventDefault();
+      selectOnly(live.map((n) => n.id));
+    } else if (mod && key === "d") {
+      e.preventDefault();
+      duplicate();
+    } else if (!mod && sel.length && e.key.startsWith("Arrow")) {
+      const step = e.shiftKey ? 50 : 10,
+        move = (
+          {
+            ArrowLeft: [-step, 0],
+            ArrowRight: [step, 0],
+            ArrowUp: [0, -step],
+            ArrowDown: [0, step],
+          } as Record<string, number[]>
+        )[e.key];
+      if (move) {
+        e.preventDefault();
+        nudge(move[0], move[1]);
+      }
+    }
+  };
+  useEffect(() => {
+    const listen = (e: KeyboardEvent) => keys.current(e);
+    document.addEventListener("keydown", listen);
+    return () => document.removeEventListener("keydown", listen);
+  }, []);
+  const label = (n: any) =>
+    (
+      rowById.get(n.noteId)?.text ||
+      n.label ||
+      n.file ||
+      n.url ||
+      "Untitled text"
+    ).slice(0, 60);
   return (
     <div className="canvas-workspace">
       <div className="canvas-tools" role="toolbar" aria-label="Canvas tools">
         <button
           disabled={p.disabled}
           aria-label="Undo canvas change"
+          title="Undo"
           onClick={() => p.onUndo(false)}
         >
           ↶
@@ -427,6 +681,7 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
         <button
           disabled={p.disabled}
           aria-label="Redo canvas change"
+          title="Redo"
           onClick={() => p.onUndo(true)}
         >
           ↷
@@ -434,19 +689,48 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
         <button disabled={p.disabled} onClick={() => add("text")}>
           ＋ Text
         </button>
-        <button disabled={p.disabled} onClick={() => setPicker(!picker)}>
+        <button
+          disabled={p.disabled}
+          onClick={() => {
+            setAsk(null);
+            setPicker(!picker);
+          }}
+        >
           Link note
         </button>
-        <button disabled={p.disabled} onClick={() => add("group")}>
+        <button
+          disabled={p.disabled}
+          title={
+            sel.length ? "Put the selected cards in a group" : "Add an empty group"
+          }
+          onClick={group}
+        >
           Group
         </button>
-        <button disabled={p.disabled} onClick={() => add("link")}>
+        <button
+          disabled={p.disabled}
+          onClick={() => {
+            setPicker(false);
+            setAskValue("");
+            setAsk(ask === "link" ? null : "link");
+          }}
+        >
           URL
         </button>
-        <button disabled={p.disabled} onClick={() => add("file")}>
+        <button
+          disabled={p.disabled}
+          onClick={() => {
+            setPicker(false);
+            setAskValue("");
+            setAsk(ask === "file" ? null : "file");
+          }}
+        >
           File reference
         </button>
-        <span>Drag handles to connect · select a card to edit</span>
+        <span>
+          Shift-click or Shift-drag to select several · Delete removes · ⌘D
+          duplicates · arrows nudge
+        </span>
       </div>
       {picker && (
         <div className="canvas-note-picker">
@@ -456,6 +740,9 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
               autoFocus
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setPicker(false);
+              }}
             />
           </label>
           {p.doc.tables.bullets
@@ -474,7 +761,52 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           <button onClick={() => setPicker(false)}>Cancel</button>
         </div>
       )}
-      <div className="canvas-stage">
+      {ask && (
+        <form
+          className="canvas-note-picker canvas-ask"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = askValue.trim();
+            if (ask === "link") {
+              const url = normalUrl(v);
+              if (!v || !safeCanvasUrl(url)) {
+                setError("Use a complete http or https link.");
+                return;
+              }
+              add("link", url);
+            } else {
+              if (!v) {
+                setError("A file reference needs a path.");
+                return;
+              }
+              add("file", v);
+            }
+            setAskValue("");
+          }}
+        >
+          <label>
+            {ask === "link"
+              ? "Web link"
+              : "File path (kept as written; nothing is uploaded)"}
+            <input
+              autoFocus
+              value={askValue}
+              placeholder={ask === "link" ? "https://…" : "Papers/notes.pdf"}
+              onChange={(e) => setAskValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setAsk(null);
+              }}
+            />
+          </label>
+          <div className="canvas-ask-actions">
+            <button type="submit">Add</button>
+            <button type="button" onClick={() => setAsk(null)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      <div className="canvas-stage" ref={stage}>
         <ReactFlow
           nodes={flowNodes}
           onNodesChange={handleNodeChanges}
@@ -487,75 +819,117 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           nodesDraggable={!p.disabled}
           nodesConnectable={!p.disabled}
           elementsSelectable
-          deleteKeyCode={null}
-          onNodeClick={(_, n) => {
-            setSelected(n.id);
-            setEdgeId(null);
+          disableKeyboardA11y
+          multiSelectionKeyCode={["Meta", "Control", "Shift"]}
+          deleteKeyCode={p.disabled ? null : ["Delete", "Backspace"]}
+          onBeforeDelete={async ({ nodes, edges }) => {
+            removeItems(
+              nodes.map((n) => n.id),
+              edges.map((e) => e.id),
+            );
+            return false;
           }}
+          onNodeClick={() => setEdgeId(null)}
           onEdgeClick={(_, e) => {
+            selectOnly([]);
             setEdgeId(e.id);
-            setSelected(null);
           }}
-          onPaneClick={() => {
-            if (Date.now() < ignorePaneUntil.current) return;
-            setSelected(null);
-            setEdgeId(null);
-          }}
+          onPaneClick={() => setEdgeId(null)}
           onNodeDragStart={() => {
             gesture.current = true;
           }}
-          onNodeDrag={(_, n) => {
-            const stored = b.nodes[n.id];
-            if (stored.type !== "group") return;
-            const dx = n.position.x - stored.position[0],
-              dy = n.position.y - stored.position[1];
+          onNodeDrag={(_, _node, dragged) => {
+            const groups = dragged.filter(
+              (n) => b.nodes[n.id]?.type === "group",
+            );
+            if (!groups.length) return;
+            const moving = new Set(dragged.map((n) => n.id));
             setFlowNodes((current) =>
               current.map((other) => {
                 const original = b.nodes[other.id];
-                if (!original || other.id === n.id || original.removed)
+                if (moving.has(other.id) || !original || original.removed)
                   return other;
-                const inside =
-                  original.position[0] >= stored.position[0] &&
-                  original.position[1] >= stored.position[1] &&
-                  original.position[0] + original.size[0] <=
-                    stored.position[0] + stored.size[0] &&
-                  original.position[1] + original.size[1] <=
-                    stored.position[1] + stored.size[1];
-                return inside
-                  ? {
+                for (const g of groups) {
+                  const stored = b.nodes[g.id];
+                  if (inside(original, stored))
+                    return {
                       ...other,
                       position: {
-                        x: original.position[0] + dx,
-                        y: original.position[1] + dy,
+                        x: original.position[0] + g.position.x - stored.position[0],
+                        y: original.position[1] + g.position.y - stored.position[1],
                       },
-                    }
-                  : other;
+                    };
+                }
+                return other;
               }),
             );
           }}
-          onNodeDragStop={(_, n) => {
+          onNodeDragStop={(_, _node, dragged) => {
             gesture.current = false;
-            ignorePaneUntil.current = Date.now() + 250;
-            try {
-              p.onChange((doc) =>
-                moveCanvasCard(doc, boardId, n.id, [
-                  Math.round(n.position.x),
-                  Math.round(n.position.y),
-                ]),
-              );
-              setError("");
-            } catch (e) {
-              setError((e as Error).message);
-            }
+            commitPositions(dragged);
           }}
-          onConnect={connect}
+          onConnect={(c: Connection) =>
+            edit((b) => {
+              if (
+                Object.values(b.edges).filter((e: any) => !e.removed).length >=
+                CANVAS_LIMITS.edges
+              )
+                throw Error("Connection limit reached.");
+              const id = crypto.randomUUID();
+              return {
+                ...b,
+                edges: {
+                  ...b.edges,
+                  [id]: {
+                    id,
+                    fromNode: c.source,
+                    toNode: c.target,
+                    fromSide: c.sourceHandle?.replace("out-", "") || "right",
+                    toSide: c.targetHandle?.replace("in-", "") || "left",
+                  },
+                },
+              };
+            })
+          }
         >
           <Background gap={24} size={1} />
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>
+      {sel.length > 1 && (
+        <aside className="canvas-inspector" aria-label="Selected canvas items">
+          <header>
+            <strong>{sel.length} cards selected</strong>
+            <button aria-label="Clear selection" onClick={() => selectOnly([])}>
+              ×
+            </button>
+          </header>
+          <button disabled={p.disabled} onClick={group}>
+            Group these cards
+          </button>
+          <button disabled={p.disabled} onClick={duplicate}>
+            Duplicate
+          </button>
+          <button disabled={p.disabled} onClick={() => removeItems(sel, [])}>
+            Remove {sel.length} cards
+          </button>
+          <small>
+            Cards made on this canvas move their notes to Trash; linked notes
+            stay in Notes. Undo restores everything.
+          </small>
+        </aside>
+      )}
       {(card || edge) && (
-        <aside className="canvas-inspector" aria-label="Selected canvas item">
+        <aside
+          className="canvas-inspector"
+          aria-label="Selected canvas item"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              (document.activeElement as HTMLElement | null)?.blur();
+            }
+          }}
+        >
           <header>
             <strong>
               {card
@@ -570,10 +944,7 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
             </strong>
             <button
               aria-label="Close inspector"
-              onClick={() => {
-                setSelected(null);
-                setEdgeId(null);
-              }}
+              onClick={() => selectOnly([])}
             >
               ×
             </button>
@@ -590,6 +961,7 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
                   onReady={() => {}}
                   onUndo={p.onUndo}
                   label="Edit canvas note"
+                  autoFocus={justAdded.current === note.id}
                 />
                 <button onClick={() => p.onOpenNote(note.id)}>
                   Open in Notes ↗
@@ -598,10 +970,16 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
             ) : (
               <>
                 <p>
-                  Source note unavailable. Its text from when this card was
-                  placed is preserved below.
+                  Source note unavailable (restore it from Trash to edit it
+                  again). Its last known text is shown below.
                 </p>
-                <textarea readOnly value={card.text || ""} />
+                <textarea
+                  readOnly
+                  value={canvasNoteText(
+                    card.noteId ? trashedBullet(p.doc, card.noteId) : undefined,
+                    card,
+                  )}
+                />
               </>
             ))}
           {card && ["link", "file", "group"].includes(card.type) && (
@@ -615,8 +993,19 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
                 key={card.id}
                 disabled={p.disabled}
                 defaultValue={card.url ?? card.file ?? card.label ?? ""}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
                 onBlur={(e) => {
-                  const value = e.target.value;
+                  const field =
+                    card.type === "link"
+                      ? "url"
+                      : card.type === "file"
+                        ? "file"
+                        : "label";
+                  let value = e.target.value;
+                  if (card.type === "link") value = normalUrl(value);
+                  if (value === (card[field] ?? "")) return;
                   if (card.type === "file" && !value.trim()) {
                     setError("A file reference needs a path.");
                     return;
@@ -625,13 +1014,7 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
                     setError("Use a complete http or https URL.");
                     return;
                   }
-                  patch(card.id, {
-                    [card.type === "link"
-                      ? "url"
-                      : card.type === "file"
-                        ? "file"
-                        : "label"]: value,
-                  });
+                  patch(card.id, { [field]: value });
                 }}
               />
             </label>
@@ -640,17 +1023,16 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
             <label>
               Connection label
               <input
+                key={edge.id + (edge.label || "")}
                 disabled={p.disabled}
-                value={edge.label || ""}
-                onChange={(e) =>
-                  edit((b) => ({
-                    ...b,
-                    edges: {
-                      ...b.edges,
-                      [edge.id]: { ...b.edges[edge.id], label: e.target.value },
-                    },
-                  }))
-                }
+                defaultValue={edge.label || ""}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+                onBlur={(e) => {
+                  if (e.target.value !== (edge.label || ""))
+                    patchEdge(edge.id, { label: e.target.value || undefined });
+                }}
               />
             </label>
           )}
@@ -660,15 +1042,7 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
               <select
                 disabled={p.disabled}
                 value={edge.toEnd || "arrow"}
-                onChange={(e) =>
-                  edit((b) => ({
-                    ...b,
-                    edges: {
-                      ...b.edges,
-                      [edge.id]: { ...b.edges[edge.id], toEnd: e.target.value },
-                    },
-                  }))
-                }
+                onChange={(e) => patchEdge(edge.id, { toEnd: e.target.value })}
               >
                 <option value="arrow">At destination</option>
                 <option value="none">No arrow</option>
@@ -683,16 +1057,7 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
               onChange={(e) =>
                 card
                   ? patch(card.id, { color: e.target.value || undefined })
-                  : edit((b) => ({
-                      ...b,
-                      edges: {
-                        ...b.edges,
-                        [edge.id]: {
-                          ...b.edges[edge.id],
-                          color: e.target.value || undefined,
-                        },
-                      },
-                    }))
+                  : patchEdge(edge.id, { color: e.target.value || undefined })
               }
             >
               <option value="">Default</option>
@@ -708,23 +1073,32 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           </label>
           {card && (
             <div className="canvas-dimensions">
-              {["Width", "Height"].map((label, i) => (
-                <label key={label}>
-                  {label}
+              {["Width", "Height"].map((name, i) => (
+                <label key={name}>
+                  {name}
                   <input
+                    key={card.id + card.size[i]}
                     type="number"
                     min="80"
                     max="10000"
                     disabled={p.disabled}
-                    value={card.size[i]}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      if (v >= 80 && v <= 10000)
-                        patch(card.id, {
-                          size: card.size.map((n: number, j: number) =>
-                            i === j ? Math.round(v) : n,
-                          ),
-                        });
+                    defaultValue={card.size[i]}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                    onBlur={(e) => {
+                      const v = Math.round(Number(e.target.value));
+                      if (v === card.size[i]) return;
+                      if (!(v >= 80 && v <= 10000)) {
+                        e.target.value = String(card.size[i]);
+                        setError(`${name} must be between 80 and 10000.`);
+                        return;
+                      }
+                      patch(card.id, {
+                        size: card.size.map((n: number, j: number) =>
+                          i === j ? v : n,
+                        ),
+                      });
                     }}
                   />
                 </label>
@@ -740,41 +1114,51 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
                 defaultValue=""
                 key={card.id}
                 onChange={(e) => {
-                  if (e.target.value)
-                    connect({
-                      source: card.id,
-                      target: e.target.value,
-                      sourceHandle: "out-right",
-                      targetHandle: "in-left",
-                    });
+                  const target = e.target.value;
                   e.target.value = "";
+                  if (target)
+                    edit((b) => {
+                      const id = crypto.randomUUID();
+                      return {
+                        ...b,
+                        edges: {
+                          ...b.edges,
+                          [id]: {
+                            id,
+                            fromNode: card.id,
+                            toNode: target,
+                            fromSide: "right",
+                            toSide: "left",
+                          },
+                        },
+                      };
+                    });
                 }}
               >
                 <option value="">Choose a card…</option>
-                {Object.values(b.nodes)
-                  .filter((n: any) => !n.removed && n.id !== card.id)
-                  .map((n: any) => (
+                {live
+                  .filter((n) => n.id !== card.id)
+                  .map((n) => (
                     <option key={n.id} value={n.id}>
-                      {(
-                        p.doc.tables.bullets.find((row) => row.id === n.noteId)
-                          ?.text ||
-                        n.label ||
-                        n.file ||
-                        n.url ||
-                        "Untitled text"
-                      ).slice(0, 60)}
+                      {label(n)}
                     </option>
                   ))}
               </select>
             </label>
           )}
-          <button disabled={p.disabled} onClick={remove}>
+          <button
+            disabled={p.disabled}
+            onClick={() =>
+              card ? removeItems([card.id], []) : removeItems([], [edge.id])
+            }
+          >
             Remove {card ? "card" : "connection"}
           </button>
           {card?.noteId && (
             <small>
-              Only this placement is removed. The note stays in Notes. Use the
-              app’s Undo to restore it.
+              {ownNote
+                ? "Removing this card moves its note to Trash. Undo brings both back."
+                : "Only this placement is removed. The linked note stays in Notes."}
             </small>
           )}
         </aside>
@@ -794,7 +1178,34 @@ export default function CanvasStudio(p: Props) {
     [query, setQuery] = useState(""),
     input = useRef<HTMLInputElement>(null);
   const boards = canvasBoards(p.doc),
-    board = active ? p.doc.web.canvases?.[active] : null;
+    board = active ? p.doc.web.canvases?.[active] : null,
+    title = board ? canvasTitle(p.doc, board) : "",
+    [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => setDraft(null), [active]);
+  // Boards made before the "Canvases" bullet existed are filed under it once.
+  const looseRoots = Object.values(p.doc.web.canvases || {}).some(
+    (b: any) =>
+      p.doc.tables.bullets.find((r) => r.id === b.rootId)?.parentId === null,
+  );
+  useEffect(() => {
+    if (!looseRoots || p.disabled) return;
+    try {
+      p.onChange((doc) => adoptCanvasRoots(doc));
+    } catch {
+      /* tried again next time Canvas opens */
+    }
+  }, [looseRoots, p.disabled]);
+  const saveTitle = () => {
+    if (draft === null || !active) return;
+    const next = draft.trim() || "Untitled canvas";
+    setDraft(null);
+    if (next === title) return;
+    try {
+      p.onChange((doc) => renameCanvas(doc, active, next));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
   const create = (title: string, parsed?: any) => {
     try {
       let id = "";
@@ -818,7 +1229,7 @@ export default function CanvasStudio(p: Props) {
         a = document.createElement("a");
       a.href = url;
       a.download =
-        (board.title.replace(/[^\w -]/g, "").trim() || "Untitled") + ".canvas";
+        (title.replace(/[^\w -]/g, "").trim() || "Untitled") + ".canvas";
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
@@ -834,15 +1245,16 @@ export default function CanvasStudio(p: Props) {
             <input
               aria-label="Canvas title"
               disabled={p.disabled}
-              value={board.title}
-              onChange={(e) =>
-                p.onChange((doc) =>
-                  changeCanvas(doc, active!, (b: any) => ({
-                    ...b,
-                    title: e.target.value,
-                  })),
-                )
-              }
+              value={draft ?? title}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") {
+                  setDraft(null);
+                  e.currentTarget.blur();
+                }
+              }}
             />
           ) : (
             <>
@@ -931,7 +1343,9 @@ export default function CanvasStudio(p: Props) {
           <div className="canvas-board-grid">
             {boards
               .filter((b: any) =>
-                b.title.toLowerCase().includes(query.toLowerCase()),
+                canvasTitle(p.doc, b)
+                  .toLowerCase()
+                  .includes(query.toLowerCase()),
               )
               .map((b: any) => (
                 <button
@@ -954,7 +1368,7 @@ export default function CanvasStudio(p: Props) {
                         />
                       ))}
                   </div>
-                  <strong>{b.title || "Untitled canvas"}</strong>
+                  <strong>{canvasTitle(p.doc, b)}</strong>
                   <small>
                     {
                       Object.values(b.nodes).filter((n: any) => !n.removed)
@@ -974,7 +1388,7 @@ export default function CanvasStudio(p: Props) {
                 .filter((b: any) => b.removed)
                 .map((b: any) => (
                   <p key={b.id}>
-                    {b.title}{" "}
+                    {canvasTitle(p.doc, b)}{" "}
                     <button
                       disabled={p.disabled}
                       onClick={() =>

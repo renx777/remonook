@@ -1585,7 +1585,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               ["bookshelf", "Bookshelf", "study"],
               ["bookmarks", "Bookmarks", "link"],
               ["mindmap", "Mindmaps", "mindmap"],
-              ...(canvasEnabled ? [["canvas", "Canvas", "mindmap"]] : []),
+              ...(canvasEnabled ? [["canvas", "Canvas", "canvas"]] : []),
             ] as string[][]).map(([id, label, icon]) => id === "library" ? <div key={id} className="nav-group-label">Library</div> : (
               <button
                 key={id}
@@ -1629,7 +1629,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
           <div className="breadcrumbs">
-            {tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="mindmap" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
+            {tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
               <>
                 <button onClick={() => navigateTo(calendarRoot?.id || null)}>
                   <Icon name="calendar" size={14} />

@@ -1,6 +1,9 @@
 // JSON Canvas 1.0 interchange. Editable text lives in ordinary outline rows.
-import { bullet } from "./domain.mjs";
+import { bullet, descendants, move } from "./domain.mjs";
 import { bulletMarkdown } from "./ai-markdown.mjs";
+import { withNodes } from "./workspace-nodes.mjs";
+// All boards keep their backing bullets under one top-level "Canvases" bullet in Notes.
+export const CANVAS_HOME_TITLE = "Canvases";
 export const canvasNoteText = (note, card) =>
   note
     ? card.markdown && !note.formatting
@@ -160,6 +163,79 @@ export function parseCanvas(input) {
   }
   return { ...value, nodes, edges };
 }
+// The "Canvases" bullet: the parent of existing board bullets, else a top-level bullet of that name.
+export function canvasHomeId(doc) {
+  const rows = doc.tables.bullets,
+    byId = new Map(rows.map((r) => [r.id, r]));
+  for (const b of Object.values(doc.web.canvases || {})) {
+    const parent = byId.get(byId.get(b.rootId)?.parentId);
+    if (parent && !parent.parentId && parent.text === CANVAS_HOME_TITLE)
+      return parent.id;
+  }
+  return (
+    rows.find((r) => !r.parentId && r.text === CANVAS_HOME_TITLE)?.id || null
+  );
+}
+// Boards made before the "Canvases" bullet existed sit at the top of Notes: file them under it.
+export function adoptCanvasRoots(doc, uuid = () => crypto.randomUUID()) {
+  const byId = new Map(doc.tables.bullets.map((r) => [r.id, r]));
+  const loose = Object.values(doc.web.canvases || {}).filter(
+    (b) => byId.has(b.rootId) && !byId.get(b.rootId).parentId,
+  );
+  if (!loose.length) return doc;
+  let rows = [...doc.tables.bullets],
+    homeId = canvasHomeId(doc);
+  if (!homeId) {
+    homeId = uuid();
+    rows.push(
+      bullet(homeId, {
+        text: CANVAS_HOME_TITLE,
+        parentId: null,
+        position: rows.filter((n) => !n.parentId).length,
+      }),
+    );
+  }
+  for (const b of loose)
+    rows = move(
+      rows,
+      b.rootId,
+      homeId,
+      rows.filter((n) => n.parentId === homeId).length,
+    );
+  return withNodes(doc, rows);
+}
+// The board's name is its bullet's text, so renaming either one renames both.
+export function canvasTitle(doc, board) {
+  const root = doc.tables.bullets.find((r) => r.id === board.rootId);
+  return (root ? root.text : board.title) || "Untitled canvas";
+}
+export function renameCanvas(doc, id, title) {
+  const next = changeCanvas(doc, id, (b) => ({ ...b, title }));
+  const rootId = next.web.canvases[id].rootId;
+  if (!next.tables.bullets.some((r) => r.id === rootId)) return next;
+  return withNodes(
+    next,
+    next.tables.bullets.map((r) => (r.id === rootId ? { ...r, text: title } : r)),
+  );
+}
+// The highest stacking order on a board plus one (tombstones included, so orders never repeat).
+export const nextCanvasOrder = (b) =>
+  Math.max(-1, ...Object.values(b.nodes).map((n) => n.order)) + 1;
+// The last text of a bullet that is now in Trash, so a card whose note was deleted shows current text.
+export function trashedBullet(doc, id) {
+  for (const entry of doc.tables.trash || []) {
+    try {
+      const rows = Array.isArray(entry.nodes)
+        ? entry.nodes
+        : JSON.parse(entry.payload || "{}").nodes;
+      const row = rows?.find?.((r) => r?.id === id);
+      if (row) return row;
+    } catch {
+      /* unreadable entry */
+    }
+  }
+  return undefined;
+}
 export function canvasBoards(doc) {
   return Object.values(doc.web.canvases || {}).filter((b) => !b.removed);
 }
@@ -182,15 +258,26 @@ export function createCanvas(
     throw Error("Keep up to 40 active canvases.");
   const parsed = parseCanvas(input),
     id = uuid(),
-    rootId = uuid(),
     rows = [...doc.tables.bullets],
     nodes = {},
     edges = {};
+  let homeId = canvasHomeId(doc);
+  if (!homeId) {
+    homeId = uuid();
+    rows.push(
+      bullet(homeId, {
+        text: CANVAS_HOME_TITLE,
+        parentId: null,
+        position: rows.filter((n) => !n.parentId).length,
+      }),
+    );
+  }
+  const rootId = uuid();
   rows.push(
     bullet(rootId, {
       text: title,
-      parentId: null,
-      position: rows.filter((n) => !n.parentId).length,
+      parentId: homeId,
+      position: rows.filter((n) => n.parentId === homeId).length,
     }),
   );
   parsed.nodes.forEach((n, order) => {
@@ -265,7 +352,7 @@ export function exportCanvas(doc, id) {
       const note = doc.tables.bullets.find(
         (row) => row.id === noteId && !row.deleted,
       );
-      result.text = canvasNoteText(note, n);
+      result.text = canvasNoteText(note || trashedBullet(doc, noteId), n);
     }
     return result;
   });
@@ -274,8 +361,11 @@ export function exportCanvas(doc, id) {
     .map(({ removed, extra, ...e }) => ({ ...extra, ...e }));
   return { ...b.extensions, nodes, edges };
 }
+// Removes placements. A text card's own bullet (one made on this board) goes to Trash with it,
+// unless another live card still shows it; notes linked from elsewhere stay where they are.
 export function removeCanvasCards(doc, id, ids) {
-  return changeCanvas(doc, id, (b) => ({
+  const before = doc.web.canvases?.[id];
+  let next = changeCanvas(doc, id, (b) => ({
     ...b,
     nodes: Object.fromEntries(
       Object.entries(b.nodes).map(([key, n]) => [
@@ -292,17 +382,72 @@ export function removeCanvasCards(doc, id, ids) {
       ]),
     ),
   }));
+  const rows = next.tables.bullets,
+    byId = new Map(rows.map((r) => [r.id, r]));
+  const stillShown = new Set(
+    Object.values(next.web.canvases || {})
+      .filter((b) => !b.removed)
+      .flatMap((b) => Object.values(b.nodes))
+      .filter((n) => !n.removed && n.noteId)
+      .map((n) => n.noteId),
+  );
+  const owned = ids
+    .map((k) => before.nodes[k]?.noteId)
+    .filter(
+      (noteId) =>
+        noteId &&
+        byId.get(noteId)?.parentId === before.rootId &&
+        !stillShown.has(noteId),
+    );
+  if (!owned.length) return next;
+  const all = new Set();
+  for (const noteId of owned)
+    for (const d of descendants(rows, noteId)) all.add(d);
+  const first = byId.get(owned[0]);
+  const entry = {
+    id: crypto.randomUUID(),
+    title:
+      owned.length === 1
+        ? first.text || "Empty bullet"
+        : `${owned.length} canvas cards`,
+    deletedAt: Date.now(),
+    nodeCount: all.size,
+    payload: JSON.stringify({
+      nodes: rows.filter((r) => all.has(r.id)),
+      media: next.tables.media.filter((m) => all.has(m.bulletId)),
+      decks: next.tables.decks.filter((d) => all.has(d.rootId)),
+    }),
+  };
+  next = withNodes(
+    next,
+    rows.filter((r) => !all.has(r.id)),
+  );
+  return { ...next, tables: { ...next.tables, trash: [...next.tables.trash, entry] } };
 }
+// Boards are replaced, never changed in place, so a board object that passed once is still valid:
+// saving re-checks only the boards that changed (typing in Notes re-checks none).
+const checkedBoards = new WeakMap();
 export function validateCanvases(value) {
   if (value === undefined) return;
   if (!record(value) || Object.keys(value).length > 200)
     fail("invalid board collection.");
-  if (
-    new TextEncoder().encode(JSON.stringify(value)).length > CANVAS_LIMITS.bytes
-  )
-    fail("board metadata exceeds 2 MiB; export a backup before adding more.");
-  safeTree(value);
+  let bytes = 2;
   for (const [id, b] of Object.entries(value)) {
+    if (!safeId(id)) fail("invalid stored board.");
+    let size = record(b) ? checkedBoards.get(b) : undefined;
+    if (size === undefined) {
+      checkBoard(id, b);
+      size = new TextEncoder().encode(JSON.stringify(b)).length;
+      checkedBoards.set(b, size);
+    }
+    bytes += size + id.length + 4;
+  }
+  if (bytes > CANVAS_LIMITS.bytes)
+    fail("board metadata exceeds 2 MiB; export a backup before adding more.");
+}
+function checkBoard(id, b) {
+  {
+    safeTree(b);
     if (
       !safeId(id) ||
       !record(b) ||
@@ -344,34 +489,40 @@ export function validateCanvases(value) {
     });
   }
 }
-export function moveCanvasCard(doc, boardId, nodeId, position) {
+// Moves cards to new positions in one change. A moved group carries the cards inside it
+// (those that were not moved themselves).
+export function moveCanvasCards(doc, boardId, positions) {
   return changeCanvas(doc, boardId, (b) => {
-    const n = b.nodes[nodeId];
-    if (!n || n.removed) return b;
-    const dx = position[0] - n.position[0],
-      dy = position[1] - n.position[1];
-    return {
-      ...b,
-      nodes: Object.fromEntries(
-        Object.entries(b.nodes).map(([id, card]) => {
-          const contained =
-            n.type === "group" &&
+    const moved = Object.entries(positions).filter(
+      ([id]) => b.nodes[id] && !b.nodes[id].removed,
+    );
+    if (!moved.length) return b;
+    const nodes = { ...b.nodes };
+    for (const [id, [x, y]] of moved) {
+      const n = b.nodes[id];
+      if (n.type === "group") {
+        const dx = x - n.position[0],
+          dy = y - n.position[1];
+        for (const card of Object.values(b.nodes))
+          if (
+            card.id !== id &&
             !card.removed &&
+            !(card.id in positions) &&
             card.position[0] >= n.position[0] &&
             card.position[1] >= n.position[1] &&
             card.position[0] + card.size[0] <= n.position[0] + n.size[0] &&
-            card.position[1] + card.size[1] <= n.position[1] + n.size[1];
-          return [
-            id,
-            id === nodeId || contained
-              ? {
-                  ...card,
-                  position: [card.position[0] + dx, card.position[1] + dy],
-                }
-              : card,
-          ];
-        }),
-      ),
-    };
+            card.position[1] + card.size[1] <= n.position[1] + n.size[1]
+          )
+            nodes[card.id] = {
+              ...nodes[card.id],
+              position: [card.position[0] + dx, card.position[1] + dy],
+            };
+      }
+      nodes[id] = { ...nodes[id], position: [x, y] };
+    }
+    return { ...b, nodes };
   });
+}
+export function moveCanvasCard(doc, boardId, nodeId, position) {
+  return moveCanvasCards(doc, boardId, { [nodeId]: position });
 }

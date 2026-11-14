@@ -18,6 +18,13 @@ import {
   removeCanvasCards,
   validateCanvases,
   moveCanvasCard,
+  moveCanvasCards,
+  renameCanvas,
+  canvasTitle,
+  canvasHomeId,
+  adoptCanvasRoots,
+  nextCanvasOrder,
+  CANVAS_HOME_TITLE,
 } from "../src/json-canvas.mjs";
 import { checkRoot } from "../src/sync-checks.mjs";
 import {
@@ -119,7 +126,7 @@ test("reject malformed, unsafe, duplicate, dangling, huge and invalid geometry b
     assert.throws(() => parseCanvas(value));
   assert.deepEqual(parseCanvas("{}"), { nodes: [], edges: [] });
 });
-test("removing a card keeps editable note and connection history; export uses latest note text and preserves missing-source snapshot", () => {
+test("removing a card sends its own note to Trash and keeps connection history; export uses latest note text, then Trash, then the snapshot", () => {
   const { doc, id } = createCanvas(empty(), "Board", fixture(), uuid),
     noteId = doc.web.canvases[id].nodes.t.noteId;
   const edited = updateBulletContent(doc, noteId, {
@@ -128,7 +135,9 @@ test("removing a card keeps editable note and connection history; export uses la
   });
   assert.equal(exportCanvas(edited, id).nodes[0].text, "Changed answer");
   const removed = removeCanvasCards(edited, id, ["t"]);
-  assert.ok(removed.tables.bullets.some((n) => n.id === noteId));
+  assert.ok(!removed.tables.bullets.some((n) => n.id === noteId));
+  assert.equal(removed.tables.trash.length, 1);
+  assert.match(removed.tables.trash[0].payload, /Changed answer/);
   assert.equal(removed.web.canvases[id].edges.e.removed, true);
   assert.equal(exportCanvas(removed, id).edges.length, 0);
   const missing = {
@@ -142,6 +151,11 @@ test("removing a card keeps editable note and connection history; export uses la
     exportCanvas(missing, id).nodes[0].text,
     fixture().nodes[0].text,
   );
+  const trashed = {
+    ...missing,
+    tables: { ...missing.tables, trash: removed.tables.trash },
+  };
+  assert.equal(exportCanvas(trashed, id).nodes[0].text, "Changed answer");
 });
 test("full backup and local persistence retain boards and notes; incompatible Android export refuses to discard metadata", async () => {
   const { doc, id } = createCanvas(empty(), "Backup", fixture(), uuid);
@@ -216,7 +230,8 @@ test("concurrent card additions and placement removals preserve both note conten
   assert.ok(out.web.canvases[id].nodes.a);
   assert.ok(out.web.canvases[id].nodes.b);
   assert.equal(out.web.canvases[id].nodes.t.removed, true);
-  assert.equal(out.tables.bullets.length, doc.tables.bullets.length);
+  assert.equal(out.tables.bullets.length, doc.tables.bullets.length - 1);
+  assert.equal(out.tables.trash.length, 1);
 });
 
 test("moving a group moves contained cards in one mutation and preserves external cards", () => {
@@ -225,4 +240,79 @@ test("moving a group moves contained cards in one mutation and preserves externa
   assert.deepEqual(moved.web.canvases[id].nodes.t.position, [0, 105]);
   assert.deepEqual(moved.web.canvases[id].nodes.g.position, [-100, 0]);
   assert.equal(moved.tables.bullets, doc.tables.bullets);
+});
+
+test("boards live under one Canvases bullet and renaming the board renames its bullet both ways", () => {
+  let { doc, id } = createCanvas(empty(), "One", fixture(), uuid);
+  const second = createCanvas(doc, "Two", undefined, uuid);
+  doc = second.doc;
+  const home = canvasHomeId(doc),
+    tops = doc.tables.bullets.filter((n) => !n.parentId);
+  assert.equal(tops.length, 1);
+  assert.equal(tops[0].text, CANVAS_HOME_TITLE);
+  for (const b of Object.values(doc.web.canvases))
+    assert.equal(doc.tables.bullets.find((n) => n.id === b.rootId).parentId, home);
+  doc = renameCanvas(doc, id, "Plan");
+  const root = doc.tables.bullets.find((n) => n.id === doc.web.canvases[id].rootId);
+  assert.equal(root.text, "Plan");
+  const renamedInNotes = updateBulletContent(doc, root.id, { text: "Roadmap", formatting: "" });
+  assert.equal(canvasTitle(renamedInNotes, renamedInNotes.web.canvases[id]), "Roadmap");
+});
+test("boards made before the Canvases bullet are filed under it once", () => {
+  const { doc, id } = createCanvas(empty(), "Old", fixture(), uuid);
+  const rootId = doc.web.canvases[id].rootId;
+  const legacy = {
+    ...doc,
+    tables: {
+      ...doc.tables,
+      bullets: doc.tables.bullets
+        .filter((n) => n.text !== CANVAS_HOME_TITLE)
+        .map((n) => (n.id === rootId ? { ...n, parentId: null, position: 0 } : n)),
+    },
+  };
+  const adopted = adoptCanvasRoots(legacy, uuid);
+  const home = canvasHomeId(adopted);
+  assert.ok(home);
+  assert.equal(adopted.tables.bullets.find((n) => n.id === rootId).parentId, home);
+  assert.equal(adoptCanvasRoots(adopted, uuid), adopted);
+});
+test("moving several cards saves them all in one change; a moved group carries only cards not moved themselves", () => {
+  const { doc, id } = createCanvas(empty(), "Multi", fixture(), uuid);
+  const before = doc.web.canvases[id].nodes;
+  const moved = moveCanvasCards(doc, id, { t: [10, 20], f: [30, 40] });
+  assert.deepEqual(moved.web.canvases[id].nodes.t.position, [10, 20]);
+  assert.deepEqual(moved.web.canvases[id].nodes.f.position, [30, 40]);
+  const both = moveCanvasCards(doc, id, { g: [before.g.position[0] - 100, before.g.position[1]], t: [5, 5] });
+  assert.deepEqual(both.web.canvases[id].nodes.t.position, [5, 5]);
+});
+test("stacking order never repeats, even after removals", () => {
+  const { doc, id } = createCanvas(empty(), "Order", fixture(), uuid);
+  const removed = removeCanvasCards(doc, id, ["f"]);
+  const b = removed.web.canvases[id];
+  assert.ok(Object.values(b.nodes).every((n) => n.order < nextCanvasOrder(b)));
+});
+test("a removed card keeps a note that another card still shows", () => {
+  const { doc, id } = createCanvas(empty(), "Shared note", fixture(), uuid);
+  const t = doc.web.canvases[id].nodes.t;
+  const twin = changeCanvas(doc, id, (b) => ({
+    ...b,
+    nodes: { ...b.nodes, twin: { ...t, id: "twin", order: 9 } },
+  }));
+  const removed = removeCanvasCards(twin, id, ["t"]);
+  assert.ok(removed.tables.bullets.some((n) => n.id === t.noteId));
+  assert.equal(removed.tables.trash.length, 0);
+});
+test("saving re-checks only changed boards but still enforces the size limit", () => {
+  const { doc, id } = createCanvas(empty(), "Big", fixture(), uuid);
+  validateCanvases(doc.web.canvases);
+  const huge = changeCanvas(doc, id, (b) => ({
+    ...b,
+    extensions: { blob: "x".repeat(2 * 1024 * 1024) },
+  }));
+  assert.throws(() => validateCanvases(huge.web.canvases), /2 MiB/);
+  const broken = changeCanvas(doc, id, (b) => ({
+    ...b,
+    nodes: { ...b.nodes, t: { ...b.nodes.t, position: [1.5, 2] } },
+  }));
+  assert.throws(() => validateCanvases(broken.web.canvases), /geometry/);
 });
