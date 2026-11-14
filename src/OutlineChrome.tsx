@@ -92,16 +92,23 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, search = 
   const walk = (key: string, depth: number) => { const t = tags.get(key)!; rows.push({ tag: t, depth }); if (expanded.has(key)) for (const child of order(t.children.map((k: string) => tags.get(k)!))) walk(child.key, depth + 1); };
   for (const t of roots.slice(0, limit)) walk(t.key, 0);
   const toggle = (key: string) => setExpanded(previous => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  // Starred and Tags fold; remembered on this device.
+  const [folded, setFolded] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem('remo-sidebar-folds') || '[]')); } catch { return new Set(); } });
+  const fold = (key: string) => setFolded(previous => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); try { localStorage.setItem('remo-sidebar-folds', JSON.stringify([...next])); } catch { /* storage unavailable */ } return next; });
+  const heading = (key: string, label: string, extra?: React.ReactNode) => <div className={`sidebar-section-heading${extra ? ' sidebar-tags-heading' : ''}`}><button type="button" className="sidebar-fold" aria-expanded={!folded.has(key)} onClick={() => fold(key)}><span>{label}</span><Icon name={folded.has(key) ? 'forward' : 'down'} size={11} /></button>{!folded.has(key) && extra}</div>;
   return <div className="root-nav outline-sidebar">
-    <div className="sidebar-section-heading"><Icon name="star" size={14} /><span>Starred</span></div>
+    {heading('starred', 'Starred')}
+    {!folded.has('starred') && <>
     {!starred.some(id => idx.byId.has(id)) && !savedSearches.length && <p className="sidebar-empty">Star a page or search for quick access.</p>}
     {starred.filter(id => idx.byId.has(id)).map(id => <button key={id} className={scope === id ? "root-active" : ""} onClick={() => onNavigate(id)}><Icon name="star" size={12} /><span>{displayText(idx.byId.get(id).text) || "Untitled"}</span></button>)}
     {savedSearches.map(query => <button key={query} className={search.trim() === query ? "root-active" : ""} onClick={() => onSearch(query)}><Icon name="search" size={12} /><span>{query}</span></button>)}
+    </>}
     {pinnedBullets.length > 0 && <>
       <div className="sidebar-section-heading"><span aria-hidden="true">📌</span><span>Pinned</span></div>
       {pinnedBullets.map(n => <button key={n.id} className={`sidebar-pinned ${scope === n.id ? "root-active" : ""}`} title={displayText(n.text)} onClick={() => onNavigate(n.id)}><span>{displayText(n.text).replace(/(^|\s)#pin(?![\p{L}\p{N}_/-])/giu, "").trim() || "Untitled"}</span></button>)}
     </>}
-    <div className="sidebar-section-heading sidebar-tags-heading"><Icon name="hash" size={14} /><span>Tags</span>{tags.size > 1 && <select className="sidebar-tag-sort" aria-label="Sort tags" value={sort} onChange={e => changeSort(e.target.value)}><option value="used">Most used</option><option value="recent">Recent</option><option value="az">A–Z</option></select>}</div>
+    {heading('tags', 'Tags', tags.size > 1 && <select className="sidebar-tag-sort" aria-label="Sort tags" value={sort} onChange={e => changeSort(e.target.value)}><option value="used">Most used</option><option value="recent">Recent</option><option value="az">A–Z</option></select>)}
+    {!folded.has('tags') && <>
     {!tags.size && <p className="sidebar-empty">Type #topic in any bullet to tag it. Tags appear here.</p>}
     <div role="tree" aria-label="Tags" className="sidebar-tags">
       {rows.map(({ tag, depth }) => {
@@ -118,6 +125,7 @@ export function OutlineSidebar({ nodes, scope, starred, savedSearches, search = 
         </div>;
       })}
     </div>
+    </>}
     {roots.length > 12 && <button className="sidebar-tags-more" onClick={() => setShowAll(v => !v)}>{showAll ? "Show fewer tags" : `Show ${roots.length - 12} more tags`}</button>}
   </div>;
 }

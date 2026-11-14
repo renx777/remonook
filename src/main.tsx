@@ -41,7 +41,9 @@ import {AndroidUpdate} from './AndroidUpdate';
 import {useBackClose} from './back-stack';
 import {MobileNav} from './MobileNav';
 import {ViewStats} from './ViewStats';
-import {ReminderBell} from './ReminderBell';
+import {SidebarFooter} from './SidebarFooter';
+import {sidebarActionCounts} from './sidebar-counts.mjs';
+import {NowBar} from './NowBar';
 import {About} from './About';
 import {CloudSyncNow,DeviceSyncNow} from './SyncNow';
 import {BreakOverlay,useDayBaseline} from './BreakOverlay';
@@ -319,6 +321,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   // Phones: the back button finishes editing (and so brings back the bottom navigation).
   useBackClose(!!editing, () => setEditing(null));
   useDayBaseline(doc, storageAccountKey());
+  // Sidebar counts that ask for action: reminders due and study cards due. Recomputed when
+  // reminders or cards change and every few minutes, not on every keystroke.
+  const [countTick,setCountTick]=useState(0);useEffect(()=>{const t=setInterval(()=>setCountTick(v=>v+1),5*60000);return()=>clearInterval(t);},[]);
+  const sidebarCounts=React.useMemo(()=>doc?sidebarActionCounts(doc):{reminders:0,cards:0},[doc?.web.calendarEvents,doc?.tables.cards,doc?.tables.decks,countTick,!!doc]);
   const queueView=()=>{cancelView();viewTimer.current=setTimeout(()=>publishView(),220);};
   useEffect(()=>()=>{if(viewTimer.current)clearTimeout(viewTimer.current);},[]);
   // Keep the active mobile destination visible by scrolling only the bottom bar, never the page.
@@ -1555,19 +1561,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         inert={!sidebarShown}
       >
         <div className="sidebar-inner">
-          <div className="sidebar-header">
-            <a
-              className="brand"
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                setScope(null);
-                setTab("notes");
-              }}
-            >
-              <RemoLogo/>RemoNook
-              <span className="local-label">{isMobileApp()?"APP":isDesktop()?"DESKTOP":"WEB"}</span>
-            </a>
+          <div className="sidebar-header sidebar-workspace-row">
+            <WorkspaceSwitcher/>
             <button
               className="icon-button sidebar-toggle-btn"
               aria-label="Collapse sidebar"
@@ -1577,18 +1572,17 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="sidebarCollapse" />
             </button>
           </div>
-          <WorkspaceSwitcher/>
-          <button className="sidebar-jump" onClick={() => {if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="search" size={16} /><span>Commands & notes</span><kbd>{modLabel()} K</kbd></button>
-          <nav aria-label="Main navigation">
-            {[
-              ["dashboard", "Dashboard", "dashboard"],
+          <nav aria-label="Main navigation" className="sidebar-nav">
+            {([
+              ["dashboard", "Today", "dashboard"],
               ["notes", "Notes", "notes"],
               ["calendar", "Calendar", "calendar"],
               ["study", "Study Desk", "study"],
+              ["library"],
               ["bookshelf", "Bookshelf", "study"],
-              ["mindmap", "Mindmap", "mindmap"],
               ["bookmarks", "Bookmarks", "link"],
-            ].map(([id, label, icon]) => (
+              ["mindmap", "Mindmaps", "mindmap"],
+            ] as string[][]).map(([id, label, icon]) => id === "library" ? <div key={id} className="nav-group-label">Library</div> : (
               <button
                 key={id}
                 className={tab === id ? "nav-active" : ""}
@@ -1602,38 +1596,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               >
                 <Icon name={icon} />
                 <span>{label}</span>
-                {id === "notes" && (
-                  <span className="nav-count"><FlowNumber value={nodes.length} /></span>
-                )}
+                {id === "calendar" && sidebarCounts.reminders > 0 && <span className="nav-badge is-due" title={`${sidebarCounts.reminders} reminders due`}>{sidebarCounts.reminders} due</span>}
+                {id === "study" && sidebarCounts.cards > 0 && <span className="nav-badge" title={`${sidebarCounts.cards} cards due`}>{sidebarCounts.cards} {sidebarCounts.cards === 1 ? "card" : "cards"}</span>}
               </button>
             ))}
           </nav>
           <OutlineSidebar nodes={nodes} scope={scope} starred={starred} savedSearches={savedSearches} search={search} tagSettings={tagSettings} onEditTag={setTagEditor} disabled={disabled} onNavigate={navigateTo} onSearch={query => { navigateTo(null); setNotesFilter('all'); setSearch(query); }} onAdd={parent => { setTab("notes"); setScope(parent); setSearch(""); add(parent); }} />
-          <div className="sidebar-bottom">
-            <button onClick={async()=>{await flush();if(failed.current){showError(Error('Save or export your changes before returning home.'));return;}window.location.hash='home';}}><Icon name="home" size={16}/>RemoNook home</button>
-            <button disabled={disabled} onClick={() => { setTab("notes"); setScope(null); setSearch(""); add(null); }}><Icon name="plus" /><span>New node</span></button>
-            <button onClick={() => setDialog("trash")}>
-              <Icon name="trash" />
-              <span>Trash</span>
-              {doc.tables.trash.length > 0 && (
-                <span className="nav-count"><FlowNumber value={doc.tables.trash.length} /></span>
-              )}
-            </button>
-            <button onClick={() => setDialog("settings")}>
-              <Icon name="settings" />
-              <span>Settings & backups</span>
-            </button>
-            <button onClick={()=>setDialog("help")}><Icon name="learn"/><span>Show me how</span></button>
-            <button onClick={() => setDialog("shortcuts")}><Icon name="help" /><span>Keyboard shortcuts</span></button>
-            <a className="feature-guide-link" href="/guides" target="_blank" rel="noopener noreferrer"><Icon name="learn"/><span>Guides & tutorials</span><Icon name="forward" size={12}/></a>
-            {cloudUser&&!activeLocalWorkspace()?<CloudSyncNow signal={cloud.signal} onSync={()=>cloud.sync()}/>:activeLocalWorkspace()?.peerSync?<DeviceSyncNow/>:null}
-            <div className="storage-note">
-              <span
-                className={failed.current ? "status-dot error-dot" : "status-dot"}
-              />
-              {activeLocalWorkspace()?.peerSync?"Syncs with your devices · never RemoNook cloud":activeLocalWorkspace()?.folder?"Folder workspace · this computer · never synced":activeLocalWorkspace()?"Device-only workspace · never synced":cloudUser?"Local-first · syncing to your account":"Local-first · no account"}
-            </div>
-          </div>
+          {doc&&<NowBar placement="sidebar" doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>}
+          <SidebarFooter signal={cloud.signal} signedIn={!!cloudUser} failed={failed.current} trashCount={doc.tables.trash.length} onSync={()=>cloud.sync()} onTrash={()=>setDialog("trash")} onSettings={()=>setDialog("settings")} onHelp={()=>setDialog("help")} onShortcuts={()=>setDialog("shortcuts")} onHome={async()=>{await flush();if(failed.current){showError(Error('Save or export your changes before returning home.'));return;}window.location.hash='home';}}/>
         </div>
       </aside>
       {isDesktop()&&<DesktopUpdate flush={flush}/>}
@@ -1641,7 +1611,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {doc&&<BreakOverlay doc={doc} storageKey={storageAccountKey()} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
       {isApp()&&<LocalSyncPairing/>}
       <main ref={sidebarMotion.mainRef}>
-        <header className="topbar">
+        <header className={`topbar${scope ? " has-scope" : ""}`}>
           <button
             className={`icon-button sidebar-toggle-btn topbar-sidebar-toggle ${sidebarShown ? "is-open" : "is-collapsed"}`}
             aria-label={sidebarShown ? "Collapse sidebar" : "Expand sidebar"}
@@ -1702,7 +1672,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
           <div className="topbar-right">
             <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
-            <ReminderBell doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>
             {tab !== "bookmarks" && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
@@ -1943,6 +1912,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </>
         )}
         {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}} onImages={files=>{void attachImages(selected.id,files);}}/>}
+        {doc&&<NowBar placement="phone" doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>}
         <MobileNav tab={tab} onTab={id=>{if(id==='mindmap')setMindmapTarget(null);setTab(id);setEditing(null);}}/>
       </main>
       {tagEditor&&<Dialog title={`Tag settings · #${tagEditor}`} onClose={()=>setTagEditor(null)}><TagSettingsForm key={tagEditor} nodes={nodes} tag={tagEditor} settings={tagSettings} disabled={disabled} onSave={saveTagSetting} onRename={renameTag} onClose={()=>setTagEditor(null)}/></Dialog>}
@@ -2151,6 +2121,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <button onClick={() => { toggleSidebar(); setViewMenu(false); }}><Icon name="sidebar" size={16} /><span>{sidebarShown ? "Hide sidebar" : "Show sidebar"}</span><kbd>Ctrl \</kbd></button>
           <button onClick={() => { setDialog("settings"); setViewMenu(false); }}><Icon name="settings" size={16}/><span>Settings & backups</span></button>
           {cloudUser && <button onClick={() => { setViewMenu(false); void accountAction(true); }}><Icon name="logout" size={16}/><span>Sign out</span></button>}
+          <button onClick={()=>{setViewMenu(false);window.dispatchEvent(new Event("remo-open-stats"));}}><Icon name="info" size={16}/><span>Statistics</span></button>
           <button onClick={()=>{setDialog("help");setViewMenu(false);}}><Icon name="learn" size={16}/><span>Show me how</span></button>
           <button onClick={() => { setDialog("shortcuts"); setViewMenu(false); }}><Icon name="help" size={16} /><span>Keyboard shortcuts</span></button>
           <a className="feature-guide-link" href="/guides" target="_blank" rel="noopener noreferrer"><Icon name="learn" size={16}/><span>Guides & tutorials</span><Icon name="forward" size={12}/></a>

@@ -29,7 +29,7 @@ const textButton=(selector,text)=>[...document.querySelectorAll(selector)].find(
 const input=async(selector,value)=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);Object.getOwnPropertyDescriptor(el instanceof HTMLTextAreaElement?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));});
 const choose=async(selector,value)=>act(async()=>{const el=document.querySelector(selector);assert.ok(el,selector);el.value=value;el.dispatchEvent(new window.Event('change',{bubbles:true}));});
 const stored=async()=>{await act(async()=>new Promise(resolve=>setTimeout(resolve,250)));return load();};
-const openDashboard=async()=>{await click(textButton('.sidebar nav button','Dashboard'));await wait(()=>document.querySelector('.dash-widget'));};
+const openDashboard=async()=>{await click(textButton('.sidebar nav button','Today'));await wait(()=>document.querySelector('.dash-widget'));};
 
 test('dashboard widgets customize, save habits, survive timer suspension, capture notes and reorganize without changing source notes',async()=>{
  let doc=withNodes(empty(),[bullet('task',{text:'Prepare for the workshop',taskState:'TODO'}),bullet('question',{text:'A question',kind:'QUESTION',position:1}),bullet('answer',{text:'An answer',parentId:'question'})]);

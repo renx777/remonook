@@ -103,7 +103,7 @@ test("production bundle: interaction smoke test", async context => {
   assert.match(document.querySelector('.landing-demo-reveal').textContent,/finding patterns/);
   await click(document.querySelector('[data-guest-entry]'));
   await wait(() => document.querySelector(".page-heading"));
-  assert.ok(document.querySelector('.sidebar-header .brand').textContent.includes('RemoNook'));
+  assert.ok(document.querySelector('.sidebar-workspace-row .workspace-current'),'The sidebar opens with the workspace row');
   assert.equal(document.querySelectorAll('.save-indicator').length,0,'The animated cloud control is removed');
   assert.ok(document.querySelector('.save-status'),'Save status remains accessible without a toolbar icon');
   // React may process a continuous-event updater after currentTarget is cleared.
@@ -179,9 +179,7 @@ test("production bundle: interaction smoke test", async context => {
   assert.equal(stored.tables.trash.length, 1);
   assert.ok(!stored.tables.bullets.some((n) => n.id === next));
   await click(
-    [...document.querySelectorAll(".sidebar-bottom button")].find(
-      (b) => b.textContent === "Trash1",
-    ),
+    document.querySelector('.sidebar-footer [aria-label="Trash, 1 items"]'),
   );
   await click(
     [...document.querySelectorAll("dialog button")].find(
@@ -201,12 +199,12 @@ test("production bundle: interaction smoke test", async context => {
     assert.equal(document.querySelector(".recovery-screen"), null);
   }
   // Navigation can grow; explicitly open the view whose behavior is asserted.
-  await click([...document.querySelectorAll('.sidebar nav button')].find(button => button.textContent === 'Study Desk'));
+  await click([...document.querySelectorAll('.sidebar nav button')].find(button => button.textContent.startsWith('Study Desk')));
   const allMcqs = [...document.querySelectorAll('.study-deck')].find(deck => deck.querySelector('h2')?.textContent === 'All MCQs');
   assert.ok(allMcqs, 'The permanent All MCQs collection ships in production');
   await click([...allMcqs.querySelectorAll('button')].find(button => button.textContent === 'Review settings'));
   assert.equal(document.querySelectorAll('.study-limits').length, 1, 'Shared budget data does not open multiple notebook panels');
-  await click([...document.querySelectorAll(".sidebar-bottom button")].find(b => b.textContent === "Settings & backups"));
+  await click(document.querySelector('.sidebar-footer [aria-label="Settings"]'));
   assert.ok(document.querySelector("dialog[open]"));
   assert.equal(document.querySelector('.topbar [aria-label="Settings and backups"]'),null);
   assert.ok(document.querySelector('.settings-navigation [aria-current="page"]').textContent.includes('Appearance'));

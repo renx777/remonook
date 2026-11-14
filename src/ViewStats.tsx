@@ -15,6 +15,8 @@ const n = (v: number) => v.toLocaleString();
 export function ViewStats({ doc, tab, scope, scopeTitle, calendarDate, counts, kinds }: Props) {
   const [open, setOpen] = useState(false), box = useRef<HTMLDivElement>(null);
   useBackClose(open, () => setOpen(false));
+  // The phone has no Statistics button in its top bar: the page menu opens this panel instead.
+  useEffect(() => { const show = () => setOpen(true); window.addEventListener('remo-open-stats', show); return () => window.removeEventListener('remo-open-stats', show); }, []);
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };

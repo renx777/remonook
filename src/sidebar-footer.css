@@ -1,0 +1,31 @@
+/* Sidebar (option B): a quiet workspace row, places with action counts, Library group, and a
+   one-row footer. */
+.sidebar-workspace-row{height:auto;padding:4px 0 10px;gap:4px}
+.sidebar-workspace-row .workspace-switcher{flex:1;min-width:0;margin:0}
+.sidebar-workspace-row .workspace-current{border:0;padding:6px 8px;border-radius:9px}
+.sidebar-workspace-row .workspace-current:hover{background:var(--hover)}
+.sidebar-workspace-row .workspace-text strong{font-size:14px}
+.sidebar-nav{display:flex;flex-direction:column;gap:1px}
+.sidebar-nav button{display:flex;align-items:center;gap:10px;min-height:34px;padding:6px 10px;border-radius:8px;font-size:14px;color:color-mix(in srgb,var(--text) 82%,var(--muted))}
+.sidebar-nav button:hover{background:var(--hover);color:var(--text)}
+.sidebar-nav button svg{flex:none;opacity:.8}
+.nav-group-label{margin:14px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.nav-badge{margin-left:auto;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:500;line-height:1.4;background:color-mix(in srgb,var(--accent) 16%,transparent);color:color-mix(in srgb,var(--accent) 80%,var(--text))}
+.nav-badge.is-due{background:color-mix(in srgb,#d9952f 20%,transparent);color:color-mix(in srgb,#c07a1d 75%,var(--text))}
+.outline-sidebar .sidebar-section-heading{margin-top:14px}
+.sidebar-fold{display:flex!important;align-items:center;gap:6px;width:auto!important;padding:2px 2px!important;border:0;background:transparent;color:var(--muted)!important;font:inherit;font-size:11px!important;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.sidebar-fold:hover{color:var(--text)!important}
+.sidebar-footer{display:flex;align-items:center;gap:2px;padding:8px 0 2px;border-top:1px solid var(--line)}
+.sidebar-footer .sync-line{flex:1;min-width:0;display:flex;align-items:center;gap:8px;min-height:32px;padding:4px 8px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:12px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:auto}
+button.sync-line{cursor:pointer}button.sync-line:hover{background:var(--hover);color:var(--text)}
+.sync-dot{flex:none;width:8px;height:8px;border-radius:4px;background:#5fb385}
+.sync-line[data-state=pending] .sync-dot{background:#d9952f}
+.sync-line[data-state=error]{color:#c0392b}.sync-line[data-state=error] .sync-dot{background:#c0392b}
+.sync-line[data-state=local] .sync-dot{background:var(--muted)}
+.sidebar-footer .sidebar-footer-icon{position:relative;flex:none;width:34px!important;height:34px;display:inline-flex;align-items:center;justify-content:center;padding:0!important;border-radius:8px}
+.sidebar-footer .sidebar-footer-icon:hover{background:var(--hover);color:var(--text)}
+.sidebar-footer-badge{position:absolute;top:2px;right:0;min-width:14px;height:14px;padding:0 3px;box-sizing:border-box;border-radius:7px;background:var(--muted);color:var(--panel);font-size:9px;font-weight:700;line-height:14px;text-align:center}
+.sidebar-help{position:relative}
+.sidebar-help-menu{position:absolute;right:0;bottom:calc(100% + 6px);z-index:40;min-width:200px;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:0 12px 34px rgba(0,0,0,.25);display:flex;flex-direction:column}
+.sidebar-help-menu>button,.sidebar-help-menu>a{display:block;width:100%;padding:8px 10px!important;border:0;border-radius:8px;background:transparent;color:var(--text)!important;font:inherit;font-size:13px!important;text-align:left;text-decoration:none;cursor:pointer}
+.sidebar-help-menu>button:hover,.sidebar-help-menu>a:hover{background:var(--hover)}
