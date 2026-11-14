@@ -30,3 +30,6 @@
 .reader-epub mark[data-style=text][data-color=green]{color:#1f7a43}
 .reader-epub mark[data-style=text][data-color=blue]{color:#2b6cc4}
 .reader-epub mark[data-style=text][data-color=rose]{color:#c0245c}
+.reader-passage-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-family:system-ui,sans-serif;font-size:13px;color:var(--muted)}
+.reader-passage-nav button{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--text);font:inherit}
+.reader-passage-nav button:disabled{opacity:.4}

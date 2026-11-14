@@ -31,3 +31,7 @@
 .lib-nav .lib-nav-fixed:hover,.lib-nav .lib-nav-name:hover{background:var(--hover)}
 .lib-nav .lib-nav-fixed[aria-current=true],.lib-nav .lib-nav-row[aria-current=true] .lib-nav-name{background:color-mix(in srgb,var(--accent) 14%,transparent)}
 .lib-nav .lib-nav-link{display:inline;width:auto;min-height:0;border:0;background:none;padding:0;font-size:inherit}
+/* Phones: the folder strip and the shelf/list scroll together inside the space above the bottom
+   navigation. min-height:100% here pushed the navigation off the screen, so Bookshelf and
+   Bookmarks could not be left. */
+@media(max-width:760px){.library-with-nav{flex:1 1 auto;min-height:0;overflow-y:auto}.library-with-nav>:last-child{overflow:visible;height:auto;flex:none}}
