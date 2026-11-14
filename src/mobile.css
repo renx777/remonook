@@ -116,3 +116,4 @@
  .topbar [aria-label="Commands & notes"]{display:none}
  .topbar .breadcrumbs{min-width:0}
 }
+@media(max-width:760px){.mobile-edit-scroll>.mobile-tool-image{display:inline-flex;align-items:center;justify-content:center;flex:0 0 42px;width:42px;height:44px;border-radius:7px;color:var(--accent);cursor:pointer}.mobile-edit-scroll>.mobile-tool-image:active{background:var(--soft)}}

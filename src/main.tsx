@@ -16,7 +16,7 @@ const SETTINGS_GROUPS:[string,[string,string,string][]][]=[
   ["You",[["appearance","Appearance","settings"],["account","Account and sync","people"]]],
   ["Notes",[["study","Study","study"],["storage","Storage","folder"],["backups","Backups","folder"]]],
   ["Apps",[["ai","AI apps","globe"],["connections","Connections","connections"],["desktop","Desktop","settings"]]],
-  ["Help",[["shortcuts","Keyboard shortcuts","help"]]],
+  ["Help",[["shortcuts","Keyboard shortcuts","help"],["about","About","info"]]],
 ];
 import {CommandPalette} from './CommandPalette';
 import {bindWorkspaceShortcuts,modLabel,shortcutAllowed} from './workspace-shortcuts';
@@ -41,6 +41,9 @@ import {AndroidUpdate} from './AndroidUpdate';
 import {useBackClose} from './back-stack';
 import {MobileNav} from './MobileNav';
 import {ViewStats} from './ViewStats';
+import {ReminderBell} from './ReminderBell';
+import {About} from './About';
+import {CloudSyncNow,DeviceSyncNow} from './SyncNow';
 import {BreakOverlay,useDayBaseline} from './BreakOverlay';
 import {FocusPill} from './FocusPill';
 import {LocalSyncPairing,LocalSyncSettings} from './LocalSyncSettings';
@@ -1623,6 +1626,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <button onClick={()=>setDialog("help")}><Icon name="learn"/><span>Show me how</span></button>
             <button onClick={() => setDialog("shortcuts")}><Icon name="help" /><span>Keyboard shortcuts</span></button>
             <a className="feature-guide-link" href="/guides" target="_blank" rel="noopener noreferrer"><Icon name="learn"/><span>Guides & tutorials</span><Icon name="forward" size={12}/></a>
+            {cloudUser&&!activeLocalWorkspace()?<CloudSyncNow signal={cloud.signal} onSync={()=>cloud.sync()}/>:activeLocalWorkspace()?.peerSync?<DeviceSyncNow/>:null}
             <div className="storage-note">
               <span
                 className={failed.current ? "status-dot error-dot" : "status-dot"}
@@ -1696,12 +1700,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               </>
             )}
           </div>
-          <div id="topbar-reminders" className="topbar-reminders" data-visible={remindersVisible}>
-            <ReminderTabs doc={doc} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>
-          </div>
           <div className="topbar-right">
             <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
-            <button className="icon-button reminders-toggle" aria-label={remindersVisible?'Hide reminders':'Show reminders'} title={remindersVisible?'Hide reminders':'Show reminders'} aria-expanded={remindersVisible} aria-controls="topbar-reminders" onClick={()=>setRemindersVisible(visible=>!visible)}><Icon name="bell" size={18}/></button>
+            <ReminderBell doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>
             {tab !== "bookmarks" && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
@@ -1739,7 +1740,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {<button className="icon-button" aria-label="Outline options" aria-expanded={viewMenu} title="Outline options" onClick={event => { viewAnchor.current = event.currentTarget; setViewMenu(value => !value); setMenu(null); }}><Icon name="more" /></button>}
             {tab==='notes'&&views.panes.length>1&&<button className="icon-button" aria-label="Close pane" title="Close pane · Alt+W" onClick={()=>{views.close(views.activePane);setEditing(null);}}><Icon name="close" size={16}/></button>}
             {tab==='notes'&&<button className="icon-button" aria-label="New pane" title="New pane · Alt+R" onClick={()=>openPane()}><Icon name="pane" size={17}/></button>}
-            <ProfileMenu user={cloudUser} environment={APP_ENV} signal={cloud.signal} onSettings={panel=>{setSettingsPanel(panel);setDialog('settings');}} onSignIn={()=>void accountAction()} onSignOut={()=>void accountAction(true)}/>
+            <ProfileMenu user={cloudUser} environment={APP_ENV} signal={cloud.signal} onSync={()=>cloud.sync()} onSettings={panel=>{setSettingsPanel(panel);setDialog('settings');}} onSignIn={()=>void accountAction()} onSignOut={()=>void accountAction(true)}/>
           </div>
         </header>
         {viewHint&&<div className="view-dots" role="status" aria-live="polite">{SWIPE_VIEWS.map(v=><span key={v} className={v===viewHint.view?'is-current':''}>{v===viewHint.view?SWIPE_LABELS[v]:''}</span>)}</div>}
@@ -1941,7 +1942,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style => command('dividerStyle:' + style, selected.id, 0, 0)} onDividerColor={color => command('dividerColor:' + color, selected.id, 0, 0)} />}
           </>
         )}
-        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}}/>}
+        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}} onImages={files=>{void attachImages(selected.id,files);}}/>}
         <MobileNav tab={tab} onTab={id=>{if(id==='mindmap')setMindmapTarget(null);setTab(id);setEditing(null);}}/>
       </main>
       {tagEditor&&<Dialog title={`Tag settings · #${tagEditor}`} onClose={()=>setTagEditor(null)}><TagSettingsForm key={tagEditor} nodes={nodes} tag={tagEditor} settings={tagSettings} disabled={disabled} onSave={saveTagSetting} onRename={renameTag} onClose={()=>setTagEditor(null)}/></Dialog>}
@@ -2250,6 +2251,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {settingsPanel==="connections"&&<GoogleTasksConnection/>}
           {settingsPanel==="ai"&&<AiApps user={cloudUser}/>}
           {settingsPanel==="desktop"&&isDesktop()&&<DesktopSettings/>}
+          {settingsPanel==="about"&&<About/>}
           {settingsPanel==="desktop"&&isMobileApp()&&<section className="ai-apps" aria-label="This device"><LocalSyncSettings/></section>}
           {settingsPanel==="storage"&&<BookStorage key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/>}
           {settingsPanel==="backups" && <section aria-label="Backups"><div className="settings-section-heading"><h3>Your notes. Your copy.</h3><p>A full backup includes notes, media, decks and study progress.</p></div><div className="settings-backup-actions">

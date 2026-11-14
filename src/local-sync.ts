@@ -84,6 +84,14 @@ export class LocalSyncEngine {
     }
   }
 
+  /** Sync now: every connected device is told again what this one has, so both exchange what
+   is missing. Returns how many devices were asked. */
+  async resyncAll() {
+    const peers = [...this.online];
+    for (const peer of peers) for (const w of this.deps.workspaces()) await this.hello(peer, w, true);
+    return peers.length;
+  }
+
   /** Tells a device what this one has, so it sends what is missing (and asks for what it lacks). */
   private hello(peer: string, w: Synced, force = false) {
     return this.serial(async () => {

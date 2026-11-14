@@ -1,0 +1,13 @@
+.sync-now{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--panel) 70%,transparent);font-size:13px}
+.sync-now-line{display:flex;align-items:center;gap:7px}
+.sync-now-line span{flex:1;min-width:0}
+.sync-now-line small{color:var(--muted);font-size:12px}
+.sync-now[data-state=ok] .sync-now-line svg{color:#3f9a68}
+.sync-now[data-state=pending] .sync-now-line svg{color:#c08a2e}
+.sync-now[data-state=error] .sync-now-line svg{color:#c0392b}
+.sync-now button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:8px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);font:inherit;cursor:pointer}
+.sync-now button:disabled{opacity:.6;cursor:default}
+.sync-now-error,.sync-now-note{margin:0;font-size:12px;line-height:1.4;color:var(--muted)}
+.sync-now-error{color:#c0392b}
+.sync-now.is-compact{border:0;padding:0;background:transparent}
+@media(max-width:760px){.sync-now button{min-height:44px}}

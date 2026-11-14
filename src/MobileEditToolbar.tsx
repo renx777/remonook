@@ -6,7 +6,7 @@ import {FormattingPalette} from './FormattingPalette';
 import {RoughAnnotationPicker} from './RoughAnnotationPicker';
 import {textColors} from './color-palettes';
 
-export function MobileEditToolbar({editor,disabled,formattingDisabled,blockStyle,dividerStyle,dividerColor,onCommand,onDone}:{editor:Editor|null;disabled:boolean;formattingDisabled:boolean;blockStyle:string;dividerStyle?:string;dividerColor?:string;onCommand:(action:string)=>void;onDone:()=>void}){
+export function MobileEditToolbar({editor,disabled,formattingDisabled,blockStyle,dividerStyle,dividerColor,onCommand,onDone,onImages}:{onImages?:(files:File[])=>void;editor:Editor|null;disabled:boolean;formattingDisabled:boolean;blockStyle:string;dividerStyle?:string;dividerColor?:string;onCommand:(action:string)=>void;onDone:()=>void}){
  const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width: 760px)').matches);
  const [inset,setInset]=useState(0);
  useEditorToolbarState(editor,mobile);
@@ -24,6 +24,7 @@ export function MobileEditToolbar({editor,disabled,formattingDisabled,blockStyle
   <div className="mobile-edit-scroll" role="toolbar" aria-label="Mobile editing tools" onMouseDown={e=>{if(!(e.target instanceof HTMLElement&&e.target.closest('select,input,option')))e.preventDefault();}}>
    <button type="button" aria-label="Outdent bullet" title="Outdent" disabled={disabled} onClick={()=>{onCommand('outdent');editor.commands.focus();}}><Icon name="outdent" size={20}/></button>
    <button type="button" aria-label="Indent bullet" title="Indent" disabled={disabled} onClick={()=>{onCommand('indent');editor.commands.focus();}}><Icon name="indent" size={20}/></button>
+   {onImages&&<label className="mobile-tool-image" aria-label="Add image" title="Add image"><Icon name="image" size={20}/><input type="file" accept="image/*" multiple hidden disabled={disabled} onChange={e=>{const files=[...(e.target.files||[])];e.target.value='';if(files.length)onImages(files);}}/></label>}
    <span className="mobile-tool-divider"/>
    {(['bold','italic','underline','strike'] as const).map((mark,i)=><button key={mark} type="button" aria-label={['Bold','Italic','Underline','Strikethrough'][i]} aria-pressed={editor.isActive(mark)} disabled={formatDisabled} onClick={()=>editor.chain().focus().toggleMark(mark).run()}><Icon name={mark} size={20}/></button>)}
    <FormattingPalette allowCaret editor={editor} disabled={formatDisabled}/><FormattingPalette allowCaret editor={editor} disabled={formatDisabled} mode="highlight"/><RoughAnnotationPicker editor={editor} disabled={formatDisabled}/>
