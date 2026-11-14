@@ -46,11 +46,12 @@ try {
     await page
       .getByRole("textbox", { name: "Canvas title" })
       .fill("Learning map");
-    await page.getByRole("button", { name: "＋ Text", exact: true }).click();
+    await page.getByRole("button", { name: "Add text card" }).click();
     await page
       .getByRole("textbox", { name: "Edit canvas note", exact: true })
       .fill("Supervised learning\nClassification and regression");
-    await page.getByRole("button", { name: "Close inspector" }).click();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
     if (!mobile) {
       const node = page.locator(".react-flow__node").first(),
         before = await node.getAttribute("style"),
@@ -64,8 +65,8 @@ try {
         before,
         "dragging moves the card",
       );
-      await page.locator(".canvas-card").first().focus();
-      await page.locator(".canvas-card").first().press("Enter");
+      await page.locator(".react-flow__node").first().click({ position: { x: 30, y: 30 } });
+      const widthBefore = (await page.locator(".react-flow__node").first().boundingBox()).width;
       const handle = page
           .locator(".react-flow__resize-control.handle.bottom.right")
           .first(),
@@ -77,35 +78,38 @@ try {
         steps: 6,
       });
       await page.mouse.up();
+      await page.waitForTimeout(200);
       assert.ok(
-        Number(await page.getByLabel("Width", { exact: true }).inputValue()) >
-          280,
+        (await page.locator(".react-flow__node").first().boundingBox()).width >
+          widthBefore + 20,
         "corner drag changes width",
       );
-      await page.getByRole("button", { name: "Close inspector" }).click();
+      await page.keyboard.press("Escape");
     }
-    await page.getByRole("button", { name: "Group", exact: true }).click();
+    await page.getByRole("button", { name: "Add group" }).click();
     await page
       .getByRole("textbox", { name: "Group label", exact: true })
       .fill("Machine learning");
     await page
       .getByRole("textbox", { name: "Group label", exact: true })
-      .blur();
-    await page.getByLabel("Width", { exact: true }).fill("620");
+      .press("Enter");
+    await page.getByRole("button", { name: "More actions" }).click();
     await page.getByLabel("Connect to", { exact: true }).selectOption({
       label: "Supervised learning\nClassification and regression",
     });
-    await page.getByRole("button", { name: "Close inspector" }).click();
-    await page.getByRole("button", { name: "Link note", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Add note from Notes" }).click();
     await page
       .locator(".canvas-note-picker button")
       .filter({ hasText: "Supervised learning" })
       .first()
       .click();
+    await page.keyboard.press("Enter");
     await page
       .getByRole("textbox", { name: "Edit canvas note", exact: true })
       .fill("Supervised learning\nTypes: classification and regression");
-    await page.getByRole("button", { name: "Close inspector" }).click();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
     await page.waitForFunction(
       () =>
         Array.from(document.querySelectorAll(".canvas-markdown")).filter((el) =>
@@ -114,9 +118,13 @@ try {
     );
     assert.equal(await page.locator(".react-flow__edge").count(), 1);
     const downloadPromise = page.waitForEvent("download");
-    await page
-      .getByRole("button", { name: "Export .canvas", exact: true })
-      .click();
+    if (mobile) {
+      await page.getByLabel("Canvas options").click();
+      await page.getByRole("button", { name: "Export as .canvas file" }).click();
+    } else
+      await page
+        .getByRole("button", { name: "Export .canvas", exact: true })
+        .click();
     const download = await downloadPromise;
     const exported = JSON.parse(await readFile(await download.path(), "utf8"));
     assert.equal(exported.nodes.length, 3);
@@ -131,9 +139,7 @@ try {
     assert.ok(
       exported.nodes.some(
         (n) =>
-          n.type === "group" &&
-          n.width === 620 &&
-          n.label === "Machine learning",
+          n.type === "group" && n.label === "Machine learning",
       ),
     );
     await page.screenshot({
@@ -145,14 +151,8 @@ try {
     });
     await page.locator(".app").evaluate((el) => (el.dataset.theme = "Light"));
     // Placement removal and the ordinary app undo path.
-    const text = page
-      .locator('.canvas-card[aria-label="Edit text card"]')
-      .first();
-    await text.focus();
-    await text.press("Enter");
-    await page
-      .getByRole("button", { name: "Remove card", exact: true })
-      .click();
+    await page.locator(".canvas-markdown").first().click();
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
     assert.equal(await page.locator(".react-flow__node").count(), 2);
     await page
       .getByRole("button", { name: "Undo canvas change", exact: true })

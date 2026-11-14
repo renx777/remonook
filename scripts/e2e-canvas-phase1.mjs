@@ -33,8 +33,10 @@ try {
   await page.waitForFunction(() => document.querySelector('input[aria-label="Canvas title"]').value === "Plan");
   // Placement: three new cards never overlap.
   for (let i = 0; i < 3; i++) {
-    await page.getByRole("button", { name: "＋ Text", exact: true }).click();
-    await page.getByRole("button", { name: "Close inspector" }).click();
+    await page.getByRole("button", { name: "Add text card" }).click();
+    await page.locator(".canvas-card-editor").waitFor();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
   }
   await page.locator(".react-flow__controls-fitview").click();
   await page.waitForTimeout(400);
@@ -46,7 +48,7 @@ try {
   await nodes.nth(0).click({ position: { x: 20, y: 20 } });
   await nodes.nth(1).click({ position: { x: 20, y: 20 }, modifiers: ["Shift"] });
   assert.equal(await page.locator(".react-flow__node.selected").count(), 2);
-  await page.getByText("2 cards selected").waitFor();
+  await page.getByRole("toolbar", { name: "Selected cards" }).waitFor();
   const b0 = await nodes.nth(0).boundingBox(), before = await rects(page);
   await page.mouse.move(b0.x + 20, b0.y + 20);
   await page.mouse.down();
@@ -59,7 +61,8 @@ try {
   assert.ok(Math.abs(after[1].x - before[1].x - dx) < 1, "the other selected card moved with it and stayed");
   assert.ok(Math.abs(after[2].x - before[2].x) < 1, "unselected card did not move");
   // Group wraps only the selection.
-  await page.getByRole("button", { name: "Group these cards" }).click();
+  await page.getByRole("button", { name: "Group", exact: true }).click();
+  await page.getByRole("textbox", { name: "Group label" }).press("Enter");
   const group = await page.locator(".react-flow__node.selected").boundingBox();
   const inner = await rects(page);
   const g = { x: group.x, y: group.y, w: group.width, h: group.height };
@@ -83,8 +86,8 @@ try {
   const trashAfter = await page.getByRole("button", { name: /^Trash/ }).getAttribute("aria-label");
   assert.notEqual(trashAfter, trashBefore, "the deleted card's own note went to Trash");
   // Link card via the form, no placeholder URL.
-  await page.getByRole("button", { name: "URL", exact: true }).click();
-  await page.getByRole("textbox", { name: "Web link" }).fill("example.org/page");
+  await page.getByRole("button", { name: "Add web link" }).click();
+  await page.getByRole("textbox", { name: /Web link/ }).fill("example.org/page");
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByText("https://example.org/page").first().waitFor();
   // Zoom controls show their icons.

@@ -64,8 +64,7 @@
   padding: 24px 28px;
   overflow: auto;
 }
-.canvas-library label,
-.canvas-inspector label {
+.canvas-library label {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -107,18 +106,25 @@
   color: var(--muted);
 }
 .canvas-thumbnail {
+  display: block;
   height: 140px;
-  background: var(--sidebar);
-  position: relative;
   width: 100%;
+  background: var(--sidebar);
+  padding: 10px;
+  box-sizing: border-box;
 }
-.canvas-thumbnail i {
-  position: absolute;
-  border: 1px solid;
-  width: 16%;
-  height: 13%;
-  border-radius: 3px;
-  background: var(--bg);
+.canvas-thumbnail rect {
+  fill: var(--bg);
+  stroke: var(--line);
+  stroke-width: 1.2;
+  fill-opacity: 1;
+}
+.canvas-thumbnail rect[style*="fill"] {
+  fill-opacity: 0.22;
+}
+.canvas-thumbnail rect.is-group {
+  fill: none;
+  stroke-dasharray: 4 3;
 }
 .canvas-empty {
   max-width: 520px;
@@ -138,22 +144,180 @@
   position: relative;
   flex-direction: column;
 }
-.canvas-tools {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 9px 16px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--line);
-}
-.canvas-tools span {
-  font-size: 11px;
-  color: var(--muted);
-  margin-left: auto;
-}
 .canvas-stage {
   flex: 1;
   min-height: 400px;
+  position: relative;
+}
+.canvas-stage.is-busy {
+  cursor: progress;
+}
+/* Bottom-centre dock for adding cards (Obsidian-style). */
+.canvas-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px #0000001f;
+}
+.canvas-page .canvas-dock button,
+.canvas-page .canvas-selbar button {
+  border: 0;
+  background: transparent;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text);
+  position: relative;
+}
+.canvas-page .canvas-dock button:hover,
+.canvas-page .canvas-selbar button:hover,
+.canvas-page .canvas-selbar button[aria-expanded="true"],
+.canvas-page .canvas-selbar button.is-on {
+  background: var(--hover);
+}
+/* Floating bar above the selection. */
+.canvas-selbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px #00000024;
+}
+.canvas-page .canvas-selbar button {
+  width: 32px;
+  height: 32px;
+}
+.canvas-selbar-menu {
+  position: relative;
+}
+.canvas-dot {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.canvas-swatches,
+.canvas-more {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 22px #00000029;
+}
+.canvas-swatches {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+}
+.canvas-page .canvas-swatches .canvas-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+}
+.canvas-page .canvas-swatches .canvas-swatch[aria-checked="true"] {
+  border-color: var(--text);
+}
+.canvas-page .canvas-swatches .canvas-swatch.is-none {
+  background: linear-gradient(135deg, transparent 45%, var(--muted) 47%, var(--muted) 53%, transparent 55%), var(--bg);
+  border-color: var(--line);
+}
+.canvas-more {
+  left: auto;
+  right: 0;
+  transform: none;
+  min-width: 220px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.canvas-page .canvas-more button {
+  width: 100%;
+  height: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.canvas-more kbd {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-family: inherit;
+}
+.canvas-more label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.canvas-more label span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.canvas-more small {
+  padding: 6px 10px 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.canvas-edgebar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+}
+.canvas-edgebar input {
+  width: 160px;
+  height: 30px;
+  padding: 0 8px;
+}
+.canvas-busy {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 7;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.canvas-stage .react-flow__minimap {
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.canvas-page .canvas-stage .react-flow__controls button.is-on {
+  color: var(--accent);
 }
 .canvas-stage .react-flow {
   background: var(--bg);
@@ -197,20 +361,148 @@
   display: flex;
   gap: 8px;
 }
-.canvas-stage .react-flow__controls svg {
+.canvas-stage .react-flow__controls svg:not(.lucide) {
   fill: currentColor;
+}
+.canvas-stage .react-flow__controls svg.lucide {
+  fill: none;
+  stroke: currentColor;
+  max-width: 16px;
+  max-height: 16px;
 }
 .canvas-card {
   width: 100%;
   height: 100%;
-  border: 1px solid;
+  border: 1.5px solid var(--card-tint, var(--line));
   border-radius: 9px;
   background: var(--bg);
-  padding: 16px 18px;
+  padding: 14px 16px;
   overflow: visible;
   box-shadow: 0 2px 5px #00000009;
   position: relative;
   font-size: 14px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+/* A coloured card is tinted, as in Obsidian. */
+.canvas-card.has-color:not(.canvas-group) {
+  background: color-mix(in srgb, var(--card-tint) 12%, var(--bg));
+}
+.canvas-group.has-color {
+  background: color-mix(in srgb, var(--card-tint) 7%, transparent);
+}
+.canvas-card.is-editing {
+  cursor: text;
+  border-color: var(--accent);
+}
+.canvas-card-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  cursor: text;
+}
+.canvas-card-editor .tiptap {
+  outline: none;
+  min-height: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.canvas-card-editor .tiptap p {
+  margin: 0 0 0.4em;
+}
+.canvas-card-editor .reader-note-format {
+  display: none;
+}
+.canvas-card.is-image {
+  padding: 0;
+  overflow: hidden;
+  background: var(--sidebar);
+}
+.canvas-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+.canvas-card.is-video {
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+}
+.canvas-card-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--line);
+  cursor: grab;
+}
+.canvas-card-strip span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-card-strip a {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.canvas-video {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  display: block;
+}
+.canvas-page .canvas-video-poster {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: #111 center / cover no-repeat;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.canvas-page .canvas-video-poster:hover {
+  background-color: #111;
+  filter: brightness(1.08);
+}
+.canvas-play {
+  width: 56px;
+  height: 40px;
+  border-radius: 12px;
+  background: #e33;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 14px #0006;
+}
+.canvas-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.canvas-url {
+  margin: 6px 0;
+  font-size: 13px;
+}
+.canvas-group-label {
+  font-size: 15px;
+}
+.canvas-group-input {
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  max-width: 100%;
 }
 .react-flow__node.selected .canvas-card {
   outline: 2px solid var(--accent);
@@ -232,8 +524,15 @@
   border-style: dashed;
   box-shadow: none;
 }
+.canvas-group .canvas-group-label,
+.canvas-group .canvas-group-input {
+  position: absolute;
+  top: -30px;
+  left: 0;
+}
 .canvas-markdown {
-  max-height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   line-height: 1.6;
 }
@@ -259,50 +558,6 @@
 .canvas-card:hover .react-flow__handle,
 .react-flow__node.selected .react-flow__handle {
   opacity: 1;
-}
-.canvas-inspector {
-  position: absolute;
-  right: 16px;
-  top: 66px;
-  width: 290px;
-  max-height: calc(100% - 90px);
-  overflow: auto;
-  background: var(--sidebar);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 16px;
-  z-index: 8;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  box-shadow: 0 12px 30px #0002;
-}
-.canvas-inspector header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.canvas-inspector .reader-note-editor {
-  min-height: 140px;
-  background: var(--bg);
-  border-radius: 6px;
-  padding: 10px;
-}
-.canvas-inspector .tiptap {
-  min-height: 120px;
-  outline: none;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.canvas-inspector small {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.6;
-}
-.canvas-dimensions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
 }
 .canvas-note-picker {
   position: absolute;
@@ -347,32 +602,35 @@
   }
   .canvas-header-actions {
     justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+  .canvas-header-actions .canvas-export {
+    display: none;
   }
   .canvas-header-actions button {
     font-size: 11px;
     padding: 7px;
   }
-  .canvas-tools {
-    padding: 8px;
-  }
-  .canvas-tools button {
-    font-size: 11px;
-    padding: 7px;
-  }
-  .canvas-tools span {
+  .canvas-header > div > small {
     display: none;
+  }
+  .canvas-header input[aria-label] {
+    font-size: 18px;
+    max-width: 52vw;
+    margin-top: 0;
+  }
+  .canvas-dock {
+    bottom: 12px;
+  }
+  .canvas-page .canvas-dock button {
+    width: 40px;
+    height: 40px;
+  }
+  .canvas-edgebar input {
+    width: 110px;
   }
   .canvas-library {
     padding: 18px;
-  }
-  .canvas-inspector {
-    top: auto;
-    bottom: 8px;
-    left: 8px;
-    right: 8px;
-    width: auto;
-    max-height: 48%;
-    padding: 12px;
   }
   .canvas-workspace {
     min-height: 400px;
@@ -399,13 +657,23 @@
   list-style: none;
   padding: 8px;
 }
-.canvas-options[open] button {
+.canvas-options[open] .canvas-options-menu {
   position: absolute;
   right: 0;
-  top: 32px;
-  white-space: nowrap;
+  top: 36px;
   z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
   background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 22px #00000029;
+}
+.canvas-options[open] .canvas-options-menu button {
+  white-space: nowrap;
+  text-align: left;
 }
 .canvas-archived {
   margin-top: 28px;

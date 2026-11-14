@@ -316,3 +316,26 @@ test("saving re-checks only changed boards but still enforces the size limit", (
   }));
   assert.throws(() => validateCanvases(broken.web.canvases), /geometry/);
 });
+test("an image card exports as a file reference; removing it sends its bullet and image to Trash", () => {
+  let { doc, id } = createCanvas(empty(), "Images", undefined, uuid);
+  const rootId = doc.web.canvases[id].rootId,
+    noteId = uuid();
+  doc = {
+    ...doc,
+    tables: {
+      ...doc.tables,
+      bullets: [...doc.tables.bullets, { ...doc.tables.bullets.find((n) => n.id === rootId), id: noteId, parentId: rootId, text: "", position: 0 }],
+      media: [...doc.tables.media, { id: uuid(), bulletId: noteId, fileName: "pic.png", mimeType: "image/png", sourceUrl: "", credit: "pic.png", licenseUrl: "" }],
+    },
+  };
+  doc = changeCanvas(doc, id, (b) => ({
+    ...b,
+    nodes: { img: { id: "img", type: "file", file: "pic.png", noteId, position: [0, 0], size: [300, 200], order: 0 } },
+  }));
+  validateCanvases(doc.web.canvases);
+  assert.deepEqual(exportCanvas(doc, id).nodes, [{ id: "img", type: "file", file: "pic.png", x: 0, y: 0, width: 300, height: 200 }]);
+  const removed = removeCanvasCards(doc, id, ["img"]);
+  assert.ok(!removed.tables.bullets.some((n) => n.id === noteId));
+  assert.equal(removed.tables.media.length, 0);
+  assert.match(removed.tables.trash[0].payload, /pic\.png/);
+});

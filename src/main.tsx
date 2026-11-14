@@ -678,6 +678,26 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     } catch (error) { showError(error); }
     finally { setWorking(false); }
   };
+  // Canvas image cards: store image files like bullet images (same limits and sync) and return
+  // their media records; the caller adds the records, the bullet and the card in one change.
+  const storeImages = async (files: File[]) => {
+    if (failed.current) throw Error("Saving needs attention before adding images.");
+    files.forEach(checkUploadFile);
+    const nextAssets = new Map(assetsRef.current), added: { id: string; fileName: string; mimeType: string; sourceUrl: string; credit: string; licenseUrl: string }[] = [];
+    for (const file of files) {
+      const mime = imageType(file.name, file.type);
+      if (!mime || file.size > 2 * 1024 * 1024) throw Error("Choose images up to 2 MB each.");
+      const id = crypto.randomUUID(), extension = (file.name.split(".").pop() || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || mime.split("/")[1].replace(/[^a-z0-9]/g, "") || "img",
+        fileName = id + "." + extension;
+      nextAssets.set("media/" + fileName, new Blob([await file.arrayBuffer()], { type: mime }));
+      added.push({ id, fileName, mimeType: mime, sourceUrl: "", credit: file.name, licenseUrl: "" });
+    }
+    checkAttachmentBudget(nextAssets);
+    for (const item of added) pendingAssets.current.set("media/" + item.fileName, nextAssets.get("media/" + item.fileName)!);
+    assetsRef.current = nextAssets;
+    setAssets(nextAssets);
+    return added;
+  };
   const resizeMedia = (id:string,width:number) => {
     const current=docRef.current!;
     const next:Workspace={...current,tables:{...current.tables,media:current.tables.media.map(item=>item.id===id?{...item,displayWidth:Math.max(15,Math.min(100,Math.round(width)))}:item)}};
@@ -1829,7 +1849,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "study" ? (
           <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
         ) : tab === "canvas" && canvasEnabled ? (
-          <React.Suspense fallback={<section role="status">Loading canvas…</section>}><CanvasStudio doc={doc} disabled={disabled||failed.current} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention before editing this canvas.');const next=update(docRef.current!);validateCanvases(next.web.canvases);commit(next);}} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} onOpenNote={id=>navigateTo(id)}/></React.Suspense>
+          <React.Suspense fallback={<section role="status">Loading canvas…</section>}><CanvasStudio doc={doc} disabled={disabled||failed.current} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention before editing this canvas.');const next=update(docRef.current!);validateCanvases(next.web.canvases);commit(next);}} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} onOpenNote={id=>navigateTo(id)} assets={assets} onStoreImages={storeImages}/></React.Suspense>
         ) : tab === "mindmap" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
         ) : (
