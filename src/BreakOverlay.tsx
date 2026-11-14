@@ -6,7 +6,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { Workspace } from './data';
 import { runningBreak, todayStats, dayBaseline, endTimer, breakExtras } from './focus-break.mjs';
 import { updateWidget, dashboard } from './dashboard.mjs';
+import { isDesktop, desktopInvoke } from './desktop';
 import './break-overlay.css';
+
+/** The break's end time, shared with the desktop quick capture window (a separate window that has
+ no notes loaded) through storage, so it can refuse to open during a break. */
+export const BREAK_KEY = 'remo-break-until';
+export const breakUntil = () => { try { const v = Number(localStorage.getItem(BREAK_KEY)); return v > Date.now() ? v : 0; } catch { return 0; } };
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -25,6 +31,13 @@ export function BreakOverlay({ doc, storageKey, disabled, onChange }: { doc: Wor
     const due = Object.values((dashboard(doc) as any).widgets || {}).find((w: any) => w?.kind === 'focus' && w.timer?.running && w.timer.mode !== 'focus' && w.timer.endsAt <= now) as any;
     if (due && !disabled) onChange(d => endTimer(d, due.id, now));
   }, [now, disabled]);
+  // Tell the quick capture window, and bring the desktop window forward when a break starts so it
+  // is noticed even when RemoNook was minimised or in the tray.
+  const endsAt = brk?.endsAt || 0;
+  useEffect(() => {
+    try { if (endsAt) localStorage.setItem(BREAK_KEY, String(endsAt)); else localStorage.removeItem(BREAK_KEY); } catch { /* storage unavailable */ }
+    if (endsAt && isDesktop()) void desktopInvoke('show_main_window').catch(() => {});
+  }, [endsAt]);
   // Present only during a break, opened as a modal so the app behind cannot be used.
   const open = (d: HTMLDialogElement | null) => { if (d && !d.open) { if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', ''); } };
   const stats = useMemo(() => brk ? todayStats(doc, { baseline: dayBaseline(storageKey, doc.tables.bullets.map(n => n.id)), now }) : null, [!!brk, doc, storageKey]);

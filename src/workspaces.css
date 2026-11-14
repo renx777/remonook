@@ -67,3 +67,4 @@
   .mobile-workspace .workspace-text { display: none; }
   .mobile-workspace .workspace-menu { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; max-height: 70vh; overflow-y: auto; }
 }
+.quick-capture-break { margin: 0; padding: 14px 4px; font-size: 14px; line-height: 1.5; color: var(--muted, #8a8a8a); }
