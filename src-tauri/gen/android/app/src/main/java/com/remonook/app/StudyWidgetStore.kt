@@ -111,10 +111,10 @@ internal object StudyWidgetStore {
             try { Os.link(temporary.absolutePath,file.absolutePath) }
             catch(e:ErrnoException) {
                 if(e.errno!=OsConstants.EEXIST)throw e
-                val prior=JSONObject(file.readText()),expected=JSONObject(String(json,Charsets.UTF_8))
+                val prior=JSONObject(file.readText());val expected=JSONObject(String(json,Charsets.UTF_8))
                 require(listOf("schema","id","scope","deckId","cardId","fingerprint","grade","question","answer","widgetId").all { prior.opt(it)==expected.opt(it) }) { "This review ID already belongs to another action. The original was kept." }
             }
-            val descriptor=Os.open(dir.absolutePath,OsConstants.O_RDONLY or OsConstants.O_DIRECTORY,0)
+            val descriptor=Os.open(dir.absolutePath,OsConstants.O_RDONLY,0)
             try {Os.fsync(descriptor)} finally {Os.close(descriptor)}
         } finally { temporary.delete() }
         true
