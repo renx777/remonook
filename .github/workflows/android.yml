@@ -79,6 +79,18 @@ jobs:
           apk=$(ls src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk | head -1)
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | head -3
           mkdir out && cp "$apk" "out/RemoNook-${CHANNEL}_${VERSION}_android.apk"
+      - name: Test native study widget pagination
+        env:
+          ORG_GRADLE_PROJECT_remonookChannel: ${{ inputs.environment || 'staging' }}
+        run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+          cd src-tauri/gen/android
+          ./gradlew :app:tasks --all --console=plain > "$RUNNER_TEMP/android-widget-tasks.txt"
+          if grep -q '^testUniversalReleaseUnitTest' "$RUNNER_TEMP/android-widget-tasks.txt"; then
+            ./gradlew :app:testUniversalReleaseUnitTest --no-daemon
+          else
+            ./gradlew :app:testReleaseUnitTest --no-daemon
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: RemoNook-${{ inputs.environment || 'staging' }}-android

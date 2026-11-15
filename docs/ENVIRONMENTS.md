@@ -2,6 +2,25 @@
 
 ## Current state
 
+### Native study widgets, staging candidate, 15 November 2026
+
+Branch `codex/native-study-widgets` includes the navigation/Settings work through
+`b292e89` and adds an opt-in Android home-screen study widget plus compact study
+windows for macOS, Windows and Linux. The desktop windows are ordinary app windows,
+not native OS widget-gallery extensions. macOS WidgetKit remains a separate
+signing/App Group milestone. Setup, privacy, cache limits, offline pending reviews
+and physical-device acceptance are described in
+[NATIVE-STUDY-WIDGETS.md](NATIVE-STUDY-WIDGETS.md) and
+[ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md).
+
+The shared canonical scheduler, normal local persistence and durable sync outbox
+remain authoritative. No backend migration or Worker deployment is required. The
+native workflows build and publish **staging only**; they do not redeploy the web
+frontend. Previous staging distribution manifests were Android `0.1.5` and desktop
+`0.1.22`. Production remains unchanged. Publication versions, exact source and
+workflow results will be recorded after successful native builds.
+
+
 ### Android staging navigation update, 15 November 2026
 
 Android staging **0.1.5** was built and published from

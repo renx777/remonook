@@ -39,6 +39,9 @@ import {DesktopUpdate} from './DesktopUpdate';
 import {DesktopSettings} from './DesktopSettings';
 import {AndroidUpdate} from './AndroidUpdate';
 import {useBackClose} from './back-stack';
+import {useStudyWidget,clearNativeStudyWidget} from './useStudyWidget';
+import {StudyWidget} from './StudyWidget';
+import {NativeStudyWidgetSettings} from './NativeStudyWidgetSettings';
 import {MobileNav} from './MobileNav';
 import {ViewStats} from './ViewStats';
 import {SidebarFooter} from './SidebarFooter';
@@ -471,7 +474,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const cloud = useCloudSync({...syncHost,user:cloudUser});
   useLocalSync(syncHost);
   useEffect(()=>{const open=(e:Event)=>{const panel=(e as CustomEvent).detail;if(typeof panel==='string')setSettingsPanel(panel);setSettingsList(false);setDialog('settings');};window.addEventListener('remo-open-settings',open);return()=>window.removeEventListener('remo-open-settings',open);},[]);
-  useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
+  useEffect(()=>setAccountTransitionHandler(async()=>{await clearNativeStudyWidget();await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
   const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await openAccountSignIn();}catch(e){showError(e);}};
   const commit = (next: Workspace, group?: string, record = true, immediate = true) => {
     if (failed.current) {
@@ -509,6 +512,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
+  const nativeWidget=useStudyWidget({ready:!!doc&&!failed.current,revision:doc?.revision,getDoc:()=>docRef.current,canApply:()=>!dirty.current&&!failed.current&&!working&&!cloudApplying.current&&!activeEditor?.view.composing,apply:async next=>{if(failed.current)throw Error('Saving needs attention.');commit(next,undefined,false);await flush();if(failed.current)throw Error('Widget review could not be saved.');},onNotice:setNotice});
   useDesktop({ready:!!doc&&!failed.current,getDoc:()=>docRef.current,commit:next=>commit(next),flush,onError:message=>setError(message||null),onNotice:setNotice});
   useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{
     const current=docRef.current;
@@ -2195,7 +2199,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </nav>
           <div className="settings-content" key={settingsPanel} data-mobile-shown={!settingsList}>
           <button className="settings-back" onClick={()=>setSettingsList(true)}><Icon name="back" size={16}/>All settings</button>
-          {settingsPanel==="study" && <section aria-label="Study"><div className="settings-section-heading"><h3>Study</h3><p>How Study Desk schedules your flashcards and multiple-choice questions.</p></div><FsrsPreferences open doc={doc} disabled={disabled} onChange={next=>commit(next,undefined,false)}/></section>}
+          {settingsPanel==="study" && <section aria-label="Study"><div className="settings-section-heading"><h3>Study</h3><p>How Study Desk schedules your flashcards and multiple-choice questions.</p></div><NativeStudyWidgetSettings widget={nativeWidget}/><FsrsPreferences open doc={doc} disabled={disabled} onChange={next=>commit(next,undefined,false)}/></section>}
           {settingsPanel==="shortcuts" && <section aria-label="Keyboard shortcuts"><KeyboardShortcuts/></section>}
           {settingsPanel==="appearance" && <section aria-label="Appearance"><div className="settings-section-heading"><h3>Feel at home.</h3><p>Choose how your workspace looks and reads.</p></div>
           <div className="settings-tabs">
@@ -2517,7 +2521,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 }
 export const appRoot = createRoot(document.getElementById("root")!);
 // The browser half of desktop Google sign-in runs on its own page (see DesktopSignIn).
-appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isApp() ? <DesktopSignIn/> : window.location.hash === "#quick-capture" && isDesktop() ? <QuickCapture/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
+appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isApp() ? <DesktopSignIn/> : window.location.hash === "#study-widget" && isDesktop() ? <StudyWidget/> : window.location.hash === "#quick-capture" && isDesktop() ? <QuickCapture/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
 
 // The desktop app bundles its files, so it needs no offline service worker.
 if (import.meta.env.PROD && "serviceWorker" in navigator && !isApp())

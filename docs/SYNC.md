@@ -191,3 +191,34 @@ placement tombstones its metadata and connections, leaving note content intact.
 Full web backups retain this domain; Android-compatible export explicitly refuses
 to omit it. The durable outbox, acknowledgement and pending-status rules are
 unchanged. See [JSON-CANVAS.md](JSON-CANVAS.md) for the preview's limits.
+
+## Native study widget reviews
+
+Android home-screen widgets and the desktop study window use an opt-in, private
+presentation cache. They do not open another workspace writer or implement their
+own FSRS scheduler. Each grade first becomes an immutable account/workspace-scoped
+intent with a stable UUID, source fingerprint, question, answer and grade. Native
+inbox files and failed desktop drafts survive process restarts and account changes.
+
+The main app reconciles those intents through the existing study engine and normal
+save/outbox path, after the active editor and pending save are idle. A successful
+review adds `widgetEventId` to its ordinary review log; replay sees that durable
+receipt and cannot grade again. Changed/deleted/incompatible cards preserve the
+original question, answer and grade in ordinary **Recovered widget reviews** notes
+and a receipt in `web.widgetReviewRecoveries`. This metadata and content are kept
+by full backups; legacy Android-compatible export reports that a full backup is
+required when widget receipts exist.
+
+Only after the canonical save succeeds does the bridge publish the updated cache
+and archive the native event. Publishing precedes archive so removal from the
+pending queue cannot reveal an already-graded old cached card. A failed save or
+cache refresh leaves the event pending for retry. Malformed records remain on the
+device and report a neutral issue without blocking later valid records. Archived
+evidence remains in private native storage; changing accounts or disabling widgets
+clears presentation, never the pending inbox.
+
+“Saved on this device · pending app” describes an enqueued widget action, not a
+server acknowledgement. After application, the normal durable cloud outbox and
+server acknowledgement still determine synchronization status. See
+[NATIVE-STUDY-WIDGETS.md](NATIVE-STUDY-WIDGETS.md) and
+[ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for platform boundaries and setup.

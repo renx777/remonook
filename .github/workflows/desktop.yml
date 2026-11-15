@@ -96,6 +96,9 @@ jobs:
           # If the NSIS (.exe) tool download stays down, still produce the .msi installer.
           echo "::warning::Building the .msi installer only (the .exe packaging tool could not be downloaded)."
           npx tauri build $extra --bundles msi
+      - name: Test durable study widget storage
+        shell: bash
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib study_widget::tests
       - uses: actions/upload-artifact@v4
         with:
           name: RemoNook-${{ inputs.environment }}-${{ matrix.platform }}
