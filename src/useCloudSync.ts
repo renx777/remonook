@@ -139,6 +139,9 @@ export function useCloudSync(options:Options){
   void open();
   return()=>{closed=true;live.current=false;if(retry)clearTimeout(retry);ws?.close();};
  },[options.user?.uid]);
- useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const t=setInterval(()=>{if(live.current&&Date.now()-lastRun.current<30000)return;resume();},2000);window.addEventListener('online',resume);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',resume);return()=>{clearInterval(t);window.removeEventListener('online',resume);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',resume);};},[options.user?.uid]);
+ useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();},
+  // Back online: forget the failures from the offline spell, so a retry comes in about a second
+  // rather than after the long back-off built up while offline.
+  reconnect=()=>{failures.current=0;resume();};const t=setInterval(()=>{if(live.current&&Date.now()-lastRun.current<30000)return;resume();},2000);window.addEventListener('online',reconnect);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',resume);return()=>{clearInterval(t);window.removeEventListener('online',reconnect);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',resume);};},[options.user?.uid]);
  return {signal,get status(){return signal.get().status;},get error(){return signal.get().error;},conflict:false,sync,get acknowledgedRevision(){return acknowledged.current;}};
 }

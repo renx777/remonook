@@ -66,9 +66,13 @@ test('slash commands convert blocks, highlight code, preserve text and open MCQs
     await act(async () => document.querySelector('.tiptap').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })));
     // The outline count can publish before the old editor is destroyed and its
     // replacement mounts. Wait for the new live editor before issuing commands.
-    await wait(() => document.querySelectorAll('.outline-row').length === 2 && document.querySelector('.tiptap')?.editor && document.querySelector('.tiptap').editor !== editor && !document.querySelector('.tiptap').editor.isDestroyed);
+    // The live editor must be the new, empty bullet's (on a slow machine the code bullet's editor
+    // can still be the first one in the page), and the slash menu must open before Enter.
+    await wait(() => document.querySelectorAll('.outline-row').length === 2 && document.querySelector('.tiptap')?.editor && document.querySelector('.tiptap').editor !== editor && !document.querySelector('.tiptap').editor.isDestroyed && document.querySelector('.tiptap').editor.getText() === '');
     editor = document.querySelector('.tiptap').editor;
-    await type('/number'); await key('Enter');
+    await type('/number');
+    await wait(() => document.querySelector('[aria-label="Bullet commands"]'));
+    await key('Enter');
     await type('First item'); await key('Escape');
     assert.match(document.querySelector('.outline-row:last-of-type')?.textContent || document.body.textContent, /1\. First item/);
     await act(async () => document.querySelector('[aria-label="First item"]').click());
