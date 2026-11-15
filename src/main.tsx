@@ -172,6 +172,7 @@ import "./outline-chrome.css";
 import "./study.css";
 import "./mcq.css";
 import "./mobile.css";
+import "./navigation-refinement.css";
 const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
 const AiAssist = React.lazy(()=>import('./AiAssist'));
@@ -388,6 +389,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   }, []);
   const showError = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
+  const [mobileSidebar,setMobileSidebar]=useState(false);
+  useEffect(()=>{const media=window.matchMedia("(max-width:760px)");const changed=()=>{if(!media.matches)setMobileSidebar(false);};media.addEventListener?.("change",changed);return()=>media.removeEventListener?.("change",changed);},[]);
   const toggleSidebar = () => {
     sidebarMotion.capture();
     if (readerFocus && tab === "bookmarks" && sidebarOpen) {
@@ -1574,27 +1577,20 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setMenu(null);
     focus(id, prefix.length);
   };
-  return (
-    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
-    <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setNotesFilter('all');setSearch(tag);},onMirror:mirrorHere}}>
-    <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
-      emojiTarget.current = { id, start, end };
-      await chooseEmoji(item, true);
-    }}>
-    <div className="app" data-theme={theme} data-page={tab} data-editing={!!selected && (tab==='notes'||tab==='calendar')} style={style}>
+  const renderSidebar=(mobile=false)=>(
       <aside
-        className={`sidebar ${sidebarShown ? "" : "collapsed"}`}
-        aria-hidden={!sidebarShown}
-        inert={!sidebarShown}
+        className={`sidebar ${mobile ? "mobile-sidebar-content" : sidebarShown ? "" : "collapsed"}`}
+        aria-hidden={!mobile&&!sidebarShown}
+        inert={!mobile&&!sidebarShown}
       >
         <div className="sidebar-inner">
           <div className="sidebar-header sidebar-workspace-row">
             <WorkspaceSwitcher/>
             <button
               className="icon-button sidebar-toggle-btn"
-              aria-label="Collapse sidebar"
+              aria-label={mobile?"Close navigation":"Collapse sidebar"}
               title="Collapse sidebar (Ctrl+\)"
-              onClick={toggleSidebar}
+              onClick={()=>mobile?setMobileSidebar(false):toggleSidebar()}
             >
               <Icon name="sidebarCollapse" />
             </button>
@@ -1634,12 +1630,25 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           <SidebarFooter signal={cloud.signal} signedIn={!!cloudUser} failed={failed.current} trashCount={doc.tables.trash.length} onSync={()=>cloud.sync()} onTrash={()=>setDialog("trash")} onSettings={()=>setDialog("settings")} onHelp={()=>setDialog("help")} onShortcuts={()=>setDialog("shortcuts")} onHome={async()=>{await flush();if(failed.current){showError(Error('Save or export your changes before returning home.'));return;}window.location.hash='home';}}/>
         </div>
       </aside>
+  );
+  return (
+    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
+    <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setNotesFilter('all');setSearch(tag);},onMirror:mirrorHere}}>
+    <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
+      emojiTarget.current = { id, start, end };
+      await chooseEmoji(item, true);
+    }}>
+    <div className="app" data-theme={theme} data-page={tab} data-editing={!!selected && (tab==='notes'||tab==='calendar')} style={style}>
+      {renderSidebar()}
+      {mobileSidebar&&<Dialog title="Navigation" className="mobile-sidebar-dialog" onClose={()=>setMobileSidebar(false)}><div onClick={event=>{if((event.target as HTMLElement).closest('.sidebar-nav button,.outline-sidebar>button,.outline-sidebar .sidebar-tag,.outline-sidebar .sidebar-tag-more,.sidebar-footer [aria-label="Settings"],.sidebar-footer [aria-label^="Trash"],.sidebar-help-menu [role="menuitem"]'))setMobileSidebar(false);}}>{renderSidebar(true)}</div></Dialog>}
+
       {isDesktop()&&<DesktopUpdate flush={flush}/>}
       {isMobileApp()&&<AndroidUpdate/>}
       {doc&&<BreakOverlay doc={doc} storageKey={storageAccountKey()} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
       {isApp()&&<LocalSyncPairing/>}
       <main ref={sidebarMotion.mainRef}>
         <header className={`topbar${scope ? " has-scope" : ""}`}>
+<button className="icon-button mobile-sidebar-trigger" aria-label="Open navigation" aria-haspopup="dialog" aria-expanded={mobileSidebar} onClick={()=>{setEditing(null);setMobileSidebar(true);}}><Icon name="sidebar" size={18}/></button>
           <button
             className={`icon-button sidebar-toggle-btn topbar-sidebar-toggle ${sidebarShown ? "is-open" : "is-collapsed"}`}
             aria-label={sidebarShown ? "Collapse sidebar" : "Expand sidebar"}

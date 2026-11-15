@@ -2,6 +2,67 @@
 
 ## Current state
 
+### Android staging navigation update, 15 November 2026
+
+Android staging **0.1.5** was built and published from
+`codex/navigation-and-settings` at
+`95274dee28ec81440e8d39e2a03b86b52fe3bb21`; application changes are commit
+`e8ce011da1b6ff2fb1659fb78dd49c13fd04aa65` (the intervening commit only records
+web deployment). [Android app run #5](https://github.com/renx777/remonook/actions/runs/43727805188)
+passed all build, signing, artifact upload and publication steps, using the existing
+release-key configuration. Exact-source GitHub CI had already passed.
+
+The live staging Android manifest reports `0.1.5` and its APK download returned a
+complete, valid ZIP. Parsed package: `com.remonook.app.staging`; version code
+`1005`; minimum SDK `24`, target SDK `36`; native libraries for `arm64-v8a`,
+`armeabi-v7a` and `x86_64`. APK size: **149,665,842 bytes**. SHA-256:
+`3cfe94bbb30a8e2bf425a797344757dde8a0f45e8552a26b2274764a18ac3bd7`.
+The published version before this update was `0.1.4`.
+
+Download: [RemoNook Staging 0.1.5 APK](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.5_android.apk).
+Install over the existing staging app and choose **Update**; do not uninstall,
+which would remove device-only notes. Reopening the app starts its update check
+about 15 seconds later. Physical-device confirmation of the navigation drawer,
+Android Back button, existing notes and Settings remains the owner's acceptance
+step. Browser acceptance and the full source regression suite passed before this
+build; they are not physical-device testing.
+
+Only Android staging distribution was updated. No production release, desktop
+release, backend Worker deployment or migration was performed. Native flashcard
+widgets remain a separate proposed feature and are not included in 0.1.5.
+
+
+### Navigation and Settings refinement, 15 November 2026
+
+Branch `codex/navigation-and-settings`, based on `origin/main` at
+`2102f49`. Restores phone navigation with a native modal drawer, makes Calendar's
+month/agenda support area explicitly collapsible on desktop and phone with
+independent display preferences, and aligns Settings fields, spacing and backup
+actions with the app's visual language. Native dialog focus/Escape handling and
+Android's existing back-stack integration are reused; physical-device testing is
+still required. No data model, sync protocol, durable outbox or backend change.
+
+Validation: TypeScript and the staging build passed, the full 156-file regression
+suite passed, and Chromium acceptance checks covered separate sidebar/calendar
+preferences, phone drawer navigation and focus restoration, and every Settings
+panel at phone widths. Light/dark desktop and phone views were inspected.
+Deployed to web staging from application commit
+`e8ce011da1b6ff2fb1659fb78dd49c13fd04aa65` on branch
+`codex/navigation-and-settings`. The existing release marker is `2026-11-14.1`;
+`staging-source.json` identifies the exact deployed application commit.
+[GitHub CI](https://github.com/renx777/remonook/actions/runs/43710643759) and the
+[Staging frontend workflow](https://github.com/renx777/remonook/actions/runs/43711089712)
+both passed, including the latter's end-to-end sync check. Chromium acceptance
+also passed against the live site for desktop/phone calendar disclosure,
+independent preferences, phone navigation, focus restoration and every Settings
+section. Backend health remained healthy with sync protocol 3, Workdays schema 2,
+AI Assist 1, AI enabled and bookmark reader 1. No backend, production or native
+binary was deployed during that web release. Android staging 0.1.5 now
+includes these shared-UI fixes, as recorded above. The OS widget/PKM feasibility and priorities report is
+[PRODUCT-RD-2026-11.md](PRODUCT-RD-2026-11.md); native study widgets are a proposal,
+not part of this release.
+
+
 ### JSON Canvas web staging preview, 14 November 2026
 
 Deployed branch `codex/json-canvas`, application commit
