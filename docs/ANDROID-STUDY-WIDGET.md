@@ -24,6 +24,6 @@ Scope changes/disabled sharing hide cached content and require a new deck select
 
 ## Verification
 
-`StudyWidgetPagesTest` checks lossless pagination, surrogate pairs, empty/unbroken content and font/size budgets. After Tauri generates Gradle variants, run `:app:testUniversalReleaseUnitTest` if present (the universal APK flavor), otherwise `:app:testReleaseUnitTest`; use `:app:tasks --all` to inspect the generated task names.
+`StudyWidgetPagesTest` checks lossless pagination, surrogate pairs, empty/unbroken content and font/size budgets. Run `bash scripts/test-android-study-widget.sh` to compile and run these exact app/test sources with Kotlin 2.2.10 (matching the Android project) and JUnit 4. Pinned public compiler/test dependencies are checksum-verified. This pure JVM gate runs before APK compilation and avoids dependence on Tauri-generated Gradle flavor/test task names; the APK build separately compiles the full Android integration.
 
 Compilation and pure JVM checks are not physical-device acceptance. Test a real launcher at normal/large font sizes and light/dark mode; reconfigure two widgets to different decks; reveal and grade with the main app closed; double-tap grades; force-stop/reboot; reconnect offline reviews; edit/delete a source while a card is revealed; switch account/workspace; and remove a widget with pending reviews. Confirm the main app's review log/schedule and synced device preserve every accepted event exactly once.
