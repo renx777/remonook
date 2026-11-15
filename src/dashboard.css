@@ -384,3 +384,17 @@
 .dash-study-clear{margin:0 0 12px;font-size:12px;color:var(--muted);line-height:1.5}
 .dash-habit-summary .dash-habit-history-toggle{margin-left:auto;font-size:11px;min-height:30px}
 .dash-habit-summary .dash-habit-history-toggle[aria-pressed=true]{color:var(--accent)}
+.focus-pill-wrap{position:relative;display:flex;align-items:center}
+.focus-pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,var(--panel));color:var(--text);font-size:13px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums;cursor:pointer}
+.focus-pill.is-break{border-color:#2e7d5b66;background:color-mix(in srgb,#2e7d5b 14%,var(--panel))}
+.focus-pill.is-paused{border-color:var(--line);background:var(--panel);color:var(--muted)}
+.focus-pill-dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.focus-pill.is-break .focus-pill-dot{background:#2e7d5b}
+.focus-pill-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:80;width:280px;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:0 12px 36px #0003}
+.focus-pill-kind{font-size:12px;font-weight:600;color:var(--muted)}
+.focus-pill-big{margin:2px 0 10px;font-size:40px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.focus-pill-bar{height:4px;border-radius:2px;background:var(--line)}.focus-pill-bar span{display:block;height:4px;border-radius:2px;background:var(--accent)}
+.focus-pill-actions{display:flex;gap:8px;margin-top:14px}.focus-pill-actions button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:10px;font-size:13px}
+.focus-pill-actions .primary{background:var(--text);color:var(--panel);border-color:transparent}
+.focus-pill-link{margin-top:10px;border:0;background:none;padding:0;color:var(--accent);font-size:13px;cursor:pointer}
+@media(max-width:640px){.focus-pill{padding:0 10px}.focus-pill-wrap .focus-pill{font-size:12px}.focus-pill-pop{position:fixed;left:12px;right:12px;top:56px;width:auto}}

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: open web links in the system browser; check, download and install signed updates; restart after an update.",
+  "description": "Main window: open web links in the system browser.",
   "windows": [
     "main"
   ],
@@ -20,8 +20,6 @@
           "url": "mailto:*"
         }
       ]
-    },
-    "updater:default",
-    "process:allow-restart"
+    }
   ]
 }

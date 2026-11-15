@@ -140,9 +140,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   assert.equal(stored.tables.trash.length, 1);
   assert.ok(!stored.tables.bullets.some((n) => n.id === next));
   await click(
-    [...document.querySelectorAll(".sidebar-bottom button")].find(
-      (b) => b.textContent === "Trash1",
-    ),
+    document.querySelector('.sidebar-footer [aria-label="Trash, 1 items"]'),
   );
   await click(
     [...document.querySelectorAll("dialog button")].find(

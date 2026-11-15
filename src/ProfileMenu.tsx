@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { User } from "firebase/auth";
 import { CloudAccountStatus } from "./SaveIndicator";
 import { Icon } from "./icons";
+import { CloudSyncNow, DeviceSyncNow } from "./SyncNow";
 import "./profile-menu.css";
 
 type Signal = Parameters<typeof CloudAccountStatus>[0]["signal"];
@@ -34,6 +35,7 @@ export function ProfileMenu({
   onSettings,
   onSignIn,
   onSignOut,
+  onSync,
 }: {
   user: User | null;
   environment: string;
@@ -41,6 +43,7 @@ export function ProfileMenu({
   onSettings: (panel: "account" | "backups" | "appearance") => void;
   onSignIn: () => void;
   onSignOut: () => void;
+  onSync?: () => Promise<unknown> | void;
 }) {
   const [open, setOpen] = useState(false);
   const act = (fn: () => void) => () => {
@@ -72,12 +75,6 @@ export function ProfileMenu({
             </div>
           </div>
           <dl className="profile-facts">
-            {user && (
-              <div>
-                <dt>Cloud sync</dt>
-                <dd><CloudAccountStatus signal={signal} /></dd>
-              </div>
-            )}
             {!!environment && environment !== "production" && (
               <div>
                 <dt>Environment</dt>
@@ -85,7 +82,8 @@ export function ProfileMenu({
               </div>
             )}
           </dl>
-          {user && <CloudAccountStatus signal={signal} error />}
+          {user && !activeLocalWorkspace() && onSync && <CloudSyncNow signal={signal} onSync={onSync} />}
+          {activeLocalWorkspace()?.peerSync && <DeviceSyncNow />}
           <div className="profile-actions">
             {user ? (
               <>

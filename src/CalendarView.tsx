@@ -190,6 +190,9 @@ type CalendarViewProps = {
 export function CalendarView(props: CalendarViewProps) {
   const { selectedDate, onSelectDate, nodes, onAddBullet } = props;
   const [popoverOpen, setPopoverOpen] = useState(false);
+  // The right column (month and agenda) can be hidden for a wider day page; remembered per device.
+  const [asideOpen, setAsideOpen] = useState(() => { try { return localStorage.getItem('remo-calendar-aside') !== 'hidden'; } catch { return true; } });
+  const toggleAside = () => setAsideOpen(v => { try { localStorage.setItem('remo-calendar-aside', v ? 'hidden' : 'shown'); } catch { /* storage unavailable */ } return !v; });
   const popoverRef = useRef<HTMLDivElement>(null);
   const pillBtnRef = useRef<HTMLButtonElement>(null);
   const stripScrollRef = useRef<HTMLDivElement>(null);
@@ -392,7 +395,7 @@ export function CalendarView(props: CalendarViewProps) {
       </div>
   );
   return (
-    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}><div className={`calendar-view ${props.aside?'cal2':props.autoOpen===false?'has-workdays':''}`}>
+    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}><div className={`calendar-view ${props.aside?'cal2':props.autoOpen===false?'has-workdays':''}${props.aside&&!asideOpen?' cal2-aside-hidden':''}`}>
       {props.aside?<><div className="cal2-page">
       <div className="calendar-header-row cal2-header">
         <div className="calendar-title-wrap">
@@ -409,6 +412,7 @@ export function CalendarView(props: CalendarViewProps) {
         <div className="cal2-day-nav">
           <button className="icon-button" title="Previous day" aria-label="Previous day" onClick={() => onSelectDate(addDays(selectedDate, -1))}><Icon name="back" size={16} /></button>
           <button className="icon-button" title="Next day" aria-label="Next day" onClick={() => onSelectDate(addDays(selectedDate, 1))}><Icon name="forward" size={16} /></button>
+          <button className="icon-button cal2-aside-toggle" title={asideOpen ? "Hide month and agenda" : "Show month and agenda"} aria-label={asideOpen ? "Hide month and agenda" : "Show month and agenda"} aria-expanded={asideOpen} onClick={toggleAside}><Icon name={asideOpen ? "sidebarCollapse" : "sidebarExpand"} size={16} /></button>
         </div>
         {props.headerExtra}
       </div>

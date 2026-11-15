@@ -506,3 +506,18 @@
 .study-memory-details dd{margin:0;overflow-wrap:anywhere}
 .study-fsrs-settings form>[role=status]{display:block;color:var(--muted);font-size:12px}
 .study-deck-retention{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+/* Immersive: one slim header (back, title and position, mode, card size in a menu, exit) and a
+   thin progress line under it, so the card starts near the top. */
+.study-session.is-immersive .session-topline{min-height:52px;padding:0 20px;gap:12px;border-bottom:1px solid var(--line);align-items:center}
+.study-session.is-immersive .study-btn-label,.study-session.is-immersive .immersive-toggle span{display:none}
+.study-session.is-immersive .session-inline-title{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;font-size:14px;color:var(--muted)}
+.study-session.is-immersive .session-inline-title>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.study-session.is-immersive .session-inline-title small{flex:none;font-size:13px;font-variant-numeric:tabular-nums}
+.study-session.is-immersive .session-content>h1,.study-session.is-immersive .study-progress-label{display:none}
+.study-session.is-immersive .study-progress{display:block;width:100%;height:3px;margin:0 0 24px;border:0;border-radius:0}
+.study-size-menu{position:relative}
+.study-size-menu>summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;cursor:pointer;color:var(--muted)}
+.study-size-menu>summary::-webkit-details-marker{display:none}
+.study-size-menu>summary:hover{background:var(--soft)}
+.study-size-menu>div{position:absolute;right:0;top:calc(100% + 6px);z-index:5;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:0 12px 34px rgba(0,0,0,.25)}
+.study-size-menu .study-card-sizing{display:flex}

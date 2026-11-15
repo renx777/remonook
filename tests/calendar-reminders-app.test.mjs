@@ -33,14 +33,16 @@ test('calendar reminders create recurring items, rotate top tabs, complete occur
  const submit=async()=>act(async()=>document.querySelector('.reminder-editor').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
  try{
  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('.outline-row')||document.querySelector('.outline-scroll'));
- await click('[aria-label="Calendar reminders"]');await wait(()=>document.querySelector('.cal2-agenda'));
+ await act(async()=>[...document.querySelectorAll('.sidebar nav button')].find(b=>b.textContent.startsWith('Calendar')).click());await wait(()=>document.querySelector('.cal2-agenda'));
  await textClick('Add reminder');await input('[aria-label="Reminder title"]','Electricity bill');await select('[aria-label="Reminder category"]','bill');assert.equal(document.querySelector('[aria-label="Reminder repeat"]').value,'monthly');
- const date=document.querySelector('[aria-label="Reminder date"]').value;await submit();assert.match(document.querySelector('.reminder-current').textContent,/Electricity bill.*Today/);assert.ok(document.querySelector('.has-reminder'));
- await textClick('Add reminder');await input('[aria-label="Reminder title"]','Birthday');await submit();assert.ok(document.querySelector('[aria-label="Next reminder"]'));
- assert.equal(document.querySelector('.reminder-controls').open,false,'Navigation stays tucked away');await click('.reminder-controls summary');
- const before=document.querySelector('.reminder-current').textContent;await click('[aria-label="Next reminder"]');assert.notEqual(document.querySelector('.reminder-current').textContent,before);assert.equal(document.querySelector('.reminder-emoji [data-emoji-token]').getAttribute('data-emoji-token'),':noto_26a1:');assert.match(document.querySelector('.reminder-emoji img').getAttribute('src'),/^\/reminder-emojis\/noto_26a1\.svg$/,'Reduced motion uses a bundled static poster');
- await click('[aria-label="Pause reminder rotation"]');assert.ok(document.querySelector('[aria-label="Resume reminder rotation"]'));
- await click(`[aria-label="Complete Electricity bill on ${date}"]`);assert.doesNotMatch(document.querySelector('.reminder-current').textContent,/Electricity bill/);
+ const date=document.querySelector('[aria-label="Reminder date"]').value;await submit();assert.ok(document.querySelector('.has-reminder'));
+ await textClick('Add reminder');await input('[aria-label="Reminder title"]','Birthday');await submit();
+ // Due today: the sidebar counts it and the Now bar shows the first one with Done and "+1 more".
+ assert.match([...document.querySelectorAll('.sidebar nav button')].find(b=>b.textContent.startsWith('Calendar')).textContent,/2 due/);
+ const strip=document.querySelector('.now-bar.is-sidebar .now-strip');assert.match(strip.textContent,/\+1 more/);
+ await click('.now-bar.is-sidebar .now-strip-main');assert.match(document.querySelector('.now-sheet').textContent,/Due.*Electricity bill.*Today/);
+ await click('.now-sheet [aria-label="Mark Electricity bill done"]');assert.doesNotMatch(document.querySelector('.now-sheet').textContent,/Electricity bill/);
+ await act(async()=>document.querySelector('.now-sheet-wrap').dispatchEvent(new window.MouseEvent('click',{bubbles:true})));
  assert.ok(document.querySelector(`[aria-label="Reopen Electricity bill on ${date}"]`));let state=await stored();assert.equal(state.web.calendarEvents.find(e=>e.title==='Electricity bill').completed[0],date);
  const nodes=structuredClone(state.tables.bullets);await click('[aria-label="Edit Birthday"]');await input('[aria-label="Reminder title"]','Annual birthday');await submit();state=await stored();assert.ok(state.web.calendarEvents.some(e=>e.title==='Annual birthday'));
  await click('[aria-label="Edit Annual birthday"]');await textClick('Delete reminder');await textClick('Delete this reminder');state=await stored();assert.equal(state.web.calendarEvents.length,1);assert.deepEqual(state.tables.bullets,nodes);

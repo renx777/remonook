@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {isDesktop} from './desktop';
+import {isApp} from './desktop';
 import type {User} from 'firebase/auth';
 import {googleSignIn,desktopGoogleSignIn,emailSignIn,emailSignUp,resetPassword,verifyEmail,checkVerification,addPassword} from './auth-service';
 import './account-access.css';
@@ -36,9 +36,9 @@ export function AccountAccess({onClose,actions=accessActions}:{onClose:()=>void;
  return <dialog ref={dialog} className="account-access" aria-labelledby="access-title" onCancel={e=>{if(busy)e.preventDefault();else onClose();}}>
   <button className="access-close" aria-label="Close sign-in" disabled={busy} onClick={onClose}>×</button>
   <p className="access-eyebrow">REMONOOK</p><h2 id="access-title">{title}</h2><p className="access-muted">{mode==='reset'?'We’ll send a link to help you sign in again.':'Your notes, connected across devices.'}</p>
-  {mode!=='reset'&&<><button className="access-google" disabled={busy} onClick={()=>{setLink('');void run(isDesktop()&&actions===accessActions?()=>desktopGoogleSignIn(setLink):actions.google);}}>{isDesktop()?'Continue with Google (opens your browser)':'Continue with Google'}</button>
-   {isDesktop()&&busy&&<p className="access-note" role="status">Finish signing in with Google in your browser, then come back here.</p>}
-   {isDesktop()&&link&&<p className="access-note">Your browser didn’t open. Open this link in any browser on this computer:<br/><input readOnly aria-label="Sign-in link" value={link} onFocus={e=>e.currentTarget.select()} style={{width:'100%',marginTop:6}}/></p>}
+  {mode!=='reset'&&<><button className="access-google" disabled={busy} onClick={()=>{setLink('');void run(isApp()&&actions===accessActions?()=>desktopGoogleSignIn(setLink):actions.google);}}>{isApp()?'Continue with Google (opens your browser)':'Continue with Google'}</button>
+   {isApp()&&busy&&<p className="access-note" role="status">Finish signing in with Google in your browser, then come back here.</p>}
+   {isApp()&&link&&<p className="access-note">Your browser didn’t open. Open this link in any browser on this computer:<br/><input readOnly aria-label="Sign-in link" value={link} onFocus={e=>e.currentTarget.select()} style={{width:'100%',marginTop:6}}/></p>}
    <div className="access-divider">or use email</div></>}
   <form onSubmit={e=>{e.preventDefault();if(mode==='signup'&&password!==confirm){setError('Passwords do not match.');return;}void run(async()=>{if(mode==='reset'){try{await actions.reset(email);}catch(e){if((e as {code?:string}).code!=='auth/user-not-found')throw e;}setNotice('If an account uses this email, a password reset link is on its way. Check your inbox and spam folder.');}else await actions[mode](email,password);});}}>
    <fieldset disabled={busy}><label>Email<input autoFocus type="email" autoComplete="email" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)}/></label>

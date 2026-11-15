@@ -51,6 +51,6 @@ test('folder shelf supports creation, drag moves, accessible moves and both dele
  // Radios live in separate labels; choose the second explicitly.
  await act(async()=>document.querySelectorAll('input[name="delete-source"]')[1].click());
  await textClick('Delete deck & move notes to Trash');state=await stored();assert.equal(state.tables.bullets.some(n=>n.id==='second'),false);assert.equal(state.tables.trash.length,1);
- await act(async()=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim().startsWith('Trash')).click());await textClick('Restore');state=await stored();assert.ok(state.tables.bullets.some(n=>n.id==='second'));assert.ok(state.tables.decks.some(d=>d.rootId==='second'));
+ await act(async()=>document.querySelector('.sidebar-footer [aria-label^="Trash"]').click());await textClick('Restore');state=await stored();assert.ok(state.tables.bullets.some(n=>n.id==='second'));assert.ok(state.tables.decks.some(d=>d.rootId==='second'));
  }finally{if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
 });

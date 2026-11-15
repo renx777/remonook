@@ -31,13 +31,15 @@ export function addReadingNote(doc,book,id){
  nodes.push(bullet(id,{parentId:rootId,position:position(nodes,rootId)}));
  return {...doc,tables:{...doc.tables,bullets:nodes},web:{...doc.web,readingNoteRoots:{...doc.web.readingNoteRoots,[book.hash]:rootId}}};
 }
-export function captureReadingHighlight(doc,book,selection,fingerprint,{color='yellow',comment=''}={}){
+/** style 'text' colours the passage's text instead of highlighting it (same colour names). */
+export function captureReadingHighlight(doc,book,selection,fingerprint,{color='yellow',comment='',style='highlight'}={}){
  if(!readingBook(doc,book.hash)||!colors.includes(color)||!/^[a-f0-9]{64}$/.test(fingerprint))throw Error('This book is unavailable.');
  const {unit,start,end,quote,rects=[]}=selection;
  if(!Number.isInteger(unit)||unit<0||unit>=10000||!Number.isInteger(start)||!Number.isInteger(end)||start<0||end<=start||end-start>8000||quote.length>8000||!quote.trim()||comment.length>4000||rects.length>500)throw Error('Select a shorter passage to highlight.');
  const id='annotation-'+fingerprint,existing=doc.web.readingHighlights?.[id];
  if(existing&&!existing.deleted&&doc.tables.bullets.some(n=>n.id===existing.bulletId)){
-  let next=existing.color===color?doc:changeReadingHighlight(doc,id,{color});
+  const wanted=style==='text'?'text':undefined;
+  let next=existing.color===color&&existing.style===wanted?doc:changeReadingHighlight(doc,id,{color,style:wanted});
   if(comment.trim())next={...next,tables:{...next.tables,bullets:[...next.tables.bullets,bullet('comment-'+crypto.randomUUID(),{parentId:existing.bulletId,position:position(next.tables.bullets,existing.bulletId),text:comment.trim()})]}};
   return {doc:next,id,bulletId:existing.bulletId};
  }
@@ -46,7 +48,7 @@ export function captureReadingHighlight(doc,book,selection,fingerprint,{color='y
  const bulletId=available('quote-'+fingerprint,used);used.add(bulletId);
  nodes.push(bullet(bulletId,{parentId:rootId,position:position(nodes,rootId),text:quote.trim()}));
  if(comment.trim())nodes.push(bullet(available('comment-'+crypto.randomUUID(),used),{parentId:bulletId,position:0,text:comment.trim()}));
- const annotation={id,bookHash:book.hash,bookId:book.id,format:book.format,unit,start,end,quote,color,rects,bulletId,rootId,deleted:false};
+ const annotation={id,bookHash:book.hash,bookId:book.id,format:book.format,unit,start,end,quote,color,...(style==='text'?{style:'text'}:{}),rects,bulletId,rootId,deleted:false};
  return {doc:{...doc,tables:{...doc.tables,bullets:nodes},web:{...doc.web,readingNoteRoots:{...doc.web.readingNoteRoots,[book.hash]:rootId},readingHighlights:{...doc.web.readingHighlights,[id]:annotation}}},id,bulletId};
 }
 // Image source anchors use an existing media metadata field; no new sync schema.
@@ -65,7 +67,7 @@ export function captureReadingImage(doc,book,unit,{id,fileName,mimeType}){
  const media={id,bulletId,fileName,mimeType,sourceUrl:readingImageSource(book.hash,unit),credit:book.title+' · page '+(unit+1),licenseUrl:''};
  return {doc:{...doc,tables:{...doc.tables,bullets:nodes,media:[...doc.tables.media,media]},web:{...doc.web,readingNoteRoots:{...doc.web.readingNoteRoots,[book.hash]:rootId}}},bulletId};
 }
-export function changeReadingHighlight(doc,id,patch){const old=doc.web.readingHighlights?.[id];if(!old)return doc;return {...doc,web:{...doc.web,readingHighlights:{...doc.web.readingHighlights,[id]:{...old,...patch,id:old.id}}}};}
+export function changeReadingHighlight(doc,id,patch){const old=doc.web.readingHighlights?.[id];if(!old)return doc;const next={...old,...patch,id:old.id};if(next.style===undefined)delete next.style;return {...doc,web:{...doc.web,readingHighlights:{...doc.web.readingHighlights,[id]:next}}};}
 export const sourceLabel=(book,unit)=>book?.format==='pdf'?'Page '+(unit+1):'Passage '+(unit+1);
 export function validateReading(web){
  const safeHash=s=>typeof s==='string'&&/^[a-f0-9]{64}$/.test(s),plain=o=>o&&typeof o==='object'&&!Array.isArray(o);
@@ -74,7 +76,7 @@ export function validateReading(web){
  if(web.readingHighlights===undefined)return;
  if(!plain(web.readingHighlights)||Object.keys(web.readingHighlights).length>3000)throw Error('Too many reading highlights.');
  for(const [id,h]of Object.entries(web.readingHighlights)){
-  if(!plain(h)||(h.format!==undefined&&!['pdf','epub'].includes(h.format))||h.id!==id||!/^annotation-[a-f0-9]{64}$/.test(id)||!safeHash(h.bookHash)||typeof h.bookId!=='string'||h.bookId.length>100||!Number.isInteger(h.unit)||h.unit<0||h.unit>=10000||!Number.isInteger(h.start)||!Number.isInteger(h.end)||h.start<0||h.end<=h.start||h.end-h.start>8000||typeof h.quote!=='string'||h.quote.length>8000||!colors.includes(h.color)||typeof h.deleted!=='boolean'||typeof h.bulletId!=='string'||h.bulletId.length>200||typeof h.rootId!=='string'||h.rootId.length>200||!Array.isArray(h.rects)||h.rects.length>500)throw Error('Invalid reading highlight.');
+  if(!plain(h)||(h.format!==undefined&&!['pdf','epub'].includes(h.format))||h.id!==id||!/^annotation-[a-f0-9]{64}$/.test(id)||!safeHash(h.bookHash)||typeof h.bookId!=='string'||h.bookId.length>100||!Number.isInteger(h.unit)||h.unit<0||h.unit>=10000||!Number.isInteger(h.start)||!Number.isInteger(h.end)||h.start<0||h.end<=h.start||h.end-h.start>8000||typeof h.quote!=='string'||h.quote.length>8000||!colors.includes(h.color)||(h.style!==undefined&&h.style!=='text')||typeof h.deleted!=='boolean'||typeof h.bulletId!=='string'||h.bulletId.length>200||typeof h.rootId!=='string'||h.rootId.length>200||!Array.isArray(h.rects)||h.rects.length>500)throw Error('Invalid reading highlight.');
   for(const r of h.rects)if(!plain(r)||!['x','y','w','h'].every(k=>Number.isFinite(r[k])&&r[k]>=0&&r[k]<=1)||r.x+r.w>1.001||r.y+r.h>1.001)throw Error('Invalid highlight geometry.');
  }
 }

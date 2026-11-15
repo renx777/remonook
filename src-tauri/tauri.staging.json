@@ -4,12 +4,14 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "RemoNook Staging",
         "width": 1280,
         "height": 840,
         "minWidth": 720,
         "minHeight": 520,
-        "resizable": true
+        "resizable": true,
+        "visible": false
       }
     ]
   },

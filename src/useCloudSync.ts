@@ -19,7 +19,7 @@ export function useCloudSync(options:Options){
  // 2-second poll only runs while it is down (and every 30 s as a safety net).
  const live=useRef(false),lastRun=useRef(0),known=useRef(-1);
  const busy=useRef(false),queued=useRef(false),alive=useRef(true),timer=useRef<ReturnType<typeof setTimeout>|null>(null),failures=useRef(0),cache=useRef(new WeakMap<Blob,string>());
- const [signal]=useState(()=>createUiSignal({status:options.user?'Connecting…':'Device only',error:''}));
+ const [signal]=useState(()=>createUiSignal<{status:string;error:string;at?:number}>({status:options.user?'Connecting…':'Device only',error:'',at:0}));
  const setStatus=(status:string)=>{if(signal.get().status!==status)signal.set({...signal.get(),status});};
  const setError=(error:string)=>{if(signal.get().error!==error)signal.set({...signal.get(),error});};
  async function request(path:string,init:RequestInit={}){
@@ -95,7 +95,8 @@ export function useCloudSync(options:Options){
    const remaining=(await work('inspect',{doc:currentDoc,assets:await manifest(latest.current.get().assets)})).remaining;
    if(!remaining)acknowledged.current=currentDoc?.revision??null;
    known.current=await work('since');
-   setStatus(remaining?'Saved on device · sync pending':'Synced');failures.current=0;
+   // `at`: when this device last finished a sync with the account (shown with Sync now).
+   if(remaining)setStatus('Saved on device · sync pending');else signal.set({...signal.get(),status:'Synced',at:Date.now()});failures.current=0;
    if(remaining)queued.current=true;
   }catch(e:any){
    setStatus('Saved on device · sync pending');
@@ -138,6 +139,9 @@ export function useCloudSync(options:Options){
   void open();
   return()=>{closed=true;live.current=false;if(retry)clearTimeout(retry);ws?.close();};
  },[options.user?.uid]);
- useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();};const t=setInterval(()=>{if(live.current&&Date.now()-lastRun.current<30000)return;resume();},2000);window.addEventListener('online',resume);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',resume);return()=>{clearInterval(t);window.removeEventListener('online',resume);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',resume);};},[options.user?.uid]);
+ useEffect(()=>{if(!options.user)return;const resume=()=>{if(document.visibilityState==='visible')void run.current();},
+  // Back online: forget the failures from the offline spell, so a retry comes in about a second
+  // rather than after the long back-off built up while offline.
+  reconnect=()=>{failures.current=0;resume();};const t=setInterval(()=>{if(live.current&&Date.now()-lastRun.current<30000)return;resume();},2000);window.addEventListener('online',reconnect);window.addEventListener('focus',resume);document.addEventListener('visibilitychange',resume);document.addEventListener('focusout',resume);return()=>{clearInterval(t);window.removeEventListener('online',reconnect);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);document.removeEventListener('focusout',resume);};},[options.user?.uid]);
  return {signal,get status(){return signal.get().status;},get error(){return signal.get().error;},conflict:false,sync,get acknowledgedRevision(){return acknowledged.current;}};
 }

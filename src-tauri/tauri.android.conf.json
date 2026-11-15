@@ -1,0 +1,12 @@
+{
+  "identifier": "com.remonook.app",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "RemoNook",
+        "visible": true
+      }
+    ]
+  }
+}

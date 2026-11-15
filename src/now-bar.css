@@ -1,0 +1,56 @@
+.now-bar{position:relative}
+.now-bar.is-phone{display:none}
+.now-strip{display:flex;align-items:center;gap:4px;border-radius:14px;border:1px solid var(--line);background:var(--panel);box-shadow:0 8px 24px rgba(0,0,0,.18);padding:4px}
+.now-strip.is-due{background:color-mix(in srgb,#d9952f 14%,var(--panel));border-color:color-mix(in srgb,#d9952f 40%,var(--line))}
+.now-strip.is-late{background:color-mix(in srgb,#c0392b 12%,var(--panel));border-color:color-mix(in srgb,#c0392b 35%,var(--line))}
+.now-strip.is-timer{background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.now-strip-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.now-dot{flex:none;width:9px;height:9px;border-radius:5px;background:#d9952f}
+.is-late .now-dot{background:#c0392b}.is-timer .now-dot{background:var(--accent)}.is-paused .now-dot{background:var(--muted)}
+.now-text{flex:1;min-width:0;display:flex;flex-direction:column}
+.now-text strong{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now-text small{font-size:12px;color:var(--muted)}
+.now-time{font-size:18px;font-variant-numeric:tabular-nums;font-weight:500}
+.now-action{flex:none;min-width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+.now-done{padding:0 14px;background:#d9952f;color:#1b1b1b;font-weight:600}
+.is-late .now-done{background:#c0392b;color:#fff}
+.now-hide{color:var(--muted)}
+.now-sheet-wrap{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}
+.now-sheet-wrap.is-sidebar{background:transparent;align-items:flex-end;justify-content:flex-start;padding:0 0 70px 12px}
+.now-sheet{width:100%;max-height:75vh;overflow:auto;box-sizing:border-box;background:var(--panel);color:var(--text);border-radius:20px 20px 0 0;padding:12px 16px max(18px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;box-shadow:0 -10px 30px rgba(0,0,0,.25)}
+.is-sidebar .now-sheet{width:300px;border-radius:14px;border:1px solid var(--line);padding:12px}
+.now-grip{align-self:center;width:40px;height:4px;border-radius:2px;background:var(--line)}
+.now-timer{display:flex;align-items:center;gap:8px;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.now-timer>div{flex:1;display:flex;flex-direction:column}
+.now-timer span{font-size:12px;color:var(--muted)}
+.now-timer strong{font-size:30px;font-weight:300;font-variant-numeric:tabular-nums}
+.now-timer button{min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);font:inherit;font-size:13px}
+.now-sheet h3{margin:0 4px 4px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.now-sheet ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.now-sheet li{display:flex;align-items:center;gap:8px}
+.now-check{flex:none;width:24px;height:24px;margin-left:4px;border:1.5px solid color-mix(in srgb,#d9952f 70%,var(--line));border-radius:7px;background:transparent;cursor:pointer}
+.now-row-open{flex:1;min-width:0;display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-height:44px;padding:0 6px;border:0;background:transparent;color:inherit;font:inherit;font-size:15px;text-align:left;cursor:pointer}
+.now-row-open span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.now-row-open small{flex:none;font-size:12px;color:var(--muted)}
+.now-sheet li.is-late small{color:#c0392b}
+.now-manage{align-self:flex-start;border:0;background:transparent;color:var(--accent);font:inherit;font-size:13px;padding:6px 4px;cursor:pointer}
+.now-empty{margin:4px;color:var(--muted)}
+.now-bar.is-sidebar{padding:6px 0 2px}
+.now-bar.is-sidebar .now-strip{box-shadow:none}
+.now-bar.is-sidebar .now-text strong{font-size:13px}
+@media(max-width:760px){
+ .now-bar.is-phone{display:block;position:fixed;left:10px;right:10px;bottom:calc(66px + env(safe-area-inset-bottom));z-index:57}
+ .app[data-editing=true] .now-bar.is-phone{display:none}
+ .topbar .focus-pill-wrap{display:none}
+}
+/* Phone top bar: place, title, search and the page menu (⋯). Statistics and Show me how live in
+   that menu; your avatar only on Today; inside a page the back arrow replaces the workspace. */
+@media(max-width:760px){
+ .topbar .view-stats>button,.topbar [data-guide-help]{display:none}
+ .app:not([data-page=dashboard]) .topbar .profile-trigger{display:none}
+ .topbar.has-scope .mobile-workspace{display:none}
+}
+.now-sheet .now-row-open{background:transparent;border:0;box-shadow:none;align-items:center;min-height:44px;padding:0 6px;border-radius:10px}
+.now-sheet .now-row-open:hover{background:var(--hover)}
+.now-sheet .now-check{padding:0;min-height:0}
+.now-strip .now-strip-main,.now-strip .now-action:not(.now-done){background:transparent;box-shadow:none}

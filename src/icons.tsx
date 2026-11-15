@@ -1,14 +1,15 @@
 import {memo} from 'react';
-import {Bold,Italic,Underline,Strikethrough,CodeXml,EyeOff,PencilLine,RemoveFormatting,Type,ImagePlus,Waypoints,ListTree,GraduationCap,Link,CornerDownLeft,PanelsLeftRight,IndentIncrease,IndentDecrease,ListOrdered,TextQuote,Sigma,Workflow,Table2,ChevronLeft,type LucideIcon} from 'lucide-react';
+import {Shapes,Bold,Italic,Underline,Strikethrough,CodeXml,EyeOff,PencilLine,RemoveFormatting,Type,ImagePlus,Waypoints,ListTree,GraduationCap,Link,CornerDownLeft,PanelsLeftRight,IndentIncrease,IndentDecrease,ListOrdered,TextQuote,Sigma,Workflow,Table2,ChevronLeft,type LucideIcon} from 'lucide-react';
 
 // A curated first pass: shared editor and action symbols keep the existing size,
 // theme color and decorative accessibility contract. Other icons stay unchanged.
-const lucideIcons:Record<string,LucideIcon>={bold:Bold,italic:Italic,underline:Underline,strike:Strikethrough,code:CodeXml,mask:EyeOff,sketch:PencilLine,clearFormat:RemoveFormatting,format:Type,insert:ImagePlus,connections:Waypoints,organize:ListTree,learn:GraduationCap,link:Link,backlinks:CornerDownLeft,mirror:PanelsLeftRight,indent:IndentIncrease,outdent:IndentDecrease,numbered:ListOrdered,quote:TextQuote,equation:Sigma,diagram:Workflow,table:Table2,categoryBack:ChevronLeft};
+const lucideIcons:Record<string,LucideIcon>={bold:Bold,italic:Italic,underline:Underline,strike:Strikethrough,code:CodeXml,mask:EyeOff,sketch:PencilLine,clearFormat:RemoveFormatting,format:Type,insert:ImagePlus,connections:Waypoints,organize:ListTree,learn:GraduationCap,link:Link,backlinks:CornerDownLeft,mirror:PanelsLeftRight,indent:IndentIncrease,outdent:IndentDecrease,numbered:ListOrdered,quote:TextQuote,equation:Sigma,diagram:Workflow,table:Table2,categoryBack:ChevronLeft,canvas:Shapes};
 const paths: Record<string, string> = {
   office:"M4 22V4h12v18M16 10h4v12M2 22h20M8 8h4M8 12h4M8 16h4M9 22v-3h2v3",
   camera: "M4 6h4l2-3h4l2 3h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm8 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8",
   dashboard: "M3 3h7v8H3zM14 3h7v5h-7zM3 15h7v6H3zM14 12h7v9h-7z",
   clock: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M12 6v6l4 2",
+  info: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M12 16v-5M12 8h.01",
   timer: "M9 2h6M12 2v3M18 5l2-2M21 14a9 9 0 1 1-18 0 9 9 0 0 1 18 0M12 9v5l3 2",
   sprout: "M12 22v-9M12 16C3 16 2 10 3 5c7 0 10 3 9 11M12 13c0-7 3-10 9-10 1 6-2 10-9 10",
   leaf: "M20 3C9 1 2 7 4 14c2 8 14 8 16-11ZM3 21l12-12",

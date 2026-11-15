@@ -148,9 +148,7 @@ test("Empty trash confirms once, persists atomically and keeps live notes and sh
     });
     await wait(() => document.querySelector(".outline-row"));
     await click(
-      [...document.querySelectorAll(".sidebar button")].find((b) =>
-        b.textContent.trim().startsWith("Trash"),
-      ),
+      document.querySelector('.sidebar-footer [aria-label^="Trash"]'),
     );
     await wait(() => button("Empty trash"));
     await click(button("Empty trash"));
