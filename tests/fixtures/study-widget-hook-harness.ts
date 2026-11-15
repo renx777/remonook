@@ -11,3 +11,7 @@ export {
   setStorageName,
   setStorageAccount,
 } from "../../src/data";
+export {
+  buildWidgetSnapshot,
+  disposeWidgetCache,
+} from "../../src/study-widget-cache";

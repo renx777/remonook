@@ -222,3 +222,8 @@ server acknowledgement. After application, the normal durable cloud outbox and
 server acknowledgement still determine synchronization status. See
 [NATIVE-STUDY-WIDGETS.md](NATIVE-STUDY-WIDGETS.md) and
 [ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for platform boundaries and setup.
+
+Widget presentation generation runs in a dedicated worker. Results are published
+only if the account generation, original document identity and editor readiness
+still match. A concurrent edit, worker failure or timeout leaves native review
+acknowledgements pending; the canonical receipt makes the next retry idempotent.

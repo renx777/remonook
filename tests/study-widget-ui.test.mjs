@@ -31,6 +31,8 @@ const {
   load,
   setStorageName,
   setStorageAccount,
+  buildWidgetSnapshot,
+  disposeWidgetCache,
 } = await import("./.build/study-widget-hook-harness.mjs");
 const { StudyWidget } = await import("./.build/StudyWidget.mjs");
 const DRAFT = "remo-study-widget-intent:";
@@ -179,18 +181,286 @@ function button(text) {
 const click = (el) =>
   el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 
+const originalWorker = globalThis.Worker;
+class ControlledWorker {
+  static instances = [];
+  static automatic = true;
+  constructor() {
+    this.requests = [];
+    this.terminated = false;
+    this.failCopy = false;
+    ControlledWorker.instances.push(this);
+  }
+  postMessage(request) {
+    if (this.failCopy) throw new DOMException("Cannot clone", "DataCloneError");
+    this.requests.push(structuredClone(request));
+    if (ControlledWorker.automatic)
+      queueMicrotask(() => {
+        if (!this.terminated) this.answer(request.id);
+      });
+  }
+  answer(id) {
+    const request = this.requests.find((item) => item.id === id);
+    assert.ok(request, "Worker request exists");
+    const snapshot = createWidgetSnapshot(
+      request.doc,
+      request.scope,
+      request.workspaceName,
+    );
+    this.onmessage?.({ data: { id, snapshot } });
+    return snapshot;
+  }
+  terminate() {
+    this.terminated = true;
+  }
+}
+
 test.beforeEach(() => {
+  disposeWidgetCache();
+  ControlledWorker.instances = [];
+  ControlledWorker.automatic = true;
+  globalThis.Worker = ControlledWorker;
   localStorage.clear();
   setStorageAccount(null);
 });
 test.afterEach(() => {
+  disposeWidgetCache();
   assert.equal(timers.size, 0, "React timers must be cleaned up");
 });
 test.after(() => {
   globalThis.setInterval = realInterval;
   globalThis.clearInterval = realClearInterval;
+  if (originalWorker === undefined) delete globalThis.Worker;
+  else globalThis.Worker = originalWorker;
   setStorageAccount(null);
   dom.window.close();
+});
+
+test("background cache correlates concurrent responses and ignores unknown request IDs", async () => {
+  ControlledWorker.automatic = false;
+  const firstDoc = documentFixture(),
+    secondDoc = documentFixture();
+  secondDoc.tables.bullets[0].text = "Second deck";
+  const first = buildWidgetSnapshot(firstDoc, "first", "First workspace");
+  const second = buildWidgetSnapshot(secondDoc, "second", "Second workspace");
+  const worker = ControlledWorker.instances[0];
+  assert.equal(ControlledWorker.instances.length, 1);
+  assert.equal(worker.requests.length, 2);
+  let firstDone = false;
+  void first.then(() => {
+    firstDone = true;
+  });
+  worker.onmessage({ data: { id: -1, snapshot: { scope: "wrong" } } });
+  const secondExpected = worker.answer(worker.requests[1].id);
+  assert.deepEqual(await second, secondExpected);
+  assert.equal(
+    firstDone,
+    false,
+    "out-of-order response must not settle another account request",
+  );
+  const firstExpected = worker.answer(worker.requests[0].id);
+  assert.deepEqual(await first, firstExpected);
+  assert.equal(firstExpected.scope, "first");
+  assert.equal(secondExpected.scope, "second");
+});
+
+test("background cache error rejects pending requests, terminates, and can restart without accepting old responses", async () => {
+  ControlledWorker.automatic = false;
+  const doc = documentFixture();
+  const first = buildWidgetSnapshot(doc, "one", "One");
+  const second = buildWidgetSnapshot(doc, "two", "Two");
+  const oldWorker = ControlledWorker.instances[0];
+  const rejected = Promise.all([
+    assert.rejects(first, /cache could not refresh.*Pending reviews remain/),
+    assert.rejects(second, /cache could not refresh.*Pending reviews remain/),
+  ]);
+  oldWorker.onerror({ preventDefault() {} });
+  await rejected;
+  assert.equal(oldWorker.terminated, true);
+  const restarted = buildWidgetSnapshot(doc, "new", "New");
+  const newWorker = ControlledWorker.instances[1];
+  oldWorker.answer(oldWorker.requests[0].id);
+  const expected = newWorker.answer(newWorker.requests[0].id);
+  assert.deepEqual(await restarted, expected);
+  const interrupted = buildWidgetSnapshot(doc, "new", "New");
+  const interruptedCheck = assert.rejects(
+    interrupted,
+    /interrupted.*Pending reviews remain/,
+  );
+  disposeWidgetCache();
+  await interruptedCheck;
+  assert.equal(newWorker.terminated, true);
+});
+
+test("worker-reported and copy failures reject only the affected request and keep originals available for retry", async () => {
+  ControlledWorker.automatic = false;
+  const doc = documentFixture();
+  const broken = buildWidgetSnapshot(doc, "scope", "Workspace");
+  const worker = ControlledWorker.instances[0];
+  const brokenCheck = assert.rejects(broken, /cache could not refresh/);
+  worker.onmessage({ data: { id: worker.requests[0].id, error: true } });
+  await brokenCheck;
+  worker.failCopy = true;
+  await assert.rejects(
+    buildWidgetSnapshot(doc, "scope", "Workspace"),
+    /could not be copied safely/,
+  );
+  worker.failCopy = false;
+  const retry = buildWidgetSnapshot(doc, "scope", "Workspace");
+  worker.answer(worker.requests.at(-1).id);
+  assert.equal((await retry).scope, "scope");
+  assert.equal(worker.terminated, false);
+  assert.equal(doc.tables.review_logs.length, 0);
+});
+
+test("a stalled worker has a bounded timeout and unsupported webviews reject instead of traversing the document on the editor thread", async () => {
+  ControlledWorker.automatic = false;
+  const originalSetTimeout = globalThis.setTimeout,
+    originalClearTimeout = globalThis.clearTimeout;
+  const deadlines = new Map();
+  globalThis.setTimeout = (callback, delay, ...args) => {
+    if (delay !== 30000) return originalSetTimeout(callback, delay, ...args);
+    const handle = {};
+    deadlines.set(handle, callback);
+    return handle;
+  };
+  globalThis.clearTimeout = (handle) => {
+    if (!deadlines.delete(handle)) originalClearTimeout(handle);
+  };
+  try {
+    const snapshot = buildWidgetSnapshot(
+      documentFixture(),
+      "scope",
+      "Workspace",
+    );
+    const timedOut = assert.rejects(
+      snapshot,
+      /timed out.*Pending reviews remain/,
+    );
+    assert.equal(deadlines.size, 1);
+    [...deadlines.values()][0]();
+    await timedOut;
+    assert.equal(deadlines.size, 0);
+    assert.equal(ControlledWorker.instances[0].terminated, true);
+    delete globalThis.Worker;
+    const forbidden = new Proxy(
+      {},
+      {
+        get() {
+          assert.fail("unsupported webview must not traverse the document");
+        },
+      },
+    );
+    await assert.rejects(
+      buildWidgetSnapshot(forbidden, "scope", "Workspace"),
+      /worker support.*Pending reviews remain/,
+    );
+    assert.equal(deadlines.size, 0);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+    globalThis.Worker = ControlledWorker;
+  }
+});
+
+test("an edit made while the background cache is building cannot publish its stale snapshot or acknowledge the review", async () => {
+  ControlledWorker.automatic = false;
+  const scope = scopeName();
+  setStorageName(scope);
+  localStorage.setItem("remo-native-study-widget:" + scope, "true");
+  let current = documentFixture(),
+    commits = 0;
+  const intent = review(current, scope),
+    broker = nativeBroker();
+  broker.inbox = [intent];
+  const hook = mountHook({
+    ready: true,
+    getDoc: () => current,
+    canApply: () => true,
+    apply: async (next) => {
+      commits++;
+      current = next;
+    },
+    onNotice: () => {},
+  });
+  try {
+    await hook.render();
+    await until(() => ControlledWorker.instances[0]?.requests.length === 1);
+    const worker = ControlledWorker.instances[0];
+    current = {
+      ...current,
+      tables: {
+        ...current.tables,
+        bullets: [
+          ...current.tables.bullets,
+          bullet("new-note", { text: "Typed while caching" }),
+        ],
+      },
+    };
+    await act(async () => worker.answer(worker.requests[0].id));
+    await until(() => worker.requests.length === 2);
+    assert.equal(
+      broker.calls.some((call) => call.cmd === "study_widget_publish"),
+      false,
+    );
+    assert.equal(
+      broker.calls.some((call) => call.cmd === "study_widget_ack"),
+      false,
+    );
+    assert.equal(broker.inbox.length, 1);
+    await act(async () => worker.answer(worker.requests[1].id));
+    await until(() => broker.snapshot?.scope === scope);
+    assert.equal(
+      broker.inbox.length,
+      1,
+      "fresh presentation alone must not archive a deferred event",
+    );
+    await focus();
+    await until(() => worker.requests.length === 3);
+    await act(async () => worker.answer(worker.requests[2].id));
+    await until(() => broker.inbox.length === 0);
+    assert.equal(commits, 1);
+    assert.equal(current.tables.review_logs.length, 1);
+    assert.equal(
+      current.tables.bullets.find((row) => row.id === "new-note").text,
+      "Typed while caching",
+    );
+  } finally {
+    await hook.close();
+  }
+});
+
+test("account clear cancels an awaiting cache immediately and late worker output cannot restore private cards", async () => {
+  ControlledWorker.automatic = false;
+  const scope = scopeName();
+  setStorageName(scope);
+  localStorage.setItem("remo-native-study-widget:" + scope, "true");
+  const doc = documentFixture(),
+    broker = nativeBroker();
+  const hook = mountHook({
+    ready: true,
+    getDoc: () => doc,
+    canApply: () => true,
+    apply: async () => assert.fail("no pending reviews"),
+    onNotice: () => {},
+  });
+  try {
+    await hook.render();
+    await until(() => ControlledWorker.instances[0]?.requests.length === 1);
+    const worker = ControlledWorker.instances[0];
+    await act(async () => clearNativeStudyWidget());
+    assert.equal(worker.terminated, true);
+    assert.equal(broker.snapshot.scope, null);
+    await act(async () => worker.answer(worker.requests[0].id));
+    assert.equal(broker.snapshot.scope, null);
+    assert.deepEqual(broker.snapshot.decks, []);
+    assert.equal(
+      broker.calls.filter((call) => call.cmd === "study_widget_publish").length,
+      1,
+    );
+  } finally {
+    await hook.close();
+  }
 });
 
 test("canonical service persists a real review before native acknowledgment; replay after failed archive grades only once", async () => {

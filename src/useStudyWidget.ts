@@ -3,7 +3,8 @@ import { desktopInvoke, desktopListen, isApp, isDesktop } from "./desktop";
 import { storageAccountKey, type Workspace } from "./data";
 import { activeLocalWorkspace } from "./workspaces";
 import { widgetDrafts, removeWidgetDraft } from "./study-widget-drafts";
-import { createWidgetSnapshot, applyWidgetReview } from "./study-widget.mjs";
+import { applyWidgetReview } from "./study-widget.mjs";
+import { buildWidgetSnapshot, disposeWidgetCache } from "./study-widget-cache";
 
 const preference = (scope: string) => "remo-native-study-widget:" + scope;
 export const widgetEnabled = (scope: string) => {
@@ -34,6 +35,7 @@ export async function clearNativeStudyWidget() {
   if (!isApp()) return;
   suspended = true;
   generation++;
+  disposeWidgetCache();
   await exclusive(() =>
     desktopInvoke("study_widget_publish", { snapshot: emptySnapshot() }),
   );
@@ -126,12 +128,18 @@ export function useStudyWidget(options: Options) {
                 const saved = latest.current.getDoc();
                 if (!saved) break;
                 const snapshot = enabled
-                  ? createWidgetSnapshot(
+                  ? await buildWidgetSnapshot(
                       saved,
                       scope,
                       activeLocalWorkspace()?.name || "My notes",
                     )
                   : emptySnapshot();
+                if (
+                  !valid() ||
+                  !latest.current.canApply() ||
+                  latest.current.getDoc() !== saved
+                )
+                  break;
                 await desktopInvoke("study_widget_publish", { snapshot });
                 lastSnapshot = JSON.stringify({
                   ...snapshot,
@@ -172,11 +180,17 @@ export function useStudyWidget(options: Options) {
           const current = latest.current.getDoc();
           if (!current) return;
           if (current !== lastDoc || Date.now() - lastBuiltAt > 30000) {
-            const snapshot = createWidgetSnapshot(
+            const snapshot = await buildWidgetSnapshot(
               current,
               scope,
               activeLocalWorkspace()?.name || "My notes",
             );
+            if (
+              !valid() ||
+              !latest.current.canApply() ||
+              latest.current.getDoc() !== current
+            )
+              return;
             const key = JSON.stringify({
               ...snapshot,
               updatedAt: 0,
@@ -220,6 +234,7 @@ export function useStudyWidget(options: Options) {
       stopRefresh = desktopListen("study-widget-refresh", focus);
     return () => {
       disposed = true;
+      disposeWidgetCache();
       clearInterval(interval);
       window.removeEventListener("focus", focus);
       window.removeEventListener("storage", focus);

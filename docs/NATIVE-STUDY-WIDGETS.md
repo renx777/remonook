@@ -50,6 +50,21 @@ after the normal canonical save succeeds; an acknowledgement is not a substitute
 for the cloud protocol's server acknowledgement. `AGENTS.md`, `SYNC.md` and
 `SYNC-V3.md` continue to apply.
 
+## Cache performance
+
+Snapshot traversal and fingerprinting run in a dedicated module worker. The main
+app reuses deck ownership/settings indexes, transfers an immutable workspace copy,
+and rechecks document identity, editor readiness and account generation before
+publishing the result. A changed document leaves its review pending for the next
+pass. Closing the service or changing account terminates the worker; errors and
+timeouts preserve pending intent files and report a cache issue.
+
+A Chromium synthetic workspace check (20 decks) measured a largest main-thread
+heartbeat gap of 9 ms for 1,000 cards and 38 ms for 10,000 cards during cache refresh.
+These are development-machine observations, not latency guarantees for every
+phone. Native OS acceptance is still separate. The cache refresh does not run a
+second document writer or send any note material to a service.
+
 ## macOS WidgetKit extension investigation
 
 Apple supports buttons/toggles that perform App Intents without opening the app

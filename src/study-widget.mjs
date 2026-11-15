@@ -5,9 +5,10 @@ import {
   dueCards,
   scopedCards,
   reviewCard,
-  reviewSettings,
+  deckOwners,
 } from "./study.mjs";
 import { displayText } from "./relations.mjs";
+import { fsrsSettings } from "./fsrs-scheduler.mjs";
 
 export const WIDGET_ALL_DECKS = "__all_flashcards__";
 export const WIDGET_LIMITS = Object.freeze({
@@ -20,7 +21,22 @@ const UUID =
   /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const GRADES = new Set(["AGAIN", "HARD", "GOOD", "EASY"]);
 const safeScope = (value) =>
-  typeof value === "string" && value.length > 0 && value.length <= 300;
+  typeof value === "string" &&
+  value.length > 0 &&
+  !value.includes("\0") &&
+  new TextEncoder().encode(value).length <= 200;
+// Presentation labels may shorten; study questions and answers never do.
+function label(value, limit) {
+  let result = "",
+    size = 0;
+  for (const character of String(value)) {
+    const bytes = new TextEncoder().encode(character).length;
+    if (size + bytes > limit) break;
+    result += character;
+    size += bytes;
+  }
+  return result;
+}
 const safeTime = (value) =>
   Number.isSafeInteger(value) && value >= 0 && value <= 8640000000000000;
 const canonical = (value) =>
@@ -96,7 +112,10 @@ export function widgetDigest(text) {
   return state.map((value) => value.toString(16).padStart(8, "0")).join("");
 }
 
-function sourceContext(doc) {
+function sourceContext(
+  doc,
+  owners = deckOwners(doc.tables.bullets, doc.tables.decks),
+) {
   const media = new Set((doc.tables.media || []).map((item) => item.bulletId));
   const sources = new Map(
     flashcardSources(
@@ -105,7 +124,7 @@ function sourceContext(doc) {
       doc.tables.media || [],
     ).map((source) => [source.id, source]),
   );
-  return { media, sources };
+  return { media, sources, owners, settings: new Map() };
 }
 function supportedSource(doc, card, context) {
   const source = context.sources.get(card.id);
@@ -113,7 +132,8 @@ function supportedSource(doc, card, context) {
     !source ||
     doc.web?.mcqs?.[card.id] ||
     doc.web?.occlusions?.[card.id] ||
-    source.node.mirrorSourceId
+    source.node.mirrorSourceId ||
+    !safeScope(card.id)
   )
     return null;
   const nodes = [source.node, ...source.answerRows.map((row) => row.node)];
@@ -133,11 +153,16 @@ function supportedSource(doc, card, context) {
   if (
     !question.trim() ||
     !answer.trim() ||
+    question.includes("\0") ||
+    answer.includes("\0") ||
     question.length > WIDGET_LIMITS.question ||
     answer.length > WIDGET_LIMITS.answer
   )
     return null;
   if (card.question !== question || card.answer !== answer) return null;
+  const owner = context.owners.get(card.id) || "__default__";
+  if (!context.settings.has(owner))
+    context.settings.set(owner, fsrsSettings(doc, owner));
   const fingerprint = widgetDigest(
     JSON.stringify(
       canonical({
@@ -152,7 +177,7 @@ function supportedSource(doc, card, context) {
           listType: node.listType,
           taskState: node.taskState,
         })),
-        settings: reviewSettings(doc, card),
+        settings: context.settings.get(owner),
       }),
     ),
   );
@@ -167,13 +192,14 @@ export function createWidgetSnapshot(
 ) {
   if (!safeScope(scope) || !safeTime(now))
     throw Error("Invalid widget workspace.");
-  const source = sourceContext(doc),
-    context = createStudyContext(doc, now),
+  const context = createStudyContext(doc, now),
+    source = sourceContext(doc, context.owners),
     definitions = [
       { id: WIDGET_ALL_DECKS, title: "All flashcards" },
       ...doc.tables.decks
         .filter(
           (deck) =>
+            safeScope(deck.rootId) &&
             doc.web?.deckTypes?.[deck.rootId] !== "MCQ" &&
             doc.tables.bullets.some(
               (node) => node.id === deck.rootId && !node.mirrorSourceId,
@@ -182,10 +208,13 @@ export function createWidgetSnapshot(
         .slice(0, WIDGET_LIMITS.decks - 1)
         .map((deck) => ({
           id: deck.rootId,
-          title: displayText(
-            doc.tables.bullets.find((node) => node.id === deck.rootId)?.text ||
-              "Untitled deck",
-          ).slice(0, 200),
+          title: label(
+            displayText(
+              doc.tables.bullets.find((node) => node.id === deck.rootId)
+                ?.text || "Untitled deck",
+            ),
+            500,
+          ),
         })),
     ];
   let remaining = 3 * 1024 * 1024;
@@ -213,7 +242,7 @@ export function createWidgetSnapshot(
   return {
     schema: 1,
     scope,
-    workspaceName: String(workspaceName || "My notes").slice(0, 200),
+    workspaceName: label(workspaceName || "My notes", 200),
     revision:
       Number.isSafeInteger(doc.revision) && doc.revision >= 0
         ? doc.revision

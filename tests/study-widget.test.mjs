@@ -524,3 +524,17 @@ test("a failed local save leaves no durable grade and retries from the same nati
     data.setStorageAccount(null);
   }
 });
+
+test("native labels respect UTF-8 limits without clipping study text or surrogate pairs", () => {
+  const doc = fixture();
+  doc.tables.bullets[0].text = "学習😀".repeat(150);
+  const snapshot = createWidgetSnapshot(doc, SCOPE, "学習😀".repeat(150), NOW);
+  assert.ok(Buffer.byteLength(snapshot.workspaceName) <= 200);
+  assert.ok(Buffer.byteLength(snapshot.decks[1].title) <= 500);
+  assert.equal(snapshot.decks[0].cards[0].question, "What helps memory?");
+  assert.equal(snapshot.workspaceName.includes("�"), false);
+  assert.throws(
+    () => createWidgetSnapshot(doc, "x".repeat(201), "Workspace", NOW),
+    /Invalid widget workspace/,
+  );
+});
