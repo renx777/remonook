@@ -27,6 +27,8 @@ import {
   CANVAS_HOME_TITLE,
   canvasToOutline,
   cardsInGroup,
+  purgeCanvas,
+  tombstoneNode,
 } from "../src/json-canvas.mjs";
 import { checkRoot } from "../src/sync-checks.mjs";
 import {
@@ -363,3 +365,38 @@ test("a compact card exports like any other card", () => {
   validateCanvases(compact.web.canvases);
   assert.deepEqual(exportCanvas(compact, id), exportCanvas(doc, id));
 });
+
+test("removed cards keep a small valid stub, and a concurrent edit on the other device still merges", () => {
+  const { doc, id } = createCanvas(empty(), "Stubs", fixture(), uuid),
+    base = applyDocument(new Map(), null, doc).states;
+  const removed = removeCanvasCards(doc, id, ["u"]);
+  const stub = removed.web.canvases[id].nodes.u;
+  assert.equal(stub.removed, true);
+  assert.equal(stub.extra, undefined);
+  assert.ok(stub.url && stub.position && stub.size);
+  validateCanvases(removed.web.canvases);
+  const moved = moveCanvasCard(doc, id, "u", [9, 9]);
+  const a = applyDocument(base, doc, removed),
+    b2 = applyDocument(base, doc, moved);
+  const out = projectBuckets(mergeUpdates(a.states, b2.updates)).doc;
+  assert.equal(out.web.canvases[id].nodes.u.removed, true);
+  validateCanvases(out.web.canvases);
+  assert.deepEqual(tombstoneNode({ id: "x", type: "text", text: "secret", position: [0, 0], size: [1, 1], order: 0 }).text, "");
+});
+test("deleting an archived board for good sends its notes to Trash and leaves a purged stub", () => {
+  const { doc, id } = createCanvas(empty(), "Old board", fixture(), uuid);
+  assert.throws(() => purgeCanvas(doc, id), /Archive/);
+  const archived = changeCanvas(doc, id, (b) => ({ ...b, removed: true }));
+  const purged = purgeCanvas(archived, id),
+    b = purged.web.canvases[id];
+  assert.equal(b.purged, true);
+  assert.ok(Object.values(b.nodes).every((n) => n.removed));
+  assert.ok(!purged.tables.bullets.some((n) => n.id === b.rootId));
+  assert.equal(purged.tables.trash.length, 1);
+  assert.match(purged.tables.trash[0].payload, /Hello/);
+  validateCanvases(purged.web.canvases);
+  assert.equal(canvasBoardsCount(purged), 0);
+});
+function canvasBoardsCount(doc) {
+  return Object.values(doc.web.canvases).filter((b) => !b.removed).length;
+}

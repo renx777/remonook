@@ -111,6 +111,7 @@ try {
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${shot}-${mobile ? "phone" : "desktop"}.png` });
     await page.locator(".app").evaluate((el) => (el.dataset.theme = "Dark"));
+    await page.keyboard.press("Escape"); // clear the selection so its bar is out of the way
     await page.locator(".canvas-markdown", { hasText: "A pasted thought" }).click();
     await page.screenshot({ path: `${shot}-${mobile ? "phone" : "desktop"}-dark.png` });
     await page.locator(".app").evaluate((el) => (el.dataset.theme = "Light"));

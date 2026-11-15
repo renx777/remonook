@@ -676,6 +676,10 @@
   .canvas-edgebar input {
     width: 110px;
   }
+  .canvas-page .canvas-selbar button {
+    width: 30px;
+    height: 30px;
+  }
   .canvas-library {
     padding: 18px;
   }
@@ -887,5 +891,158 @@ li.canvas-src-empty {
     bottom: 70px;
     width: auto;
     max-height: 60%;
+  }
+}
+
+/* Alignment guides while dragging. */
+.canvas-guide {
+  position: absolute;
+  pointer-events: none;
+  background: var(--accent, #70abbc);
+  z-index: 1000;
+}
+.canvas-guide.is-v {
+  width: 1px;
+}
+.canvas-guide.is-h {
+  height: 1px;
+}
+.canvas-dock-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 6px 3px;
+  background: var(--line);
+}
+/* Sections (the board's groups) and presenting. */
+.canvas-sections {
+  position: absolute;
+  right: 60px;
+  bottom: 84px;
+  z-index: 9;
+  width: 260px;
+  max-height: 60%;
+  overflow: auto;
+  padding: 12px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px #00000029;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.canvas-sections header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.canvas-sections ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.canvas-page .canvas-sections li button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 8px;
+  font-size: 13px;
+}
+.canvas-sections li button span {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--hover);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--muted);
+  flex: none;
+}
+.canvas-sections p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.canvas-page .canvas-present-start {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+.canvas-workspace.is-presenting {
+  background: var(--bg);
+}
+.canvas-workspace.is-presenting .canvas-dock,
+.canvas-workspace.is-presenting .react-flow__controls,
+.canvas-workspace.is-presenting .react-flow__minimap,
+.canvas-workspace.is-presenting .canvas-sources,
+.canvas-workspace.is-presenting .react-flow__handle,
+.canvas-workspace.is-presenting .react-flow__background {
+  display: none;
+}
+.canvas-present-bar {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 6px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px #0000002e;
+  font-size: 13px;
+}
+.canvas-present-bar span {
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.canvas-page .canvas-present-bar button {
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  padding: 6px;
+}
+.canvas-page .canvas-present-bar .canvas-present-exit {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+}
+/* AI menu. */
+.canvas-ai {
+  min-width: 260px;
+}
+.canvas-ai form {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+}
+.canvas-ai form input {
+  flex: 1;
+  min-width: 0;
+}
+.canvas-page .canvas-ai form button {
+  width: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+}
+.canvas-page .canvas-delete {
+  color: #d55;
+}
+@media (max-width: 700px) {
+  .canvas-sections {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    bottom: 70px;
   }
 }

@@ -362,6 +362,54 @@ export function exportCanvas(doc, id) {
     .map(({ removed, extra, ...e }) => ({ ...extra, ...e }));
   return { ...b.extensions, nodes, edges };
 }
+// Removed cards and connections keep a small stub (their key, type, place and links), never
+// deleted outright: sync merges field by field, so a device that edits a card while another removes
+// it must still find a complete record. Text, labels, colours and unknown properties are dropped.
+export function tombstoneNode(n) {
+  const { extra, text, label, color, markdown, compact, background, backgroundStyle, subpath, ...keep } = n;
+  return { ...keep, ...(n.type === "text" ? { text: "" } : {}), removed: true };
+}
+export const tombstoneEdge = (e) => ({ id: e.id, fromNode: e.fromNode, toNode: e.toNode, removed: true });
+// Permanently deletes an archived board: its notes (under its bullet) go to Trash, every card and
+// connection becomes a stub, and the board stays as a small "purged" record that never shows again.
+export function purgeCanvas(doc, id) {
+  const b = doc.web.canvases?.[id];
+  if (!b || !b.removed) throw Error("Archive a canvas before deleting it.");
+  const rows = doc.tables.bullets,
+    all = rows.some((r) => r.id === b.rootId) ? descendants(rows, b.rootId) : new Set();
+  let next = {
+    ...doc,
+    web: {
+      ...doc.web,
+      canvases: {
+        ...doc.web.canvases,
+        [id]: {
+          ...b,
+          title: "",
+          purged: true,
+          extensions: {},
+          nodes: Object.fromEntries(Object.entries(b.nodes).map(([k, n]) => [k, tombstoneNode(n)])),
+          edges: Object.fromEntries(Object.entries(b.edges).map(([k, e]) => [k, tombstoneEdge(e)])),
+        },
+      },
+    },
+  };
+  if (!all.size) return next;
+  const root = rows.find((r) => r.id === b.rootId);
+  const entry = {
+    id: crypto.randomUUID(),
+    title: root?.text || b.title || "Canvas",
+    deletedAt: Date.now(),
+    nodeCount: all.size,
+    payload: JSON.stringify({
+      nodes: rows.filter((r) => all.has(r.id)),
+      media: next.tables.media.filter((m) => all.has(m.bulletId)),
+      decks: next.tables.decks.filter((d) => all.has(d.rootId)),
+    }),
+  };
+  next = withNodes(next, rows.filter((r) => !all.has(r.id)));
+  return { ...next, tables: { ...next.tables, trash: [...next.tables.trash, entry] } };
+}
 // Removes placements. A text card's own bullet (one made on this board) goes to Trash with it,
 // unless another live card still shows it; notes linked from elsewhere stay where they are.
 export function removeCanvasCards(doc, id, ids) {
@@ -371,14 +419,14 @@ export function removeCanvasCards(doc, id, ids) {
     nodes: Object.fromEntries(
       Object.entries(b.nodes).map(([key, n]) => [
         key,
-        ids.includes(key) ? { ...n, removed: true } : n,
+        ids.includes(key) ? tombstoneNode(n) : n,
       ]),
     ),
     edges: Object.fromEntries(
       Object.entries(b.edges).map(([key, e]) => [
         key,
         ids.includes(e.fromNode) || ids.includes(e.toNode)
-          ? { ...e, removed: true }
+          ? tombstoneEdge(e)
           : e,
       ]),
     ),
@@ -430,7 +478,11 @@ export function removeCanvasCards(doc, id, ids) {
 const checkedBoards = new WeakMap();
 export function validateCanvases(value) {
   if (value === undefined) return;
-  if (!record(value) || Object.keys(value).length > 200)
+  if (
+    !record(value) ||
+    Object.keys(value).length > 2000 ||
+    Object.values(value).filter((b) => !b?.purged).length > 200
+  )
     fail("invalid board collection.");
   let bytes = 2;
   for (const [id, b] of Object.entries(value)) {

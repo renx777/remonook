@@ -19,6 +19,7 @@ import {
   MarkerType,
   useReactFlow,
   useViewport,
+  ViewportPortal,
   type NodeProps,
   type Node as FlowNode,
   type Edge as FlowEdge,
@@ -47,7 +48,14 @@ import {
   Scaling,
   ListTree,
   Library,
+  Presentation,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+import type { User } from "firebase/auth";
+import { aiRequest } from "./ai-client";
+import { validateAiResult } from "./ai-contract.mjs";
 import { CanvasSources, CANVAS_DRAG, type SourceItem } from "./CanvasSources";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -68,10 +76,12 @@ import {
   renameCanvas,
   adoptCanvasRoots,
   canvasToOutline,
+  purgeCanvas,
   cardsInGroup,
   canvasHomeId,
 } from "./json-canvas.mjs";
 import { bullet } from "./domain.mjs";
+import { withNodes } from "./workspace-nodes.mjs";
 import { sourceId } from "./relations.mjs";
 import { mediaLink } from "./media.mjs";
 import { NoteField } from "./ReaderBookNotes";
@@ -99,6 +109,8 @@ type Props = {
   onStoreImages?: (files: File[]) => Promise<StoredImage[]>;
   // Opens this board (from an "Open canvas" button in Notes); n changes on every request.
   open?: { id: string; n: number } | null;
+  // Signed-in account, for AI on the board.
+  user?: User | null;
 };
 const palette: Record<string, string> = {
   "1": "#d97878",
@@ -450,13 +462,19 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
     [picker, setPicker] = useState(false),
     [ask, setAsk] = useState<null | { kind: "link" | "file"; target?: string }>(null),
     [askValue, setAskValue] = useState(""),
-    [menu, setMenu] = useState<null | "color" | "more" | "edge-color" | "size">(null),
+    [menu, setMenu] = useState<null | "color" | "more" | "edge-color" | "size" | "ai">(null),
     [filter, setFilter] = useState(""),
     [error, setError] = useState(""),
     [info, setInfo] = useState<null | { text: string; open?: string }>(null),
     [busy, setBusy] = useState(false),
     [dragging, setDragging] = useState(false),
     [resizing, setResizing] = useState(false),
+    [guides, setGuides] = useState<{ x?: number; y?: number; box?: number[] } | null>(null),
+    [sections, setSections] = useState(false),
+    [presenting, setPresenting] = useState<number | null>(null),
+    [aiBusy, setAiBusy] = useState(""),
+    [askAi, setAskAi] = useState(""),
+    workspace = useRef<HTMLDivElement>(null),
     [snap, setSnap] = useState(() => stored("remo-canvas-snap", true)),
     [minimap, setMinimap] = useState(() => stored("remo-canvas-minimap", false));
   const run = (fn: () => void) => {
@@ -672,8 +690,52 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
       });
     });
   }, [projected]);
-  const handleNodeChanges = (changes: NodeChange<FlowNode>[]) =>
+  // Alignment guides: dragging one card lines its edges or centre up with any other card's when
+  // they come within a few pixels, and shows the line.
+  const handleNodeChanges = (changes: NodeChange<FlowNode>[]) => {
+    const moving = changes.filter(
+      (c) => c.type === "position" && c.dragging && c.position,
+    ) as any[];
+    if (moving.length === 1) {
+      const c = moving[0],
+        self = flowRef.current.find((n) => n.id === c.id);
+      if (self) {
+        const w = self.width ?? self.measured?.width ?? 0,
+          h = self.height ?? self.measured?.height ?? 0,
+          tol = 6 / flow.getZoom();
+        let bestX: number[] | null = null,
+          bestY: number[] | null = null,
+          box: number[] = [];
+        for (const o of flowRef.current) {
+          if (o.id === c.id || o.selected) continue;
+          const ow = o.width ?? o.measured?.width ?? 0,
+            oh = o.height ?? o.measured?.height ?? 0;
+          for (const a of [0, w / 2, w])
+            for (const t of [o.position.x, o.position.x + ow / 2, o.position.x + ow]) {
+              const d = t - (c.position.x + a);
+              if (Math.abs(d) < tol && (!bestX || Math.abs(d) < Math.abs(bestX[0]))) {
+                bestX = [d, t];
+                box[0] = Math.min(o.position.y, c.position.y);
+                box[1] = Math.max(o.position.y + oh, c.position.y + h);
+              }
+            }
+          for (const a of [0, h / 2, h])
+            for (const t of [o.position.y, o.position.y + oh / 2, o.position.y + oh]) {
+              const d = t - (c.position.y + a);
+              if (Math.abs(d) < tol && (!bestY || Math.abs(d) < Math.abs(bestY[0]))) {
+                bestY = [d, t];
+                box[2] = Math.min(o.position.x, c.position.x);
+                box[3] = Math.max(o.position.x + ow, c.position.x + w);
+              }
+            }
+        }
+        if (bestX) c.position = { ...c.position, x: c.position.x + bestX[0] };
+        if (bestY) c.position = { ...c.position, y: c.position.y + bestY[0] };
+        setGuides(bestX || bestY ? { x: bestX?.[1], y: bestY?.[1], box } : null);
+      }
+    }
     setFlowNodes((current) => applyNodeChanges<FlowNode>(changes, current));
+  };
   const sel = flowNodes.filter((n) => n.selected).map((n) => n.id);
   const selectOnly = (ids: string[]) => {
     setEdgeId(null);
@@ -692,8 +754,12 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
     if (renamingId && !sel.includes(renamingId)) setRenamingId(null);
     setMenu(null);
   }, [selKey]);
-  const live = Object.values(b.nodes).filter((n: any) => !n.removed) as any[];
-  const edges: FlowEdge[] = Object.values(b.edges)
+  // Built once per board change, not on every frame of a drag (React Flow re-diffs whatever it gets).
+  const live = useMemo(
+    () => Object.values(b.nodes).filter((n: any) => !n.removed) as any[],
+    [b.nodes],
+  );
+  const edges: FlowEdge[] = useMemo(() => Object.values(b.edges)
     .filter(
       (e: any) =>
         !e.removed &&
@@ -717,7 +783,7 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
         e.toEnd !== "none"
           ? { type: MarkerType.ArrowClosed, color: tint(e.color) }
           : undefined,
-    }));
+    })), [b.edges, b.nodes, edgeId]);
   const card = sel.length === 1 ? b.nodes[sel[0]] : null,
     note = card?.noteId ? rowById.get(card.noteId) : null,
     edge = edgeId && !sel.length ? b.edges[edgeId] : null;
@@ -1186,6 +1252,170 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
     });
   const zoomTo = (ids: string[]) =>
     flow.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.3, maxZoom: 1.5, duration: 250 });
+  // Sections are the board's groups, top to bottom then left to right. Present steps through them
+  // full screen (arrow keys or the bar at the bottom; Esc ends).
+  const sectionList = useMemo(
+    () =>
+      live
+        .filter((n) => n.type === "group")
+        .sort((a, c) => a.position[1] - c.position[1] || a.position[0] - c.position[0]),
+    [live],
+  );
+  const present = (i: number | null) => {
+    if (i === null) {
+      setPresenting(null);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      return;
+    }
+    if (!sectionList.length) {
+      setError("Add groups to present them as sections.");
+      return;
+    }
+    const at = Math.max(0, Math.min(sectionList.length - 1, i));
+    if (presenting === null) {
+      selectOnly([]);
+      setSections(false);
+      void workspace.current?.requestFullscreen?.().catch(() => {});
+    }
+    setPresenting(at);
+  };
+  const presentKey = presenting === null ? "" : sectionList[presenting]?.id;
+  // Fit the section, and fit again once the window has settled into full screen (or is resized).
+  useEffect(() => {
+    if (!presentKey) return;
+    const fit = (duration: number) =>
+      flow.fitView({ nodes: [{ id: presentKey }], padding: 0.1, duration });
+    const timers = [setTimeout(() => fit(450), 60), setTimeout(() => fit(250), 500)],
+      resized = () => fit(0);
+    window.addEventListener("resize", resized);
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener("resize", resized);
+    };
+  }, [presentKey]);
+  useEffect(() => {
+    const left = () => {
+      if (!document.fullscreenElement) setPresenting(null);
+    };
+    document.addEventListener("fullscreenchange", left);
+    return () => document.removeEventListener("fullscreenchange", left);
+  }, []);
+  // AI on the selection (or a group's cards), with the app's AI service: summarize into a new card,
+  // answer a question about them, or make flashcards (real flashcards, reviewed in Study Desk).
+  const aiCards = () =>
+    card?.type === "group" ? cardsInGroup(b, card.id) : sel;
+  const aiContext = (ids: string[]) => {
+    const parts: string[] = [];
+    let bytes = 0;
+    for (const id of ids) {
+      const n = b.nodes[id];
+      if (!n || n.removed || n.type === "group") continue;
+      const note = n.noteId ? rowById.get(n.noteId) : undefined;
+      const text =
+        n.type === "text"
+          ? withChildren(note?.id, canvasNoteText(note, n))
+          : n.type === "link"
+            ? `${bookmarkTitles.get(n.url) || ""} ${n.url}`.trim()
+            : n.file || "";
+      if (!text.trim()) continue;
+      const size = new TextEncoder().encode(text).length + 8;
+      if (bytes + size > 5800) break;
+      parts.push(text);
+      bytes += size;
+    }
+    return parts.join("\n\n---\n\n");
+  };
+  const runAi = async (operation: "summarize" | "answer" | "flashcards", question = "") => {
+    setMenu(null);
+    if (!p.user) {
+      setError("Sign in to use AI on the board.");
+      return;
+    }
+    const ids = aiCards(),
+      context = aiContext(ids);
+    if (!context) {
+      setError("Select cards with text first.");
+      return;
+    }
+    const chosen = ids.map((id) => b.nodes[id]).filter(Boolean) as any[],
+      right = Math.max(...chosen.map((n) => n.position[0] + n.size[0])) + 80,
+      top = Math.min(...chosen.map((n) => n.position[1])),
+      from = card?.type === "group" ? card.id : sel.length === 1 ? sel[0] : null;
+    setAiBusy(operation === "flashcards" ? "Making flashcards…" : operation === "summarize" ? "Summarizing…" : "Thinking…");
+    try {
+      let result: any = null;
+      await aiRequest(
+        p.user,
+        "generate",
+        {
+          requestId: crypto.randomUUID(),
+          operation,
+          mode: "general",
+          question: question.slice(0, 1000),
+          context,
+        },
+        new AbortController().signal,
+        (event) => {
+          if (event.type === "done") result = validateAiResult(operation, event.result, event.sources || []);
+        },
+      );
+      if (!result) throw Error("AI didn't return anything. Try again.");
+      const items: { text: string; answer?: string }[] =
+        operation === "flashcards"
+          ? result.candidates.map((c: any) => ({ text: c.question, answer: c.answer }))
+          : [{ text: (operation === "answer" && question ? `**${question}**\n\n` : "") + result.text }];
+      const made = items.map(() => ({ id: crypto.randomUUID(), noteId: crypto.randomUUID() }));
+      withSelection(
+        made.map((m) => m.id),
+        () =>
+          p.onChange((doc) => {
+            const board = doc.web.canvases[boardId];
+            roomFor(board, made.length);
+            let order = nextCanvasOrder(board),
+              rows = [...doc.tables.bullets];
+            const nodes = { ...board.nodes },
+              edges = { ...board.edges },
+              g = snap ? 20 : 1;
+            items.forEach((item, i) => {
+              const m = made[i],
+                base = rows.filter((r) => r.parentId === board.rootId).length;
+              rows.push(
+                bullet(m.noteId, {
+                  parentId: board.rootId,
+                  text: item.text,
+                  position: base,
+                  ...(item.answer ? { kind: "QUESTION" } : {}),
+                }),
+              );
+              if (item.answer)
+                rows.push(bullet(crypto.randomUUID(), { parentId: m.noteId, text: item.answer, position: 0 }));
+              nodes[m.id] = {
+                id: m.id,
+                type: "text",
+                noteId: m.noteId,
+                markdown: false,
+                text: item.text,
+                position: [Math.round(right / g) * g, Math.round((top + i * 200) / g) * g],
+                size: item.answer ? [300, 180] : [340, 260],
+                order: order++,
+                color: "6",
+              };
+              if (from) {
+                const eid = crypto.randomUUID();
+                edges[eid] = { id: eid, fromNode: from, toNode: m.id, fromSide: "right", toSide: "left" };
+              }
+            });
+            return changeCanvas(withNodes(doc, rows), boardId, (b: any) => ({ ...b, nodes, edges }));
+          }),
+      );
+      setInfo({ text: operation === "flashcards" ? `${items.length} flashcard${items.length === 1 ? "" : "s"} added; review them in Study Desk.` : "AI card added. Check it before you rely on it." });
+      setAskAi("");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setAiBusy("");
+    }
+  };
   // Image and video cards: one-click sizes that keep the shape (images) or 16:9 (videos).
   const sizable = (n: any) => (n.type === "file" && !!n.noteId) || (n.type === "link" && !!playable(n.url));
   const resizeTo = async (n: any, width: number) => {
@@ -1245,6 +1475,16 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
   useEffect(() => () => clearTimeout(nudgeTimer.current), []);
   const keys = useRef<(e: KeyboardEvent) => void>(() => {});
   keys.current = (e) => {
+    if (presenting !== null) {
+      if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) {
+        e.preventDefault();
+        present(presenting + 1);
+      } else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) {
+        e.preventDefault();
+        present(presenting - 1);
+      } else if (e.key === "Escape") present(null);
+      return;
+    }
     if (p.disabled || typing(e.target)) return;
     const mod = e.metaKey || e.ctrlKey,
       key = e.key.toLowerCase();
@@ -1355,7 +1595,10 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
       flow.flowToScreenPosition({ x: 0, y: selTop }).y - stageTop < 64;
   const ownNote = !!note && note.parentId === b.rootId;
   return (
-    <div className="canvas-workspace">
+    <div
+      className={"canvas-workspace" + (presenting !== null ? " is-presenting" : "")}
+      ref={workspace}
+    >
       {picker && (
         <CanvasSources
           doc={p.doc}
@@ -1477,12 +1720,13 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
           minZoom={0.1}
           maxZoom={2}
+          onlyRenderVisibleElements={live.length > 150}
           snapToGrid={snap}
           snapGrid={[20, 20]}
           zoomOnDoubleClick={false}
-          nodesDraggable={!p.disabled}
-          nodesConnectable={!p.disabled}
-          elementsSelectable
+          nodesDraggable={!p.disabled && presenting === null}
+          nodesConnectable={!p.disabled && presenting === null}
+          elementsSelectable={presenting === null}
           disableKeyboardA11y
           proOptions={{ hideAttribution: true }}
           multiSelectionKeyCode={["Meta", "Control", "Shift"]}
@@ -1543,7 +1787,9 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           onNodeDragStop={(_, _node, dragged) => {
             gesture.current = false;
             setDragging(false);
-            commitPositions(dragged);
+            setGuides(null);
+            const ids = new Set(dragged.map((n) => n.id));
+            commitPositions(flowRef.current.filter((n) => ids.has(n.id)));
           }}
           onConnect={(c: Connection) =>
             connect(
@@ -1606,6 +1852,22 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
               <MapIcon />
             </ControlButton>
           </Controls>
+          {guides && (
+            <ViewportPortal>
+              {guides.x !== undefined && (
+                <div
+                  className="canvas-guide is-v"
+                  style={{ left: guides.x, top: (guides.box?.[0] ?? 0) - 24, height: (guides.box?.[1] ?? 0) - (guides.box?.[0] ?? 0) + 48 }}
+                />
+              )}
+              {guides.y !== undefined && (
+                <div
+                  className="canvas-guide is-h"
+                  style={{ top: guides.y, left: (guides.box?.[2] ?? 0) - 24, width: (guides.box?.[3] ?? 0) - (guides.box?.[2] ?? 0) + 48 }}
+                />
+              )}
+            </ViewportPortal>
+          )}
           <NodeToolbar
             nodeId={sel}
             isVisible={sel.length > 0 && !dragging && !p.disabled}
@@ -1693,6 +1955,46 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
                   <ExternalLink size={16} />
                 </button>
               )}
+              <div className="canvas-selbar-menu">
+                <button
+                  aria-label="AI"
+                  title="AI: summarize, ask or make flashcards"
+                  aria-expanded={menu === "ai"}
+                  disabled={!!aiBusy}
+                  onClick={() => setMenu(menu === "ai" ? null : "ai")}
+                >
+                  <Sparkles size={16} />
+                </button>
+                {menu === "ai" && (
+                  <div className="canvas-more canvas-ai" role="menu" aria-label="AI">
+                    {!p.user && <small>Sign in to use AI on the board.</small>}
+                    <button role="menuitem" disabled={!p.user} onClick={() => void runAi("summarize")}>
+                      Summarize into a card
+                    </button>
+                    <button role="menuitem" disabled={!p.user} onClick={() => void runAi("flashcards")}>
+                      Make flashcards
+                    </button>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (askAi.trim()) void runAi("answer", askAi.trim());
+                      }}
+                    >
+                      <input
+                        aria-label="Ask about these cards"
+                        placeholder="Ask about these cards…"
+                        value={askAi}
+                        disabled={!p.user}
+                        onChange={(e) => setAskAi(e.target.value)}
+                      />
+                      <button type="submit" disabled={!p.user || !askAi.trim()}>
+                        Ask
+                      </button>
+                    </form>
+                    <small>Uses the cards' text. AI can be wrong; check what it adds.</small>
+                  </div>
+                )}
+              </div>
               <div className="canvas-selbar-menu">
                 <button
                   aria-label="More actions"
@@ -1850,7 +2152,68 @@ function Editor({ boardId, ...p }: Props & { boardId: string }) {
           >
             <FileText size={18} />
           </button>
+          <span className="canvas-dock-divider" aria-hidden="true" />
+          <button
+            aria-label="Sections and presenting"
+            title="Sections (your groups) and Present"
+            aria-pressed={sections}
+            onClick={() => setSections(!sections)}
+          >
+            <Presentation size={18} />
+          </button>
         </div>
+        {sections && (
+          <div className="canvas-sections" role="dialog" aria-label="Sections">
+            <header>
+              <strong>Sections</strong>
+              <button className="canvas-sources-close" aria-label="Close sections" onClick={() => setSections(false)}>
+                ×
+              </button>
+            </header>
+            {sectionList.length ? (
+              <ol>
+                {sectionList.map((g, i) => (
+                  <li key={g.id}>
+                    <button onClick={() => zoomTo([g.id])}>
+                      <span>{i + 1}</span>
+                      {g.label || "Group"}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p>Groups are your sections. Add a group around some cards to jump to it here and present it.</p>
+            )}
+            <button className="canvas-present-start" disabled={!sectionList.length} onClick={() => present(0)}>
+              <Presentation size={15} /> Present
+            </button>
+          </div>
+        )}
+        {presenting !== null && (
+          <div className="canvas-present-bar" role="toolbar" aria-label="Presenting">
+            <button aria-label="Previous section" disabled={presenting === 0} onClick={() => present(presenting - 1)}>
+              <ChevronLeft size={18} />
+            </button>
+            <span>
+              {presenting + 1} / {sectionList.length} · {sectionList[presenting]?.label || "Group"}
+            </span>
+            <button
+              aria-label="Next section"
+              disabled={presenting >= sectionList.length - 1}
+              onClick={() => present(presenting + 1)}
+            >
+              <ChevronRight size={18} />
+            </button>
+            <button className="canvas-present-exit" onClick={() => present(null)}>
+              Exit
+            </button>
+          </div>
+        )}
+        {aiBusy && (
+          <div className="canvas-busy" role="status">
+            {aiBusy}
+          </div>
+        )}
         <input
           ref={imageInput}
           hidden
@@ -2155,12 +2518,12 @@ export default function CanvasStudio(p: Props) {
               ))}
           </div>
           {Object.values(p.doc.web.canvases || {}).some(
-            (b: any) => b.removed,
+            (b: any) => b.removed && !b.purged,
           ) && (
             <details className="canvas-archived">
               <summary>Archived canvases · notes are preserved</summary>
               {Object.values(p.doc.web.canvases)
-                .filter((b: any) => b.removed)
+                .filter((b: any) => b.removed && !b.purged)
                 .map((b: any) => (
                   <p key={b.id}>
                     {canvasTitle(p.doc, b)}{" "}
@@ -2183,6 +2546,25 @@ export default function CanvasStudio(p: Props) {
                       }
                     >
                       Restore
+                    </button>{" "}
+                    <button
+                      className="canvas-delete"
+                      disabled={p.disabled}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Delete “${canvasTitle(p.doc, b)}” for good? Its notes and images move to Trash; the layout can't be restored (Undo works until you leave).`,
+                          )
+                        )
+                          return;
+                        try {
+                          p.onChange((doc) => purgeCanvas(doc, b.id));
+                        } catch (e) {
+                          setError((e as Error).message);
+                        }
+                      }}
+                    >
+                      Delete for good
                     </button>
                   </p>
                 ))}
