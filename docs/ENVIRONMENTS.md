@@ -2,7 +2,7 @@
 
 ## Current state
 
-### Navigation and Settings refinement, 15 November 2026 (prepared)
+### Navigation and Settings refinement, 15 November 2026
 
 Branch `codex/navigation-and-settings`, based on `origin/main` at
 `2102f49`. Restores phone navigation with a native modal drawer, makes Calendar's
@@ -16,8 +16,19 @@ Validation: TypeScript and the staging build passed, the full 156-file regressio
 suite passed, and Chromium acceptance checks covered separate sidebar/calendar
 preferences, phone drawer navigation and focus restoration, and every Settings
 panel at phone widths. Light/dark desktop and phone views were inspected.
-Prepared locally for review; no staging, production or native deployment was
-triggered for this branch. The OS widget/PKM feasibility and priorities report is
+Deployed to web staging from application commit
+`e8ce011da1b6ff2fb1659fb78dd49c13fd04aa65` on branch
+`codex/navigation-and-settings`. The existing release marker is `2026-11-14.1`;
+`staging-source.json` identifies the exact deployed application commit.
+[GitHub CI](https://github.com/renx777/remonook/actions/runs/43710643759) and the
+[Staging frontend workflow](https://github.com/renx777/remonook/actions/runs/43711089712)
+both passed, including the latter's end-to-end sync check. Chromium acceptance
+also passed against the live site for desktop/phone calendar disclosure,
+independent preferences, phone navigation, focus restoration and every Settings
+section. Backend health remained healthy with sync protocol 3, Workdays schema 2,
+AI Assist 1, AI enabled and bookmark reader 1. No backend, production or native
+binary was deployed. The installed Android app still needs a native build to
+receive these shared-UI fixes. The OS widget/PKM feasibility and priorities report is
 [PRODUCT-RD-2026-11.md](PRODUCT-RD-2026-11.md); native study widgets are a proposal,
 not part of this release.
 
