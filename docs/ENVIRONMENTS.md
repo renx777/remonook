@@ -2,6 +2,26 @@
 
 ## Current state
 
+### Navigation and Settings refinement, 15 November 2026 (prepared)
+
+Branch `codex/navigation-and-settings`, based on `origin/main` at
+`2102f49`. Restores phone navigation with a native modal drawer, makes Calendar's
+month/agenda support area explicitly collapsible on desktop and phone with
+independent display preferences, and aligns Settings fields, spacing and backup
+actions with the app's visual language. Native dialog focus/Escape handling and
+Android's existing back-stack integration are reused; physical-device testing is
+still required. No data model, sync protocol, durable outbox or backend change.
+
+Validation: TypeScript and the staging build passed, the full 156-file regression
+suite passed, and Chromium acceptance checks covered separate sidebar/calendar
+preferences, phone drawer navigation and focus restoration, and every Settings
+panel at phone widths. Light/dark desktop and phone views were inspected.
+Prepared locally for review; no staging, production or native deployment was
+triggered for this branch. The OS widget/PKM feasibility and priorities report is
+[PRODUCT-RD-2026-11.md](PRODUCT-RD-2026-11.md); native study widgets are a proposal,
+not part of this release.
+
+
 ### JSON Canvas web staging preview, 14 November 2026
 
 Deployed branch `codex/json-canvas`, application commit
