@@ -2,6 +2,179 @@
 
 ## Current state
 
+
+### Incoming Android sharing and dedicated outlines, 16 November 2026
+
+Branch `codex/android-share-view-outlines`, application source
+`b0040a07c1859587841bfbe7db5bf25cc7bf49e2`, is live on web staging.
+[Staging frontend run #170](https://github.com/renx777/remonook/actions/runs/43827341344)
+passed, including sync acceptance. The live `staging-source.json` matches that
+branch and commit. Desktop and mobile Chromium smoke checks passed against the
+published site, with no page errors. Notes now focuses on ordinary notes;
+Study Desk, Calendar, Mindmaps, Bookmarks and Bookshelf each offer **Outline**
+for their existing source bullets. No notes are moved or copied.
+
+Android staging **0.1.10** is published from the same source.
+[Android run #10](https://github.com/renx777/remonook/actions/runs/43826105855)
+passed native compilation, signing and publication. **Save to RemoNook Staging**
+receives shared plain text/links and selected text, previews an editable capture,
+and saves a note in Inbox or a bookmark. Device-local capture needs no login.
+Original payloads remain durably queued until canonical local persistence succeeds;
+native ownership claims prevent another account from receiving a claimed share.
+See [ANDROID-SHARING-AND-VIEW-OUTLINES.md](ANDROID-SHARING-AND-VIEW-OUTLINES.md).
+
+[Download Android 0.1.10](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.10_android.apk).
+Package `com.remonook.app.staging`, version code `1010`, minimum SDK `24`, target
+SDK `36`; ABIs `arm64-v8a`, `armeabi-v7a`, `x86_64`; **150,068,407 bytes**;
+SHA-256 `9e43549908e2bb6fb6b300abfca85229f4702fb387a6ee1e61c0adda9626fac2`.
+Downloaded APK integrity, signature, incoming-share intent filters and existing
+study-widget registration passed. The certificate matches staging 0.1.9; install
+using **Update**, preserving device-only notes. Physical Android cold/warm sharing,
+selected-text menu placement and launcher behavior still require owner acceptance.
+
+Exact-source [CI #330](https://github.com/renx777/remonook/actions/runs/43826107234)
+passed. Local TypeScript, staging build and the full **160-file test suite** passed.
+Browser acceptance covered dedicated outline editing/undo, empty states, mobile
+navigation, light/dark, guest capture, duplicate submission, failed save/retry and
+account transitions. Real guest IndexedDB save preceded native acknowledgement in
+the capture browser harness; native IPC in that harness was simulated.
+
+Desktop staging run #25 is building the same source; the published desktop remains
+0.1.24 until all three platform jobs and publication pass. This record will be
+updated after the signed update is verified.
+
+No backend deployment, database migration or production release was performed.
+The unchanged staging health reports `ok: true`, `syncProtocol: 3`,
+`workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`, `bookmarkReader: 1`;
+Google Tasks remains configured and existing book, capture and MCP capabilities
+remain enabled. The staging workflow deploys the frontend only.
+
+
+### Native study widgets, published 15 November; verified 16 November 2026
+
+Branch `codex/native-study-widgets` retains the navigation/Settings baseline through
+`b292e89` and adds an opt-in Android home-screen study widget and compact study
+windows for macOS, Windows and Linux. The desktop windows are ordinary app windows,
+not OS widget-gallery extensions. macOS WidgetKit remains a separate Apple
+signing/App Group milestone. See [NATIVE-STUDY-WIDGETS.md](NATIVE-STUDY-WIDGETS.md)
+and [ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for setup, cache limits,
+offline review reconciliation and physical-device acceptance.
+
+Android staging **0.1.9** is published from
+`757178ab8eafa69e777519b75d498cc8edf37ec0`;
+[Android run #9](https://github.com/renx777/remonook/actions/runs/43762280763)
+passed its four native pagination tests, compilation, signing and publication.
+The downloaded APK passed ZIP integrity, widget component registration and
+signature verification. Its signing certificate matches the previous staging
+0.1.5, so install over the existing app with **Update**; do not uninstall device-only
+notes. Package `com.remonook.app.staging`, version code `1009`, minimum SDK `24`,
+target SDK `36`, ABIs `arm64-v8a`, `armeabi-v7a`, `x86_64`; **150,009,859 bytes**.
+SHA-256 `02611bb868dca389ab82eba9874ece4c782cd030bd1aee5e6dabe7c6c092a535`.
+[Download APK](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.9_android.apk).
+
+Desktop staging **0.1.24** is published from application commit
+`5956fea063d17d393790d891d2d76bcc741b1283`.
+[Desktop run #24](https://github.com/renx777/remonook/actions/runs/43760939230)
+passed Windows, Linux and universal macOS installer builds, native storage tests
+and the gated publication job. The live manifest reports `0.1.24`, with Windows
+x86_64, Linux x86_64 and both macOS architectures. All three downloaded payloads
+passed cryptographic updater-signature verification against the repository public
+key. Binary checks confirmed a Windows PE installer, Linux ELF AppImage, and a
+universal Mach-O with Intel and Apple silicon architectures. The previous public
+desktop release was `0.1.22`. The Android release's intervening commit changes
+only CI testing and documentation; application source is identical.
+
+| Desktop artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Windows setup | 45,617,013 | `a751ae8cf45c6aab61621a13443700ffec5824a6d0c034a942617f59bb7e1301` |
+| Linux AppImage | 125,356,536 | `7ee73f6e91ae3adb1fe1a15a9987a48069c0e5f9d7b2cc6ed5e18ef3094cfd1b` |
+| Universal macOS update | 93,751,805 | `15807087a081e3570b593199905de13b0cf4a10fdd89608099672aa236fd1442` |
+
+Desktop users can update the staging app, then enable **Settings → Study → Study
+outside the main window** and choose **Open study window**. The tray also offers
+**Study flashcards**. Android users enable the same preference, then add
+**RemoNook → Study flashcards** from the launcher's Widgets picker.
+
+Validation for the application commit: TypeScript/staging build, **556 full-suite
+tests**, **14 model checks**, **15 React/persistence/worker checks**, Chromium study
+window acceptance at normal/narrow widths in light/dark, and a packaged worker
+load/complete-answer check all passed. Exact-source GitHub CI passed for both
+application and Android release commits. The cache runs in a worker and ignores
+stale results. A synthetic 10,000-card Chromium check observed a largest UI
+heartbeat gap of 38 ms (9 ms at 1,000 cards); these are development-machine results.
+Native compilation/tests and browser acceptance are not physical-launcher or
+macOS/Windows/Linux desktop-shell testing. Owner device checks remain outstanding.
+
+The native workflows publish **staging only**. No web frontend, backend Worker,
+migration or production deployment was performed. The shared scheduler, canonical
+local persistence, full backups and durable sync outbox remain authoritative.
+Android's previous public version was `0.1.5`; earlier widget candidates were
+withheld before publication. The existing staging backend health remains
+`syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`,
+`bookmarkReader: 1`.
+
+
+### Android staging navigation update, 15 November 2026
+
+Android staging **0.1.5** was built and published from
+`codex/navigation-and-settings` at
+`95274dee28ec81440e8d39e2a03b86b52fe3bb21`; application changes are commit
+`e8ce011da1b6ff2fb1659fb78dd49c13fd04aa65` (the intervening commit only records
+web deployment). [Android app run #5](https://github.com/renx777/remonook/actions/runs/43727805188)
+passed all build, signing, artifact upload and publication steps, using the existing
+release-key configuration. Exact-source GitHub CI had already passed.
+
+The live staging Android manifest reports `0.1.5` and its APK download returned a
+complete, valid ZIP. Parsed package: `com.remonook.app.staging`; version code
+`1005`; minimum SDK `24`, target SDK `36`; native libraries for `arm64-v8a`,
+`armeabi-v7a` and `x86_64`. APK size: **149,665,842 bytes**. SHA-256:
+`3cfe94bbb30a8e2bf425a797344757dde8a0f45e8552a26b2274764a18ac3bd7`.
+The published version before this update was `0.1.4`.
+
+Download: [RemoNook Staging 0.1.5 APK](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.5_android.apk).
+Install over the existing staging app and choose **Update**; do not uninstall,
+which would remove device-only notes. Reopening the app starts its update check
+about 15 seconds later. Physical-device confirmation of the navigation drawer,
+Android Back button, existing notes and Settings remains the owner's acceptance
+step. Browser acceptance and the full source regression suite passed before this
+build; they are not physical-device testing.
+
+Only Android staging distribution was updated. No production release, desktop
+release, backend Worker deployment or migration was performed. Native flashcard
+widgets remain a separate proposed feature and are not included in 0.1.5.
+
+
+### Navigation and Settings refinement, 15 November 2026
+
+Branch `codex/navigation-and-settings`, based on `origin/main` at
+`2102f49`. Restores phone navigation with a native modal drawer, makes Calendar's
+month/agenda support area explicitly collapsible on desktop and phone with
+independent display preferences, and aligns Settings fields, spacing and backup
+actions with the app's visual language. Native dialog focus/Escape handling and
+Android's existing back-stack integration are reused; physical-device testing is
+still required. No data model, sync protocol, durable outbox or backend change.
+
+Validation: TypeScript and the staging build passed, the full 156-file regression
+suite passed, and Chromium acceptance checks covered separate sidebar/calendar
+preferences, phone drawer navigation and focus restoration, and every Settings
+panel at phone widths. Light/dark desktop and phone views were inspected.
+Deployed to web staging from application commit
+`e8ce011da1b6ff2fb1659fb78dd49c13fd04aa65` on branch
+`codex/navigation-and-settings`. The existing release marker is `2026-11-14.1`;
+`staging-source.json` identifies the exact deployed application commit.
+[GitHub CI](https://github.com/renx777/remonook/actions/runs/43710643759) and the
+[Staging frontend workflow](https://github.com/renx777/remonook/actions/runs/43711089712)
+both passed, including the latter's end-to-end sync check. Chromium acceptance
+also passed against the live site for desktop/phone calendar disclosure,
+independent preferences, phone navigation, focus restoration and every Settings
+section. Backend health remained healthy with sync protocol 3, Workdays schema 2,
+AI Assist 1, AI enabled and bookmark reader 1. No backend, production or native
+binary was deployed during that web release. Android staging 0.1.5 now
+includes these shared-UI fixes, as recorded above. The OS widget/PKM feasibility and priorities report is
+[PRODUCT-RD-2026-11.md](PRODUCT-RD-2026-11.md); native study widgets are a proposal,
+not part of this release.
+
+
 ### JSON Canvas web staging preview, 14 November 2026
 
 Deployed branch `codex/json-canvas`, application commit

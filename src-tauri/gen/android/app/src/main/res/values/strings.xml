@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">"RemoNook"</string>
     <string name="main_activity_title">"RemoNook"</string>
-</resources>
+<string name="study_widget_name">Study flashcards</string><string name="study_widget_description">Review a chosen flashcard deck from your home screen. Reviews save locally and apply when RemoNook runs.</string></resources>

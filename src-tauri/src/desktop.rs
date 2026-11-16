@@ -22,6 +22,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 pub const CAPTURE_SHORTCUT: &str = "CommandOrControl+Shift+Space";
 /// Passed when the app starts at login or for an AI app: open in the tray, not on screen.
 pub const BACKGROUND_ARG: &str = "--background";
+pub const STUDY_ARG: &str = "--study-widget";
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -139,8 +140,9 @@ pub fn setup(app: &tauri::AppHandle) -> tauri::Result<()> {
 fn setup_tray(app: &tauri::AppHandle, settings: &Settings) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open RemoNook", true, None::<&str>)?;
     let capture = MenuItem::with_id(app, "capture", "Quick capture", true, Some(CAPTURE_SHORTCUT))?;
+    let study = MenuItem::with_id(app, "study-widget", "Study flashcards", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit RemoNook", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &capture, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &capture, &study, &quit])?;
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("app icon"))
         .tooltip("RemoNook")
@@ -149,6 +151,7 @@ fn setup_tray(app: &tauri::AppHandle, settings: &Settings) -> tauri::Result<()> 
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main(app),
             "capture" => open_capture(app),
+            "study-widget" => { let _ = crate::study_widget::open(app); },
             "quit" => request_quit(app),
             _ => {}
         })
@@ -167,7 +170,11 @@ fn setup_tray(app: &tauri::AppHandle, settings: &Settings) -> tauri::Result<()> 
 /// Closing the main window hides it to the tray (when chosen), so quick capture and AI apps keep
 /// working. The capture box only ever hides.
 pub fn on_close(window: &tauri::Window, api: &tauri::CloseRequestApi) {
-    let keep = window.label() == "capture" || window.app_handle().state::<State>().0.lock().unwrap().keep_in_tray;
+    // The hidden main WebView is the sole canonical writer for study intents.
+    // A compact study surface must never outlive that owner. Explicit Quit
+    // remains the way to stop the background app while study is available.
+    let study_owner = window.label() == "main" && window.app_handle().get_webview_window("study-widget").is_some();
+    let keep = study_owner || ["capture", "study-widget"].contains(&window.label()) || window.app_handle().state::<State>().0.lock().unwrap().keep_in_tray;
     if keep {
         api.prevent_close();
         let _ = window.hide();

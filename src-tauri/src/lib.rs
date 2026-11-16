@@ -14,7 +14,10 @@
 //! whole screen and the desktop-only parts (tray, shortcut, launch at login, folders, local MCP,
 //! the updater) are left out. Local sync and Google sign-in work the same way.
 
+#[cfg(mobile)]
+mod android_shares;
 mod local_article;
+mod study_widget;
 mod desktop;
 #[cfg(desktop)]
 mod folders;
@@ -37,6 +40,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(google::Pending::default())
+        .manage(study_widget::Broker::default())
         .manage(local_sync::LocalSync::default());
     #[cfg(desktop)]
     let builder = desktop_builder(builder);
@@ -56,10 +60,12 @@ pub fn run() {
 
 #[cfg(desktop)]
 fn desktop_builder(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
+    let study = std::env::args().any(|a| a == desktop::STUDY_ARG);
     let background = std::env::args().any(|a| a == desktop::BACKGROUND_ARG);
     builder
         // A second launch shows the open app instead of starting another copy.
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if args.iter().any(|a| a == desktop::STUDY_ARG) { let _ = study_widget::open(app); return; }
             if !args.iter().any(|a| a == desktop::BACKGROUND_ARG) {
                 desktop::show_main(app);
             }
@@ -77,7 +83,7 @@ fn desktop_builder(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri:
             desktop::setup(handle)?;
             local_mcp::setup(handle);
             local_sync::setup(handle);
-            if !background {
+            if study { let _ = study_widget::open(handle); } else if !background {
                 desktop::show_main(handle);
             }
             Ok(())
@@ -88,6 +94,11 @@ fn desktop_builder(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri:
             }
         })
         .invoke_handler(tauri::generate_handler![
+            study_widget::study_widget_publish,
+            study_widget::study_widget_state,
+            study_widget::study_widget_submit,
+            study_widget::study_widget_inbox,
+            study_widget::study_widget_ack,
             local_article::local_article_fetch,
             google::google_sign_in_start,
             google::google_sign_in_wait,
@@ -98,6 +109,8 @@ fn desktop_builder(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri:
             folders::folder_assets,
             folders::folder_read_asset,
             folders::folder_show,
+            study_widget::study_widget_open,
+            study_widget::study_widget_hide,
             desktop::desktop_settings,
             desktop::desktop_settings_set,
             desktop::capture_submit,
@@ -130,6 +143,14 @@ fn mobile_builder(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            android_shares::android_share_inbox,
+            android_shares::android_share_ack,
+            android_shares::android_share_claim,
+            study_widget::study_widget_publish,
+            study_widget::study_widget_state,
+            study_widget::study_widget_submit,
+            study_widget::study_widget_inbox,
+            study_widget::study_widget_ack,
             local_article::local_article_fetch,
             google::google_sign_in_start,
             google::google_sign_in_wait,

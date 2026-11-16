@@ -1,6 +1,6 @@
 .study-desk, .study-session { flex: 1; overflow: auto; padding: 42px max(28px, calc((100% - 1060px) / 2)) 70px; min-height: 0; min-width: 0; }
 .study-desk { container-type: inline-size; }
-.app[data-page="study"] .topbar-search, .app[data-page="study"] .completed-toggle, .app[data-page="study"] .topbar [aria-label="Undo"], .app[data-page="study"] .topbar [aria-label="Redo"] { display: none; }
+.app[data-page="study"]:not([data-outline="true"]) .topbar-search, .app[data-page="study"]:not([data-outline="true"]) .completed-toggle, .app[data-page="study"]:not([data-outline="true"]) .topbar [aria-label="Undo"], .app[data-page="study"]:not([data-outline="true"]) .topbar [aria-label="Redo"] { display: none; }
 .study-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; color: var(--accent); }
 .study-heading h1 { color: var(--text); margin: 8px 0; font-size: 33px; font-weight: 650; }
 .study-heading p { color: var(--muted); margin: 0; font-size: 14px; }

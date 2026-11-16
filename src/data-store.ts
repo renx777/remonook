@@ -137,6 +137,8 @@ export function tableManifest(doc: Workspace) {
 }
 export function androidBlockers(doc: Workspace) {
   const reasons = [];
+  if(doc.web.androidShareReceipts)reasons.push("Incoming share receipts require a full web backup");
+  if(doc.web.widgetReviewRecoveries||doc.tables.review_logs.some(log=>log.widgetEventId))reasons.push("Widget review receipts require a full web backup");
   if(doc.web.canvases)reasons.push("Canvas boards require a full web backup");
   if(doc.web.bookmarks)reasons.push("Web bookmarks require a full web backup");
   if(doc.tables.bullets.some(node=>node.mirrorSourceId))reasons.push("Mirrors require a full web backup");
