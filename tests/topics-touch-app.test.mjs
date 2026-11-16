@@ -1,3 +1,4 @@
+import {studyLibrary} from './view-outline-navigation.mjs';
 import {installOverlayGlobals} from './dom-overlays.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +33,7 @@ test('topic picker and touch card navigation retain structure, ignore scrolling 
  const tap=async(x,target=document.querySelector('.flashcard'))=>act(async()=>{document.querySelector('.flashcard').getBoundingClientRect=()=>({left:0,width:800,top:0,bottom:500});pointer(target,'pointerdown',x);pointer(target,'pointerup',x);});
  try {
   await act(async()=>{app=await import('./.build/app.mjs');});
-  await wait(()=>document.querySelector('.outline-row'));
+  await studyLibrary();
   await textClick('Study Desk');await textClick('Cram');
   await act(async()=>new Promise(resolve=>setTimeout(resolve,250)));
   assert.equal((await load()).web.lastStudyMode,'NORMAL','Cram preference is persisted before starting a session');

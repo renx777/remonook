@@ -1,3 +1,4 @@
+import {studyOutline} from './view-outline-navigation.mjs';
 import {installOverlayGlobals} from './dom-overlays.mjs';
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -361,7 +362,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await click([...document.querySelectorAll('[cmdk-item]')].find(button => button.textContent.includes('Ideas')));
   await wait(()=>document.querySelector('.zoomed-title-input')?.value==='Ideas'&&!document.querySelector('[cmdk-input]'));
   assert.equal(document.querySelector('[cmdk-input]'), null);
-  await click([...document.querySelectorAll('.breadcrumbs button')].find(button => button.textContent.includes('My notes')));
+  await click(document.querySelector('.topbar [aria-label="Go to parent"]'));
 
   // Explicit questions, local images, and study sessions use the same saved workspace.
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
@@ -400,6 +401,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
   stored = await load();
   assert.ok(stored.tables.cards.some(card => card.id === 'welcome' && card.state === 'ACTIVE'));
+  await studyOutline();
   await click(document.querySelector('[data-node-id="welcome-1"] [aria-label="Bullet actions"]'));
   const imageInput = document.querySelector('[aria-label="Choose images for bullet"]');
   // Files are selected by the browser's file picker; inject its result in jsdom.
@@ -415,6 +417,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   const { getAssets } = await import('./.build/data.mjs');
   assert.ok((await getAssets()).has('media/' + stored.tables.media[0].fileName));
   await click([...document.querySelectorAll('.sidebar nav button')].find(button => button.textContent.includes('Study Desk')));
+  if(document.querySelector('.outline-view-toggle[aria-pressed="true"]'))await click(document.querySelector('.outline-view-toggle'));
   assert.ok(document.querySelector('.study-desk'));
   assert.ok(document.querySelector('.deck-artwork'), 'Decks have notebook covers');
   await click(document.querySelector('[aria-label="Customize All flashcards cover"]'));
@@ -520,7 +523,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   await click([...document.querySelectorAll('.flashcard-label button')].find(button => button.textContent.includes('Open source')));
   assert.equal(fullscreenElement, null, 'Opening the source safely leaves fullscreen');
   assert.ok(!sidebar.inert);
-  await click([...document.querySelectorAll('.breadcrumbs button')].find(button => button.textContent.includes('My notes')));
+  await click(document.querySelector('.topbar [aria-label="Go to parent"]'));
 
   const canvasEl = document.querySelector(".outline-canvas");
   assert.ok(canvasEl, "outline-canvas must exist");

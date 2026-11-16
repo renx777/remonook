@@ -43,7 +43,7 @@ const MindNode=({id,data}:{id:string;data:MindData})=>{
         <button className="mind-danger nodrag" title="Move branch to Trash" onClick={e=>{e.stopPropagation();data.onDeleteConfirm(data.id);}}><Icon name="trash" size={12}/></button>
         <button className="nodrag" title="Cancel" onClick={e=>{e.stopPropagation();data.onDeleteCancel();}}><Icon name="close" size={12}/></button>
       </>:<>
-        <button className="nodrag" title="Open in Notes" aria-label="Open in Notes" onClick={e=>{e.stopPropagation();data.onOpen(data.id);}}><Icon name="notes" size={12}/></button>
+        <button className="nodrag" title="Open outline" aria-label="Open outline" onClick={e=>{e.stopPropagation();data.onOpen(data.id);}}><Icon name="notes" size={12}/></button>
         <button className="nodrag" title="Add child" aria-label="Add child" onClick={e=>{e.stopPropagation();data.onAddChild(data.id);}}><Icon name="plus" size={12}/></button>
         <button className="nodrag" title="Add sibling below" aria-label="Add sibling below" onClick={e=>{e.stopPropagation();data.onAddSibling(data.id);}}><Icon name="down" size={12}/></button>
         <button className="nodrag" title="Rename" aria-label="Rename" onClick={e=>{e.stopPropagation();data.onEditStart(data.id);}}><Icon name="edit" size={12}/></button>

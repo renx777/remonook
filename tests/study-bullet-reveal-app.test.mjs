@@ -1,3 +1,4 @@
+import {studyLibrary} from './view-outline-navigation.mjs';
 import {installOverlayGlobals} from './dom-overlays.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -58,7 +59,7 @@ test('flashcard study mode reveals child bullets one by one with option to show 
 
   try {
     await act(async () => { app = await import('./.build/app.mjs'); });
-    await wait(() => document.querySelector('.outline-row'));
+    await studyLibrary();
 
     // Navigate to Study Desk
     await clickText('Study Desk');

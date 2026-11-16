@@ -35,6 +35,10 @@ export function noteCatalog(doc, idx = index(doc.tables.bullets)) {
   for(let i=walk.length-1;i>=0;i--){const n=walk[i];if(n.parentId)rank.set(n.parentId,Math.min(rank.get(n.parentId)??5,rank.get(n.id)??5));}
   /** @param {string} kind @param {string|null} [scope] */
   const roots=(kind,scope=null)=>{
+    if(kind==='study'){
+      const selected=new Set([...roots('flashcards',scope),...roots('mcqs',scope)]);
+      return [...selected].filter(id=>{let parent=idx.byId.get(id)?.parentId;while(parent){if(selected.has(parent))return false;parent=idx.byId.get(parent)?.parentId;}return true;});
+    }
     if(kind==='all')return (idx.children.get(scope)||[]).map(n=>n.id).sort((a,b)=>(rank.get(a)??5)-(rank.get(b)??5));
     const match=kind==='notes'?n=>!excluded.has(n.id):matches[kind];
     if(!match)return null;
@@ -62,4 +66,32 @@ export function rootRows(idx, rootIds, expand = false) {
       for (const row of indexedRows(idx, id, expand)) out.push({ ...row, depth: row.depth + 1 });
   }
   return out;
+}
+
+/** The dedicated home of an existing source bullet, nearest owning branch first. */
+export function outlineDestination(doc,id){
+ const idx=index(doc.tables.bullets),bookmarks=new Set(Object.values(doc.web?.bookmarkNoteRoots||{})),books=new Set(Object.values(doc.web?.readingNoteRoots||{})),decks=new Set((doc.tables.decks||[]).map(d=>d.rootId));
+ const seen=new Set();let node=idx.byId.get(id);
+ while(node&&!seen.has(node.id)){
+  seen.add(node.id);
+  if(node.journalDate||/^(cal-root|cal-year-\d{4}|cal-month-\d{4}-\d{2})$/.test(node.id)||(!node.parentId&&/^(?:🗓️?|📆|📅)?\s*Calendar$/i.test(node.text.trim())))return 'calendar';
+  if(bookmarks.has(node.id))return 'bookmarks';if(books.has(node.id))return 'bookshelf';
+  if(node.mindmap)return 'mindmap';if(node.kind==='QUESTION'||doc.web?.mcqs?.[node.id]||decks.has(node.id))return 'study';
+  node=idx.byId.get(node.parentId);
+ }
+ return 'notes';
+}
+
+/** Keep an active edit in place when its type changes; unrelated categories stay hidden. */
+/** @param {string|null} [editing] */
+export function ordinaryNoteProjection(catalog,editing=null){
+ const roots=catalog.roots('notes'),excluded=catalog.excluded;
+ if(!editing||!excluded.has(editing))return {roots,excluded};
+ let branch=catalog.idx.byId.get(editing);if(!branch)return {roots,excluded};
+ while(branch.parentId&&excluded.has(branch.parentId))branch=catalog.idx.byId.get(branch.parentId);
+ const keep=new Set(),todo=[branch];while(todo.length){const n=todo.pop();if(keep.has(n.id))continue;keep.add(n.id);todo.push(...(catalog.idx.children.get(n.id)||[]));}
+ const present=new Set(roots);let ancestor=branch;while(ancestor&&!present.has(ancestor.id))ancestor=catalog.idx.byId.get(ancestor.parentId);
+ if(!ancestor)roots.push(branch.id);
+ roots.sort((a,b)=>(catalog.idx.byId.get(a)?.position||0)-(catalog.idx.byId.get(b)?.position||0));
+ return {roots,excluded:new Set([...excluded].filter(id=>!keep.has(id)))};
 }

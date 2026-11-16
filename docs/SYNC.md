@@ -227,3 +227,28 @@ Widget presentation generation runs in a dedicated worker. Results are published
 only if the account generation, original document identity and editor readiness
 still match. A concurrent edit, worker failure or timeout leaves native review
 acknowledgements pending; the canonical receipt makes the next retry idempotent.
+
+## Android incoming shares
+
+Android shares and selected-text actions first retain the original payload under
+private native `remonook-shares/inbox`. They do not modify the workspace until the
+user confirms the preview's destination. Before insertion, an immutable native
+claim binds the capture UUID to that account/workspace storage scope. Native
+inbox reads filter claimed captures before returning their text to JavaScript;
+archive acknowledgement verifies that same scope.
+
+The normal note/bookmark mutation stores an `androidShareReceipts` entry alongside
+the inserted data in the canonical save. Its content fingerprint prevents repeat
+insertion after a crash between saving and native acknowledgement; receipts contain
+a hash and note identity, not another full copy of the passage. Failed persistence
+leaves the native payload pending. The UI can retry the same capture and normal
+undo remains available. Full backups preserve the receipt; legacy Android-format
+export requires a full backup when these receipts exist. Native acknowledgement
+archives the original payload after successful canonical persistence. It does not
+acknowledge cloud sync; the normal durable outbox and server acknowledgement remain
+authoritative. No sync conflict controls or shared-state replacement are added.
+
+Dedicated-view outlines are projections of the existing bullets. They neither move
+nor duplicate content. View mode and scope are UI state; all edits use the normal
+editor, persistence, undo and CRDT paths. See
+[ANDROID-SHARING-AND-VIEW-OUTLINES.md](ANDROID-SHARING-AND-VIEW-OUTLINES.md).
