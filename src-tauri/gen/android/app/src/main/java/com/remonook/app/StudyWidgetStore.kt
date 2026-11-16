@@ -108,12 +108,12 @@ internal object StudyWidgetStore {
         val temporary = File(dir,".$eventId.${id()}.tmp")
         try {
             FileOutputStream(temporary).use { out -> out.write(json); out.fd.sync() }
-            try { Os.link(temporary.absolutePath,file.absolutePath) }
-            catch(e:ErrnoException) {
-                if(e.errno!=OsConstants.EEXIST)throw e
+            // Android forbids hard links in app storage (EACCES). This block holds the store's lock and
+            // checked above that no event with this id exists, so a rename cannot replace one.
+            if(file.exists()){
                 val prior=JSONObject(file.readText());val expected=JSONObject(String(json,Charsets.UTF_8))
                 require(listOf("schema","id","scope","deckId","cardId","fingerprint","grade","question","answer","widgetId").all { prior.opt(it)==expected.opt(it) }) { "This review ID already belongs to another action. The original was kept." }
-            }
+            } else Os.rename(temporary.absolutePath,file.absolutePath)
             val descriptor=Os.open(dir.absolutePath,OsConstants.O_RDONLY,0)
             try {Os.fsync(descriptor)} finally {Os.close(descriptor)}
         } finally { temporary.delete() }

@@ -28,3 +28,22 @@ Browser capture tests cover guest saving, repeated taps, failed-save retry and
 account changes; native IPC is simulated there. Physical Android sharesheet,
 cold/warm Activity behavior and selected-text menu acceptance remain to be
 confirmed on an installed device. See ENVIRONMENTS.md for current release details.
+
+## Fixes after the first staging release
+
+- **Sharing failed on phones with "link failed: EACCES (Permission denied)".** Android does not
+  allow apps to create hard links in their private storage, and the share receiver, the share
+  archive/claim steps and the flashcard widget's review files all published files that way. They
+  now publish by rename (atomic within one directory). Each target is checked first, under the
+  existing lock or with a fresh id, so an existing file is never replaced; a conflicting widget
+  review still keeps both versions.
+- **View outlines:**
+  - An empty view outline (Study Desk, Calendar, Mindmaps) offers Add instead of only "No … yet".
+  - A bullet that editing carries out of the view (outdented out of a mindmap, no longer a
+    flashcard) stays in place until editing ends, as Notes already did, so the cursor is not lost.
+  - When editing ends and the bullet now belongs to another view, a notice says where it moved,
+    with **Show**, which opens it on its page in that view.
+  - Zooming inside a view's outline shows breadcrumbs: the view's outline, then the path; each
+    part is clickable.
+- Checks: `scripts/e2e-view-outlines.mjs` (browser), `cargo test` (the widget's immutable-review
+  test covers the rename path).

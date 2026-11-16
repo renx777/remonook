@@ -2256,3 +2256,31 @@ html {
   color: var(--text);
   cursor: pointer;
 }
+
+/* A bullet that left the view it was edited in: where it went, and a way to follow it. */
+.toast.toast-moved {
+  bottom: 72px;
+  z-index: 60;
+}
+.toast-moved button {
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--bg) 22%, transparent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* An empty view outline still offers a way to add. */
+.notes-filter-empty p {
+  margin: 0 0 12px;
+}
+.notes-filter-empty .primary {
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .toast.toast-moved {
+    bottom: 140px;
+  }
+}

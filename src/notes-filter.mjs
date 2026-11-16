@@ -95,3 +95,14 @@ export function ordinaryNoteProjection(catalog,editing=null){
  roots.sort((a,b)=>(catalog.idx.byId.get(a)?.position||0)-(catalog.idx.byId.get(b)?.position||0));
  return {roots,excluded:new Set([...excluded].filter(id=>!keep.has(id)))};
 }
+
+/** A view's root list, plus the edited bullet's branch if editing has carried it out of the view
+ * (it stays where it is until editing ends). Roots keep outline order. */
+export function keepEditedRoot(idx,roots,editing){
+ if(!editing||!idx.byId.has(editing))return roots;
+ const shown=new Set(roots);let at=idx.byId.get(editing);const seen=new Set();
+ while(at&&!seen.has(at.id)){if(shown.has(at.id))return roots;seen.add(at.id);at=idx.byId.get(at.parentId);}
+ const key=id=>{const path=[];let n=idx.byId.get(id);const guard=new Set();while(n&&!guard.has(n.id)){guard.add(n.id);path.unshift(n.position??0);n=idx.byId.get(n.parentId);}return path;};
+ const cmp=(a,b)=>{const x=key(a),y=key(b);for(let i=0;i<Math.min(x.length,y.length);i++)if(x[i]!==y[i])return x[i]-y[i];return x.length-y.length;};
+ return [...roots,editing].sort(cmp);
+}

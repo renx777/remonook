@@ -36,10 +36,12 @@ pub fn android_share_ack(app:tauri::AppHandle,window:tauri::WebviewWindow,id:Str
  let source=root.join("inbox").join(format!("{id}.json"));let target=root.join("saved").join(format!("{id}.json"));
  if !source.exists(){return if target.exists(){Ok(())}else{Err("The incoming share is unavailable.".into())}}
  let value=read(&source)?;if value.get("id").and_then(Value::as_str)!=Some(id.as_str()){return Err("This share was retained because its identity differs.".into())}
- if target.exists(){if read(&target)?!=value{return Err("Both versions of this share were retained.".into())}}
- else{fs::hard_link(&source,&target).map_err(|_|"Could not archive this share. It remains pending.")?;}
+ // Android forbids hard links in app storage (EACCES), so archive by rename (atomic, same volume).
+ if target.exists(){
+  if read(&target)?!=value{return Err("Both versions of this share were retained.".into())}
+  fs::remove_file(&source).map_err(|_|"Could not finish archiving this saved share.")?;
+ }else{fs::rename(&source,&target).map_err(|_|"Could not archive this share. It remains pending.")?;}
  fs::File::open(root.join("saved")).and_then(|f|f.sync_all()).map_err(|_|"Could not finalize this share. It remains pending.")?;
- fs::remove_file(source).map_err(|_|"Could not finish archiving this saved share.")?;
  fs::File::open(root.join("inbox")).and_then(|f|f.sync_all()).map_err(|_|"Could not finalize share storage.")?;Ok(())
 }
 
@@ -60,7 +62,9 @@ pub fn android_share_claim(app:tauri::AppHandle,window:tauri::WebviewWindow,id:S
  let suffix:String=random.iter().map(|v|format!("{v:02x}")).collect();let temp=root.join("claims").join(format!("{id}.{suffix}.tmp"));
  let mut file=fs::OpenOptions::new().write(true).create_new(true).open(&temp).map_err(|_|"Could not save the share destination.")?;
  file.write_all(serde_json::to_string(&expected).map_err(|_|"Could not encode share destination.")?.as_bytes()).and_then(|_|file.sync_all()).map_err(|_|"Could not save the share destination.")?;drop(file);
- if let Err(error)=fs::hard_link(&temp,&path){if error.kind()!=std::io::ErrorKind::AlreadyExists||read(&path)?!=expected{return Err("The original share destination was retained. Retry in its workspace.".into())}}
+ // No hard links on Android (EACCES): publish the claim by rename, unless one appeared meanwhile.
+ if path.exists(){let _=fs::remove_file(&temp);if read(&path)?!=expected{return Err("The original share destination was retained. Retry in its workspace.".into())}}
+ else if fs::rename(&temp,&path).is_err(){let _=fs::remove_file(&temp);return Err("Could not save the share destination. Retry saving.".into())}
  fs::File::open(root.join("claims")).and_then(|f|f.sync_all()).map_err(|_|"Could not finalize the share destination. Retry saving.")?;
  let _=fs::remove_file(temp);Ok(())
 }

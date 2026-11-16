@@ -31,10 +31,11 @@ class ShareReceiverActivity : Activity() {
             val pending=dir.listFiles().orEmpty()
             require(pending.size<64 && pending.sumOf {it.length()}+bytes.size<=8*1024*1024) { "Your incoming share queue is full. Open RemoNook and finish saving pending shares, then share this passage again. Nothing new was saved." }
             FileOutputStream(tmp).use {it.write(bytes);it.fd.sync()}
-            Os.link(tmp.absolutePath,target.absolutePath)
+            // Android forbids hard links in app storage (EACCES), so publish by rename: atomic within
+            // the directory, and the id is new, so nothing is replaced.
+            Os.rename(tmp.absolutePath,target.absolutePath)
             val fd=Os.open(dir.absolutePath,OsConstants.O_RDONLY,0)
             try {Os.fsync(fd)}finally {Os.close(fd)}
-            tmp.delete()
             startActivity(Intent(this,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             finish()
         } catch(error:Exception) {

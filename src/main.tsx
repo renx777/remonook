@@ -96,7 +96,7 @@ import { SelectionFormatting } from "./SelectionFormatting";
 import { textColors } from "./color-palettes";
 import { prepareCoverImage, type DeckDesign } from "./deck-designs";
 import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
-import { NOTE_FILTERS, noteCatalog, outlineDestination, ordinaryNoteProjection } from "./notes-filter.mjs";
+import { NOTE_FILTERS, noteCatalog, outlineDestination, ordinaryNoteProjection, keepEditedRoot } from "./notes-filter.mjs";
 import { TagHeader } from "./TagHeader";
 import { isTagQuery, sanitizeTagSettings, setTagRegistry, renameTagInNodes, renameTagSettings, resolveDateTags, hasTag, tagKey } from "./tags.mjs";
 import { TagSettingsContext } from "./TagSettingsContext";
@@ -605,8 +605,25 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const notesFilterCounts=React.useMemo(()=>notesCatalog?.counts(views.active.global&&views.active.search?null:views.active.scope)||{},[notesCatalog,views.active.scope,views.active.global,views.active.search]) as Record<string,number>;
   const notesFilterRoots=React.useMemo(()=>notesCatalog?Object.fromEntries(outlinePanes.map(pane=>{
     if((pane.global&&pane.search)||(tab==='notes'&&pane.search.trim())||pane.scope)return [pane.id,notesCatalog.roots('all',pane.global&&pane.search?null:pane.scope)||[]];
-    return [pane.id,tab==='notes'?ordinaryProjection?.roots||[]:notesFilter==='study'?notesCatalog.roots('study',pane.scope)||[]:notesCatalog.roots(notesFilter,pane.scope)||[]];
-  })):null,[notesCatalog,ordinaryProjection,notesFilter,views.panes,tab,outlineScopes,search]) as Record<string,string[]>|null;
+    if(tab==='notes')return [pane.id,ordinaryProjection?.roots||[]];
+    // A bullet being edited stays in place even if it stops belonging to this view (outdented
+    // out of a mindmap, no longer a flashcard...) until editing ends; then the Moved notice says where.
+    const list=(notesFilter==='study'?notesCatalog.roots('study',pane.scope):notesCatalog.roots(notesFilter,pane.scope))||[];
+    return [pane.id,keepEditedRoot(notesCatalog.idx,list,editing)];
+  })):null,[notesCatalog,ordinaryProjection,notesFilter,views.panes,tab,outlineScopes,search,editing]) as Record<string,string[]>|null;
+  // Leaving a bullet that now belongs to another view: say where it went, with a way to follow it.
+  const [moved,setMoved]=useState<{id:string;to:string;text:string}|null>(null);
+  const lastEdit=React.useRef<{id:string;tab:string;where:string}|null>(null);
+  React.useEffect(()=>{
+    const prev=lastEdit.current,current=docRef.current;
+    if(prev&&prev.id!==editing&&current){
+      const n=current.tables.bullets.find(x=>x.id===prev.id),to=n?outlineDestination(current,prev.id):null;
+      const viewKind=prev.tab==='notes'?'notes':prev.tab;
+      if(n&&to&&to!==prev.where&&to!==viewKind&&!(prev.tab==='notes'?scope:outlineScopes[prev.tab]))setMoved({id:n.id,to,text:String(n.text||'').replace(/<[^>]*>/g,'').trim()||'Bullet'});
+    }
+    lastEdit.current=editing&&current&&(tab==='notes'||dedicatedOutline)?{id:editing,tab,where:outlineDestination(current,editing)}:null;
+  },[editing]);
+  React.useEffect(()=>{if(!moved)return;const t=setTimeout(()=>setMoved(null),7000);return()=>clearTimeout(t);},[moved]);
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
@@ -1546,6 +1563,22 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const menuBulletKind = new Set(menuTargets.map(node => node.kind)).size > 1 ? '' : menuNode?.kind;
   const starred: string[] = Array.isArray(doc.web.starredNodes) ? doc.web.starredNodes : [],
     savedSearches: string[] = Array.isArray(doc.web.starredSearches) ? doc.web.starredSearches : [];
+  // Adding at the top of a view's outline: a flashcard in Study Desk, a mindmap in Mindmaps, an entry
+  // for the shown day in Calendar; Bookmarks and Bookshelf add through their own libraries.
+  const addInView = () => {
+    if(tab==='calendar'){const id=addCalendarBullet(calendarDate);const parent=docRef.current!.tables.bullets.find(n=>n.id===id)?.parentId;setOutlineScopes(value=>({...value,calendar:parent||null}));return;}
+    if(tab==='study'||tab==='mindmap'){const id=crypto.randomUUID();mutate(ns=>[...ns,bullet(id,{kind:tab==='study'?'QUESTION':'NOTE',mindmap:tab==='mindmap',position:Math.max(-1,...ns.filter(n=>!n.parentId).map(n=>n.position))+1})]);focus(id,0);return;}
+    setViewOutlines(value=>({...value,[tab]:false}));setNotice(tab==='bookmarks'?'Add a link in the bookmark library.':'Add a PDF or EPUB in the bookshelf.');
+  };
+  // Opens a bullet on its page in the view it belongs to, with the cursor in it.
+  const revealBullet = (id: string) => {
+    const current=docRef.current!,n=current.tables.bullets.find(x=>x.id===id);if(!n)return;
+    const to=outlineDestination(current,id),parent=n.parentId||null;
+    setDialog(null);setSearch('');setTab(to);
+    if(to==='notes')setScope(parent);
+    else{setViewOutlines(value=>({...value,[to]:true}));setOutlineScopes(value=>({...value,[to]:parent&&outlineDestination(current,parent)===to?parent:null}));}
+    setTimeout(()=>focus(id,0),80);
+  };
   const navigateTo = (id: string | null) => {
     const destination=id?outlineDestination(docRef.current!,id):'notes';
     setTab(destination);
@@ -1678,7 +1711,17 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
           <div className="breadcrumbs">
-            {tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
+            {dedicatedOutline && outlineScopes[tab] ? (()=>{
+              // Zoomed into a view's outline: the view, then the path down to this bullet.
+              const path:any[]=[];let at=idx.byId.get(outlineScopes[tab]!);const seen=new Set<string>();
+              while(at&&!seen.has(at.id)){seen.add(at.id);path.unshift(at);at=at.parentId?idx.byId.get(at.parentId):undefined;}
+              const label=({study:'Study Desk',calendar:'Calendar',mindmap:'Mindmaps',bookmarks:'Bookmarks',bookshelf:'Bookshelf'} as Record<string,string>)[tab];
+              const plain=(t:string)=>String(t||'').replace(/<[^>]*>/g,'').replace(/\[\[([^\]|]*)\|[^\]]+\]\]/g,'$1').trim()||'Untitled';
+              return <>
+                <button onClick={()=>{setOutlineScopes(value=>({...value,[tab]:null}));setEditing(null);}}><Icon name="notes" size={14}/><span>{label} outline</span></button>
+                {path.map((n,i)=><React.Fragment key={n.id}><Icon name="chevron" size={12}/><button aria-current={i===path.length-1?'page':undefined} onClick={()=>{setOutlineScopes(value=>({...value,[tab]:n.id}));setEditing(null);}}>{plain(n.text).slice(0,40)}</button></React.Fragment>)}
+              </>;
+            })() : tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
               <>
                 <button onClick={() => navigateTo(calendarRoot?.id || null)}>
                   <Icon name="calendar" size={14} />
@@ -1810,7 +1853,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
              <button className="icon-button pane-close" aria-label={`Close pane ${i+1}`} title="Close pane" onClick={()=>views.close(pane.id)}><Icon name="close" size={14}/></button>
             </div>}
             {canvasEnabled&&pane.scope&&canvasRoots.get(pane.scope)&&<div className="canvas-open-banner"><span>This page is a canvas.</span><button onClick={()=>{setCanvasOpen({id:canvasRoots.get(pane.scope!)!,n:Date.now()});setEditing(null);setTab('canvas');}}><Icon name="canvas" size={14}/>Open canvas</button></div>}
-            {dedicatedOutline&&!pane.scope&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({study:'study notes',notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<OutlineView
+            {dedicatedOutline&&!pane.scope&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<div className="notes-filter-empty"><p>No {({study:'study notes',notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} yet.</p>{!disabled&&<button className="primary" onClick={addInView}>{({study:'Add a flashcard',calendar:"Add an entry for this day",mindmap:'Add a mindmap',bookmarks:'Open the bookmark library',bookshelf:'Open the bookshelf'} as Record<string,string>)[tab]}</button>}</div>:<OutlineView
               rootIds={notesFilterRoots?.[pane.id]||null}
               excludedIds={notesFilter==='notes'&&!pane.scope&&!pane.search?ordinaryProjection?.excluded:undefined}
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
@@ -1830,9 +1873,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               onAdd={(parentId) => {
                 const target=parentId===undefined?pane.scope:parentId;
                 if(!dedicatedOutline||target){add(target);return;}
-                if(tab==='calendar'){const id=addCalendarBullet(calendarDate);const parent=docRef.current!.tables.bullets.find(n=>n.id===id)?.parentId;setOutlineScopes(value=>({...value,calendar:parent||null}));return;}
-                if(tab==='study'||tab==='mindmap'){const id=crypto.randomUUID();mutate(ns=>[...ns,bullet(id,{kind:tab==='study'?'QUESTION':'NOTE',mindmap:tab==='mindmap',position:Math.max(-1,...ns.filter(n=>!n.parentId).map(n=>n.position))+1})]);focus(id,0);return;}
-                setViewOutlines(value=>({...value,[tab]:false}));setNotice(tab==='bookmarks'?'Add a link in the bookmark library.':'Add a PDF or EPUB in the bookshelf.');
+                addInView();
               }}
               onEdit={(id) => {
                 views.setActivePane(pane.id);
@@ -2524,6 +2565,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         if(failed.current||dirty.current||pendingAssets.current.size||cloudApplying.current||docRef.current!==persisted.current)throw Error('Your latest changes need to finish saving before updating.');
         location.reload();
       }}/>
+      {moved && (
+        <div className="toast toast-moved" role="status">
+          <Icon name="forward" size={16} />
+          <span>“{moved.text.slice(0,40)}” moved to {({notes:'Notes',study:'Study Desk',calendar:'Calendar',mindmap:'Mindmaps',bookmarks:'Bookmarks',bookshelf:'Bookshelf'} as Record<string,string>)[moved.to]||'Notes'}</span>
+          <button onClick={()=>{const id=moved.id;setMoved(null);revealBullet(id);}}>Show</button>
+        </div>
+      )}
       {notice && (
         <div className="toast" role="status">
           <Icon name="check" size={16} />

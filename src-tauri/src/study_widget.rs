@@ -100,8 +100,8 @@ fn sync_dir(path:&Path)->Result<(),String>{
     #[cfg(not(unix))] let _=path;
     Ok(())
 }
-/// Publish one immutable review across processes. A hard link never replaces an
-/// existing event, unlike rename on Unix; only a fully fsynced inode is visible.
+/// Publish one immutable review across processes: an existing event is never replaced, and only a
+/// fully fsynced file becomes visible.
 fn write_intent(dir:&Path,intent:&Intent)->Result<(),String>{
     let bytes=serde_json::to_vec(intent).map_err(|_|"Could not encode the review.")?;
     if bytes.len()>INTENT_LIMIT{return Err("This review exceeds the study storage limit.".into());}
@@ -110,13 +110,14 @@ fn write_intent(dir:&Path,intent:&Intent)->Result<(),String>{
     let temporary=dir.join(format!("{}.{}.tmp",intent.id,suffix));let final_path=dir.join(format!("{}.json",intent.id));
     let mut f=open_new(&temporary).map_err(|_|"Could not save this review.")?;
     f.write_all(&bytes).and_then(|_|f.sync_all()).map_err(|_|"Could not save this review. Keep the study window open and retry.")?;drop(f);
-    match fs::hard_link(&temporary,&final_path){
-        Ok(())=>{},
-        Err(e) if e.kind()==std::io::ErrorKind::AlreadyExists=>{
-            let previous:Intent=serde_json::from_value(read_value(&final_path,INTENT_LIMIT)?).map_err(|_|"A retained review needs attention.")?;
-            if previous!=*intent{return Err("A different review already uses this operation id; both versions are retained.".into());}
-        },
-        Err(_)=>return Err("Could not publish this review safely. It is retained; retry before closing.".into()),
+    // Android forbids hard links in app storage (EACCES); publish by rename unless the event
+    // already exists (callers hold the broker lock, so nothing appears in between).
+    if final_path.exists(){
+        // A different review with this id keeps both: the new one stays in its temporary file.
+        let previous:Intent=serde_json::from_value(read_value(&final_path,INTENT_LIMIT)?).map_err(|_|"A retained review needs attention.")?;
+        if previous!=*intent{return Err("A different review already uses this operation id; both versions are retained.".into());}
+    }else if fs::rename(&temporary,&final_path).is_err(){
+        return Err("Could not publish this review safely. It is retained; retry before closing.".into());
     }
     sync_dir(dir)?;let _=fs::remove_file(&temporary);Ok(())
 }
@@ -212,15 +213,15 @@ pub fn study_widget_ack(app:tauri::AppHandle,window:tauri::WebviewWindow,state:t
     for id in ids {let path=dir.join("inbox").join(format!("{id}.json"));if !path.exists(){continue;}
         let value=read_value(&path,INTENT_LIMIT)?;if value.get("scope").and_then(Value::as_str)!=Some(scope.as_str()){return Err("The study workspace changed; this review was retained.".into());}
         let dest=dir.join("processed").join(format!("{id}.json"));
-        match fs::hard_link(&path,&dest){
-            Ok(())=>{},
-            Err(e) if e.kind()==std::io::ErrorKind::AlreadyExists=>{if read_value(&dest,INTENT_LIMIT)?!=value{return Err("A retained review differs from its archive. Both were preserved.".into());}},
-            Err(_)=>return Err("Could not archive a saved review. It remains pending.".into()),
+        // Archive by rename (no hard links on Android): one atomic move from inbox to processed.
+        if dest.exists(){
+            if read_value(&dest,INTENT_LIMIT)?!=value{return Err("A retained review differs from its archive. Both were preserved.".into());}
+            fs::remove_file(&path).map_err(|_|"Could not finish archiving a saved review.")?;
+        }else{
+            fs::rename(&path,&dest).map_err(|_|"Could not archive a saved review. It remains pending.")?;
+            sync_saved_file(&dest)?;
         }
-        // Archive durability precedes removal from the pending queue.
-        sync_saved_file(&dest)?;
         sync_dir(&dir.join("processed"))?;
-        fs::remove_file(&path).map_err(|_|"Could not finish archiving a saved review.")?;
         sync_dir(&dir.join("inbox"))?;
     }notify_widget(&app);Ok(())
 }
