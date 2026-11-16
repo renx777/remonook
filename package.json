@@ -83,7 +83,8 @@
     "gifenc": "^1.0.3",
     "jsdom": "^26.0.0",
     "typescript": "^5.9.0",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "wrangler": "4.157.0"
   },
   "engines": {
     "node": ">=24"

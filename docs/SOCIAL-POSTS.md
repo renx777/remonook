@@ -89,3 +89,46 @@ separate live-provider check rendered X post 20 and observed a provider resize
 to 225 px. Reddit returned a network-security block in this test environment;
 the Instagram sample reported unavailable. Those are external availability
 limits, not passed content-rendering checks for those providers.
+
+## Reddit repair and refined previews
+
+The web staging frontend now includes a narrowly routed `/api/reddit-preview`
+Worker endpoint. Reddit's public RSS can remain available when its iframe is
+blocked. The default preview is an attributed, plain-text card from that feed,
+with a bounded excerpt and Read more; the original link and optional live embed
+remain accessible. It is explicitly a text preview, not a full media archive or
+reproduction of Reddit's comments/votes. Feed errors produce a compact link card.
+No authenticated or private Reddit content is fetched.
+
+Full Reddit links, `redd.it` IDs and `/r/.../s/...` share tokens are recognised.
+Share-token resolution follows at most four HTTPS redirects, restricted to Reddit
+hosts with no credentials or custom ports; failure retains the original. The
+feed fetch uses a fixed public Reddit origin and validated post/comment IDs,
+10-second timeout, 256 KiB response cap and exact feed-entry identity matching.
+XML declarations with external entities are refused. Only plain text reaches
+React. No incoming cookies or account tokens are forwarded. Public previews use
+five-minute edge caching; unavailable previews are cached briefly to limit retries.
+Static assets retain asset-first routing: only this endpoint invokes the Worker.
+No D1/R2, sync-server binding or schema changes are needed.
+
+TikTok public video/photo permalinks use its official embedded player with
+autoplay off. Bluesky public posts use its public handle resolver and isolated
+embed frame; no API key or paid service. Resolve failures and stale requests leave
+notes untouched. TikTok readiness/errors and provider resize messages must match
+the actual frame window and origin. An iframe load event is not treated as proof
+that a Reddit post rendered.
+
+The app's duplicate header and footer around each embed have been replaced with
+one quiet source/actions row. External platform UI remains owned by the provider.
+Loading and unavailable states are compact, mobile touch targets remain usable,
+and Reddit passages expand without growing every card by default.
+
+Other candidates: existing YouTube/Vimeo/Spotify note previews remain available;
+SoundCloud is a useful next music/audio embed. Mastodon needs careful handling of
+instance-specific URLs; arbitrary instance fetching is not introduced. Facebook,
+LinkedIn, Threads and Pinterest need further embed/accessibility review rather
+than promising universal imports. Short TikTok share redirects are not supported.
+
+This endpoint is configured for **web staging only**. A future production or
+native release must supply the equivalent endpoint before enabling Reddit text
+previews there. The current production deployment and native apps remain unchanged.

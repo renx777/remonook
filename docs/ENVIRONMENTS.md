@@ -3,6 +3,28 @@
 ## Current state
 
 
+### Refined post previews prepared for web staging, 16 November 2026
+
+Branch `codex/refined-post-previews` retains the previous social-preview staging
+release through `f75f375`. Reddit short links now resolve through a narrowly
+routed public-RSS endpoint on the **web staging Worker**, independent of
+`remo-sync-staging`. This adds a server handler to the frontend deployment;
+static assets retain asset-first routing. It does not deploy the sync backend.
+
+The owner-provided `/r/GadgetsIndia/s/hr9mfrsrFT` resolves to post `1xxrpor`.
+Its public RSS was fetched and parsed locally with the matching title, author
+and post text. Cloudflare-origin availability must still be checked after deploy.
+
+The design removes duplicate preview framing, renders an attributed Reddit text
+card with Read more, and offers the live embed separately. Public Bluesky posts
+and TikTok players are recognised; an unmocked Bluesky post rendered correctly.
+The TikTok documentation sample reported unavailable; content rendering for that
+sample is not claimed. Existing YouTube/Vimeo/Spotify note embeds remain intact.
+See [SOCIAL-POSTS.md](SOCIAL-POSTS.md) for provider limits and security boundaries.
+No native release, production deployment, sync changes or new secrets are needed.
+
+
+
 ### Social-post previews on web staging, 16 November 2026
 
 Branch `codex/social-post-previews`, application source

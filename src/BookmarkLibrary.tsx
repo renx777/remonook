@@ -834,7 +834,7 @@ function SavePage({
           />
         </label>
         <p className="bl-dialog-copy">
-          Save an article or a public X, Reddit or Instagram post. Social posts
+          Save an article or a public X, Reddit, Instagram, Bluesky or TikTok post. Social posts
           appear as live previews; your link and notes stay in RemoNook.
         </p>
         {error && (
