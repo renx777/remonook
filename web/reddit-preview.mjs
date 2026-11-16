@@ -17,5 +17,5 @@ export async function redditPreview(value,{fetcher=fetch}={}){
  const signal=AbortSignal.timeout(10000),headers={'User-Agent':'Mozilla/5.0 (compatible; RemoNook/1.0; +https://remonook.com)','Accept':'application/atom+xml'};
  if(post.short){let next=post.href;for(let i=0;i<4;i++){const r=await fetcher(next,{method:'GET',redirect:'manual',headers,signal});if(r.status>=400){await r.body?.cancel();throw Object.assign(Error('Reddit share link unavailable'),{upstreamStatus:r.status,code:'REDDIT_SHARE_REJECTED'});}const loc=r.headers.get('Location');await r.body?.cancel();if(!loc)break;const url=new URL(loc,next);if(url.protocol!=='https:'||!['www.reddit.com','reddit.com'].includes(url.hostname)||url.username||url.password||url.port)throw Error('Invalid redirect');next=url.href;const resolved=socialPost(next);if(resolved?.kind==='reddit'&&!resolved.short){post=resolved;break;}}if(post.short)throw Error('Short link unavailable');}
  const feed='https://www.reddit.com/comments/'+post.postId+(post.commentId?'/_/'+post.commentId:'')+'/.rss?limit=1';
- return parseRedditFeed(await bounded(await fetcher(feed,{headers,redirect:'error',signal})),post);
+ return parseRedditFeed(await bounded(await fetcher(feed,{headers,redirect:'manual',signal})),post);
 }
