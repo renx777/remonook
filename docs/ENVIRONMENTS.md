@@ -3,26 +3,51 @@
 ## Current state
 
 
-### Refined post previews prepared for web staging, 16 November 2026
+### Refined post previews on web staging, 16 November 2026
 
-Branch `codex/refined-post-previews` retains the previous social-preview staging
-release through `f75f375`. Reddit short links now resolve through a narrowly
-routed public-RSS endpoint on the **web staging Worker**, independent of
-`remo-sync-staging`. This adds a server handler to the frontend deployment;
-static assets retain asset-first routing. It does not deploy the sync backend.
+Branch `codex/refined-post-previews`, application source
+`8f3eb43aae90400cf52c4a05dad4d6ea4f36553c`, is live on web staging.
+[CI #337](https://github.com/renx777/remonook/actions/runs/43907779765) passed all
+**579 tests** for that source. [Staging frontend #176](https://github.com/renx777/remonook/actions/runs/43907996455)
+passed all **13 sync acceptance checks**, including offline reconnect in 975 ms,
+concurrent edits, device-only isolation and cleanup retaining all 1,589 earlier
+notes. The live source marker matches the branch and full commit.
 
-The owner-provided `/r/GadgetsIndia/s/hr9mfrsrFT` resolves to post `1xxrpor`.
-Its public RSS was fetched and parsed locally with the matching title, author
-and post text. Cloudflare-origin availability must still be checked after deploy.
+The deployed **web staging Worker** (`remonook-staging`) version is
+`04acdfb8-51d0-43e0-b52a-a9020a738ac5`. It now bundles the narrowly routed
+`/api/reddit-preview` endpoint alongside static assets. Only that endpoint runs
+Worker code first; normal assets retain asset-first serving. This is separate
+from `remo-sync-staging`, which was not deployed or changed. No new secrets,
+D1/R2 bindings, storage migrations, native app publication or production release
+were performed. Sync-backend health exactly matches the pre-release snapshot,
+including `syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`,
+`bookmarkReader: 1` and retained Google Tasks/books/capture/MCP capabilities.
 
-The design removes duplicate preview framing, renders an attributed Reddit text
-card with Read more, and offers the live embed separately. Public Bluesky posts
-and TikTok players are recognised; an unmocked Bluesky post rendered correctly.
-The TikTok documentation sample reported unavailable; content rendering for that
-sample is not claimed. Existing YouTube/Vimeo/Spotify note embeds remain intact.
-See [SOCIAL-POSTS.md](SOCIAL-POSTS.md) for provider limits and security boundaries.
-No native release, production deployment, sync changes or new secrets are needed.
+The owner's `/r/GadgetsIndia/s/hr9mfrsrFT` link resolves to post `1xxrpor`.
+**Unmocked live staging acceptance returned HTTP 200** and rendered its actual
+post title, author, community and text. Its optional thumbnail loaded successfully
+on demand. The live-embed action uses the resolved `/comments/1xxrpor/` permalink,
+not the short-link path. Personal-note saving and Undo passed on the live app;
+desktop/mobile screenshots were inspected. The deterministic browser suite also
+passed on staging, including light/dark, offline fallback and the existing
+X/Instagram/Reddit flows; its external responses are fixtures.
 
+Previews use one quiet source/actions row. Reddit text cards clamp long passages
+until Read more, and images load only after Show image. Public Bluesky embeds
+were verified against a live post. TikTok video/photo links use the official
+player with autoplay off, but the documentation sample was unavailable; successful
+media rendering for that sample is not claimed. Existing YouTube/Vimeo/Spotify
+note embeds remain intact. See [SOCIAL-POSTS.md](SOCIAL-POSTS.md).
+
+The first candidate's Reddit API failed before contacting Reddit because Node
+accepts `fetch` redirect mode `error`, while Workers supports only `follow` or
+`manual`. This was initially mistaken for a provider-access failure. The corrected
+handler uses `manual`, and a real Miniflare/workerd regression test verifies short
+resolution, feed parsing, absence of forwarded credentials and caching. Earlier
+staging runs also encountered authentication/network failures during sync-test
+cleanup; the final #176 passed without changing the sync transport or relaxing
+acceptance. Public/private/deleted content and provider rate limits still govern
+preview availability. Reddit text previews are not archival media imports.
 
 
 ### Social-post previews on web staging, 16 November 2026
