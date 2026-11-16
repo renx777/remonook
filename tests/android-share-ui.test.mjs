@@ -192,3 +192,9 @@ test("switching account while reviewing a share hides its text and disables inse
     await act(async () => root.unmount());
   }
 });
+
+test('caption plus social URL defaults to Bookmark and keeps the entire supplied text', async()=>{
+ const root=createRoot(document.getElementById('root'));queue=[{...original,text:'A useful thread\nhttps://twitter.com/jack/status/20?s=1'}];let captured;
+ try{await act(()=>root.render(React.createElement(IncomingAndroidShare,{ready:true,onSave:async(entry,text,kind)=>{captured={text,kind};}})));await until(()=>button('Save'));assert.equal(document.querySelector('select').value,'bookmark');assert.match(document.body.textContent,/live preview will be available/);await act(()=>button('Save').click());await until(()=>acks===1);assert.equal(captured.kind,'bookmark');assert.equal(captured.text,'A source\n\n'+queueText());}finally{await act(()=>root.unmount());}
+ function queueText(){return 'A useful thread\nhttps://twitter.com/jack/status/20?s=1';}
+});

@@ -82,7 +82,7 @@ import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
 import {ReminderTabs,ReminderEditor,useReminderClock,type ReminderTarget} from './CalendarReminders';
 import {CalendarAgenda,MiniMonth,WorkdaysLine} from './CalendarAgenda';
-import {articleSnapshotHashes} from './bookmarks.mjs';
+import {articleSnapshotHashes,bookmarkNote} from './bookmarks.mjs';
 import {CalendarTrackers} from './CalendarTrackers';
 import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
 import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
@@ -1923,7 +1923,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
         ) : tab === "bookmarks" ? (
-          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
+          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onSaveSocialNote={async(bookmarkId,text,id)=>{
+            const owner=storageAccountKey();if(failed.current)throw Error('Saving needs attention. Your draft is kept.');
+            await flush();if(failed.current||owner!==storageAccountKey())throw Error('The workspace changed or saving needs attention. Your draft is kept.');
+            const current=docRef.current!,bookmark=current.web.bookmarks?.[bookmarkId];if(!bookmark||bookmark.deleted)throw Error('This bookmark was removed. Your draft is kept.');
+            const prior=current.tables.bullets.find(n=>n.id===id);if(prior&&prior.text!==text)throw Error('An earlier version is in your notes. Your draft is kept.');
+            if(!prior){const next=bookmarkNote(current,bookmark,text,id);commit(withNodes(next,next.tables.bullets as Node[]));}
+            await flush();if(failed.current||owner!==storageAccountKey()||!persisted.current?.tables.bullets.some(n=>n.id===id))throw Object.assign(Error('The note could not finish saving. Your draft is kept; retry after saving recovers.'),{captureApplied:true});
+          }} onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onNotes={id=>navigateTo(id)} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/></React.Suspense>
         ) : tab === "study" ? (

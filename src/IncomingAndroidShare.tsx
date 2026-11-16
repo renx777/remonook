@@ -1,3 +1,4 @@
+import {sharedWebLink, socialPost} from "./social-posts.mjs";
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { desktopInvoke, isMobileApp } from "./desktop";
@@ -87,7 +88,7 @@ export function IncomingAndroidShare({
           );
           setKind(
             draft?.kind ||
-              (/^https?:\/\/\S+$/.test(item.text.trim()) ? "bookmark" : "note"),
+              (sharedWebLink(item.text) ? "bookmark" : "note"),
           );
           setError("");
           setOpen(true);
@@ -233,6 +234,7 @@ export function IncomingAndroidShare({
                     <option value="bookmark">Bookmark</option>
                   </select>
                 </label>
+                {kind==="bookmark"&&socialPost(sharedWebLink(text)||"")&&<p className="incoming-share-post-hint">{socialPost(sharedWebLink(text)||"")!.provider} post · a live preview will be available in Bookmarks. Shared text is kept as a note.</p>}
                 <label>
                   Shared text
                   <textarea

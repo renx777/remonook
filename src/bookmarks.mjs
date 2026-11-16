@@ -1,8 +1,10 @@
+import {socialPost} from "./social-posts.mjs";
 import {bullet} from './domain.mjs';
-export function bookmarkUrl(value){const url=new URL(value);if(!['https:','http:'].includes(url.protocol)||url.username||url.password||url.href.length>4096)throw Error('Enter a public http or https address.');url.hash='';return url.href;}
+export function bookmarkUrl(value){const url=new URL(value);if(!['https:','http:'].includes(url.protocol)||url.username||url.password||url.href.length>4096)throw Error('Enter a public http or https address.');url.hash='';return socialPost(url.href)?.href||url.href;}
 export const bookmarksIn=doc=>Object.values(doc.web.bookmarks||{}).filter(b=>!b.deleted);
-export function addBookmark(doc,value){const url=bookmarkUrl(value),existing=bookmarksIn(doc).find(b=>b.url===url);if(existing)return{doc,bookmark:existing};const bookmark={id:crypto.randomUUID(),url,title:new URL(url).hostname,createdAt:Date.now(),tags:[],read:false,favourite:false,archived:false,deleted:false};return{doc:patchBookmark(doc,bookmark.id,bookmark),bookmark};}
+export function addBookmark(doc,value){const url=bookmarkUrl(value),existing=bookmarksIn(doc).find(b=>bookmarkUrl(b.url)===url);if(existing)return{doc,bookmark:existing};const bookmark={id:crypto.randomUUID(),url,title:socialPost(url)?.title||new URL(url).hostname,createdAt:Date.now(),tags:[],read:false,favourite:false,archived:false,deleted:false};return{doc:patchBookmark(doc,bookmark.id,bookmark),bookmark};}
 export function patchBookmark(doc,id,patch){return{...doc,web:{...doc.web,bookmarks:{...doc.web.bookmarks,[id]:{...doc.web.bookmarks?.[id],...patch,id}}}};}
+/** @param {string} id */
 export function bookmarkNote(doc,bookmark,text,id=crypto.randomUUID(),source={}){
  const nodes=[...doc.tables.bullets],used=new Set(nodes.map(n=>n.id));for(const entry of doc.tables.trash||[]){let trashed=entry.nodes;try{if(!Array.isArray(trashed)&&typeof entry.payload==='string')trashed=JSON.parse(entry.payload).nodes;}catch{}if(Array.isArray(trashed))for(const node of trashed)used.add(node.id);}
  const available=base=>{let next=base,index=0;while(used.has(next))next=base+'-'+(++index);return next;};

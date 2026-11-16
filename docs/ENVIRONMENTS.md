@@ -3,6 +3,29 @@
 ## Current state
 
 
+### Social-post previews prepared for web staging, 16 November 2026
+
+Branch `codex/social-post-previews` starts from current `origin/main` and retains
+all current staging work through `592c1aa890e8a490b98a58bb18c3d68434bcac2d`
+(`ccr-641b18bf-2fe80f`), including the post-release Android rename fixes and
+view-outline corrections. See [SOCIAL-POSTS.md](SOCIAL-POSTS.md) for scope,
+provider limitations, Android follow-ups and the validation plan.
+
+The feature adds live X/Twitter, Reddit and Instagram post embeds to notes and
+Bookmarks, source-linked personal notes with durable-save confirmation, local
+draft recovery, and caption-plus-link recognition for incoming Android shares.
+It needs no paid API, new secrets, backend deployment, migration or sync protocol
+change. The first release targets **web staging only**; native binaries and
+production are unchanged.
+
+Deployment is pending staging coordination. At preparation time, the live
+frontend marker reports branch `ccr-641b18bf-2fe80f` at the commit above. The owner
+has been asked before replacing that branch under the AGENTS.md staging rule.
+Do not treat the feature branch as deployed until the workflow and live source
+marker have been verified and this record updated.
+
+
+
 ### Incoming Android sharing and dedicated outlines, 16 November 2026
 
 Branch `codex/android-share-view-outlines`, application source
