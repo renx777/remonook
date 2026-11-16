@@ -1,0 +1,165 @@
+.study-widget-window {
+  --widget-ink: #283238;
+  --widget-muted: #6e7b80;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 22px 24px;
+  background: #f7f6f2;
+  color: var(--widget-ink);
+  font:
+    14px/1.6 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.study-widget-window * {
+  box-sizing: border-box;
+}
+.study-widget-window header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.study-widget-window header strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 550;
+}
+.study-widget-window small {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--widget-muted);
+}
+.study-widget-window button,
+.study-widget-window select {
+  color: inherit;
+  border: 1px solid #dce0dc;
+  background: transparent;
+  border-radius: 7px;
+  padding: 9px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.study-widget-window button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.study-widget-window button:focus-visible,
+.study-widget-window select:focus-visible {
+  outline: 2px solid #438391;
+  outline-offset: 2px;
+}
+.study-widget-deck {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--widget-muted);
+}
+.study-widget-deck select {
+  min-width: 0;
+  flex: 1;
+  width: 100%;
+  font-size: 13px;
+  background: #fff;
+}
+.study-widget-window article {
+  padding: 16px 0;
+  border-top: 1px solid #dce0dc;
+}
+.study-widget-window article p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 10px 0 0;
+  font-size: 19px;
+  line-height: 1.55;
+}
+.study-widget-window .study-widget-answer p {
+  font-size: 16px;
+}
+.study-widget-window .primary {
+  background: #357a86;
+  color: #fff;
+  border-color: #357a86;
+  width: 100%;
+}
+.study-widget-window kbd {
+  font: 10px inherit;
+  opacity: 0.6;
+  margin-left: 7px;
+}
+.study-widget-grades {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+}
+.study-widget-grades button {
+  padding: 10px 4px;
+  font-size: 12px;
+}
+.study-widget-grades kbd {
+  display: block;
+  margin: 0;
+}
+.study-widget-status {
+  font-size: 11px;
+  color: var(--widget-muted);
+  margin: 0;
+}
+.study-widget-open {
+  align-self: flex-start;
+  font-size: 12px !important;
+  border: 0 !important;
+  padding: 0 !important;
+  color: #357a86 !important;
+}
+.study-widget-empty h1 {
+  font-family: Georgia, serif;
+  font-size: 25px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+.study-widget-empty p {
+  font-size: 13px;
+  color: var(--widget-muted);
+}
+.study-widget-error {
+  font-size: 12px;
+  color: #a03c3c;
+}
+.native-widget-settings {
+  padding-top: 24px;
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.native-widget-enable {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.native-widget-settings > button {
+  margin: 8px 12px 8px 0;
+}
+.native-widget-settings > p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (prefers-color-scheme: dark) {
+  .study-widget-window {
+    --widget-ink: #dedfdb;
+    --widget-muted: #9da7a6;
+    background: #181d1e;
+  }
+  .study-widget-window button,
+  .study-widget-window select,
+  .study-widget-window article {
+    border-color: #394243;
+  }
+  .study-widget-deck select {
+    background: #21292b;
+  }
+}

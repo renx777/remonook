@@ -59,6 +59,8 @@ jobs:
           else
             cp .env.staging.example .env.staging.local && npm run build:staging
           fi
+      - name: Test native study widget pagination
+        run: bash scripts/test-android-study-widget.sh
       - name: Build and sign the APK
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
