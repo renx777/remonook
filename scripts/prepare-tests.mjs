@@ -32,3 +32,5 @@ await build({
   loader: { ".css": "empty" },
   define: { "import.meta.env.PROD": "false" },
 });
+
+await build({entryPoints:["tests/fixtures/android-share-harness.ts"],bundle:true,packages:"external",outfile:"tests/.build/android-share-harness.mjs",format:"esm",platform:"node",jsx:"automatic",loader:{".css":"empty"}});

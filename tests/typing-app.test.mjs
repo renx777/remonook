@@ -1,3 +1,4 @@
+import {studyOutline} from './view-outline-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
@@ -24,7 +25,7 @@ test('rapid editor transactions publish immediately to structural commands and d
  const doc=withNodes(empty(),[bullet('q',{text:'Question?',kind:'QUESTION'}),bullet('answer',{parentId:'q',text:'Answer'})]);
  await save(null,doc);let app;
  try{
-  await act(async()=>{app=await import('./.build/app.mjs');});
+  await act(async()=>{app=await import('./.build/app.mjs');});await studyOutline();
   await wait(()=>document.querySelector('[data-node-id="answer"] .text-button'));
   await act(async()=>document.querySelector('[data-node-id="answer"] .text-button').click());
   const editor=document.querySelector('.tiptap').editor;

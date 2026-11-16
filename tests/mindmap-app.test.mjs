@@ -41,8 +41,8 @@ const key = async value => act(async () => document.querySelector('.tiptap').dis
 test('mindmap converts branches, renders a read-only tree, navigates back to notes, and toggles off', async () => {
   await save(null, withNodes(empty(), [bullet('top', { text: 'Top' }), bullet('plan', { parentId: 'top', text: 'Plan', mindmap: true }), bullet('a', { parentId: 'plan', text: 'Alpha' }), bullet('b', { parentId: 'a', text: 'Beta' }), bullet('other', { position: 1, text: 'Other' })])); let app;
   try {
-    await act(async () => { app = await import('./.build/app.mjs'); }); await wait(() => document.querySelector('[data-node-id="plan"]'));
-    assert.ok(document.querySelector('[data-node-id="plan"] .bullet-mindmap-open'), 'mindmap root row shows badge');
+    await act(async () => { app = await import('./.build/app.mjs'); }); await wait(() => document.querySelector('[data-node-id="top"]'));
+    assert.equal(document.querySelector('[data-node-id="plan"]'),null,'Mindmap content lives in its dedicated view');
     assert.ok(document.querySelector('[data-node-id="top"] .bullet-mindmap-open'), 'ancestor row shows badge');
     assert.equal(document.querySelector('[data-node-id="other"] .bullet-mindmap-open'), null, 'unrelated branch has no badge');
     await click('[data-node-id="top"] .bullet-mindmap-open'); await wait(() => document.querySelector('.mindmap-view'));
@@ -55,25 +55,25 @@ test('mindmap converts branches, renders a read-only tree, navigates back to not
     assert.ok(betaNode.classList.contains('is-selected'), 'clicking a node selects it in place');
     assert.equal(document.querySelector('.zoomed-title'), null, 'clicking a node no longer navigates to Notes');
     assert.equal(navButton('Mindmap').getAttribute('aria-current'), 'page');
-    await click(betaNode.querySelector('[aria-label="Open in Notes"]'));
+    await click(betaNode.querySelector('[aria-label="Open outline"]'));
     await wait(() => document.querySelector('.zoomed-title'));
-    assert.equal(document.querySelector('.zoomed-title').value, 'Beta', 'Open in Notes opens its bullet in Notes');
-    assert.equal(navButton('Notes').getAttribute('aria-current'), 'page');
-    await click(navButton('Mindmap')); await wait(() => document.querySelector('.mindmap-library'));assert.ok(document.querySelector('.mindmap-snapshot [data-preview-node="a"]'),'library snapshot renders the actual Alpha branch');assert.match(document.querySelector('.mindmap-snapshot').textContent,/Plan/);assert.match(document.querySelector('.mindmap-snapshot').textContent,/Alpha/);await click([...document.querySelectorAll('.mindmap-library-grid button')].find(b=>b.querySelector('strong').textContent==='Plan'));await wait(()=>document.querySelector('.mindmap-view'));
+    assert.equal(document.querySelector('.zoomed-title').value, 'Beta', 'Open outline opens its bullet in Notes');
+    assert.equal(navButton('Mindmap').getAttribute('aria-current'), 'page');
+    await click(navButton('Mindmap'));await click('.outline-view-toggle');await wait(() => document.querySelector('.mindmap-library'));assert.ok(document.querySelector('.mindmap-snapshot [data-preview-node="a"]'),'library snapshot renders the actual Alpha branch');assert.match(document.querySelector('.mindmap-snapshot').textContent,/Plan/);assert.match(document.querySelector('.mindmap-snapshot').textContent,/Alpha/);await click([...document.querySelectorAll('.mindmap-library-grid button')].find(b=>b.querySelector('strong').textContent==='Plan'));await wait(()=>document.querySelector('.mindmap-view'));
     assert.equal(document.querySelectorAll('.mind-node').length, 3, 'a child scope resolves to its mindmap root');
     await click(navButton('Notes')); await wait(() => document.querySelector('[data-node-id="other"]'));
     await click('[data-node-id="other"] .bullet-dot-btn'); await wait(() => document.querySelector('.zoomed-title'));
     await click(navButton('Mindmap'));await wait(()=>document.querySelector('.mindmap-library'));assert.equal(document.querySelectorAll('.mindmap-library-grid>button').length,1,'all maps are listed regardless of note scope');
     await click(navButton('Notes'));await wait(()=>document.querySelector('[data-node-id="other"] .row-end [aria-label="Bullet actions"]'));
-    await click('[data-node-id="other"] .row-end [aria-label="Bullet actions"]');await wait(()=>document.querySelector('.bullet-actions-menu'));await click(textButton('.bullet-actions-menu button','Mindmap'));await wait(()=>document.querySelector('[data-node-id="other"] .bullet-mindmap-open'));await click('[data-node-id="other"] .bullet-mindmap-open');await wait(()=>document.querySelector('.mindmap-view'));
+    await click('[data-node-id="other"] .row-end [aria-label="Bullet actions"]');await wait(()=>document.querySelector('.bullet-actions-menu'));await click(textButton('.bullet-actions-menu button','Mindmap'));await click(navButton('Mindmap'));await wait(()=>document.querySelector('.mindmap-library'));await click([...document.querySelectorAll('.mindmap-library-grid button')].find(b=>b.querySelector('strong').textContent==='Other'));await wait(()=>document.querySelector('.mindmap-view'));
     assert.equal(document.querySelectorAll('.mind-node').length, 1);
     assert.equal(document.querySelector('.mindmap-root-label span').textContent, 'Other');
-    await click(navButton('Notes')); await wait(() => document.querySelector('[data-node-id="other"] .bullet-mindmap-open'));
+    await click('.outline-view-toggle');await wait(() => document.querySelector('[data-node-id="other"] .bullet-mindmap-open'));
     await click('[data-node-id="other"] .row-end [aria-label="Bullet actions"]'); await wait(() => document.querySelector('.bullet-actions-menu'));
     await click(textButton('.bullet-actions-menu button', 'Remove mindmap'));
     await wait(() => document.querySelector('.toast'));
     assert.match(document.querySelector('.toast').textContent, /Mindmap removed/);
-    assert.equal(document.querySelector('[data-node-id="other"] .bullet-mindmap-open'), null, 'badge disappears after removing the mindmap');
+    await click(navButton('Notes'));await wait(()=>document.querySelector('[data-node-id="other"]'));assert.equal(document.querySelector('[data-node-id="other"] .bullet-mindmap-open'),null);
     await click('[data-node-id="other"] .text-button'); await wait(() => document.querySelector('.tiptap'));
     let editor = document.querySelector('.tiptap').editor;
     const type = async text => act(async () => { editor.commands.focus(); editor.commands.insertContent(text); });
@@ -82,10 +82,8 @@ test('mindmap converts branches, renders a read-only tree, navigates back to not
     assert.ok([...document.querySelectorAll('.slash-menu [role="option"]')].some(o => o.textContent.includes('Mindmap')), 'slash menu offers Mindmap');
     await key('Enter');
     await key('Escape');
-    await wait(() => document.querySelector('[data-node-id="other"] .bullet-mindmap-open'));
-    assert.ok(document.querySelector('[data-node-id="other"] .bullet-mindmap-open'), 'slash command converts the branch');
-    await wait(() => document.querySelector('[data-node-id="other"] .bullet-mindmap-open'));
-    assert.ok(document.querySelector('[data-node-id="other"] .bullet-mindmap-open'), 'slash command converts the branch');
+    await wait(async () => (await load()).tables.bullets.find(n=>n.id==='other')?.mindmap);
+    assert.equal(document.querySelector('[data-node-id="other"]'),null,'finished mindmap edits belong in the dedicated view');
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 1200)); });
   } finally { if (app) await act(async () => app.appRoot.unmount()); }
 });
@@ -103,8 +101,8 @@ test('mindmap branches expand, collapse, rename, add and delete nodes', async ()
   const dblclick = async selector => act(async () => document.querySelector(selector).dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true })));
   try {
     await act(async () => { app = await import('./.build/app.mjs?interactive=1'); });
-    await wait(() => document.querySelector('[data-node-id="plan"]'));
-    await click('[data-node-id="plan"] .bullet-mindmap-open'); await wait(() => document.querySelector('.mindmap-view'));
+    await wait(() => document.querySelector('[data-node-id="top"]'));
+    await click('[data-node-id="top"] .bullet-mindmap-open'); await wait(() => document.querySelector('.mindmap-view'));
     assert.equal(document.querySelectorAll('.mind-node').length, 4, 'tree renders root plus children');
     await click('.react-flow__node[data-id="plan"] .mind-toggle');
     await wait(() => document.querySelectorAll('.mind-node').length === 1);
@@ -117,7 +115,7 @@ test('mindmap branches expand, collapse, rename, add and delete nodes', async ()
     await wait(() => document.querySelectorAll('.mind-node').length === 4);
     await click('.react-flow__node[data-id="a"] .mind-toggle');
     await wait(() => document.querySelectorAll('.mind-node').length === 3);
-    await click(navButton('Notes')); await wait(() => document.querySelector('[data-node-id="a"]'));
+    await click(navButton('Notes'));await wait(()=>document.querySelector('[data-node-id="top"]'));await click('[data-node-id="top"] .bullet-dot-btn');await wait(() => document.querySelector('[data-node-id="a"]'));
     assert.equal(document.querySelector('[data-node-id="b"]'), null, 'collapse in the mindmap hides the branch in the outline too');
     await click('[data-node-id="plan"] .bullet-mindmap-open'); await wait(() => document.querySelectorAll('.mind-node').length === 3);
     await click('.react-flow__node[data-id="a"] .mind-toggle');
@@ -160,9 +158,9 @@ test('mindmap branches expand, collapse, rename, add and delete nodes', async ()
     await click('.react-flow__node[data-id="a"] .mind-node');
     await wait(() => node('a').querySelector('.mind-node.is-selected'));
     assert.equal(navButton('Mindmap').getAttribute('aria-current'), 'page', 'clicking selects the node without leaving the mindmap');
-    await click('.react-flow__node[data-id="a"] [aria-label="Open in Notes"]');
+    await click('.react-flow__node[data-id="a"] [aria-label="Open outline"]');
     await wait(() => document.querySelector('.zoomed-title'));
-    assert.equal(document.querySelector('.zoomed-title').value, 'Alpha', 'Open in Notes opens its bullet in Notes');
-    assert.equal(navButton('Notes').getAttribute('aria-current'), 'page');
+    assert.equal(document.querySelector('.zoomed-title').value, 'Alpha', 'Open outline opens its bullet in Notes');
+    assert.equal(navButton('Mindmap').getAttribute('aria-current'), 'page');
   } finally { if (app) await act(async () => app.appRoot.unmount()); dom.window.close(); }
 });

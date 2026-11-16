@@ -1,3 +1,5 @@
+import {IncomingAndroidShare} from './IncomingAndroidShare';
+import {incomingShare} from './android-share.mjs';
 import {retireDesktopOfflineShell} from './desktop';
 import {restoreLocalBook,isBookPath} from './local-books';
 import {AiAssistBoundary} from './AiAssistBoundary';
@@ -94,7 +96,7 @@ import { SelectionFormatting } from "./SelectionFormatting";
 import { textColors } from "./color-palettes";
 import { prepareCoverImage, type DeckDesign } from "./deck-designs";
 import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
-import { NOTE_FILTERS, noteCatalog } from "./notes-filter.mjs";
+import { NOTE_FILTERS, noteCatalog, outlineDestination, ordinaryNoteProjection } from "./notes-filter.mjs";
 import { TagHeader } from "./TagHeader";
 import { isTagQuery, sanitizeTagSettings, setTagRegistry, renameTagInNodes, renameTagSettings, resolveDateTags, hasTag, tagKey } from "./tags.mjs";
 import { TagSettingsContext } from "./TagSettingsContext";
@@ -548,7 +550,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
   const [emptyTrashIds,setEmptyTrashIds]=React.useState<string[]>([]);
   const calendarToday=useReminderClock();
-  const [notesFilter,setNotesFilter]=useState('all');
+  const [viewOutlines,setViewOutlines]=useState<Record<string,boolean>>({});
+  const [outlineScopes,setOutlineScopes]=useState<Record<string,string|null>>({});
+  const dedicatedKind=({study:'study',calendar:'calendar',mindmap:'mindmaps',bookmarks:'bookmarks',bookshelf:'docs'} as Record<string,string>)[tab];
+  const dedicatedOutline=!!dedicatedKind&&!!viewOutlines[tab];
+  const notesFilter=tab==='notes'?'notes':dedicatedKind||'notes';
+  const outlinePanes=tab==='notes'?views.panes:[{...views.active,scope:outlineScopes[tab]||null}];
   const [tablePicker,setTablePicker]=useState<string|null>(null);
   const [tagEditor,setTagEditor]=useState<string|null>(null);
   const tagSettings=React.useMemo(()=>sanitizeTagSettings(doc?.web?.tags),[doc?.web?.tags]);
@@ -593,9 +600,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setEditing(null);setSearch('');if(view==='mindmap')setMindmapTarget(null);setTab(view);setViewHint({view,at:Date.now()});
   };
   useViewSwipe(tab,()=>tab==='notes'||tab==='study'||(tab==='mindmap'&&!!document.querySelector('.mindmap-library'))||(tab==='bookmarks'&&!!document.querySelector('.bookmark-library'))||(tab==='bookshelf'&&!document.querySelector('.book-reader')),view=>void swipeTo(view));
-  const notesCatalog=React.useMemo(()=>doc&&tab==='notes'?noteCatalog(doc):null,[tab,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots]);
+  const notesCatalog=React.useMemo(()=>doc&&(tab==='notes'||dedicatedOutline)?noteCatalog(doc):null,[tab,dedicatedOutline,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots]);
+  const ordinaryProjection=React.useMemo(()=>notesCatalog?ordinaryNoteProjection(notesCatalog,editing):null,[notesCatalog,editing]);
   const notesFilterCounts=React.useMemo(()=>notesCatalog?.counts(views.active.global&&views.active.search?null:views.active.scope)||{},[notesCatalog,views.active.scope,views.active.global,views.active.search]) as Record<string,number>;
-  const notesFilterRoots=React.useMemo(()=>notesCatalog?Object.fromEntries(views.panes.map(pane=>[pane.id,notesCatalog.roots(notesFilter,pane.global&&pane.search?null:pane.scope)||[]])):null,[notesCatalog,notesFilter,views.panes]) as Record<string,string[]>|null;
+  const notesFilterRoots=React.useMemo(()=>notesCatalog?Object.fromEntries(outlinePanes.map(pane=>{
+    if((pane.global&&pane.search)||(tab==='notes'&&pane.search.trim())||pane.scope)return [pane.id,notesCatalog.roots('all',pane.global&&pane.search?null:pane.scope)||[]];
+    return [pane.id,tab==='notes'?ordinaryProjection?.roots||[]:notesFilter==='study'?notesCatalog.roots('study',pane.scope)||[]:notesCatalog.roots(notesFilter,pane.scope)||[]];
+  })):null,[notesCatalog,ordinaryProjection,notesFilter,views.panes,tab,outlineScopes,search]) as Record<string,string[]>|null;
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
@@ -1077,7 +1088,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       if(!rootSplitHere)id=instance.mirrorSourceId;
     }
 
-    const outlineScope = tab === "calendar" ? `journal-${calendarDate}` : scope;
+    const outlineScope = dedicatedOutline ? outlineScopes[tab]||null : tab === "calendar" ? `journal-${calendarDate}` : scope;
     if (
       ["enter", "merge"].includes(action) &&
       unsupportedFormatting(
@@ -1536,11 +1547,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const starred: string[] = Array.isArray(doc.web.starredNodes) ? doc.web.starredNodes : [],
     savedSearches: string[] = Array.isArray(doc.web.starredSearches) ? doc.web.starredSearches : [];
   const navigateTo = (id: string | null) => {
-    setTab("notes");
-    setScope(id);
-    setEditing(null);
-    setSearch("");
-    setDialog(null);
+    const destination=id?outlineDestination(docRef.current!,id):'notes';
+    setTab(destination);
+    if(destination==='notes')setScope(id);
+    else{setViewOutlines(value=>({...value,[destination]:true}));setOutlineScopes(value=>({...value,[destination]:id}));}
+    setEditing(null);setSearch('');setDialog(null);
   };
   const theme =
     (ap.theme === "System"
@@ -1629,7 +1640,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               </button>
             ))}
           </nav>
-          <OutlineSidebar nodes={nodes} scope={scope} starred={starred} savedSearches={savedSearches} search={search} tagSettings={tagSettings} onEditTag={setTagEditor} disabled={disabled} onNavigate={navigateTo} onSearch={query => { navigateTo(null); setNotesFilter('all'); setSearch(query); }} onAdd={parent => { setTab("notes"); setScope(parent); setSearch(""); add(parent); }} />
+          <OutlineSidebar nodes={nodes} scope={scope} starred={starred} savedSearches={savedSearches} search={search} tagSettings={tagSettings} onEditTag={setTagEditor} disabled={disabled} onNavigate={navigateTo} onSearch={query => { navigateTo(null);  setSearch(query); }} onAdd={parent => { setTab("notes"); setScope(parent); setSearch(""); add(parent); }} />
           {doc&&<NowBar placement="sidebar" doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>}
           <SidebarFooter signal={cloud.signal} signedIn={!!cloudUser} failed={failed.current} trashCount={doc.tables.trash.length} onSync={()=>cloud.sync()} onTrash={()=>setDialog("trash")} onSettings={()=>setDialog("settings")} onHelp={()=>setDialog("help")} onShortcuts={()=>setDialog("shortcuts")} onHome={async()=>{await flush();if(failed.current){showError(Error('Save or export your changes before returning home.'));return;}window.location.hash='home';}}/>
         </div>
@@ -1637,12 +1648,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   );
   return (
     <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
-    <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setNotesFilter('all');setSearch(tag);},onMirror:mirrorHere}}>
+    <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
       await chooseEmoji(item, true);
     }}>
-    <div className="app" data-theme={theme} data-page={tab} data-editing={!!selected && (tab==='notes'||tab==='calendar')} style={style}>
+    <div className="app" data-theme={theme} data-page={tab} data-outline={dedicatedOutline} data-editing={!!selected && (tab==='notes'||tab==='calendar'||dedicatedOutline)} style={style}>
       {renderSidebar()}
       {mobileSidebar&&<Dialog title="Navigation" className="mobile-sidebar-dialog" onClose={()=>setMobileSidebar(false)}><div onClick={event=>{if((event.target as HTMLElement).closest('.sidebar-nav button,.outline-sidebar>button,.outline-sidebar .sidebar-tag,.outline-sidebar .sidebar-tag-more,.sidebar-footer [aria-label="Settings"],.sidebar-footer [aria-label^="Trash"],.sidebar-help-menu [role="menuitem"]'))setMobileSidebar(false);}}>{renderSidebar(true)}</div></Dialog>}
 
@@ -1663,6 +1674,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </button>
           {/* Phones have no sidebar: the workspace switcher sits at the start of the top bar. */}
           <div className="mobile-workspace"><WorkspaceSwitcher/></div>
+          {dedicatedOutline&&outlineScopes[tab]&&<button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={()=>{const parent=idx.byId.get(outlineScopes[tab]!)?.parentId;setOutlineScopes(value=>({...value,[tab]:parent&&outlineDestination(docRef.current!,parent)===tab?parent:null}));setEditing(null);}}><Icon name="back" size={16}/></button>}
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
           <div className="breadcrumbs">
@@ -1713,7 +1725,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
           <div className="topbar-right">
             <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
-            {tab !== "bookmarks" && tab !== "canvas" && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
+            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
               className={`icon-button completed-toggle ${paneCompleted ? "is-active" : ""}`}
@@ -1744,6 +1756,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="redo" />
             </button>
             <button className="icon-button" aria-label="Commands & notes" title={`Commands & notes (${modLabel()} K)`} onClick={()=>{if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="commands" size={17}/></button>
+            {dedicatedKind&&<button className={`outline-view-toggle ${dedicatedOutline?'is-active':''}`} aria-pressed={dedicatedOutline} onClick={async()=>{await flush();if(failed.current)return;setEditing(null);setSearch('');if(!viewOutlines[tab])setOutlineScopes(value=>({...value,[tab]:null}));setViewOutlines(value=>({...value,[tab]:!value[tab]}));}}><Icon name="notes" size={16}/>Outline</button>}
             {doc&&<ViewStats doc={doc} tab={tab} scope={scope} scopeTitle={String(current?.text||'').replace(/<[^>]*>/g,'').trim()} calendarDate={calendarDate} counts={notesFilterCounts} kinds={NOTE_FILTERS as any}/>}
             <button data-guide-help className="icon-button" aria-label="Show me how" title="Show me how" onClick={()=>{setViewMenu(false);setMenu(null);setDialog("help");}}><Icon name="help" size={17}/></button>
             <CloudDeviceSaveIndicator signal={deviceStatus} isPending={()=>!!cloudUser&&(dirty.current||persisted.current?.revision!==cloud.acknowledgedRevision)} cloudSignal={cloud.signal} connected={!!cloudUser} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
@@ -1753,6 +1766,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <ProfileMenu user={cloudUser} environment={APP_ENV} signal={cloud.signal} onSync={()=>cloud.sync()} onSettings={panel=>{setSettingsPanel(panel);setDialog('settings');}} onSignIn={()=>void accountAction()} onSignOut={()=>void accountAction(true)}/>
           </div>
         </header>
+        <IncomingAndroidShare accountLabel={cloudUser?.email||'On this device'} ready={!!doc&&!working&&!failed.current} onSave={async(entry,text,kind,owner)=>{
+          if(fatal)throw Error('Saving needs attention before capturing this share.');
+          if(failed.current){failed.current=false;setError(null);}
+          await flush();if(failed.current||storageAccountKey()!==owner)throw Error('Saving or the destination workspace needs attention.');
+          const result=incomingShare(docRef.current!,entry,text,kind);
+          if(result.doc!==docRef.current)commit(result.doc);
+          await flush();if(failed.current)throw Object.assign(Error('Your share is in the editor but could not be saved. Retry saving; its original remains on this device.'),{captureApplied:true});
+          setNotice(kind==='bookmark'?'Bookmark saved.':'Saved to Inbox.');
+        }}/>
         {viewHint&&<div className="view-dots" role="status" aria-live="polite">{SWIPE_VIEWS.map(v=><span key={v} className={v===viewHint.view?'is-current':''}>{v===viewHint.view?SWIPE_LABELS[v]:''}</span>)}</div>}
         {error && (
           <div className="error-banner" role="alert">
@@ -1777,27 +1799,20 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             </button>
           </div>
         )}
-        {tab === "notes" ? (
+        {tab === "notes" || dedicatedOutline ? (
           <>
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
             {isTagQuery(search)&&<TagHeader nodes={nodes} tag={search.trim()} settings={tagSettings} disabled={disabled} onEdit={setTagEditor} onFlashcards={ids=>{const set=new Set(ids);if(mutate(ns=>ns.map(n=>set.has(n.id)&&n.kind==='NOTE'?{...n,kind:'QUESTION'}:n)))setNotice(`Made ${ids.length} flashcard${ids.length===1?'':'s'}. Answers are the bullets under each question.`);}} onTag={tag=>{setSearch(tag);}} onClose={()=>setSearch('')}/>}
-            <div className="notes-filter" hidden={isTagQuery(search)} role="tablist" aria-label="Show bullets" onKeyDown={e=>{
-              if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
-              const tabs=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')),at=tabs.indexOf(document.activeElement as HTMLButtonElement);
-              if(at<0)return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(at+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click();
-            }}>
-              {NOTE_FILTERS.filter(([kind])=>['all','notes','calendar'].includes(kind)||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} id={`notes-filter-${kind}`} role="tab" aria-controls="notes-filter-panel" tabIndex={notesFilter===kind?0:-1} aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}</button>)}
-            </div>
-            <div id="notes-filter-panel" role="tabpanel" aria-labelledby={`notes-filter-${notesFilter}`} className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
-            {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
-            {views.panes.length>1&&<div className="pane-bar">
+            <div className={`notes-panes ${outlinePanes.length===1?'is-single':''}`} aria-label={tab==='notes'?'Notes outline':`${tab} outline`}>
+            {outlinePanes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
+            {tab==='notes'&&views.panes.length>1&&<div className="pane-bar">
              <PaneSearchBar value={pane.search} onChange={q=>views.update(pane.id,{search:q})} label={`Search pane ${i+1}`} onFocus={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}/>
              <button className="icon-button pane-close" aria-label={`Close pane ${i+1}`} title="Close pane" onClick={()=>views.close(pane.id)}><Icon name="close" size={14}/></button>
             </div>}
             {canvasEnabled&&pane.scope&&canvasRoots.get(pane.scope)&&<div className="canvas-open-banner"><span>This page is a canvas.</span><button onClick={()=>{setCanvasOpen({id:canvasRoots.get(pane.scope!)!,n:Date.now()});setEditing(null);setTab('canvas');}}><Icon name="canvas" size={14}/>Open canvas</button></div>}
-            {notesFilter!=='all'&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<OutlineView
+            {dedicatedOutline&&!pane.scope&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({study:'study notes',notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<OutlineView
               rootIds={notesFilterRoots?.[pane.id]||null}
-              excludedIds={notesFilter==='notes'?notesCatalog?.excluded:undefined}
+              excludedIds={notesFilter==='notes'&&!pane.scope&&!pane.search?ordinaryProjection?.excluded:undefined}
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
               scope={pane.global&&pane.search?null:pane.scope}
               search={pane.search}
@@ -1812,16 +1827,22 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               disabled={disabled}
               assets={assets}
               media={doc.tables.media}
-              onAdd={(parentId) => add(parentId===undefined?pane.scope:parentId)}
+              onAdd={(parentId) => {
+                const target=parentId===undefined?pane.scope:parentId;
+                if(!dedicatedOutline||target){add(target);return;}
+                if(tab==='calendar'){const id=addCalendarBullet(calendarDate);const parent=docRef.current!.tables.bullets.find(n=>n.id===id)?.parentId;setOutlineScopes(value=>({...value,calendar:parent||null}));return;}
+                if(tab==='study'||tab==='mindmap'){const id=crypto.randomUUID();mutate(ns=>[...ns,bullet(id,{kind:tab==='study'?'QUESTION':'NOTE',mindmap:tab==='mindmap',position:Math.max(-1,...ns.filter(n=>!n.parentId).map(n=>n.position))+1})]);focus(id,0);return;}
+                setViewOutlines(value=>({...value,[tab]:false}));setNotice(tab==='bookmarks'?'Add a link in the bookmark library.':'Add a PDF or EPUB in the bookshelf.');
+              }}
               onEdit={(id) => {
                 views.setActivePane(pane.id);
                 if (id) focus(id);
                 else setEditing(null);
               }}
               onZoom={(id) => {
-                views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);
+                views.setActivePane(pane.id);if(dedicatedOutline)setOutlineScopes(value=>({...value,[tab]:id}));else views.navigate(pane.id,id);setEditing(null);
               }}
-              onMindmap={(id)=>{setMindmapTarget(id);setTab('mindmap');setScope(id);setEditing(null);}}
+              onMindmap={(id)=>{setViewOutlines(value=>({...value,mindmap:false}));setMindmapTarget(id);setTab('mindmap');setScope(id);setEditing(null);}}
               onOpenPane={openPane}
               onToggle={id=>{if(pane.id==='main')mutate(ns=>ns.map(n=>n.id===id?{...n,collapsed:!n.collapsed}:n));else views.update(pane.id,{collapsed:{...pane.collapsed,[id]:!(pane.collapsed[id]??idx.byId.get(id)?.collapsed)}});}}
               onChange={changeBulletContent}
@@ -1850,7 +1871,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               setNotice={setNotice}
             />}
               <ConnectionPanel id={pane.scope||(views.activePane===pane.id?editing:null)}/>
-            </section>{i<views.panes.length-1&&<PaneDivider onResize={delta=>views.resize(pane.id,views.panes[i+1].id,delta)}/>}</React.Fragment>)}
+            </section>{tab==='notes'&&i<views.panes.length-1&&<PaneDivider onResize={delta=>views.resize(pane.id,views.panes[i+1].id,delta)}/>}</React.Fragment>)}
             </div>
             {selected&&<SelectionFormatting editor={activeEditor} disabled={disabled||unsupportedFormatting(selected)} blockStyle={selected.blockStyle||'paragraph'} onBlock={type=>command('block:'+type,selected.id,0,0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style=>command('dividerStyle:'+style,selected.id,0,0)} onDividerColor={color=>command('dividerColor:'+color,selected.id,0,0)}/>}
           </>
@@ -1869,7 +1890,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "canvas" && canvasEnabled ? (
           <React.Suspense fallback={<section role="status">Loading canvas…</section>}><CanvasStudio doc={doc} disabled={disabled||failed.current} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention before editing this canvas.');const next=update(docRef.current!);validateCanvases(next.web.canvases);commit(next);}} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} onOpenNote={id=>navigateAiResult(id)} assets={assets} onStoreImages={storeImages} open={canvasOpen} user={cloudUser}/></React.Suspense>
         ) : tab === "mindmap" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>navigateTo(id)} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
         ) : (
           <>
           <CalendarView
@@ -1895,13 +1916,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               if (id) focus(id);
               else setEditing(null);
             }}
-            onZoom={(id) => {
-              setScope(id);
-              setTab("notes");
-              setEditing(null);
-              setSearch("");
-            }}
+            onZoom={id=>navigateTo(id)}
             onMindmap={(id) => {
+              setViewOutlines(value=>({...value,mindmap:false}));
               setMindmapTarget(id);setScope(id);
               setTab("mindmap");
               setEditing(null);
@@ -1955,7 +1972,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style => command('dividerStyle:' + style, selected.id, 0, 0)} onDividerColor={color => command('dividerColor:' + color, selected.id, 0, 0)} />}
           </>
         )}
-        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && tab!=="canvas" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}} onImages={files=>{void attachImages(selected.id,files);}}/>}
+        {selected && (dedicatedOutline||(tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && tab!=="canvas")) && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}} onImages={files=>{void attachImages(selected.id,files);}}/>}
         {doc&&<NowBar placement="phone" doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>}
         <MobileNav canvas={canvasEnabled} tab={tab} onTab={id=>{if(id==='mindmap')setMindmapTarget(null);setTab(id);setEditing(null);}}/>
       </main>

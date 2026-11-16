@@ -14,6 +14,8 @@
 //! whole screen and the desktop-only parts (tray, shortcut, launch at login, folders, local MCP,
 //! the updater) are left out. Local sync and Google sign-in work the same way.
 
+#[cfg(mobile)]
+mod android_shares;
 mod local_article;
 mod study_widget;
 mod desktop;
@@ -141,6 +143,9 @@ fn mobile_builder(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            android_shares::android_share_inbox,
+            android_shares::android_share_ack,
+            android_shares::android_share_claim,
             study_widget::study_widget_publish,
             study_widget::study_widget_state,
             study_widget::study_widget_submit,

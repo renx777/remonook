@@ -24,6 +24,19 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".ShareReceiverActivity" android:label="${shareLabel}" android:exported="true" android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <activity android:name=".StudyWidgetConfigureActivity" android:label="Flashcard study" android:exported="true" android:excludeFromRecents="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
         </activity>

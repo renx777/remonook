@@ -1,3 +1,4 @@
+import {studyLibrary} from './view-outline-navigation.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -29,7 +30,7 @@ test('edit flashcards in place and MCQs in study without changing position or sc
  const inline=async selector=>{await clickText('Edit card');await wait(()=>document.querySelector(selector));await act(async()=>document.querySelector(selector).click());await wait(()=>document.querySelector('.study-inline-editor-wrap .tiptap'));};
  const append=async(text,selector='.study-inline-editor-wrap .tiptap')=>act(async()=>{const editor=document.querySelector(selector).editor;editor.commands.focus('end');editor.commands.insertContent(text);});
  try{
-  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('.outline-row'));
+  await act(async()=>{app=await import('./.build/app.mjs');});await studyLibrary();
   await clickText('Study Desk');await clickText('Cram');await act(async()=>document.querySelector('[aria-label="Open All flashcards notebook"]').click());
   const queue=document.querySelector('.study-progress-label').textContent;
   await inline('.flashcard-edit-hit[aria-label="Edit question"]');await append(' revised');await clickText('Done editing');
