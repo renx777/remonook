@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{build}from'esbuild';
+// An actual Workers runtime catches fetch options that Node accepts but Workers rejects.
+const {Miniflare,convertV4MiniflareOptions}=await import(process.env.REMONOOK_WORKER_TEST_RUNTIME||'miniflare');
+test('Workers runtime resolves the Android share, fetches a public feed, and caches the attributed result',async()=>{
+ const bundle=await build({entryPoints:['web/staging.mjs'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022'});let calls=[];
+ const feed='<feed><entry><id>t3_abc123</id><title>A public post</title><author><name>/u/writer</name></author><category label="r/test"/><content type="html">&lt;p&gt;A useful passage.&lt;/p&gt;</content></entry></feed>';
+ const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:bundle.outputFiles[0].text,compatibilityDate:'2026-10-24',outboundService:async request=>{calls.push(request.url);assert.equal(request.headers.get('Cookie'),null);assert.equal(request.headers.get('Authorization'),null);if(request.url.includes('/s/'))return new Response(null,{status:302,headers:{Location:'https://www.reddit.com/r/test/comments/abc123/title/'}});return new Response(feed,{headers:{'Content-Type':'application/atom+xml'}});}}));
+ try{const url='https://app.test/api/reddit-preview?url='+encodeURIComponent('https://www.reddit.com/r/test/s/token');const response=await mf.dispatchFetch(url);assert.equal(response.status,200,await response.clone().text());const value=await response.json();assert.equal(value.title,'A public post');assert.equal(value.text,'A useful passage.');assert.equal(value.author,'/u/writer');assert.equal(calls.length,2);assert.equal(calls[1],'https://www.reddit.com/comments/abc123/.rss?limit=1');await new Promise(r=>setTimeout(r,50));assert.equal((await mf.dispatchFetch(url)).status,200);assert.equal(calls.length,2);}finally{await mf.dispose();}
+});

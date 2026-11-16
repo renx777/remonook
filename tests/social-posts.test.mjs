@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {socialPost,sharedWebLink,socialPostHeight} from '../src/social-posts.mjs';
+import {socialPost,sharedWebLink,socialPostHeight,resolveSocialEmbed,redditImage} from '../src/social-posts.mjs';
 import {mediaLinks} from '../src/media.mjs';
 import {addBookmark,bookmarkUrl} from '../src/bookmarks.mjs';
 import {incomingShare} from '../src/android-share.mjs';
@@ -15,7 +15,7 @@ test('public post URLs produce provider-owned embeds and canonical identities',(
  assert.equal(socialPost('https://instagram.com/p/ABC_123/').title,'Instagram post');
 });
 test('profiles, private messages, arbitrary paths and spoofed origins never become embeds',()=>{
- for(const url of ['https://x.com/jack','https://x.com/messages/20','https://x.com.evil.test/a/status/20','https://user:pass@x.com/a/status/20','javascript:alert(1)','https://reddit.com/r/place/s/short','https://instagram.com/stories/user/123/','https://www.instagram.com.evil.test/p/abc/','https://x.com/a/status/20/%22%3E%3Cscript%3E','https://reddit.com/r/a/comments/id/../../bad/'])assert.equal(socialPost(url),null,url);
+ for(const url of ['https://x.com/jack','https://x.com/messages/20','https://x.com.evil.test/a/status/20','https://user:pass@x.com/a/status/20','javascript:alert(1)','https://instagram.com/stories/user/123/','https://www.instagram.com.evil.test/p/abc/','https://x.com/a/status/20/%22%3E%3Cscript%3E','https://reddit.com/r/a/comments/id/../../bad/'])assert.equal(socialPost(url),null,url);
 });
 test('shared captions retain original text, deduplicate aliases, and reject ambiguous links',()=>{
  const text='A useful thread\nhttps://twitter.com/jack/status/20?s=1).';assert.equal(sharedWebLink(text),'https://twitter.com/jack/status/20?s=1');
@@ -28,3 +28,14 @@ test('resize messages accept only bounded provider protocols',()=>{
  assert.equal(socialPostHeight({'twttr.embed':{method:'twttr.private.resize',params:[{height:350}]}},'twitter'),350);
  for(const data of [{type:'resize.embed',data:'500'},{type:'resize.embed',data:Infinity},{type:'navigate',url:'https://evil.test'},'invalid','x'.repeat(9000)])assert.equal(socialPostHeight(data,'reddit'),null);
 });
+
+test('Reddit mobile links, TikTok and Bluesky are recognised without accepting arbitrary providers',async()=>{
+ assert.equal(socialPost('https://redd.it/sphocx').postId,'sphocx');assert.equal(socialPost('https://reddit.com/r/place/s/Abc123').short,true);
+ assert.equal(socialPost('https://www.tiktok.com/@scout2015/video/6718335390845095173').embed,'https://www.tiktok.com/player/v1/6718335390845095173?autoplay=0&description=1');
+ assert.equal(socialPost('https://www.tiktok.com/@user/photo/6718335390845095173').href,'https://www.tiktok.com/@user/photo/6718335390845095173');
+ const post=socialPost('https://bsky.app/profile/bsky.app/post/3n27yge3hys24');let requested;assert.equal(await resolveSocialEmbed(post,{fetcher:async(url,options)=>{requested=url;assert.equal(options.credentials,'omit');return Response.json({did:'did:plc:z72i7hdynmk6r22z27h6tvur'});}}),'https://embed.bsky.app/embed/did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3n27yge3hys24');assert(requested.startsWith('https://public.api.bsky.app/'));
+ await assert.rejects(()=>resolveSocialEmbed(post,{fetcher:async()=>Response.json({did:'https://evil.test'})}));
+ assert.equal(socialPost('https://bsky.app/profile/%XX/post/123'),null);assert.equal(socialPost('https://www.tiktok.com.evil.test/@a/video/6718335390845095173'),null);
+});
+
+test('Reddit thumbnails accept only provider-owned HTTPS images',()=>{assert.equal(redditImage('https://preview.redd.it/photo.jpg'),'https://preview.redd.it/photo.jpg');for(const value of ['https://evil.test/pixel','https://preview.redd.it.evil.test/a','http://i.redd.it/a','https://u:p@i.redd.it/a'])assert.equal(redditImage(value),null);});

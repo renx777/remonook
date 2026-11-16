@@ -2,8 +2,8 @@
 
 ## Web staging scope
 
-Paste a public X/Twitter status, Reddit post/comment permalink, or Instagram
-post/reel URL into a bullet to show its live embed. Save the same link in
+Paste a public X/Twitter status, Reddit post/comment link, Instagram post/reel,
+Bluesky post or TikTok video/photo URL into a bullet to show its live embed. Save the same link in
 Bookmarks to open the embed beside personal notes. Captions pasted together with
 one URL are kept as source-linked notes; the URL becomes the bookmark. Personal
 notes use ordinary outline mutations, local persistence, Undo, sync and backups.
@@ -18,9 +18,9 @@ Previously captured article snapshots remain accessible through **Saved article*
 This is a live preview, not an archival import or automatic transcription.
 RemoNook does not download or store post bodies, photos or videos. Private,
 deleted, login-gated, disabled embeds and browser restrictions may prevent a
-preview. The original link remains available. Shortened `t.co`, `redd.it`, Reddit
-`/s/` shares and Instagram share redirects do not expose a reliable public post
-identity locally; they remain ordinary links. Profiles and stories are not posts.
+preview. The original link remains available. Reddit `redd.it` IDs and `/s/` shares are resolved by the staging endpoint.
+Shortened `t.co`, TikTok share redirects and Instagram share redirects remain
+ordinary links. Profiles and stories are not posts.
 
 The preview uses provider-hosted frames, without API keys or paid API calls.
 Only recognised URL paths generate an embed address. No provider HTML/scripts
@@ -33,7 +33,8 @@ loading and are memoized. X and Reddit resize messages must come from the actual
 frame window and exact provider origin, follow the expected protocol, and are
 bounded to 180–1000 px. Other messages are ignored.
 
-No shared schema, sync protocol, outbox or backend changes are required.
+No shared schema, sync protocol or outbox changes are required. The Reddit
+preview endpoint ships with the staging web Worker; the sync backend is unchanged.
 No third-party embed dependency is necessary: a small reusable frame component
 also serves existing Instagram note embeds. Public embed URLs are frontend
 integrations that providers can change independently of RemoNook.
@@ -89,3 +90,70 @@ separate live-provider check rendered X post 20 and observed a provider resize
 to 225 px. Reddit returned a network-security block in this test environment;
 the Instagram sample reported unavailable. Those are external availability
 limits, not passed content-rendering checks for those providers.
+
+## Reddit repair and refined previews
+
+The web staging frontend now includes a narrowly routed `/api/reddit-preview`
+Worker endpoint. Reddit's public RSS can remain available when its iframe is
+blocked. The default preview is an attributed, plain-text card from that feed,
+with a bounded excerpt and Read more; the original link and optional live embed
+remain accessible. It is explicitly a text preview, not a full media archive or
+reproduction of Reddit's comments/votes. Feed errors produce a compact link card.
+No authenticated or private Reddit content is fetched.
+
+Full Reddit links, `redd.it` IDs and `/r/.../s/...` share tokens are recognised.
+Share-token resolution follows at most four HTTPS redirects, restricted to Reddit
+hosts with no credentials or custom ports; failure retains the original. The
+feed fetch uses a fixed public Reddit origin and validated post/comment IDs,
+10-second timeout, 256 KiB response cap and exact feed-entry identity matching.
+XML declarations with external entities are refused. Only plain text reaches
+React. No incoming cookies or account tokens are forwarded. Public previews use
+five-minute edge caching; unavailable previews are cached briefly to limit retries.
+Static assets retain asset-first routing: only this endpoint invokes the Worker.
+No D1/R2, sync-server binding or schema changes are needed.
+
+TikTok public video/photo permalinks use its official embedded player with
+autoplay off. Bluesky public posts use its public handle resolver and isolated
+embed frame; no API key or paid service. Resolve failures and stale requests leave
+notes untouched. TikTok readiness/errors and provider resize messages must match
+the actual frame window and origin. An iframe load event is not treated as proof
+that a Reddit post rendered.
+
+The app's duplicate header and footer around each embed have been replaced with
+one quiet source/actions row. External platform UI remains owned by the provider.
+Loading and unavailable states are compact, mobile touch targets remain usable,
+and Reddit passages expand without growing every card by default.
+
+Other candidates: existing YouTube/Vimeo/Spotify note previews remain available;
+SoundCloud is a useful next music/audio embed. Mastodon needs careful handling of
+instance-specific URLs; arbitrary instance fetching is not introduced. Facebook,
+LinkedIn, Threads and Pinterest need further embed/accessibility review rather
+than promising universal imports. Short TikTok share redirects are not supported.
+
+This endpoint is configured for **web staging only**. A future production or
+native release must supply the equivalent endpoint before enabling Reddit text
+previews there. The current production deployment and native apps remain unchanged.
+
+## Verified final staging release
+
+Application source `8f3eb43aae90400cf52c4a05dad4d6ea4f36553c`: CI #337 passed
+579 tests and staging frontend #176 passed all 13 sync checks. Unmocked staging
+acceptance displayed the owner's exact Reddit share link as the correct public
+post, loaded its image on demand, used its resolved permalink for the optional
+live embed, and verified note saving/Undo. Successful public-feed parsing was
+therefore verified from Cloudflare, not just from the development machine.
+
+Reddit images are optional, lazy and limited to known HTTPS Reddit image hosts.
+They are displayed directly from the provider, not copied into attachments.
+The public cache key is versioned when the preview response gains image metadata.
+
+A runtime regression test uses the real Workers runtime with controlled outbound
+responses. It catches unsupported fetch options that Node-only tests miss:
+Workers rejects `redirect: "error"`; feed requests use `manual` and refuse
+non-success responses. Short links use ordinary GET requests with bounded
+Reddit-only redirects. The live-embed action retains the resolved canonical URL
+through mode changes. See ENVIRONMENTS.md for deployment/version details.
+
+Additional references: [TikTok player](https://developers.tiktok.com/docs/en/embed-player),
+[Bluesky embedding](https://docs.bsky.app/docs/advanced-guides/embedding), and
+[Cloudflare static asset routing](https://developers.cloudflare.com/workers/static-assets/binding/).
