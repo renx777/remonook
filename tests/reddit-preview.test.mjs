@@ -11,7 +11,7 @@ test('fetches only fixed public Reddit feeds with no incoming cookies and bounde
  let seen=[];const p=await redditPreview(url,{fetcher:async(u,o)=>{seen.push(u);assert(!o.headers.Cookie);assert(!o.headers.Authorization);return new Response(feed());}});assert.equal(p.title,'A post');assert.equal(seen[0],'https://www.reddit.com/comments/abc123/.rss?limit=1');
  await assert.rejects(()=>redditPreview('http://localhost/private',{fetcher:async()=>{throw Error('must not fetch');}}));
  await assert.rejects(()=>redditPreview('https://reddit.com/r/test/s/token',{fetcher:async()=>new Response(null,{status:302,headers:{Location:'http://127.0.0.1/secret'}})}));
- const resolved=await redditPreview('https://reddit.com/r/test/s/token',{fetcher:async(u,o)=>o.method==='HEAD'?new Response(null,{status:302,headers:{Location:url}}):new Response(feed())});assert.equal(resolved.url,url);
+ const resolved=await redditPreview('https://reddit.com/r/test/s/token',{fetcher:async(u,o)=>String(u).includes('/s/')?new Response(null,{status:302,headers:{Location:url}}):new Response(feed())});assert.equal(resolved.url,url);
  await assert.rejects(()=>redditPreview(url,{fetcher:async()=>new Response('x'.repeat(256*1024+1))}));
 });
 test('staging route isolates static assets, rejects writes and cross-origin fetches, and returns honest errors',async()=>{

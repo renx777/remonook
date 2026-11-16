@@ -12,5 +12,5 @@ export default {async fetch(request,env,ctx){
  const key=new Request(url.origin+'/api/reddit-preview?post='+encodeURIComponent(identity));
  const cache=globalThis.caches?.default,hit=cache&&await cache.match(key);if(hit)return hit;
  try{const response=json(await redditPreview(value),200,300);if(cache)ctx.waitUntil(cache.put(key,response.clone()).catch(()=>{}));return response;}
- catch{const response=json({error:'Reddit has not made this public preview available. Open the original post.'},422,30);if(cache)ctx.waitUntil(cache.put(key,response.clone()).catch(()=>{}));return response;}
+ catch(error){const response=json({error:'Reddit has not made this public preview available. Open the original post.',code:error.code||'REDDIT_PREVIEW_UNAVAILABLE',providerStatus:error.upstreamStatus||null},422,30);if(cache)ctx.waitUntil(cache.put(key,response.clone()).catch(()=>{}));return response;}
 }};
