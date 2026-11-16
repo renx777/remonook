@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {socialPost,sharedWebLink,socialPostHeight,resolveSocialEmbed} from '../src/social-posts.mjs';
+import {socialPost,sharedWebLink,socialPostHeight,resolveSocialEmbed,redditImage} from '../src/social-posts.mjs';
 import {mediaLinks} from '../src/media.mjs';
 import {addBookmark,bookmarkUrl} from '../src/bookmarks.mjs';
 import {incomingShare} from '../src/android-share.mjs';
@@ -32,7 +32,10 @@ test('resize messages accept only bounded provider protocols',()=>{
 test('Reddit mobile links, TikTok and Bluesky are recognised without accepting arbitrary providers',async()=>{
  assert.equal(socialPost('https://redd.it/sphocx').postId,'sphocx');assert.equal(socialPost('https://reddit.com/r/place/s/Abc123').short,true);
  assert.equal(socialPost('https://www.tiktok.com/@scout2015/video/6718335390845095173').embed,'https://www.tiktok.com/player/v1/6718335390845095173?autoplay=0&description=1');
+ assert.equal(socialPost('https://www.tiktok.com/@user/photo/6718335390845095173').href,'https://www.tiktok.com/@user/photo/6718335390845095173');
  const post=socialPost('https://bsky.app/profile/bsky.app/post/3n27yge3hys24');let requested;assert.equal(await resolveSocialEmbed(post,{fetcher:async(url,options)=>{requested=url;assert.equal(options.credentials,'omit');return Response.json({did:'did:plc:z72i7hdynmk6r22z27h6tvur'});}}),'https://embed.bsky.app/embed/did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3n27yge3hys24');assert(requested.startsWith('https://public.api.bsky.app/'));
  await assert.rejects(()=>resolveSocialEmbed(post,{fetcher:async()=>Response.json({did:'https://evil.test'})}));
  assert.equal(socialPost('https://bsky.app/profile/%XX/post/123'),null);assert.equal(socialPost('https://www.tiktok.com.evil.test/@a/video/6718335390845095173'),null);
 });
+
+test('Reddit thumbnails accept only provider-owned HTTPS images',()=>{assert.equal(redditImage('https://preview.redd.it/photo.jpg'),'https://preview.redd.it/photo.jpg');for(const value of ['https://evil.test/pixel','https://preview.redd.it.evil.test/a','http://i.redd.it/a','https://u:p@i.redd.it/a'])assert.equal(redditImage(value),null);});

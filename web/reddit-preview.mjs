@@ -1,6 +1,6 @@
 import {XMLParser} from 'fast-xml-parser';
 import {decode} from 'html-entities';
-import {socialPost} from '../src/social-posts.mjs';
+import {socialPost,redditImage} from '../src/social-posts.mjs';
 const plain=value=>decode(String(value||'').replace(/<!--[\s\S]*?-->/g,'').replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi,'').replace(/<\/(p|div|li|blockquote)>|<br\s*\/?\s*>/gi,'\n').replace(/<[^>]*>/g,'')).replace(/\n\s*\n+/g,'\n\n').trim();
 async function bounded(response){if(!response.ok)throw Object.assign(Error('Reddit feed unavailable'),{upstreamStatus:response.status,code:'REDDIT_FEED_REJECTED'});const reader=response.body.getReader();let size=0,parts=[];try{for(;;){const{value,done}=await reader.read();if(done)break;size+=value.length;if(size>256*1024)throw Error('Too large');parts.push(value);}const bytes=new Uint8Array(size);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length;}return new TextDecoder().decode(bytes);}finally{await reader.cancel().catch(()=>{});}}
 export function parseRedditFeed(xml,post){
@@ -10,7 +10,7 @@ export function parseRedditFeed(xml,post){
  const entry=entries.find(e=>String(e.id||'').endsWith(':'+expected)||String(e.id||'')===expected);if(!entry)throw Error('Post unavailable');
  const content=typeof entry.content==='string'?entry.content:entry.content?.['#text'];const text=plain(content).replace(/\n\s*submitted by[^\n]*?\[link\]\s*\[comments\]\s*$/i,'').replace(/\[link\]\s*\[comments\]\s*$/i,'').trim();
  if(/^\[(?:removed|deleted)\]$/i.test(text))throw Error('Post unavailable');
- return {schema:1,url:post.href,title:plain(entry.title).slice(0,500),author:plain(entry.author?.name).slice(0,100),community:plain(entry.category?.label).slice(0,100),text:text.slice(0,6000),truncated:text.length>6000,source:'Reddit public RSS'};
+ return {schema:1,url:post.href,title:plain(entry.title).slice(0,500),author:plain(entry.author?.name).slice(0,100),community:plain(entry.category?.label).slice(0,100),text:text.slice(0,6000),truncated:text.length>6000,source:'Reddit public RSS',image:redditImage(entry['media:thumbnail']?.url)};
 }
 export async function redditPreview(value,{fetcher=fetch}={}){
  let post=socialPost(value);if(post?.kind!=='reddit')throw Error('Invalid Reddit URL');

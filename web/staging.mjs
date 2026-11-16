@@ -9,7 +9,7 @@ export default {async fetch(request,env,ctx){
  // No cookies or authorization are forwarded. Cached responses contain public post text only.
  const post=socialPost(value);if(post?.kind!=='reddit')return json({error:'Use a Reddit post link'},400);
  const identity=post.short?post.href:post.postId+':'+(post.commentId||'');
- const key=new Request(url.origin+'/api/reddit-preview?post='+encodeURIComponent(identity));
+ const key=new Request(url.origin+'/api/reddit-preview?v=2&post='+encodeURIComponent(identity));
  const cache=globalThis.caches?.default,hit=cache&&await cache.match(key);if(hit)return hit;
  try{const response=json(await redditPreview(value),200,300);if(cache)ctx.waitUntil(cache.put(key,response.clone()).catch(()=>{}));return response;}
  catch(error){const response=json({error:'Reddit has not made this public preview available. Open the original post.',code:error.code||'REDDIT_PREVIEW_UNAVAILABLE',providerStatus:error.upstreamStatus||null},422,30);if(cache)ctx.waitUntil(cache.put(key,response.clone()).catch(()=>{}));return response;}

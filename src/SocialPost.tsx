@@ -1,13 +1,14 @@
 import {memo,useEffect,useMemo,useRef,useState} from 'react';
-import {socialPost,socialPostHeight,resolveSocialEmbed} from './social-posts.mjs';
+import {socialPost,socialPostHeight,resolveSocialEmbed,redditImage} from './social-posts.mjs';
 import {ExternalLink,RefreshCw,EyeOff,Eye} from 'lucide-react';
 import './social-post.css';
-type RedditPreview={title:string;author:string;community:string;text:string;truncated:boolean;url:string};
+type RedditPreview={image?:string|null;title:string;author:string;community:string;text:string;truncated:boolean;url:string};
 /** Provider frames are isolated; Reddit's public feed is rendered as plain text. */
 export const SocialPost=memo(function SocialPost({url}:{url:string}) {
  const post=useMemo(()=>socialPost(url),[url]);
+ const resolved=useRef<{input:string;href:string|null}>({input:url,href:null});if(resolved.current.input!==url)resolved.current={input:url,href:null};
  const root=useRef<HTMLDivElement>(null),frame=useRef<HTMLIFrameElement>(null);
- const [near,setNear]=useState(false),[hidden,setHidden]=useState(false),[attempt,setAttempt]=useState(0),[phase,setPhase]=useState<'loading'|'ready'|'error'>('loading'),[src,setSrc]=useState<string|null>(null),[height,setHeight]=useState(320),[dark,setDark]=useState(false),[offline,setOffline]=useState(()=>navigator.onLine===false),[reddit,setReddit]=useState<RedditPreview|null>(null),[live,setLive]=useState(false),[expanded,setExpanded]=useState(false);
+ const [near,setNear]=useState(false),[hidden,setHidden]=useState(false),[attempt,setAttempt]=useState(0),[phase,setPhase]=useState<'loading'|'ready'|'error'>('loading'),[src,setSrc]=useState<string|null>(null),[height,setHeight]=useState(320),[dark,setDark]=useState(false),[offline,setOffline]=useState(()=>navigator.onLine===false),[reddit,setReddit]=useState<RedditPreview|null>(null),[live,setLive]=useState(false),[expanded,setExpanded]=useState(false),[imageOpen,setImageOpen]=useState(false),[imageFailed,setImageFailed]=useState(false);
  useEffect(()=>{
   const el=root.current;if(!el)return;const app=el.closest('.app'),media=window.matchMedia('(prefers-color-scheme: dark)');
   const update=()=>{const theme=app?.getAttribute('data-theme');setDark(theme==='Dark'||(!theme||theme==='System')&&media.matches);};update();
@@ -18,11 +19,11 @@ export const SocialPost=memo(function SocialPost({url}:{url:string}) {
  useEffect(()=>{const update=()=>setOffline(navigator.onLine===false);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);};},[]);
  useEffect(()=>{
   if(!post||!near||hidden||offline)return;
-  const controller=new AbortController();let alive=true;setPhase('loading');setSrc(null);setReddit(null);setExpanded(false);setHeight(post.kind==='tiktok'?580:post.kind==='instagram'?540:320);
+  const controller=new AbortController();let alive=true;setPhase('loading');setSrc(null);setReddit(null);setExpanded(false);setImageOpen(false);setImageFailed(false);setHeight(post.kind==='tiktok'?580:post.kind==='instagram'?540:320);
   // A short delay coalesces URL typing before contacting a provider.
   const start=setTimeout(()=>{void(async()=>{try{
-   if(post.kind==='reddit'&&!live){const response=await fetch('/api/reddit-preview?url='+encodeURIComponent(post.href),{signal:controller.signal,credentials:'omit'});if(!response.ok)throw Error('Unavailable');const value=await response.json();if(typeof value.title!=='string'||typeof value.text!=='string'||value.text.length>6000||typeof value.url!=='string'||socialPost(value.url)?.kind!=='reddit')throw Error('Invalid preview');if(alive){setReddit(value);setPhase('ready');}}
-   else{const embed=await resolveSocialEmbed(post,{signal:controller.signal});if(alive)setSrc(embed);}
+   if(post.kind==='reddit'&&!live){const response=await fetch('/api/reddit-preview?url='+encodeURIComponent(post.href),{signal:controller.signal,credentials:'omit'});if(!response.ok)throw Error('Unavailable');const value=await response.json();if(typeof value.title!=='string'||typeof value.text!=='string'||value.text.length>6000||typeof value.url!=='string'||socialPost(value.url)?.kind!=='reddit')throw Error('Invalid preview');if(alive){resolved.current.href=value.url;setReddit(value);setPhase('ready');}}
+   else{const embedPost=post.kind==='reddit'&&live&&resolved.current.href?(socialPost(resolved.current.href)||post):post;const embed=await resolveSocialEmbed(embedPost,{signal:controller.signal});if(alive)setSrc(embed);}
   }catch{if(alive)setPhase('error');}})();},250);
   const timeout=setTimeout(()=>{if(alive){controller.abort();setPhase(current=>current==='ready'?current:'error');}},12000);
   return()=>{alive=false;controller.abort();clearTimeout(start);clearTimeout(timeout);};
@@ -37,7 +38,7 @@ export const SocialPost=memo(function SocialPost({url}:{url:string}) {
  return <div ref={root} className={'social-post'+(reddit&&!live?' social-post-text':'')} data-provider={post.kind} onPointerDown={e=>e.stopPropagation()}>
   {!hidden&&!offline&&near&&<>
    {phase==='loading'&&<div className="social-post-loading" role="status"><span/><span/><small>Loading {post.provider} preview…</small></div>}
-   {reddit&&phase==='ready'&&!live&&<article className="social-post-copy"><p className="social-post-byline">{reddit.community}{reddit.author?' · '+reddit.author:''}</p><h3>{reddit.title}</h3><p className={expanded?'':'is-clamped'}>{reddit.text||'This post links to media. Open the original to view it.'}</p>{reddit.text.length>350&&<button type="button" aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?'Show less':'Read more'}</button>}{expanded&&reddit.truncated&&<small>Excerpt · open the original for the full post.</small>}</article>}
+   {reddit&&phase==='ready'&&!live&&<article className="social-post-copy"><p className="social-post-byline">{reddit.community}{reddit.author?' · '+reddit.author:''}</p><h3>{reddit.title}</h3><p className={expanded?'':'is-clamped'}>{reddit.text||'This post links to media. Open the original to view it.'}</p>{reddit.text.length>350&&<button type="button" aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?'Show less':'Read more'}</button>}{redditImage(reddit.image)&&<><button type="button" aria-expanded={imageOpen} onClick={()=>setImageOpen(v=>!v)}>{imageOpen?'Hide image':'Show image'}</button>{imageOpen&&(imageFailed?<p>Image unavailable. Open the original post.</p>:<img className="social-post-photo" src={redditImage(reddit.image)!} alt="Image from the Reddit post" loading="lazy" onError={()=>setImageFailed(true)}/>)}</>}{expanded&&reddit.truncated&&<small>Excerpt · open the original for the full post.</small>}</article>}
    {address&&phase!=='error'&&<iframe ref={frame} src={address.href} title={post.title} height={height} data-pending={phase==='loading'} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" allow="fullscreen; encrypted-media; picture-in-picture" allowFullScreen onLoad={()=>{if(post.kind==='instagram')setPhase('ready');}} onError={()=>setPhase('error')}/>}
    {phase==='error'&&<p className="social-post-unavailable" role="status">{post.provider} hasn’t made this preview available. Your link is kept.</p>}
   </>}

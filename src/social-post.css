@@ -35,3 +35,5 @@
 .social-reader-saved-note button{display:block;margin-top:8px;font-size:11px!important}
 .bl-social-label{display:inline-flex;gap:4px;align-items:center;color:var(--accent);font-size:11px}
 @media(max-width:760px){.social-reader-body{padding:18px 14px 90px}.social-reader-content{grid-template-columns:minmax(0,1fr);max-width:550px;gap:26px}.bookmarks .social-reader-notes textarea{font-size:16px}.social-reader-toolbar{padding:10px 14px}.social-reader-toolbar button{min-height:44px}.social-post>footer{gap:6px}.social-post>header,.social-post>footer{padding-inline:11px}.social-post>header button{min-height:40px}}
+.social-post-photo{display:block;width:100%;max-height:280px;object-fit:contain;border-radius:8px;margin-top:12px}
+.social-post-copy>button+button{margin-left:8px}
