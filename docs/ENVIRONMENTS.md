@@ -2,6 +2,54 @@
 
 ## Current state
 
+
+### Incoming Android sharing and dedicated outlines, 16 November 2026
+
+Branch `codex/android-share-view-outlines`, application source
+`b0040a07c1859587841bfbe7db5bf25cc7bf49e2`, is live on web staging.
+[Staging frontend run #170](https://github.com/renx777/remonook/actions/runs/43827341344)
+passed, including sync acceptance. The live `staging-source.json` matches that
+branch and commit. Desktop and mobile Chromium smoke checks passed against the
+published site, with no page errors. Notes now focuses on ordinary notes;
+Study Desk, Calendar, Mindmaps, Bookmarks and Bookshelf each offer **Outline**
+for their existing source bullets. No notes are moved or copied.
+
+Android staging **0.1.10** is published from the same source.
+[Android run #10](https://github.com/renx777/remonook/actions/runs/43826105855)
+passed native compilation, signing and publication. **Save to RemoNook Staging**
+receives shared plain text/links and selected text, previews an editable capture,
+and saves a note in Inbox or a bookmark. Device-local capture needs no login.
+Original payloads remain durably queued until canonical local persistence succeeds;
+native ownership claims prevent another account from receiving a claimed share.
+See [ANDROID-SHARING-AND-VIEW-OUTLINES.md](ANDROID-SHARING-AND-VIEW-OUTLINES.md).
+
+[Download Android 0.1.10](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.10_android.apk).
+Package `com.remonook.app.staging`, version code `1010`, minimum SDK `24`, target
+SDK `36`; ABIs `arm64-v8a`, `armeabi-v7a`, `x86_64`; **150,068,407 bytes**;
+SHA-256 `9e43549908e2bb6fb6b300abfca85229f4702fb387a6ee1e61c0adda9626fac2`.
+Downloaded APK integrity, signature, incoming-share intent filters and existing
+study-widget registration passed. The certificate matches staging 0.1.9; install
+using **Update**, preserving device-only notes. Physical Android cold/warm sharing,
+selected-text menu placement and launcher behavior still require owner acceptance.
+
+Exact-source [CI #330](https://github.com/renx777/remonook/actions/runs/43826107234)
+passed. Local TypeScript, staging build and the full **160-file test suite** passed.
+Browser acceptance covered dedicated outline editing/undo, empty states, mobile
+navigation, light/dark, guest capture, duplicate submission, failed save/retry and
+account transitions. Real guest IndexedDB save preceded native acknowledgement in
+the capture browser harness; native IPC in that harness was simulated.
+
+Desktop staging run #25 is building the same source; the published desktop remains
+0.1.24 until all three platform jobs and publication pass. This record will be
+updated after the signed update is verified.
+
+No backend deployment, database migration or production release was performed.
+The unchanged staging health reports `ok: true`, `syncProtocol: 3`,
+`workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`, `bookmarkReader: 1`;
+Google Tasks remains configured and existing book, capture and MCP capabilities
+remain enabled. The staging workflow deploys the frontend only.
+
+
 ### Native study widgets, published 15 November; verified 16 November 2026
 
 Branch `codex/native-study-widgets` retains the navigation/Settings baseline through

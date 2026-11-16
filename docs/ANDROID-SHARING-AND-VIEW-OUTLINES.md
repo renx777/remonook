@@ -16,3 +16,15 @@ filter those claims natively, before returning text to JavaScript. A different
 account cannot resume or acknowledge an owned share. Unconfirmed incoming shares
 remain device-level drafts until the user explicitly chooses Save in the named
 workspace. Native archive acknowledgement verifies the original destination.
+
+## Staging validation
+
+Application commit `b0040a07c1859587841bfbe7db5bf25cc7bf49e2` passed the full
+160-file suite, TypeScript, staging build and exact-source CI. Web staging run
+170 and Android run 10 published successfully on 16 November 2026. Live browser
+smoke checks passed for desktop/mobile outlines. The signed Android 0.1.10 APK
+passed package, intent-filter, existing-widget and certificate verification.
+Browser capture tests cover guest saving, repeated taps, failed-save retry and
+account changes; native IPC is simulated there. Physical Android sharesheet,
+cold/warm Activity behavior and selected-text menu acceptance remain to be
+confirmed on an installed device. See ENVIRONMENTS.md for current release details.
