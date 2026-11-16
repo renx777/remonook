@@ -2,23 +2,68 @@
 
 ## Current state
 
-### Native study widgets, staging candidate, 15 November 2026
+### Native study widgets, published 15 November; verified 16 November 2026
 
-Branch `codex/native-study-widgets` includes the navigation/Settings work through
-`b292e89` and adds an opt-in Android home-screen study widget plus compact study
+Branch `codex/native-study-widgets` retains the navigation/Settings baseline through
+`b292e89` and adds an opt-in Android home-screen study widget and compact study
 windows for macOS, Windows and Linux. The desktop windows are ordinary app windows,
-not native OS widget-gallery extensions. macOS WidgetKit remains a separate
-signing/App Group milestone. Setup, privacy, cache limits, offline pending reviews
-and physical-device acceptance are described in
-[NATIVE-STUDY-WIDGETS.md](NATIVE-STUDY-WIDGETS.md) and
-[ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md).
+not OS widget-gallery extensions. macOS WidgetKit remains a separate Apple
+signing/App Group milestone. See [NATIVE-STUDY-WIDGETS.md](NATIVE-STUDY-WIDGETS.md)
+and [ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for setup, cache limits,
+offline review reconciliation and physical-device acceptance.
 
-The shared canonical scheduler, normal local persistence and durable sync outbox
-remain authoritative. No backend migration or Worker deployment is required. The
-native workflows build and publish **staging only**; they do not redeploy the web
-frontend. Previous staging distribution manifests were Android `0.1.5` and desktop
-`0.1.22`. Production remains unchanged. Publication versions, exact source and
-workflow results will be recorded after successful native builds.
+Android staging **0.1.9** is published from
+`757178ab8eafa69e777519b75d498cc8edf37ec0`;
+[Android run #9](https://github.com/renx777/remonook/actions/runs/43762280763)
+passed its four native pagination tests, compilation, signing and publication.
+The downloaded APK passed ZIP integrity, widget component registration and
+signature verification. Its signing certificate matches the previous staging
+0.1.5, so install over the existing app with **Update**; do not uninstall device-only
+notes. Package `com.remonook.app.staging`, version code `1009`, minimum SDK `24`,
+target SDK `36`, ABIs `arm64-v8a`, `armeabi-v7a`, `x86_64`; **150,009,859 bytes**.
+SHA-256 `02611bb868dca389ab82eba9874ece4c782cd030bd1aee5e6dabe7c6c092a535`.
+[Download APK](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.9_android.apk).
+
+Desktop staging **0.1.24** is published from application commit
+`5956fea063d17d393790d891d2d76bcc741b1283`.
+[Desktop run #24](https://github.com/renx777/remonook/actions/runs/43760939230)
+passed Windows, Linux and universal macOS installer builds, native storage tests
+and the gated publication job. The live manifest reports `0.1.24`, with Windows
+x86_64, Linux x86_64 and both macOS architectures. All three downloaded payloads
+passed cryptographic updater-signature verification against the repository public
+key. Binary checks confirmed a Windows PE installer, Linux ELF AppImage, and a
+universal Mach-O with Intel and Apple silicon architectures. The previous public
+desktop release was `0.1.22`. The Android release's intervening commit changes
+only CI testing and documentation; application source is identical.
+
+| Desktop artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Windows setup | 45,617,013 | `a751ae8cf45c6aab61621a13443700ffec5824a6d0c034a942617f59bb7e1301` |
+| Linux AppImage | 125,356,536 | `7ee73f6e91ae3adb1fe1a15a9987a48069c0e5f9d7b2cc6ed5e18ef3094cfd1b` |
+| Universal macOS update | 93,751,805 | `15807087a081e3570b593199905de13b0cf4a10fdd89608099672aa236fd1442` |
+
+Desktop users can update the staging app, then enable **Settings → Study → Study
+outside the main window** and choose **Open study window**. The tray also offers
+**Study flashcards**. Android users enable the same preference, then add
+**RemoNook → Study flashcards** from the launcher's Widgets picker.
+
+Validation for the application commit: TypeScript/staging build, **556 full-suite
+tests**, **14 model checks**, **15 React/persistence/worker checks**, Chromium study
+window acceptance at normal/narrow widths in light/dark, and a packaged worker
+load/complete-answer check all passed. Exact-source GitHub CI passed for both
+application and Android release commits. The cache runs in a worker and ignores
+stale results. A synthetic 10,000-card Chromium check observed a largest UI
+heartbeat gap of 38 ms (9 ms at 1,000 cards); these are development-machine results.
+Native compilation/tests and browser acceptance are not physical-launcher or
+macOS/Windows/Linux desktop-shell testing. Owner device checks remain outstanding.
+
+The native workflows publish **staging only**. No web frontend, backend Worker,
+migration or production deployment was performed. The shared scheduler, canonical
+local persistence, full backups and durable sync outbox remain authoritative.
+Android's previous public version was `0.1.5`; earlier widget candidates were
+withheld before publication. The existing staging backend health remains
+`syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`,
+`bookmarkReader: 1`.
 
 
 ### Android staging navigation update, 15 November 2026
