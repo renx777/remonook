@@ -3,27 +3,55 @@
 ## Current state
 
 
-### Social-post previews prepared for web staging, 16 November 2026
+### Social-post previews on web staging, 16 November 2026
 
-Branch `codex/social-post-previews` starts from current `origin/main` and retains
-all current staging work through `592c1aa890e8a490b98a58bb18c3d68434bcac2d`
-(`ccr-641b18bf-2fe80f`), including the post-release Android rename fixes and
-view-outline corrections. See [SOCIAL-POSTS.md](SOCIAL-POSTS.md) for scope,
-provider limitations, Android follow-ups and the validation plan.
+Branch `codex/social-post-previews`, application source
+`04ac6bcec3b450dc9e8188cee39c62bfa4d48d7a`, is live on web staging.
+[CI #332](https://github.com/renx777/remonook/actions/runs/43859408595) passed for
+that exact source. [Staging frontend #172](https://github.com/renx777/remonook/actions/runs/43859867016)
+passed on attempt 2. The live `staging-source.json` matches the branch and commit.
 
-The feature adds live X/Twitter, Reddit and Instagram post embeds to notes and
-Bookmarks, source-linked personal notes with durable-save confirmation, local
-draft recovery, and caption-plus-link recognition for incoming Android shares.
-It needs no paid API, new secrets, backend deployment, migration or sync protocol
-change. The first release targets **web staging only**; native binaries and
-production are unchanged.
+The owner approved replacing the previous staging branch
+`ccr-641b18bf-2fe80f` at `592c1aa890e8a490b98a58bb18c3d68434bcac2d`.
+The new branch retains all work through that commit, including the phone-sharing
+rename fixes and view-outline corrections. It was started from current
+`origin/main` before fast-forwarding to that staging baseline.
 
-Deployment is pending staging coordination. At preparation time, the live
-frontend marker reports branch `ccr-641b18bf-2fe80f` at the commit above. The owner
-has been asked before replacing that branch under the AGENTS.md staging rule.
-Do not treat the feature branch as deployed until the workflow and live source
-marker have been verified and this record updated.
+Public X/Twitter, Reddit and Instagram post permalinks now display live previews
+in notes and Bookmarks. Source-linked personal notes use ordinary Undo and
+canonical persistence; local drafts survive unsuccessful submissions, and their
+insertion ID prevents duplicate retries. Caption-plus-link incoming shares
+recognise a bookmark and preserve all supplied text. See
+[SOCIAL-POSTS.md](SOCIAL-POSTS.md) for usage, provider limits and Android follow-ups.
+This is live embedding, not archival post-body/media capture.
 
+Local TypeScript, staging build and **571 tests** passed. Desktop/mobile browser
+acceptance passed against development, the built app and live staging, including
+all three provider URL paths, note saving/Undo, captions, duplicate links,
+light/dark and offline fallback. These deterministic tests mock provider content.
+A separate **unmocked live staging X check** rendered public post 20 and received
+its provider resize message. Reddit blocked this environment's network, and the
+Instagram sample reported unavailable; successful content rendering for those
+providers is not claimed. Private/deleted/blocked content retains an original
+link and local personal notes.
+
+Attempt 1 published successfully but its offline-reconnect acceptance case timed
+out at 30 seconds; the other 12 checks passed and all earlier account notes were
+retained. The unchanged source was rerun without weakening tests or changing the
+sync transport. Attempt 2 passed **all 13 sync checks**, including reconnect in
+971 ms, concurrent edit preservation, three-device convergence, device-only
+isolation and cleanup restoring all 1,587 earlier notes. A similar timeout is
+documented in the baseline history (commit `cd1010a`); this release does not claim
+to have eliminated that intermittent timing condition.
+
+Only the **web staging frontend** was published. No Android/desktop binaries,
+backend Worker, migrations, main merge or production release were performed.
+The shared Android capture improvements are prepared for a later native update
+after web acceptance. Live backend health exactly matched the pre-release check:
+`ok: true`, `syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`,
+`aiEnabled: true`, `bookmarkReader: 1`, with Google Tasks, books, attachments,
+article capture and MCP capabilities retained. No new secrets or paid API are
+required. The staging workflow deploys the frontend only.
 
 
 ### Incoming Android sharing and dedicated outlines, 16 November 2026
