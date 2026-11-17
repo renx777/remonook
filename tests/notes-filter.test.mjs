@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterRoots, filterCounts, rootRows, noteCatalog, orderedNoteRoots } from '../src/notes-filter.mjs';
+import { filterRoots, filterCounts, rootRows, noteCatalog, orderedNoteRoots, ordinaryNoteProjection, outlineDestination } from '../src/notes-filter.mjs';
 import { bullet, index } from '../src/domain.mjs';
 
 const B = (id, parentId, position, extra = {}) => bullet(id, { parentId, position, text: id, ...extra });
@@ -29,7 +29,7 @@ test('filters return whole outermost bullets in outline order', () => {
   assert.deepEqual(filterRoots(doc, 'docs'), ['book-1']);
   assert.equal(filterRoots(doc, 'all'), null);
   assert.deepEqual(filterRoots(doc, 'flashcards', 'ml'), ['q1'], 'a zoomed page only shows its own bullets');
-  assert.deepEqual(filterCounts(doc), { notes: 2, calendar: 0, flashcards: 3, mcqs: 1, mindmaps: 1, bookmarks: 1, docs: 1 });
+  assert.deepEqual(filterCounts(doc), { notes: 3, calendar: 0, flashcards: 3, mcqs: 1, mindmaps: 1, bookmarks: 1, docs: 1 });
 });
 
 test('rows show each matched bullet with its children', () => {
@@ -41,11 +41,11 @@ test('rows show each matched bullet with its children', () => {
 test('Notes excludes typed subtrees while retaining ordinary siblings in mixed pages',()=>{
  const mixed=structuredClone(doc);mixed.tables.bullets.push(B('ordinary','ml',2),B('day',null,9,{journalDate:'2026-11-06'}),B('daily-text','day',0));
  const catalog=noteCatalog(mixed);
- assert.deepEqual(catalog.roots('notes'),['ml','plain']);
+ assert.deepEqual(catalog.roots('notes'),['ml','deck','plain']);
  const visible=rootRows(catalog.idx,catalog.roots('notes'),true).filter(r=>!catalog.excluded.has(r.bullet.id));
- assert.deepEqual(visible.map(r=>r.bullet.id),['ml','ordinary','plain']);
- for(const id of ['q1','a1','mcq','o1','deck','q2','map','mapq','web-1','hl','book-1','day','daily-text'])assert.ok(catalog.excluded.has(id),id);
- assert.deepEqual(catalog.roots('notes','deck'),[]);
+ assert.deepEqual(visible.map(r=>r.bullet.id),['ml','ordinary','deck','q2','plain']);
+ for(const id of ['q1','a1','mcq','o1','map','mapq','web-1','hl','book-1','day','daily-text'])assert.ok(catalog.excluded.has(id),id);
+ assert.deepEqual(catalog.roots('notes','deck'),['q2']);
  assert.deepEqual(catalog.roots('calendar'),['day']);
 });
 
@@ -63,4 +63,17 @@ test('calendar hierarchy and a reused calendar root are excluded from ordinary N
  const mixed={tables:{bullets:[B('custom',null,0,{text:'📅 Calendar'}),B('year','custom',0),B('day','year',0,{journalDate:'2026-11-06'}),B('entry','day',0),B('normal',null,1)]},web:{}};
  assert.deepEqual(filterRoots(mixed,'calendar'),['custom']);
  assert.deepEqual(filterRoots(mixed,'notes'),['normal']);
+});
+
+
+test('ordinary deck pages remain visible through focus changes without changing saved data',()=>{
+ const before=structuredClone(doc),catalog=noteCatalog(doc);
+ for(const editing of [null,'plain','deck','q2',null]){
+  const projection=ordinaryNoteProjection(catalog,editing);
+  assert.ok(projection.roots.includes('deck'));
+  assert.ok(!projection.excluded.has('q2'));
+ }
+ assert.equal(outlineDestination(doc,'deck'),'notes');
+ assert.equal(outlineDestination(doc,'q2'),'study');
+ assert.deepEqual(doc,before);
 });

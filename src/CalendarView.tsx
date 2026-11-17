@@ -158,6 +158,7 @@ type CalendarViewProps = {
   onSelectDate: (date: string) => void;
   onAddBullet: (date: string) => void;
   onOpenDate: (date: string) => void;
+  onVisibleRows?: (ids: readonly string[] | null) => void;
   onEdit: (id: string | null) => void;
   onZoom: (id: string) => void;
   onMindmap?: (id: string) => void;
@@ -377,6 +378,7 @@ export function CalendarView(props: CalendarViewProps) {
             disabled={props.disabled}
             assets={props.assets}
             media={props.media}
+            onVisibleRows={props.onVisibleRows}
             onEdit={props.onEdit}
             onZoom={id=>id===draft.id&&!created.current?props.onEdit(id):props.onZoom(id)}
             onMindmap={props.onMindmap}

@@ -1,3 +1,4 @@
+import {socialPost} from "./social-posts.mjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
@@ -205,7 +206,8 @@ export function BookmarkLibrary({
           </label>
           <input
             id="bl-quick-url"
-            type="url"
+            type="text"
+            inputMode="url"
             required
             placeholder="Paste a link to save…"
             value={quickUrl}
@@ -603,7 +605,7 @@ export function BookmarkLibrary({
                     {b.readingMinutes ? ` · ${b.readingMinutes} min` : ""}
                     {" · " + savedLabel(b.createdAt)}
                   </span>
-                  <span
+                  {socialPost(b.url)?<span className="bl-social-label">{socialPost(b.url)!.provider} · Live post</span>:<span
                     className={"bl-availability is-" + availability}
                     title={
                       availability === "offline"
@@ -627,7 +629,7 @@ export function BookmarkLibrary({
                           ? "Saved article"
                           : "Link only"}
                     </span>
-                  </span>
+                  </span>}
                   {(noteCounts[b.id] || 0) > 0 && (
                     <button
                       className="bl-note-count"
@@ -690,7 +692,7 @@ export function BookmarkLibrary({
                   ? "Use the star beside a page to find it here."
                   : filter === "unread"
                     ? "Save another page, or revisit your reading list."
-                    : "Save an article to read, highlight and turn ideas into notes."}
+                    : "Save articles and social posts, then keep your thoughts beside them."}
           </p>
           {query || tag || filter !== "all" ? (
             <button onClick={clear}>Show all pages</button>
@@ -819,9 +821,10 @@ function SavePage({
         }}
       >
         <label>
-          Webpage URL
+          Link or shared text
           <input
-            type="url"
+            type="text"
+            inputMode="url"
             required
             autoFocus
             placeholder="https://example.com/article"
@@ -831,8 +834,8 @@ function SavePage({
           />
         </label>
         <p className="bl-dialog-copy">
-          Keep the link in your reading list. Save a clean article
-          copy for offline reading.
+          Save an article or a public X, Reddit, Instagram, Bluesky or TikTok post. Social posts
+          appear as live previews; your link and notes stay in RemoNook.
         </p>
         {error && (
           <p className="bl-error" role="alert">

@@ -1,3 +1,4 @@
+import {socialPost} from "./social-posts.mjs";
 /** @typedef {{kind: string, title: string, href: string, embed: string|null}} MediaLink */
 export const imageMimeTypes = {
   jpg: "image/jpeg", jpeg: "image/jpeg", jfif: "image/jpeg", png: "image/png", apng: "image/apng", gif: "image/gif", webp: "image/webp", avif: "image/avif", svg: "image/svg+xml", bmp: "image/bmp", ico: "image/x-icon", tif: "image/tiff", tiff: "image/tiff", heic: "image/heic", heif: "image/heif", jxl: "image/jxl", psd: "image/vnd.adobe.photoshop", raw: "image/x-raw",
@@ -15,6 +16,8 @@ export function safeLink(value) {
 export function mediaLink(value) {
   const href = safeLink(value);
   if (!href) return null;
+  const social = socialPost(href);
+  if (social) return social;
   const url = new URL(href), host = url.hostname.toLowerCase().replace(/^www\./, ""),
     parts = url.pathname.split("/").filter(Boolean);
   if (["youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com", "youtu.be"].includes(host)) {
@@ -31,10 +34,6 @@ export function mediaLink(value) {
   }
   if (host==='open.spotify.com') {const at=parts.findIndex(p=>['track','album','playlist','episode','show'].includes(p));if(at>=0&&/^[a-zA-Z0-9]+$/.test(parts[at+1]||''))return {kind:'spotify',title:'Spotify '+parts[at],href,embed:`https://open.spotify.com/embed/${parts[at]}/${parts[at+1]}`};}
   if (/\.(mp3|m4a|aac|wav|ogg|oga|flac|opus)$/i.test(url.pathname))return {kind:'audio',title:'Linked audio',href,embed:null};
-  if (["instagram.com", "m.instagram.com"].includes(host) && ["p", "reel", "tv"].includes(parts[0]) && /^[\w-]+$/.test(parts[1] || "")) {
-    const href = `https://www.instagram.com/${parts[0]}/${parts[1]}/`;
-    return { kind: "instagram", title: parts[0] === "reel" ? "Instagram reel" : "Instagram post", href, embed: href + "embed/" };
-  }
   if (["vimeo.com", "player.vimeo.com"].includes(host)) {
     const id = parts.find(part => /^\d+$/.test(part));
     if (id) return { kind: "vimeo", title: "Vimeo video", href: `https://vimeo.com/${id}`, embed: `https://player.vimeo.com/video/${id}` };

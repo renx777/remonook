@@ -1,0 +1,39 @@
+.social-post{position:relative;width:min(100%,550px);min-width:0;margin:10px 0;color:var(--text);font:13px/1.5 system-ui,sans-serif;box-sizing:border-box}
+.social-post button,.bookmarks .social-post button{display:inline-flex;gap:5px;align-items:center;justify-content:center;min-height:34px;padding:5px 7px;border:0;background:transparent;color:var(--muted);font:12px system-ui;cursor:pointer;border-radius:6px}
+.social-post button:hover{background:var(--hover);color:var(--text)}
+.social-post a{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:12px}
+.social-post a:hover{color:var(--accent)}
+.social-post a:focus-visible,.social-post button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.social-post>iframe{display:block;width:100%;min-width:0;min-height:180px;max-height:1000px;border:0;aspect-ratio:auto;background:transparent;border-radius:10px}
+.social-post>iframe[data-pending=true]{position:absolute;top:0;opacity:0;pointer-events:none}
+.social-post>footer{display:flex;align-items:center;gap:12px;padding:5px 2px;min-height:34px}
+.social-post-actions{display:flex;align-items:center;gap:2px;margin-left:auto}
+.social-post-loading{padding:22px 18px;border:1px solid var(--line);border-radius:10px;min-height:96px;color:var(--muted)}
+.social-post-loading>span{display:block;height:8px;max-width:75%;margin:0 0 12px;border-radius:4px;background:var(--hover)}
+.social-post-loading>span+span{max-width:50%}.social-post-loading small{font-size:11px}
+.social-post-unavailable{padding:18px;margin:0;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:12px}
+.social-post-copy{border:1px solid var(--line);border-radius:12px;padding:20px 22px;background:var(--bg)}
+.social-post-copy h3{font:550 19px/1.4 system-ui;margin:8px 0 12px;letter-spacing:-.015em}
+.social-post-copy p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font-size:14px;line-height:1.75}
+.social-post-copy .social-post-byline{font-size:11px;color:var(--muted);line-height:1.4}
+.social-post-copy .is-clamped{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.social-post-copy>button{margin:8px 0 -5px -7px}
+@media(max-width:760px){.social-post-copy{padding:17px 18px}.social-post-copy h3{font-size:18px}.social-post>footer button{min-height:42px;min-width:40px}.social-post-actions{gap:2px}.social-post>footer{gap:8px}}
+.social-reader{display:flex;flex-direction:column;height:100%;min-height:0;padding:0;max-width:none}
+.social-reader-toolbar{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);flex-shrink:0}
+.social-reader-toolbar strong{flex:1;font-size:14px}
+.social-reader-toolbar a{color:var(--muted);text-decoration:none;display:flex;gap:6px;align-items:center;font-size:12px}
+.social-reader-body{overflow:auto;flex:1;min-height:0;padding:28px 22px 80px}
+.social-reader-content{width:min(100%,920px);margin:auto;display:grid;grid-template-columns:minmax(0,550px) minmax(230px,1fr);gap:32px;align-items:start}
+.social-reader .social-post{margin:0}
+.social-reader-notes h2{font:500 21px Georgia,serif;margin:0 0 12px}
+.social-reader-notes p{font-size:12px;line-height:1.6;color:var(--muted)}
+.bookmarks .social-reader-notes form{display:grid;gap:10px;align-items:stretch}
+.bookmarks .social-reader-notes textarea{width:100%;box-sizing:border-box;min-height:130px;resize:vertical;font:15px/1.6 system-ui;background:var(--bg)}
+.bookmarks .social-reader-notes form button{justify-self:start;min-height:40px;font-size:13px}
+.social-reader-saved-note{white-space:pre-wrap;overflow-wrap:anywhere;border-bottom:1px solid var(--line);padding:14px 0;font:14px/1.65 system-ui}
+.social-reader-saved-note button{display:block;margin-top:8px;font-size:11px!important}
+.bl-social-label{display:inline-flex;gap:4px;align-items:center;color:var(--accent);font-size:11px}
+@media(max-width:760px){.social-reader-body{padding:18px 14px 90px}.social-reader-content{grid-template-columns:minmax(0,1fr);max-width:550px;gap:26px}.bookmarks .social-reader-notes textarea{font-size:16px}.social-reader-toolbar{padding:10px 14px}.social-reader-toolbar button{min-height:44px}.social-post>footer{gap:6px}.social-post>header,.social-post>footer{padding-inline:11px}.social-post>header button{min-height:40px}}
+.social-post-photo{display:block;width:100%;max-height:280px;object-fit:contain;border-radius:8px;margin-top:12px}
+.social-post-copy>button+button{margin-left:8px}

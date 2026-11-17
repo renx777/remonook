@@ -1,3 +1,4 @@
+import {sharedWebLink} from "./social-posts.mjs";
 import { contentDigest } from "./content-digest.mjs";
 import { bullet } from "./domain.mjs";
 import { withNodes } from "./workspace-nodes.mjs";
@@ -29,12 +30,12 @@ export function incomingShare(doc, entry, text, kind = "note") {
   let next = doc,
     id = crypto.randomUUID();
   if (kind === "bookmark") {
-    const matches = [...new Set(text.match(/https?:\/\/[^\s<>]+/g) || [])];
-    if (matches.length !== 1)
+    const link = sharedWebLink(text);
+    if (!link)
       throw Error(
         "Use one web address to save a bookmark, or save this as a note.",
       );
-    const result = addBookmark(doc, matches[0]);
+    const result = addBookmark(doc, link);
     next = bookmarkNote(result.doc, result.bookmark, text, id);
     next = withNodes(
       { ...next, tables: { ...next.tables, bullets: doc.tables.bullets } },

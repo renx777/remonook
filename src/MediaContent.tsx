@@ -1,3 +1,4 @@
+import {SocialPost} from "./SocialPost";
 import {useVisualTools} from './VisualTools';
 import {drawingFile} from './visual-notes.mjs';
 import {MusicGallery} from './Music';
@@ -37,6 +38,7 @@ function LocalImage({ item, blob, onRemove, onResize, onOcclude }: { item: Recor
 function Embed({ item,onEdit }: { item: ReturnType<typeof mediaLinks>[number];onEdit?:()=>void }) {
   const [loaded, setLoaded] = useState(true), [failed, setFailed] = useState(false),[full,setFull]=useState(false),[showText,setShowText]=useState(false);
   if (!item) return null;
+  if (["twitter", "reddit", "instagram", "bluesky", "tiktok"].includes(item.kind)) return <SocialPost key={item.href} url={item.href}/>;
   if (item.kind === "link") return <a className="note-link" href={item.href} target="_blank" rel="noopener noreferrer"><Icon name="link" size={14} /><span>{item.href}</span><Icon name="forward" size={12} /></a>;
   return <div className={`media-embed media-${item.kind}`}>
     {loaded ? item.kind === "image" ? <>{!failed && <img src={item.href} alt="Linked note image" role="button" tabIndex={0} aria-label={onEdit?"Edit embedded image bullet":"Show image link"} onClick={()=>onEdit?onEdit():setShowText(v=>!v)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();if(onEdit)onEdit();else setShowText(v=>!v);}}} loading="lazy" onError={() => setFailed(true)} />}{failed && <p>Preview unavailable. Open the original link below.</p>}</> : item.kind === "audio" ? <audio src={item.href} controls preload="metadata"/> : item.kind === "video" ? <video src={item.href} controls preload="metadata" playsInline onError={()=>setFailed(true)}/> : <iframe src={item.embed!} title={item.title} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowFullScreen /> : <button className="embed-placeholder" onClick={() => setLoaded(true)}><span className="embed-play"><Icon name={item.kind === "image" ? "image" : "play"} size={23} /></span><span><strong>{item.title}</strong><small>Load {item.kind === "image" ? "image" : "player"} from {new URL(item.href).hostname}</small></span></button>}

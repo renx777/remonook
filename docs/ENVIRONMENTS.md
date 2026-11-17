@@ -3,6 +3,144 @@
 ## Current state
 
 
+### Stable note visibility on staging, 17 November 2026
+
+Branch `codex/stable-note-visibility`, application source
+`431490354070cc68104619ac8810c6db9730fc46`, is live on web staging.
+[CI #339](https://github.com/renx777/remonook/actions/runs/44010314981)
+passed **582 tests**, also passed locally after the staging build. TypeScript
+checking and Chromium acceptance at 1280 × 850 and 390 × 844 passed. The same
+browser acceptance passed against the deployed app: ordinary deck visibility,
+Backspace, Undo, Tab, retained NotebookLM bookmark text and reload.
+
+[Staging frontend #177](https://github.com/renx777/remonook/actions/runs/44010424477)
+passed all **13 sync acceptance checks**. Offline reconnect completed in 969 ms;
+concurrent edits retained both sides; device-only workspaces issued no sync
+requests. Cleanup retained all 1,593 earlier notes. The live source marker matches
+the branch and full application commit. Web staging Worker `remonook-staging`
+version: `4639d969-171b-47d5-8b5f-6c75d0b9644f`.
+
+Notes keeps ordinary pages registered as study decks visible. Filtered outlines
+now supply their displayed row sequence to Backspace, Tab, arrow navigation,
+context-menu indent and divider deletion. Hidden bookmark branches retain their
+IDs, text and metadata, and Android capture names Library → Bookmarks as the
+bookmark destination. See [NOTE-VISIBILITY.md](NOTE-VISIBILITY.md).
+
+[Android app #12](https://github.com/renx777/remonook/actions/runs/44010998049)
+published **Android staging 0.1.12** from the same application source. The live
+Android update feed advertises 0.1.12, and the APK downloaded successfully. Its
+APK v2 signing certificate exactly matches the previously published 0.1.11
+package (SHA-256 `25daa19c392684e2c3c5ee5e9f8fe0a731ef8204cb7ea88cbcee35a57b87dff1`).
+The workflow also passed native widget pagination tests and `apksigner verify`.
+Install over the existing staging app; do not uninstall device-only workspaces.
+No other native channel was published for this fix.
+
+The sync backend was not deployed; health remains `syncProtocol: 3`,
+`workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`, `bookmarkReader: 1`, with
+books, attachments, capture, Google Tasks, email/Google authentication and MCP
+capabilities retained. No migration, snapshot replacement, outbox changes,
+production deployment or merge to main is involved. Affected-account/real Android
+keyboard acceptance requires the owner's device check; browser tests do not
+claim access to that account or installed app.
+
+### Refined post previews on web staging, 16 November 2026
+
+Branch `codex/refined-post-previews`, application source
+`8f3eb43aae90400cf52c4a05dad4d6ea4f36553c`, is live on web staging.
+[CI #337](https://github.com/renx777/remonook/actions/runs/43907779765) passed all
+**579 tests** for that source. [Staging frontend #176](https://github.com/renx777/remonook/actions/runs/43907996455)
+passed all **13 sync acceptance checks**, including offline reconnect in 975 ms,
+concurrent edits, device-only isolation and cleanup retaining all 1,589 earlier
+notes. The live source marker matches the branch and full commit.
+
+The deployed **web staging Worker** (`remonook-staging`) version is
+`04acdfb8-51d0-43e0-b52a-a9020a738ac5`. It now bundles the narrowly routed
+`/api/reddit-preview` endpoint alongside static assets. Only that endpoint runs
+Worker code first; normal assets retain asset-first serving. This is separate
+from `remo-sync-staging`, which was not deployed or changed. No new secrets,
+D1/R2 bindings, storage migrations, native app publication or production release
+were performed. Sync-backend health exactly matches the pre-release snapshot,
+including `syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`,
+`bookmarkReader: 1` and retained Google Tasks/books/capture/MCP capabilities.
+
+The owner's `/r/GadgetsIndia/s/hr9mfrsrFT` link resolves to post `1xxrpor`.
+**Unmocked live staging acceptance returned HTTP 200** and rendered its actual
+post title, author, community and text. Its optional thumbnail loaded successfully
+on demand. The live-embed action uses the resolved `/comments/1xxrpor/` permalink,
+not the short-link path. Personal-note saving and Undo passed on the live app;
+desktop/mobile screenshots were inspected. The deterministic browser suite also
+passed on staging, including light/dark, offline fallback and the existing
+X/Instagram/Reddit flows; its external responses are fixtures.
+
+Previews use one quiet source/actions row. Reddit text cards clamp long passages
+until Read more, and images load only after Show image. Public Bluesky embeds
+were verified against a live post. TikTok video/photo links use the official
+player with autoplay off, but the documentation sample was unavailable; successful
+media rendering for that sample is not claimed. Existing YouTube/Vimeo/Spotify
+note embeds remain intact. See [SOCIAL-POSTS.md](SOCIAL-POSTS.md).
+
+The first candidate's Reddit API failed before contacting Reddit because Node
+accepts `fetch` redirect mode `error`, while Workers supports only `follow` or
+`manual`. This was initially mistaken for a provider-access failure. The corrected
+handler uses `manual`, and a real Miniflare/workerd regression test verifies short
+resolution, feed parsing, absence of forwarded credentials and caching. Earlier
+staging runs also encountered authentication/network failures during sync-test
+cleanup; the final #176 passed without changing the sync transport or relaxing
+acceptance. Public/private/deleted content and provider rate limits still govern
+preview availability. Reddit text previews are not archival media imports.
+
+
+### Social-post previews on web staging, 16 November 2026
+
+Branch `codex/social-post-previews`, application source
+`04ac6bcec3b450dc9e8188cee39c62bfa4d48d7a`, is live on web staging.
+[CI #332](https://github.com/renx777/remonook/actions/runs/43859408595) passed for
+that exact source. [Staging frontend #172](https://github.com/renx777/remonook/actions/runs/43859867016)
+passed on attempt 2. The live `staging-source.json` matches the branch and commit.
+
+The owner approved replacing the previous staging branch
+`ccr-641b18bf-2fe80f` at `592c1aa890e8a490b98a58bb18c3d68434bcac2d`.
+The new branch retains all work through that commit, including the phone-sharing
+rename fixes and view-outline corrections. It was started from current
+`origin/main` before fast-forwarding to that staging baseline.
+
+Public X/Twitter, Reddit and Instagram post permalinks now display live previews
+in notes and Bookmarks. Source-linked personal notes use ordinary Undo and
+canonical persistence; local drafts survive unsuccessful submissions, and their
+insertion ID prevents duplicate retries. Caption-plus-link incoming shares
+recognise a bookmark and preserve all supplied text. See
+[SOCIAL-POSTS.md](SOCIAL-POSTS.md) for usage, provider limits and Android follow-ups.
+This is live embedding, not archival post-body/media capture.
+
+Local TypeScript, staging build and **571 tests** passed. Desktop/mobile browser
+acceptance passed against development, the built app and live staging, including
+all three provider URL paths, note saving/Undo, captions, duplicate links,
+light/dark and offline fallback. These deterministic tests mock provider content.
+A separate **unmocked live staging X check** rendered public post 20 and received
+its provider resize message. Reddit blocked this environment's network, and the
+Instagram sample reported unavailable; successful content rendering for those
+providers is not claimed. Private/deleted/blocked content retains an original
+link and local personal notes.
+
+Attempt 1 published successfully but its offline-reconnect acceptance case timed
+out at 30 seconds; the other 12 checks passed and all earlier account notes were
+retained. The unchanged source was rerun without weakening tests or changing the
+sync transport. Attempt 2 passed **all 13 sync checks**, including reconnect in
+971 ms, concurrent edit preservation, three-device convergence, device-only
+isolation and cleanup restoring all 1,587 earlier notes. A similar timeout is
+documented in the baseline history (commit `cd1010a`); this release does not claim
+to have eliminated that intermittent timing condition.
+
+Only the **web staging frontend** was published. No Android/desktop binaries,
+backend Worker, migrations, main merge or production release were performed.
+The shared Android capture improvements are prepared for a later native update
+after web acceptance. Live backend health exactly matched the pre-release check:
+`ok: true`, `syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`,
+`aiEnabled: true`, `bookmarkReader: 1`, with Google Tasks, books, attachments,
+article capture and MCP capabilities retained. No new secrets or paid API are
+required. The staging workflow deploys the frontend only.
+
+
 ### Incoming Android sharing and dedicated outlines, 16 November 2026
 
 Branch `codex/android-share-view-outlines`, application source

@@ -82,7 +82,7 @@ import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
 import {ReminderTabs,ReminderEditor,useReminderClock,type ReminderTarget} from './CalendarReminders';
 import {CalendarAgenda,MiniMonth,WorkdaysLine} from './CalendarAgenda';
-import {articleSnapshotHashes} from './bookmarks.mjs';
+import {articleSnapshotHashes,bookmarkNote} from './bookmarks.mjs';
 import {CalendarTrackers} from './CalendarTrackers';
 import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
 import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
@@ -896,6 +896,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (!search.trim()) return;
     commit({ ...current, web: { ...current.web, starredSearches: saved.includes(search.trim()) ? saved.filter(value => value !== search.trim()) : [...saved, search.trim()] } });
   };
+  const outlineRows=useRef(new Map<string,readonly string[]>());
+  const reportOutlineRows=(key:string,ids:readonly string[]|null)=>{if(ids)outlineRows.current.set(key,ids);else outlineRows.current.delete(key);};
   const add = (customParent?: any) => {
     const mirrorParent=typeof customParent==="string"?docRef.current!.tables.bullets.find(n=>n.id===customParent):null;
     const mirrorContext=mirrorParent?.mirrorRootId||docRef.current!.tables.bullets.find(n=>n.id===editing)?.mirrorRootId;
@@ -1048,6 +1050,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const bulletTargets = (id: string, selectedIds?: string[]) => new Set((selectedIds?.includes(id) ? selectedIds : menu === id ? menuSelection.current : [id]).map(target => sourceId(docRef.current!.tables.bullets, target)));
   const command = (action: string, id: string, start: number, end: number, selectedIds?: string[]) => {
+    const renderedIds=outlineRows.current.get(tab+':'+views.activePane);
+    const displayId=id;
     const targets = bulletTargets(id, selectedIds);
     if (action.startsWith('list:')) {
       const listType = action.slice(5);
@@ -1132,7 +1136,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (action === "deleteDivider") {
       const current = docRef.current!,
         ns = current.tables.bullets as Node[],
-        rs = rows(ns, outlineScope),
+        byId = index(ns).byId,
+        rs = renderedIds ? renderedIds.map(key=>({bullet:byId.get(byId.get(key)?.mirrorSourceId||key)})).filter(row=>row.bullet) : rows(ns, outlineScope),
         at = rs.findIndex((r: any) => r.bullet.id === id);
       if (at < 0) return;
       const targetBullet = at > 0 ? rs[at - 1].bullet : rs[1]?.bullet;
@@ -1202,9 +1207,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if (action === "previous" || action === "next") {
-      const visible = rows(docRef.current!.tables.bullets as Node[], outlineScope),
-        at = visible.findIndex((row: any) => row.bullet.id === id),
-        target = visible[at + (action === "previous" ? -1 : 1)]?.bullet;
+      const all=docRef.current!.tables.bullets as Node[],byId=index(all).byId;
+      const visible = renderedIds?renderedIds.map(key=>({bullet:byId.get(key)})).filter(row=>row.bullet):rows(all, outlineScope),
+        at = visible.findIndex((row: any) => row.bullet.id === displayId),
+        target = at < 0 ? null : visible[at + (action === "previous" ? -1 : 1)]?.bullet;
       if (target)
         commandFocus(target.id, action === "previous" ? target.text.length : 0);
       return;
@@ -1265,6 +1271,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if (action === "indent" || action === "outdent") {
+      const byId=index(docRef.current!.tables.bullets).byId;
+      const visibleSources=renderedIds?new Set(renderedIds.map(key=>byId.get(key)?.mirrorSourceId||key)):null;
       const roots = [...targets].filter(target => {
         const parent = index(docRef.current!.tables.bullets).byId.get(target)?.parentId;
         return parent === null || parent === undefined || !targets.has(parent);
@@ -1275,7 +1283,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           const node = index(out).byId.get(target);
           if (!node || node.mirrorRootId) continue;
           if (action === "outdent" && tab === "calendar" && node.parentId === outlineScope) continue;
-          out = (action === "indent" ? indent : outdent)(out, target);
+          out = action === "indent" ? indent(out,target,visibleSources) : outdent(out,target);
         }
         return out;
       });
@@ -1305,7 +1313,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           command('deleteDivider', id, start, end);
           return;
         }
-        const result = merge(ns, id, outlineScope);
+        const previousAt=renderedIds?.indexOf(displayId);
+        const previousId=previousAt===undefined?undefined:previousAt>0?sourceId(ns,renderedIds![previousAt-1]):null;
+        const result = merge(ns, id, outlineScope, previousId);
         if (result) {
           const withMedia = {
             ...current,
@@ -1816,7 +1826,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           const result=incomingShare(docRef.current!,entry,text,kind);
           if(result.doc!==docRef.current)commit(result.doc);
           await flush();if(failed.current)throw Object.assign(Error('Your share is in the editor but could not be saved. Retry saving; its original remains on this device.'),{captureApplied:true});
-          setNotice(kind==='bookmark'?'Bookmark saved.':'Saved to Inbox.');
+          setNotice(kind==='bookmark'?'Saved to Bookmarks. Find it in Library → Bookmarks.':'Saved to Inbox in Notes.');
         }}/>
         {viewHint&&<div className="view-dots" role="status" aria-live="polite">{SWIPE_VIEWS.map(v=><span key={v} className={v===viewHint.view?'is-current':''}>{v===viewHint.view?SWIPE_LABELS[v]:''}</span>)}</div>}
         {error && (
@@ -1854,6 +1864,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             </div>}
             {canvasEnabled&&pane.scope&&canvasRoots.get(pane.scope)&&<div className="canvas-open-banner"><span>This page is a canvas.</span><button onClick={()=>{setCanvasOpen({id:canvasRoots.get(pane.scope!)!,n:Date.now()});setEditing(null);setTab('canvas');}}><Icon name="canvas" size={14}/>Open canvas</button></div>}
             {dedicatedOutline&&!pane.scope&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<div className="notes-filter-empty"><p>No {({study:'study notes',notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} yet.</p>{!disabled&&<button className="primary" onClick={addInView}>{({study:'Add a flashcard',calendar:"Add an entry for this day",mindmap:'Add a mindmap',bookmarks:'Open the bookmark library',bookshelf:'Open the bookshelf'} as Record<string,string>)[tab]}</button>}</div>:<OutlineView
+              onVisibleRows={ids=>reportOutlineRows(tab+':'+pane.id,ids)}
               rootIds={notesFilterRoots?.[pane.id]||null}
               excludedIds={notesFilter==='notes'&&!pane.scope&&!pane.search?ordinaryProjection?.excluded:undefined}
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
@@ -1923,7 +1934,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
         ) : tab === "bookmarks" ? (
-          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
+          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onSaveSocialNote={async(bookmarkId,text,id)=>{
+            const owner=storageAccountKey();if(failed.current)throw Error('Saving needs attention. Your draft is kept.');
+            await flush();if(failed.current||owner!==storageAccountKey())throw Error('The workspace changed or saving needs attention. Your draft is kept.');
+            const current=docRef.current!,bookmark=current.web.bookmarks?.[bookmarkId];if(!bookmark||bookmark.deleted)throw Error('This bookmark was removed. Your draft is kept.');
+            const prior=current.tables.bullets.find(n=>n.id===id);if(prior&&prior.text!==text)throw Error('An earlier version is in your notes. Your draft is kept.');
+            if(!prior){const next=bookmarkNote(current,bookmark,text,id);commit(withNodes(next,next.tables.bullets as Node[]));}
+            await flush();if(failed.current||owner!==storageAccountKey()||!persisted.current?.tables.bullets.some(n=>n.id===id))throw Object.assign(Error('The note could not finish saving. Your draft is kept; retry after saving recovers.'),{captureApplied:true});
+          }} onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onNotes={id=>navigateTo(id)} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/></React.Suspense>
         ) : tab === "study" ? (
@@ -1975,6 +1993,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             onChange={changeBulletContent}
             onEditorChange={changeEditorContent}
             readCurrentNode={readCurrentNode}
+            onVisibleRows={ids=>reportOutlineRows(tab+':'+views.activePane,ids)}
             onCommand={command}
             onOutlinePaste={pasteAsOutline}
             onReady={(e) => {
@@ -2134,7 +2153,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <button
               disabled={disabled}
               onClick={() => {
-                mutate((ns) => indent(ns, menuNode.id));
+                command("indent", menuNode.id, 0, 0);
                 setMenu(null);
               }}
             >
