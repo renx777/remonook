@@ -106,3 +106,11 @@ only the main product title/image markup on Amazon product pages; it does not
 pick unrelated recommendation images or guess a missing price. Myntra was
 unavailable from Cloudflare in the initial release, despite the local success.
 Final provider results are recorded in ENVIRONMENTS.md.
+
+The final web staging acceptance confirms the main Amazon keyboard image and
+clean product title on both supplied short links; the price is still absent.
+The Myntra request returns upstream 520 from Cloudflare; only its link and
+editable details are promised there. Actual Amazon images loaded in Chromium at
+desktop and phone widths. Automatic Allbirds product/price/image previews also
+passed. Both sync and collection browser acceptance passed in staging #180; see
+ENVIRONMENTS.md for the exact application source and Worker version.

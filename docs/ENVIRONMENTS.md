@@ -2,6 +2,76 @@
 
 ## Current state
 
+### Final shopping-preview release on web staging, 17 November 2026
+
+PRs [#90](https://github.com/renx777/remonook/pull/90) and
+[#91](https://github.com/renx777/remonook/pull/91) are merged into the staging
+branch `ccr-641b18bf-2fe80f`. Application source
+`c8dc4fa7ce149ec8e1bbbf99d3cad375e33aa802` is live there; the source marker
+matches exactly. Production, `main`, native app channels and `remo-sync-staging`
+were not deployed or changed by this release.
+
+[CI](https://github.com/renx777/remonook/actions/runs/44170010851) and the local
+suite passed **608 tests** for the final feature code.
+[Staging frontend #180](https://github.com/renx777/remonook/actions/runs/44170784275)
+passed all **13 sync acceptance checks** and the additional desktop/mobile
+collection browser checks. Offline reconnect took 977 ms; concurrent edits
+retained both sides; cleanup retained all 1,594 earlier notes. Web staging Worker
+`remonook-staging` version: `17b25aff-421b-44a3-a92a-e9b97c73d2c5`.
+
+Unmocked live Worker acceptance verified both owner's Amazon short links
+(`/d/0az7ENbG`, `/d/0dYO1kkX`): each resolves to ASIN `B0CYZHC69C` and returns
+the AULA F75 product title and main keyboard image. No dependable price is
+supplied, so it remains blank. Chromium verified that the actual Amazon image
+loads at desktop and phone widths. Allbirds returned its product name, image and
+USD offer price. The owner's Myntra shoes returned upstream HTTP **520** from
+Cloudflare, although local Node access returned their metadata successfully.
+Automatic Myntra coverage is therefore **not** claimed; its original link and
+editable preview details remain available. No retailer challenge was bypassed.
+
+Deterministic browser acceptance at 1280×860/light and 390×844/dark covered all
+views, editable details, images, adding notes, nested content, save/reload, and
+absence of page overflow or title/row overlap. Those browser-suite external
+responses are fixtures; the unmocked provider observations above are separate.
+
+The deployed frontend Worker retains `ASSETS` and adds only
+`LINK_PREVIEW_LIMITER`; logs/traces remain enabled and request query strings are
+redacted. Sync-backend health exactly matches the pre-release snapshot, including
+`syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`,
+`bookmarkReader: 1`, books, attachments, capture, Google Tasks and MCP support.
+See [LINK-COLLECTIONS.md](LINK-COLLECTIONS.md) for usage and bounds.
+
+### Shopping previews and child-note collection views, 17 November 2026
+
+The owner authorized merging and deploying this feature to web staging. PR #90
+merged the collection implementation into `ccr-641b18bf-2fe80f` at
+`01ff73065a4399e87859b58f52645df3b4c87958`, preserving the current staging typing
+fixes. The feature source passed all 607 tests locally and in
+[CI](https://github.com/renx777/remonook/actions/runs/44167481287).
+[Staging frontend #179](https://github.com/renx777/remonook/actions/runs/44168381414)
+passed all 13 sync checks and the added collection browser acceptance at
+1280×860/light and 390×844/dark. Offline reconnect took 973 ms; concurrent edits
+retained both sides; cleanup retained all 1,594 earlier notes. Its frontend Worker
+version was `25c078ac-1448-497b-9d7b-09d340c2a651`.
+
+Every bullet's page offers Outline, Grid, Compact list and Table. The menu's
+Organize branch section also offers View child notes. Presentations use the same
+source children in their existing order, with normal nested content, study types,
+Undo, saving and sync. Table compares supplied product facts; the pencil action
+provides labelled editable details when a site cannot supply them. Failed saves
+retain the draft, repeated submits are guarded, and untouched concurrent fields
+are preserved. No data migration or sync/outbox changes are involved.
+
+`/api/link-preview` runs on the frontend Worker, alongside its existing Reddit
+preview endpoint and static assets. It uses bounded anonymous public fetches,
+manual redirects and DNS checks, standard metadata/JSON-LD, native HTMLRewriter,
+URL-digest cache keys, query-string redaction and a 60/minute per-IP rate limiter
+(namespace 32701). Assets and observability remain in place. No paid preview,
+headless browser, AI, R2 or D1 service is added. The sync Worker was not deployed;
+production and native app channels are unchanged. See
+[LINK-COLLECTIONS.md](LINK-COLLECTIONS.md) for usage and limits.
+
+
 
 ### Stable note visibility on staging, 17 November 2026
 
