@@ -208,6 +208,9 @@ export function fromEditor(json: JSONContent) {
 }
 export const RichRead = memo(function RichReadContent({ node, search = "", literal = false, connected = true }: { node: Node; search?: string; literal?: boolean; connected?:boolean }) {
   const visual=useVisualTools();
+  // Blank lines at the start or end of a bullet (left by keyboards that split the paragraph on
+  // Enter) are not drawn, so they don't show as gaps between bullets.
+  if(!node.codeLanguage&&/^\n|\n$/.test(node.text)&&node.text.trim()){const lead=node.text.length-node.text.replace(/^\n+/,'').length,end=node.text.replace(/\n+$/,'').length;if(end>lead)node=sliceNode(node,lead,end);}
   if(!literal && /^!\[[^\]]*\]\(https?:\/\/[^\s]+\)$/.test(node.text.trim()))return null;
   if(readTable(node.text))return <NoteTable id={node.id} text={node.text}/>;
   if (node.blockStyle === 'divider') {
@@ -366,6 +369,31 @@ function MountedBulletEditor({
     callbacks = useRef({ onChange, onCommand, onOutlinePaste, onImages, onReady, node });
   callbacks.current = { onChange, onCommand, onOutlinePaste, onImages, onReady, node };
   const serialized=useRef<{doc:Editor['state']['doc'];value:ReturnType<typeof fromEditor>}|null>(null);
+  // A bullet is one paragraph (line breaks inside it are hard breaks). Android keyboards often send
+  // Enter as a paragraph split the key handler never sees (while a word is still composing, or as
+  // key code 229); left alone it became a blank line inside the bullet, shown as a gap between
+  // bullets. Turn such a split into what Enter means here: join it back and start a new bullet there.
+  const splitRepair=useRef(0);
+  const queueSplitRepair=(current:Editor)=>{
+    const n=callbacks.current.node;
+    if(n.codeLanguage||/^(?:```mermaid|\$\$)/.test(n.text))return;
+    clearTimeout(splitRepair.current);
+    const repair=(tries:number)=>{
+      if(current.isDestroyed||current.state.doc.childCount<2)return;
+      if(current.view.composing&&tries<20){splitRepair.current=window.setTimeout(()=>repair(tries+1),50);return;}
+      const doc=current.state.doc,{$from}=current.state.selection;
+      const at=Math.max(1,Math.min(doc.childCount-1,$from.index(0)));
+      let offset=0;for(let i=0;i<at;i++)offset+=doc.child(i).content.size;
+      // Join every paragraph back into one (the text keeps no stray line break).
+      let tr=current.state.tr;
+      for(let i=doc.childCount-1;i>0;i--){let pos=0;for(let j=0;j<i;j++)pos+=tr.doc.child(j).nodeSize;tr=tr.join(pos);}
+      current.view.dispatch(tr);
+      callbacks.current.onChange(node.id,content(current));
+      callbacks.current.onCommand('enter',node.id,offset,offset);
+    };
+    splitRepair.current=window.setTimeout(()=>repair(0),0);
+  };
+  useEffect(()=>()=>clearTimeout(splitRepair.current),[]);
   const content=(current:Editor)=>{if(serialized.current?.doc===current.state.doc)return serialized.current.value;const value=fromEditor(current.getJSON());serialized.current={doc:current.state.doc,value};return value;};
   const connectionKeys = useRef<((event:KeyboardEvent)=>boolean)|null>(null);
   const [emojiEditor, setEmojiEditor] = useState<Editor | null>(null), slashKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null), emojiKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null);
@@ -522,8 +550,10 @@ function MountedBulletEditor({
           return new Slice(Fragment.fromArray(parts), 0, 0);
         },
       },
-      onUpdate: ({ editor }) =>
-        callbacks.current.onChange(node.id, content(editor)),
+      onUpdate: ({ editor }) => {
+        callbacks.current.onChange(node.id, content(editor));
+        if (editor.state.doc.childCount > 1) queueSplitRepair(editor);
+      },
       onSelectionUpdate: ({ editor: current }) => callbacks.current.onReady(current),
     });
     editor.current = e;
