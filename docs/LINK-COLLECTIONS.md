@@ -84,6 +84,7 @@ rejected. DNS and HTML responses are bounded; one overall deadline and a maximum
 of five page requests apply. HTMLRewriter extracts metadata without executing
 scripts. Vite uses the existing DOM parser as a bounded Node fallback.
 
+Worker logs and traces redact request query strings.
 The edge cache uses a URL digest, retains public results for one hour and failures
 for 30 seconds. The frontend Worker uses `LINK_PREVIEW_LIMITER`, a Workers Rate
 Limiting binding in namespace `32701`, at 60 requests/minute per client IP per
