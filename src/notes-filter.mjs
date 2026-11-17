@@ -22,14 +22,18 @@ export function noteCatalog(doc, idx = index(doc.tables.bullets)) {
     flashcards:n=>!mcqs[n.id]&&(decks.has(n.id)||n.kind==='QUESTION'),
     mcqs:n=>!!mcqs[n.id],mindmaps:n=>!!n.mindmap,bookmarks:n=>bookmarks.has(n.id),docs:n=>books.has(n.id),
   };
-  const rank=new Map(),excluded=new Set(),stack=(idx.children.get(null)||[]).map(n=>({n,inherited:false})),walk=[];
+  const rank=new Map(),excluded=new Set(),stack=(idx.children.get(null)||[]).map(n=>({n,inherited:false,studyPage:false})),walk=[];
   while(stack.length){
-    const {n,inherited}=stack.pop();
+    const {n,inherited,studyPage}=stack.pop();
     const own=Object.keys(matches).filter(kind=>matches[kind](n));
-    const special=inherited||own.length>0;
+    // A deck registration adds study capabilities to an ordinary page; it does not
+    // turn that page or its study children into a hidden standalone card.
+    const ordinaryDeck=decks.has(n.id)&&n.kind!=='QUESTION'&&!mcqs[n.id];
+    const inStudyPage=studyPage||ordinaryDeck;
+    const special=inherited||own.some(kind=>!inStudyPage||!['flashcards','mcqs'].includes(kind));
     if(special)excluded.add(n.id);
     rank.set(n.id,own.length?Math.min(...own.map(kind=>priority[kind])):5);walk.push(n);
-    for(const child of idx.children.get(n.id)||[])stack.push({n:child,inherited:special});
+    for(const child of idx.children.get(n.id)||[])stack.push({n:child,inherited:special,studyPage:inStudyPage});
   }
   // A mixed page stays intact in All and joins its earliest special-content group.
   for(let i=walk.length-1;i>=0;i--){const n=walk[i];if(n.parentId)rank.set(n.parentId,Math.min(rank.get(n.parentId)??5,rank.get(n.id)??5));}
@@ -70,13 +74,13 @@ export function rootRows(idx, rootIds, expand = false) {
 
 /** The dedicated home of an existing source bullet, nearest owning branch first. */
 export function outlineDestination(doc,id){
- const idx=index(doc.tables.bullets),bookmarks=new Set(Object.values(doc.web?.bookmarkNoteRoots||{})),books=new Set(Object.values(doc.web?.readingNoteRoots||{})),decks=new Set((doc.tables.decks||[]).map(d=>d.rootId));
+ const idx=index(doc.tables.bullets),bookmarks=new Set(Object.values(doc.web?.bookmarkNoteRoots||{})),books=new Set(Object.values(doc.web?.readingNoteRoots||{}));
  const seen=new Set();let node=idx.byId.get(id);
  while(node&&!seen.has(node.id)){
   seen.add(node.id);
   if(node.journalDate||/^(cal-root|cal-year-\d{4}|cal-month-\d{4}-\d{2})$/.test(node.id)||(!node.parentId&&/^(?:🗓️?|📆|📅)?\s*Calendar$/i.test(node.text.trim())))return 'calendar';
   if(bookmarks.has(node.id))return 'bookmarks';if(books.has(node.id))return 'bookshelf';
-  if(node.mindmap)return 'mindmap';if(node.kind==='QUESTION'||doc.web?.mcqs?.[node.id]||decks.has(node.id))return 'study';
+  if(node.mindmap)return 'mindmap';if(node.kind==='QUESTION'||doc.web?.mcqs?.[node.id])return 'study';
   node=idx.byId.get(node.parentId);
  }
  return 'notes';

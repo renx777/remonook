@@ -290,3 +290,19 @@ test("uuid and safeRandomUUID generate RFC4122 v4 UUIDs even when crypto.randomU
     Object.defineProperty(globalThis.crypto, 'randomUUID', { configurable: true, writable: true, value: origRandomUUID });
   }
 });
+
+
+test('filtered structural commands skip hidden branches without modifying their content',()=>{
+ const nodes=[b('first',{text:'First'}),b('hidden',{position:1,text:'NotebookLM bookmark'}),b('link',{parentId:'hidden',text:'https://notebooklm.link.google/example'}),b('new',{position:2})];
+ const hidden=nodes.filter(n=>['hidden','link'].includes(n.id));
+ const visible=new Set(['first','new']);
+ const nested=indent(nodes,'new',visible);
+ assert.equal(nested.find(n=>n.id==='new').parentId,'first');
+ assert.deepEqual(nested.filter(n=>['hidden','link'].includes(n.id)),hidden);
+ const result=merge(nodes,'new',null,'first');
+ assert.equal(result.id,'first');
+ assert.ok(!result.nodes.some(n=>n.id==='new'));
+ assert.deepEqual(result.nodes.filter(n=>['hidden','link'].includes(n.id)),hidden);
+ assert.equal(merge(nodes,'first',null,null),null,'first displayed row cannot merge into an invisible predecessor');
+ assert.deepEqual(indent(nodes,'new',new Set(['new'])),nodes,'no visible preceding sibling means no indent');
+});

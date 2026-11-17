@@ -187,13 +187,15 @@ export function move(nodes, id, parentId, at) {
   );
   return nodes.map((b) => changed.get(b.id) || b);
 }
-export function indent(nodes, id) {
+/** @param {Set<string>|null} [visibleIds] */
+export function indent(nodes, id, visibleIds = null) {
   const idx = index(nodes),
     n = idx.byId.get(id),
     siblings = idx.children.get(n.parentId) || [],
     at = siblings.findIndex((x) => x.id === id);
   if (at <= 0) return nodes;
-  const p = siblings[at - 1];
+  const p = visibleIds ? siblings.slice(0,at).reverse().find(node=>visibleIds.has(node.id)) : siblings[at - 1];
+  if(!p)return nodes;
   return move(nodes, id, p.id, (idx.children.get(p.id) || []).length).map(
     (x) => (x.id === p.id ? { ...x, collapsed: false } : x),
   );
@@ -424,14 +426,13 @@ export function split(nodes, id, start, end, newId = uuid()) {
     (idx.children.get(n.parentId) || []).findIndex((x) => x.id === id) + 1,
   );
 }
-/** @param {string|null} scope */
-export function merge(nodes, id, scope = null) {
+/** @param {string|null} scope @param {string|null|undefined} [previousId] */
+export function merge(nodes, id, scope = null, previousId = undefined) {
   const rs = rows(nodes, scope),
     at = rs.findIndex((r) => r.bullet.id === id);
-  if (at <= 0) return null;
-  const n = rs[at].bullet,
-    p = rs[at - 1].bullet,
-    caret = p.text.length;
+  const idx=index(nodes),n=idx.byId.get(id),p=previousId===undefined?(at>0?rs[at-1].bullet:null):idx.byId.get(previousId);
+  if(!n||!p||n.id===p.id||descendants(nodes,n.id).has(p.id))return null;
+  const caret = p.text.length;
   let changed = nodes.map((x) =>
     x.id === p.id
       ? {

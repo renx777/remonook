@@ -3,6 +3,46 @@
 ## Current state
 
 
+### Stable note visibility on staging, 17 November 2026
+
+Branch `codex/stable-note-visibility`, application source
+`431490354070cc68104619ac8810c6db9730fc46`, is live on web staging.
+[CI #339](https://github.com/renx777/remonook/actions/runs/44010314981)
+passed **582 tests**, also passed locally after the staging build. TypeScript
+checking and Chromium acceptance at 1280 × 850 and 390 × 844 passed. The same
+browser acceptance passed against the deployed app: ordinary deck visibility,
+Backspace, Undo, Tab, retained NotebookLM bookmark text and reload.
+
+[Staging frontend #177](https://github.com/renx777/remonook/actions/runs/44010424477)
+passed all **13 sync acceptance checks**. Offline reconnect completed in 969 ms;
+concurrent edits retained both sides; device-only workspaces issued no sync
+requests. Cleanup retained all 1,593 earlier notes. The live source marker matches
+the branch and full application commit. Web staging Worker `remonook-staging`
+version: `4639d969-171b-47d5-8b5f-6c75d0b9644f`.
+
+Notes keeps ordinary pages registered as study decks visible. Filtered outlines
+now supply their displayed row sequence to Backspace, Tab, arrow navigation,
+context-menu indent and divider deletion. Hidden bookmark branches retain their
+IDs, text and metadata, and Android capture names Library → Bookmarks as the
+bookmark destination. See [NOTE-VISIBILITY.md](NOTE-VISIBILITY.md).
+
+[Android app #12](https://github.com/renx777/remonook/actions/runs/44010998049)
+published **Android staging 0.1.12** from the same application source. The live
+Android update feed advertises 0.1.12, and the APK downloaded successfully. Its
+APK v2 signing certificate exactly matches the previously published 0.1.11
+package (SHA-256 `25daa19c392684e2c3c5ee5e9f8fe0a731ef8204cb7ea88cbcee35a57b87dff1`).
+The workflow also passed native widget pagination tests and `apksigner verify`.
+Install over the existing staging app; do not uninstall device-only workspaces.
+No other native channel was published for this fix.
+
+The sync backend was not deployed; health remains `syncProtocol: 3`,
+`workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`, `bookmarkReader: 1`, with
+books, attachments, capture, Google Tasks, email/Google authentication and MCP
+capabilities retained. No migration, snapshot replacement, outbox changes,
+production deployment or merge to main is involved. Affected-account/real Android
+keyboard acceptance requires the owner's device check; browser tests do not
+claim access to that account or installed app.
+
 ### Refined post previews on web staging, 16 November 2026
 
 Branch `codex/refined-post-previews`, application source
