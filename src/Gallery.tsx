@@ -3,7 +3,7 @@ import type {Workspace} from './data';
 import {galleryItems} from './gallery.mjs';
 import {ImageDialog,useImageUrl} from './ImageTools';
 import {Icon} from './icons';
-export const GalleryContext=createContext<{doc:Workspace;onAdd?:(id:string)=>void}|null>(null);
+export const GalleryContext=createContext<{doc:Workspace;onAdd?:(id:string)=>void;onPreviewDetails?:(id:string,url:string,details:Record<string,string>)=>Promise<void>}|null>(null);
 function Picture({item,assets,full=false}:{item:any;assets:Map<string,Blob>;full?:boolean}){
  const url=useImageUrl(item.local||{},item.local?assets.get('media/'+item.local.fileName):undefined),src=url||item.href,[failed,setFailed]=useState(false);
  if(failed||!src)return <span className="gallery-missing">Preview unavailable</span>;

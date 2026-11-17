@@ -1,0 +1,31 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';import test from 'node:test';import assert from 'node:assert/strict';import {JSDOM} from 'jsdom';import 'fake-indexeddb/auto';import {act} from 'react';
+import {empty,withNodes,save,load,researchStore,setStorageAccount} from './.build/data.mjs';import {addBookmark,bookmarkNote} from '../src/bookmarks.mjs';import {bullet} from '../src/domain.mjs';
+const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost',pretendToBeVisual:true});for(const key of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Node','DOMParser','MutationObserver','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window[key].bind(dom.window):dom.window[key],configurable:true});installOverlayGlobals(dom);globalThis.IS_REACT_ACT_ENVIRONMENT=true;globalThis.ResizeObserver=undefined;globalThis.requestAnimationFrame=window.requestAnimationFrame.bind(window);globalThis.cancelAnimationFrame=window.cancelAnimationFrame.bind(window);window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});HTMLElement.prototype.scrollTo=()=>{};window.Range.prototype.getClientRects=()=>[];window.Range.prototype.getBoundingClientRect=()=>({left:0,right:0,top:0,bottom:0,width:0,height:0});
+const wait=async fn=>{for(let i=0;i<150;i++){if(await fn())return;await act(()=>new Promise(r=>setTimeout(r,20)));}assert.fail('App did not settle');};const click=async el=>act(async()=>{assert.ok(el);el.click();});
+const key=async(value,extra={})=>act(async()=>{const el=document.querySelector('.tiptap');assert.ok(el);el.dispatchEvent(new window.KeyboardEvent('keydown',{key:value,bubbles:true,cancelable:true,...extra}));});
+const stored=async()=>{await act(()=>new Promise(r=>setTimeout(r,300)));return load();};
+const row=id=>document.querySelector(`[data-node-id="${id}"]`);
+const fakePreview=url=>({schema:1,url,site:'Global shop',title:url.includes('/keyboard')?'A quiet keyboard':'Everyday shoes',description:'A supplied product description',image:null,kind:'product',brand:null,price:{amount:'1299.00',currency:'INR',from:false},availability:'In stock',rating:null,capturedAt:Date.now()});
+const originalFetch=globalThis.fetch;globalThis.fetch=async(input,options)=>String(input).startsWith('/api/link-preview?')?Response.json(fakePreview(new URL(String(input),'https://staging.remonook.com').searchParams.get('url'))):originalFetch(input,options);
+test('a bullet switches between outline, grid, list and table without copying notes; adding, opening, saving and undo still work',async()=>{
+ const initial=withNodes(empty(),[bullet('p',{text:'A considered shortlist'}),bullet('keyboard',{parentId:'p',text:'https://example.com/keyboard'}),bullet('shoes',{parentId:'p',position:1,text:'https://example.com/shoes'}),bullet('thoughts',{parentId:'p',position:2,text:'What matters to me\nComfort and durability'}),bullet('nested',{parentId:'thoughts',text:'Keep this nested note'}),bullet('unrelated',{position:1,text:'Other page'})]);
+ await save(null,initial);let app;
+ const choose=async name=>click(document.querySelector(`[aria-label="${name} view"]`));
+ try{await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>row('p'));await click(row('p').querySelector('[aria-label="Zoom into bullet"]'));
+  await wait(()=>document.querySelector('[aria-label="Grid view"]'));await choose('Grid');await wait(()=>document.querySelector('.collection-grid'));
+  assert.equal(document.querySelectorAll('.collection-card').length,3);assert.equal(row('keyboard'),null,'one presentation of the source, not duplicate outline rows');
+  await wait(()=>document.querySelector('.collection-price'));assert.match(document.querySelector('.collection-price').textContent,/1,299/);
+  assert.deepEqual((await stored()).tables.bullets,initial.tables.bullets.slice().sort((a,b)=>a.id.localeCompare(b.id)),'only view metadata changes');
+  await choose('Table');await wait(()=>document.querySelector('.collection-table-scroll'));assert.equal(document.querySelectorAll('.collection-table-scroll tbody tr').length,3);assert.match(document.querySelector('caption').textContent,/may change/);await wait(()=>document.querySelector('.collection-table-scroll').textContent.includes('In stock'));
+  await choose('Compact list');await wait(()=>document.querySelector('.collection-list'));
+  await click(document.querySelector('.collection-toolbar button'));await wait(()=>document.querySelector('.tiptap'));
+  await act(async()=>document.querySelector('.tiptap').editor.commands.insertContent('My comparison'));
+  await key('Escape');await wait(()=>document.querySelector('.collection-list'));assert.equal(document.querySelectorAll('.collection-card').length,4);
+  await choose('Table');await stored();await act(async()=>window.dispatchEvent(new window.KeyboardEvent('keydown',{key:'z',code:'KeyZ',ctrlKey:true,bubbles:true,cancelable:true})));
+  await wait(()=>document.querySelector('.collection-list'));assert.equal((await stored()).web.bulletViews.p,'list');
+  await choose('Outline');await wait(()=>row('keyboard'));assert.ok(row('nested'),'nested notes were retained');assert.equal((await stored()).web.bulletViews.p,'outline');
+  await choose('Grid');await wait(()=>document.querySelector('.collection-grid'));
+  await click([...document.querySelectorAll('button.collection-title')].find(el=>el.textContent.includes('What matters')));await wait(()=>document.querySelector('[aria-label="Zoomed node title"]')?.value.startsWith('What matters'));
+  assert.ok(row('nested'));assert.equal((await stored()).tables.bullets.find(n=>n.id==='nested').text,'Keep this nested note');
+ }finally{if(app)await act(async()=>app.appRoot.unmount());dom.window.close();globalThis.fetch=originalFetch;}
+});

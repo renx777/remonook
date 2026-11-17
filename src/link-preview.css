@@ -1,0 +1,10 @@
+.link-preview{display:flex;gap:16px;max-width:680px;margin:9px 0 12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg);font-size:14px;line-height:1.45;text-align:start}
+.link-preview-image{display:flex;align-self:stretch;align-items:center;justify-content:center;flex:0 0 144px;min-height:144px;background:color-mix(in srgb,var(--muted) 6%,var(--bg))}
+.link-preview-image img{width:100%;height:152px;object-fit:contain}.link-preview-placeholder{display:grid;place-items:center;width:100%;height:100%;min-height:70px;color:var(--muted)}
+.link-preview-body{padding:14px 14px 12px 0;min-width:0;flex:1}.link-preview:not(:has(.link-preview-image)) .link-preview-body{padding-inline-start:14px}
+.link-preview-site{display:block;font-size:11px;letter-spacing:.02em;color:var(--muted);margin-bottom:5px;overflow-wrap:anywhere}
+.link-preview-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--text);font-weight:600;text-decoration:none!important}
+.link-preview-body p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:5px 0;color:var(--muted);font-size:12px}
+.link-preview-facts{display:flex;gap:12px;align-items:baseline;margin-top:8px;flex-wrap:wrap}.link-preview-facts span{font-size:11px;color:var(--muted)}
+.link-preview-body small{display:block;color:var(--muted);font-size:11px;margin-top:6px}.link-preview footer{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:10px;color:var(--muted);margin-top:10px}.link-preview footer a{display:inline-flex;gap:5px;align-items:center;text-decoration:none;color:var(--muted)}.link-preview footer button{padding:2px;color:var(--muted);border:0;background:none}
+@media(max-width:520px){.link-preview{gap:10px}.link-preview-image{flex-basis:90px;min-height:110px}.link-preview-image img{height:110px}.link-preview-body{padding:11px 10px 10px 0}.link-preview-title{font-size:13px}.link-preview-body p{font-size:11px}.link-preview footer{font-size:10px}}

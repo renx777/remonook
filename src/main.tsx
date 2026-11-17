@@ -1,3 +1,6 @@
+import {saveCardDetails} from './card-details.mjs';
+import {bulletView,setBulletView} from './bullet-views.mjs';
+import {BulletViewSwitch} from './BulletCollection';
 import {IncomingAndroidShare} from './IncomingAndroidShare';
 import {incomingShare} from './android-share.mjs';
 import {retireDesktopOfflineShell} from './desktop';
@@ -1053,6 +1056,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     const renderedIds=outlineRows.current.get(tab+':'+views.activePane);
     const displayId=id;
     const targets = bulletTargets(id, selectedIds);
+    if(action.startsWith('view:')){commit(setBulletView(docRef.current!,id,action.slice(5)));setMenu(null);setEditing(null);navigateTo(id);return;}
     if (action.startsWith('list:')) {
       const listType = action.slice(5);
       if (['NONE','UNORDERED','ORDERED'].includes(listType)) mutate(ns => ns.map(node => targets.has(node.id) ? {...node,listType} : node));
@@ -1690,7 +1694,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       </aside>
   );
   return (
-    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
+    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onPreviewDetails:disabled?undefined:async(id,url,details)=>{if(failed.current)throw Error('Saving needs attention. Your details remain in this form.');const next=saveCardDetails(docRef.current!,id,url,details);if(next!==docRef.current)commit(next);await flush();if(failed.current)throw Error('Could not save on this device. Your details remain in this form.');},onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
     <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
@@ -2129,7 +2133,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {menuNode.mirrorSourceId&&<button onClick={()=>{navigateTo(menuNode.mirrorSourceId);setMenu(null);}}><Icon name="mirror" size={16}/><span>Open mirror source</span></button>}
             {menuNode.mirrorSourceId&&<button disabled={disabled} onClick={()=>{mutate(ns=>detachMirror(ns,menuNode.id));setMenu(null);setNotice('Mirror detached. This branch is now independent.');}}><Icon name="mirror" size={16}/><span>Detach mirror</span></button>}
 
-</div></details><details className="bullet-action-section"><summary><Icon name="organize" size={16}/><span>Organize branch</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">
+</div></details><details className="bullet-action-section"><summary><Icon name="organize" size={16}/><span>Organize branch</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content"><div className="bullet-view-menu"><span>View child notes</span><BulletViewSwitch value={bulletView(doc,menuNode.id)} disabled={disabled} onChange={view=>command('view:'+view,menuNode.id,0,0)}/></div>
           {copyTargets().map(target => <button key={target.key} className="wide action" disabled={disabled} onClick={async () => {
             setMenu(null);
             try { await flush(); const count = await copyBranch(docRef.current!, menuNode.id, target); setNotice(`Copied ${count} bullet${count === 1 ? "" : "s"} to “${target.name}”.${target.synced ? " It syncs the next time you open that workspace." : ""} Images and attachments are not copied.`); }

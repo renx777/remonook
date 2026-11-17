@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {build} from 'esbuild';
+await build({entryPoints:['src/link-preview-client.ts'],bundle:true,packages:'external',outfile:'tests/.build/link-preview-client.mjs',format:'esm',platform:'node'});
+const {loadLinkPreview,invalidateLinkPreview,cachedLinkPreview,validateLinkMetadata,previewPrice}=await import('./.build/link-preview-client.mjs');
+const data=url=>({schema:1,url,site:'Shop',title:'Product',description:'Supplied details',image:null,kind:'product',price:{amount:'1299.50',currency:'INR',from:false},availability:null,rating:null,capturedAt:1});
+test('preview requests deduplicate, stay at three concurrent fetches, cache and explicitly retry failures',async()=>{const original=globalThis.fetch;let calls=0,active=0,max=0,fail=false;
+ globalThis.fetch=async input=>{calls++;active++;max=Math.max(max,active);try{await new Promise(r=>setTimeout(r,8));return fail?new Response('{}',{status:503}):Response.json(data(new URL(input,'https://app.example.com').searchParams.get('url')));}finally{active--;}};
+ try{const urls=Array.from({length:9},(_,i)=>'https://example.com/product-'+i);const results=await Promise.all([...urls.map(loadLinkPreview),loadLinkPreview(urls[0])]);assert.equal(calls,9);assert.equal(max,3);assert.equal(results[0],results.at(-1));assert.equal(cachedLinkPreview(urls[0]).title,'Product');await loadLinkPreview(urls[0]);assert.equal(calls,9);
+  const retry='https://example.com/failure';fail=true;await assert.rejects(loadLinkPreview(retry));await assert.rejects(loadLinkPreview(retry));assert.equal(calls,10);invalidateLinkPreview(retry);fail=false;await loadLinkPreview(retry);assert.equal(calls,11);
+ }finally{globalThis.fetch=original;}
+});
+test('invalid responses cannot inject private URLs, images or invented product prices; currencies retain their unit',()=>{assert.throws(()=>validateLinkMetadata({...data('https://example.com'),url:'http://127.0.0.1'}));const p=validateLinkMetadata({...data('https://example.com'),image:'javascript:alert(1)',price:{amount:'free today',currency:'USD'}});assert.equal(p.image,null);assert.equal(p.price,null);assert.match(previewPrice(data('https://example.com').price,'en-IN'),/₹1,299.50/);assert.match(previewPrice({amount:'99',currency:'EUR',from:false},'en-US'),/€99/);});

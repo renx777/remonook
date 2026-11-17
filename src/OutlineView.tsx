@@ -1,3 +1,5 @@
+import {BulletCollection,BulletViewSwitch} from './BulletCollection';
+import {bulletView} from './bullet-views.mjs';
 import {LiveTitleInput} from './LiveTitleInput';
 import {ReadingCitation} from './ReadingSources';
 import {snapshotIndex} from './outline-snapshot.mjs';
@@ -116,8 +118,10 @@ export function OutlineView(p: Props) {
       },
       [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds,p.excludedIds],
     );
+  const viewMode=p.scope&&galleryContext?bulletView(galleryContext.doc,p.scope):'outline';
+  const collectionActive=viewMode!=='outline'&&!p.search&&!p.editing;
   // Publish the complete filtered outline, not just the virtualised viewport.
-  const visibleRowIds=useMemo(()=>rs.map(row=>row.bullet.id),[rs]);
+  const visibleRowIds=useMemo(()=>collectionActive?[]:rs.map(row=>row.bullet.id),[rs,collectionActive]);
   useLayoutEffect(()=>{p.onVisibleRows?.(visibleRowIds);return()=>p.onVisibleRows?.(null);},[p.onVisibleRows,visibleRowIds]);
   const scroller = useRef<HTMLDivElement>(null),
     [view, setView] = useState({ top: 0, height: 600, width: 800 }),
@@ -183,9 +187,10 @@ export function OutlineView(p: Props) {
     }
     return groups;
   }, [p.media]);
+  const [headerHeight,setHeaderHeight]=useState(44);
   const scopedNode = p.scope ? idx.byId.get(p.scope) : null;
   const layout = useMemo(() => {
-    let top = p.hideTitle ? 0 : 44;
+    let top = p.hideTitle ? 0 : scopedNode ? headerHeight : 44;
     return rs.map((r: any, i: number) => {
       const available=Math.max(120,view.width-100-depthIndent(r.depth,view.width));
       let height=heights.current.get(r.bullet.id);
@@ -210,10 +215,10 @@ export function OutlineView(p: Props) {
       top += height;
       return item;
     });
-  }, [rs, view.width, measure, mediaByNode, scopedNode, readingSize, p.hideTitle]);
+  }, [rs, view.width, measure, mediaByNode, scopedNode, headerHeight, readingSize, p.hideTitle]);
   const nextTop = layout.length
     ? layout.at(-1)!.top + layout.at(-1)!.height
-      : p.hideTitle ? 0 : 44;
+      : p.hideTitle ? 0 : scopedNode ? headerHeight : 44;
   const total = nextTop + rowHeight;
   useEffect(() => { heights.current.clear(); setMeasure(value => value + 1); }, [readingSize]);
   const visible = layout.filter(
@@ -246,7 +251,8 @@ export function OutlineView(p: Props) {
       window.removeEventListener("resize", measureViewport);
       cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [collectionActive]);
+  useLayoutEffect(()=>{const top=scroller.current?.scrollTop||0;setView(value=>value.top===top?value:{...value,top});},[collectionActive]);
   useLayoutEffect(() => {
     const updateHeights = (elements: Element[]) => {
       let changed = false;
@@ -283,7 +289,7 @@ export function OutlineView(p: Props) {
     container?.addEventListener('load', mediaLoaded, true);
     container?.addEventListener('error', mediaLoaded, true);
     return () => { obs?.disconnect(); cancelAnimationFrame(settledFrame); container?.removeEventListener('load', mediaLoaded, true); container?.removeEventListener('error', mediaLoaded, true); };
-  }, [visible.map((r: any) => r.bullet.id).join("|"), typeof ResizeObserver==='undefined'?p.nodes:null, p.media, p.assets, p.editing, view.width, readingSize]);
+  }, [visible.map((r: any) => r.bullet.id).join("|"), typeof ResizeObserver==='undefined'?p.nodes:null, p.media, p.assets, p.editing, view.width, readingSize, collectionActive]);
   useEffect(() => {
     const el = scroller.current,
       r = layout.find((r: any) => r.bullet.id === p.editing);
@@ -294,7 +300,7 @@ export function OutlineView(p: Props) {
   }, [p.editing]);
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = 0;
-  }, [p.scope, p.search]);
+  }, [p.scope, p.search, viewMode]);
   useEffect(() => {
     if (!drag) return;
     const start = { x: drag.x, y: drag.y },
@@ -380,7 +386,7 @@ export function OutlineView(p: Props) {
     selectionAnchor.current = null;
     dragSelectRef.current = null;
     setBoxSelect(false);
-  }, [p.scope, p.search]);
+  }, [p.scope, p.search, viewMode]);
 
   useEffect(() => {
     let scrollFrame = 0;
@@ -533,7 +539,7 @@ export function OutlineView(p: Props) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (selectedIds.size === 0) return;
+      if (collectionActive || selectedIds.size === 0) return;
       const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase?.();
       if (targetTag === "input" || targetTag === "textarea" || (e.target instanceof window.Element && e.target.closest('[contenteditable="true"]'))) {
         if (e.key === "Escape") {
@@ -597,8 +603,13 @@ export function OutlineView(p: Props) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIds, layout, p.onDeleteNodes, p.onCommand, p.disabled]);
+  }, [selectedIds, layout, p.onDeleteNodes, p.onCommand, p.disabled, collectionActive]);
 
+  if(collectionActive&&scopedNode&&galleryContext)return <section ref={scroller} className="outline-scroll collection-page" aria-label={scopedNode.text+' collection'}>
+    <div className="zoomed-header"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/></div>
+    <BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>
+    <BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>
+  </section>;
   return (
     <div
       ref={scroller}
@@ -650,7 +661,7 @@ export function OutlineView(p: Props) {
         }}
       >
         {!p.hideTitle && (scopedNode ? (
-          <div className="zoomed-header">
+          <div className="zoomed-header" ref={el=>{if(el){const height=el.getBoundingClientRect().height;if(height>0)setHeaderHeight(value=>Math.abs(value-height)>1?height:value);}}}>
             <LiveTitleInput key={scopedNode.id}
               readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text}
               className="zoomed-title zoomed-title-input"
@@ -677,6 +688,8 @@ export function OutlineView(p: Props) {
                 }
               }}
             />
+            <BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>
+            {viewMode!=='outline'&&p.editing&&<div className="collection-editing-hint">Editing in outline<button type="button" onClick={()=>p.onEdit(null)}>Return to {viewMode==='list'?'compact list':viewMode}</button></div>}
           </div>
         ) : <h1 className="page-title-hidden">My notes</h1>)}
         {!rs.length && (!scopedNode || p.search) && (
@@ -934,6 +947,7 @@ export function OutlineView(p: Props) {
                 {badges.get(n.id)?.has('youtube')&&<span className="bullet-media-indicator youtube-indicator" title="YouTube in this branch" aria-label="YouTube in this branch"><Icon name="youtube" size={15}/></span>}
                 {badges.get(n.id)?.has('video')&&<span className="bullet-media-indicator" title="Videos in this branch" aria-label="Videos in this branch"><Icon name="play" size={14}/></span>}
                 {mindmapBadges.get(n.id)&&<button className="bullet-mindmap-open" aria-label="Open mindmap" title="Open mindmap" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();p.onMindmap?.(mindmapBadges.get(n.id)![0]);}}><Icon name="mindmap" size={14}/></button>}
+                {galleryContext&&bulletView(galleryContext.doc,n.id)!=='outline'&&<button type="button" className="bullet-collection-open" aria-label={'Open '+bulletView(galleryContext.doc,n.id)+' view for '+n.text} onClick={()=>p.onZoom(n.id)}><Icon name={bulletView(galleryContext.doc,n.id)==='table'?'table':'notes'} size={12}/>{bulletView(galleryContext.doc,n.id)}</button>}
                 {galleryContext?.doc.web.musicNodes?.[n.mirrorSourceId||n.id]&&<button className="bullet-music-play" aria-label={`Play music in ${n.text}`} title="Play music gallery" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();music?.play(musicItems(galleryContext.doc,n.mirrorSourceId||n.id));}}><Icon name="play" size={14}/></button>}
 </span>
                         {n.dueDate && (
