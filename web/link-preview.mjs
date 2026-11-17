@@ -12,7 +12,7 @@ export async function checkPublicHost(host,fetcher,signal){
  const ips=answers.flat();if(!ips.length||ips.some(ip=>!publicAddress(ip)))throw Error('Only public websites can be previewed.');
 }
 const clean=(value,max=500)=>typeof value==='string'?decode(value).replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max):'';
-function imageUrl(value,base){if(!value)return null;try{return previewUrl(new URL(decode(typeof value==='string'?value:value?.url||value?.contentUrl||''),base).href).href;}catch{return null;}}
+function imageUrl(value,base){const raw=typeof value==='string'?value:value?.url||value?.contentUrl;if(!raw)return null;try{return previewUrl(new URL(decode(raw),base).href).href;}catch{return null;}}
 const amount=value=>{const s=String(value??'').trim();return /^\d{1,12}(?:\.\d{1,6})?$/.test(s)&&Number(s)<1e12?s:null;};
 const objects=value=>Array.isArray(value)?value:[value];
 /** Only supplied structured data is shown. No inferred prices, ratings or stock. */
@@ -24,7 +24,7 @@ export function metadataPreview({meta={},title='',scripts=[]},base,now=Date.now(
   for(const key of ['@graph','mainEntity'])if(node[key])todo.push(...objects(node[key]));
  }
  product=products.find(node=>{try{return new URL(node.url||node['@id'],url).pathname===url.pathname;}catch{return false;}})||(products.length===1?products[0]:null);
- let heading=clean(product?.name||get('og:title')||get('twitter:title')||title,250);
+ let heading=clean(product?.name,250)||clean(get('og:title')||get('twitter:title')||title,250);
  if(!heading||/^(?:just a moment|access denied|robot check|captcha|pardon our interruption|attention required|are you a human)/i.test(heading)||/(?:select|choose) your (?:country|region)/i.test(heading))throw Error('This website has not made a public preview available.');
  const offers=objects(product?.offers).filter(o=>o&&typeof o==='object'),offer=offers.find(o=>amount(o.price)||amount(o.lowPrice))||offers[0]||{};
  const price=amount(offer.price??offer.lowPrice??(get('product:price:amount')||get('og:price:amount')));
@@ -32,7 +32,7 @@ export function metadataPreview({meta={},title='',scripts=[]},base,now=Date.now(
  const stock=clean(offer.availability||get('product:availability'),80).split('/').pop();
  const availability=({InStock:'In stock',OutOfStock:'Out of stock',PreOrder:'Pre-order',PreSale:'Pre-sale',LimitedAvailability:'Limited availability',Discontinued:'Discontinued',SoldOut:'Sold out',OnlineOnly:'Online only',BackOrder:'Back order',in_stock:'In stock',out_of_stock:'Out of stock'})[stock]||null;
  const rating=product?.aggregateRating,value=Number(rating?.ratingValue),best=Number(rating?.bestRating||5),count=Number(rating?.reviewCount??rating?.ratingCount);
- return {schema:1,url:url.href,site:clean(get('og:site_name'),100)||url.hostname.replace(/^www\./,''),title:heading,description:clean(product?.description||get('og:description')||get('description')||get('twitter:description'),360),image:imageUrl(objects(product?.image)[0]||get('og:image:secure_url')||get('og:image')||get('twitter:image'),url),kind:product||get('og:type')==='product'?'product':'page',brand:clean(product?.brand?.name||product?.brand,80)||null,price:price&&/^[A-Z]{3}$/.test(currency)?{amount:price,currency,from:!amount(offer.price)&&!!amount(offer.lowPrice)}:null,availability,rating:Number.isFinite(value)&&value>=0&&Number.isFinite(best)&&best>0&&value<=best?{value,best,count:Number.isSafeInteger(count)&&count>0?count:null}:null,capturedAt:now};
+ return {schema:1,url:url.href,site:clean(get('og:site_name'),100)||url.hostname.replace(/^www\./,''),title:heading,description:clean(product?.description||get('og:description')||get('description')||get('twitter:description'),360),image:imageUrl(objects(product?.image)[0],url)||imageUrl(get('og:image:secure_url')||get('og:image')||get('twitter:image'),url),kind:product||get('og:type')==='product'?'product':'page',brand:clean(product?.brand?.name||product?.brand,80)||null,price:price&&/^[A-Z]{3}$/.test(currency)?{amount:price,currency,from:!amount(offer.price)&&!!amount(offer.lowPrice)}:null,availability,rating:Number.isFinite(value)&&value>=0&&Number.isFinite(best)&&best>0&&value<=best?{value,best,count:Number.isSafeInteger(count)&&count>0?count:null}:null,capturedAt:now};
 }
 /** HTMLRewriter parses bounded public HTML without executing page scripts. */
 export async function readMetadata(response,url){
