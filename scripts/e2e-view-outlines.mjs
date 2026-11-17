@@ -52,12 +52,20 @@ try {
   await page.waitForTimeout(100);
   await page.keyboard.press("Enter");
   await page.keyboard.press("Shift+Tab");
-  await page.keyboard.type("Trip plan /mindmap");
-  await page.waitForTimeout(300);
-  await page.keyboard.press("Enter");
+  // Build the branch first, then make it a mindmap (a bullet that turns into a mindmap leaves
+  // Notes, so Tab can no longer nest under it there).
+  await page.keyboard.type("Trip plan");
   await page.keyboard.press("Enter");
   await page.keyboard.press("Tab");
   await page.keyboard.type("Flights");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  await page.getByText("Trip plan", { exact: true }).click();
+  await page.waitForTimeout(250);
+  await page.keyboard.press("End");
+  await page.keyboard.type(" /mindmap");
+  await page.waitForTimeout(300);
+  await page.keyboard.press("Enter");
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
   await nav("Mindmaps");
