@@ -47,3 +47,9 @@ test('Myntra mailers and malformed share redirects resolve safely without changi
 test('a catalogue does not use the first unrelated product as its preview; country selectors are unavailable',()=>{const p=metadataPreview({title:'A collection',scripts:[JSON.stringify({'@type':'ItemList',itemListElement:[{'@type':'Product',name:'Unrelated product',offers:{price:'1',priceCurrency:'USD'}}]})]},base);assert.equal(p.kind,'page');assert.equal(p.title,'A collection');assert.equal(p.price,null);assert.throws(()=>metadataPreview({title:'Best Buy International: Select your Country - Best Buy'},base));});
 
 test('incomplete product image objects never become page URLs and still allow an Open Graph image',()=>{const scripts=[JSON.stringify({'@type':'Product',name:'Keyboard',image:{}})];assert.equal(metadataPreview({scripts},base).image,null);assert.equal(metadataPreview({scripts,meta:{'og:image':'/fallback.jpg'}},base).image,'https://shop.example.com/fallback.jpg');});
+
+test('public Amazon product markup supplies only its main title/image, without guessing price or choosing recommendations',async()=>{
+ const html='<title>Amazon.in: Buy Keyboard Online at Low Prices | Reviews &amp;amp; Ratings</title><img src="https://example.com/recommendation.jpg"><span id="productTitle"> AULA F75 &amp; quiet keys </span><img id="landingImage" data-old-hires="https://m.media-amazon.com/keyboard.jpg">';
+ const p=await readMetadata(new Response(html),'https://www.amazon.in/dp/B0CYZHC69C');assert.equal(p.title,'AULA F75 & quiet keys');assert.equal(p.image,'https://m.media-amazon.com/keyboard.jpg');assert.equal(p.price,null);assert.equal(p.kind,'product');
+ const generic=await readMetadata(new Response(html),'https://example.com/');assert.equal(generic.image,null,'Amazon-specific markup is not applied to unrelated sites');
+});

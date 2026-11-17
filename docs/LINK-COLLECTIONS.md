@@ -81,7 +81,8 @@ headers, not user cookies or authorization. URLs and every redirect are checked;
 DoH checks reject private/reserved addresses, including public hostnames resolving
 to them. Explicit credentials and known signed/private query parameters are
 rejected. DNS and HTML responses are bounded; one overall deadline and a maximum
-of five page requests apply. HTMLRewriter extracts metadata without executing
+of five page requests apply. Generic HTML reads stop at 512 KiB; Amazon product
+pages allow 1 MiB to reach their primary product markup. HTMLRewriter extracts metadata without executing
 scripts. Vite uses the existing DOM parser as a bounded Node fallback.
 
 Worker logs and traces redact request query strings.
@@ -98,3 +99,10 @@ stale dialogs, failed saves, double submits, mirrored sources, concurrent metada
 edits, view changes, nested content, Undo and persistence. Browser acceptance
 checks desktop/mobile, light/dark, overflow, title/row overlap, detail editing,
 image failures and reload. Final deployed source/checks belong in ENVIRONMENTS.md.
+
+Live staging initially returned Amazon title/description metadata from Cloudflare,
+although local anonymous requests had returned 503. The follow-up adapter reads
+only the main product title/image markup on Amazon product pages; it does not
+pick unrelated recommendation images or guess a missing price. Myntra was
+unavailable from Cloudflare in the initial release, despite the local success.
+Final provider results are recorded in ENVIRONMENTS.md.

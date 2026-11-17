@@ -24,8 +24,8 @@ async function handleLinkPreview(request,env,ctx){
  if(env.LINK_PREVIEW_LIMITER){const {success}=await env.LINK_PREVIEW_LIMITER.limit({key:'preview:'+request.headers.get('CF-Connecting-IP')});if(!success)return json({error:'Too many previews. Try again shortly.'},429);}
  let target;try{target=previewUrl(url.searchParams.get('url')||'');}catch{return json({error:'Use a public website link without private credentials.'},400);}
  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(target.href))),b=>b.toString(16).padStart(2,'0')).join('');
- const key=new Request(url.origin+'/api/link-preview?v=1&key='+hash),cache=globalThis.caches?.default;
+ const key=new Request(url.origin+'/api/link-preview?v=2&key='+hash),cache=globalThis.caches?.default;
  const hit=cache&&await cache.match(key);if(hit)return hit;
  try{const result=await linkPreview(target.href),response=json(result,200,3600);if(cache)ctx.waitUntil(cache.put(key,response.clone()).catch(()=>{}));return response;}
- catch{const response=json({error:'Preview unavailable. Your original link is kept.'},422,30);if(cache)ctx.waitUntil(cache.put(key,response.clone()).catch(()=>{}));return response;}
+ catch(error){const response=json({error:'Preview unavailable. Your original link is kept.',code:error.code==='UPSTREAM_UNAVAILABLE'?'UPSTREAM_UNAVAILABLE':'PREVIEW_UNAVAILABLE',providerStatus:Number.isInteger(error.upstreamStatus)?error.upstreamStatus:null},422,30);if(cache)ctx.waitUntil(cache.put(key,response.clone()).catch(()=>{}));return response;}
 }
