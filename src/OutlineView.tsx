@@ -46,6 +46,7 @@ type Props = {
   disabled: boolean;
   assets: Map<string, Blob>;
   media: any[];
+  onVisibleRows?: (ids: readonly string[] | null) => void;
   onEdit: (id: string | null) => void;
   onZoom: (id: string) => void;
   onOpenPane?: (id:string)=>void;
@@ -115,6 +116,9 @@ export function OutlineView(p: Props) {
       },
       [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds,p.excludedIds],
     );
+  // Publish the complete filtered outline, not just the virtualised viewport.
+  const visibleRowIds=useMemo(()=>rs.map(row=>row.bullet.id),[rs]);
+  useLayoutEffect(()=>{p.onVisibleRows?.(visibleRowIds);return()=>p.onVisibleRows?.(null);},[p.onVisibleRows,visibleRowIds]);
   const scroller = useRef<HTMLDivElement>(null),
     [view, setView] = useState({ top: 0, height: 600, width: 800 }),
     [measure, setMeasure] = useState(0),
