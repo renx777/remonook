@@ -1052,8 +1052,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     try {const result=createMirror(docRef.current!.tables.bullets,at,source);mutate(()=>result.nodes);focus(result.id);setConnectionTarget(null);setMenu(null);setNotice('Mirror created. Edits update every location.');}catch(error){showError(error);}
   };
   const bulletTargets = (id: string, selectedIds?: string[]) => new Set((selectedIds?.includes(id) ? selectedIds : menu === id ? menuSelection.current : [id]).map(target => sourceId(docRef.current!.tables.bullets, target)));
-  const command = (action: string, id: string, start: number, end: number, selectedIds?: string[]) => {
-    const renderedIds=outlineRows.current.get(tab+':'+views.activePane);
+  const command = (action: string, id: string, start: number, end: number, selectedIds?: string[], paneId=views.activePane) => {
+    const renderedIds=outlineRows.current.get(tab+':'+paneId);
     const displayId=id;
     const targets = bulletTargets(id, selectedIds);
     if(action.startsWith('view:')){commit(setBulletView(docRef.current!,id,action.slice(5)));setMenu(null);setEditing(null);navigateTo(id);return;}
@@ -1216,7 +1216,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         at = visible.findIndex((row: any) => row.bullet.id === displayId),
         target = at < 0 ? null : visible[at + (action === "previous" ? -1 : 1)]?.bullet;
       if (target)
-        commandFocus(target.id, action === "previous" ? target.text.length : 0);
+        focus(target.id, action === "previous" ? target.text.length : 0);
       return;
     }
     if (action === "moveUp" || action === "moveDown") {
@@ -1319,6 +1319,16 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         }
         const previousAt=renderedIds?.indexOf(displayId);
         const previousId=previousAt===undefined?undefined:previousAt>0?sourceId(ns,renderedIds![previousAt-1]):null;
+        const firstVisible = previousAt === 0 || (previousAt === undefined && rows(ns, outlineScope)[0]?.bullet.id === id);
+        if (firstVisible && targetBullet && !instance?.mirrorSourceId && !targetBullet.text.trim() &&
+            targetBullet.kind === 'NOTE' && !targetBullet.mindmap && !targetBullet.journalDate &&
+            !index(ns).children.get(id)?.length && !current.tables.media.some(m => m.bulletId === id) &&
+            !current.tables.decks.some(d => d.rootId === id)) {
+          remove(id);
+          const nextId = renderedIds?.[1] ?? (renderedIds ? undefined : rows(ns, outlineScope)[1]?.bullet.id);
+          if (nextId && !working) focus(nextId, 0);
+          return;
+        }
         const result = merge(ns, id, outlineScope, previousId);
         if (result) {
           const withMedia = {
@@ -1904,7 +1914,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               onChange={changeBulletContent}
               onEditorChange={changeEditorContent}
               readCurrentNode={readCurrentNode}
-              onCommand={(action,id,start,end,selectedIds)=>{if(pane.id!=='main'&&['toggleCollapse','expandBranch','collapseBranch'].includes(action)){const ids=action==='toggleCollapse'?new Set([id]):descendants(nodes,id),collapsed={...pane.collapsed};for(const key of ids)collapsed[key]=action==='toggleCollapse'?!(collapsed[key]??idx.byId.get(key)?.collapsed):action==='collapseBranch';views.update(pane.id,{collapsed});return;}command(action,id,start,end,selectedIds);}}
+              onCommand={(action,id,start,end,selectedIds)=>{if(pane.id!=='main'&&['toggleCollapse','expandBranch','collapseBranch'].includes(action)){const ids=action==='toggleCollapse'?new Set([id]):descendants(nodes,id),collapsed={...pane.collapsed};for(const key of ids)collapsed[key]=action==='toggleCollapse'?!(collapsed[key]??idx.byId.get(key)?.collapsed):action==='collapseBranch';views.update(pane.id,{collapsed});return;}views.setActivePane(pane.id);command(action,id,start,end,selectedIds,pane.id);}}
               onOutlinePaste={pasteAsOutline}
               onReady={(e) => {
                 if(views.activePane===pane.id){editor.current=e;setActiveEditor(e);}

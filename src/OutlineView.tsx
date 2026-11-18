@@ -187,6 +187,11 @@ export function OutlineView(p: Props) {
     }
     return groups;
   }, [p.media]);
+  const layoutScope = useRef(p.scope);
+  if (layoutScope.current !== p.scope) {
+    layoutScope.current = p.scope;
+    heights.current.clear();
+  }
   const [headerHeight,setHeaderHeight]=useState(44);
   const scopedNode = p.scope ? idx.byId.get(p.scope) : null;
   const layout = useMemo(() => {
@@ -289,7 +294,7 @@ export function OutlineView(p: Props) {
     container?.addEventListener('load', mediaLoaded, true);
     container?.addEventListener('error', mediaLoaded, true);
     return () => { obs?.disconnect(); cancelAnimationFrame(settledFrame); container?.removeEventListener('load', mediaLoaded, true); container?.removeEventListener('error', mediaLoaded, true); };
-  }, [visible.map((r: any) => r.bullet.id).join("|"), typeof ResizeObserver==='undefined'?p.nodes:null, p.media, p.assets, p.editing, view.width, readingSize, collectionActive]);
+  }, [visible.map((r: any) => r.bullet.id).join("|"), typeof ResizeObserver==='undefined'?p.nodes:null, p.media, p.assets, p.editing, view.width, readingSize, collectionActive, p.scope]);
   useEffect(() => {
     const el = scroller.current,
       r = layout.find((r: any) => r.bullet.id === p.editing);
@@ -907,6 +912,12 @@ export function OutlineView(p: Props) {
                     aria-label={n.text || "Edit empty bullet"}
                     aria-disabled={p.disabled}
                     onKeyDown={e => {
+                      if (!p.disabled && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+                          (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                        e.preventDefault();
+                        p.onCommand(e.key === 'ArrowUp' ? 'previous' : 'next', n.id, 0, 0);
+                        return;
+                      }
                       if (!p.disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setReaderRange(n.blockStyle === 'divider' ? {id:n.id,anchor:n.text.length,head:n.text.length} : null); p.onEdit(n.id); }
                     }}
                     onClick={(e) => {

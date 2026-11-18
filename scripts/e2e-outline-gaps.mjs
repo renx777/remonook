@@ -40,6 +40,44 @@ try {
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
     assert.deepEqual(await gaps(page), [], "no blank gaps between bullets");
+    // Zoom into a fixture whose first child is blank. Backspace removes only that child.
+    await page.evaluate(async()=>{
+      const d=await import('/src/data.ts'),{bullet}=await import('/src/domain.mjs');
+      const before=await d.load();
+      await d.save(before,d.withNodes(before,[
+        ...before.tables.bullets,
+        bullet('keyboard-branch',{text:'Keyboard fixture',position:1000}),
+        bullet('keyboard-first',{parentId:'keyboard-branch'}),
+        bullet('keyboard-second',{parentId:'keyboard-branch',position:1,text:'Keep this note'})
+      ]),'test keyboard boundaries');
+    });
+    await page.reload();
+    await page.locator('[data-node-id="keyboard-branch"] [aria-label="Zoom into bullet"]').click();
+    const first = page.locator('[data-node-id="keyboard-first"]');
+    await first.locator('.text-button').click();
+    await page.locator('.tiptap').evaluate(el=>el.dispatchEvent(new InputEvent('beforeinput',{
+      inputType:'deleteContentBackward', bubbles:true, cancelable:true
+    })));
+    await first.waitFor({state:'detached'});
+    await page.waitForFunction(()=>document.querySelector('.tiptap')?.textContent==='Keep this note');
+    await page.keyboard.press('Control+z');
+    await first.waitFor();
+    await page.keyboard.press('Escape');
+    await first.locator('.text-button').focus();
+    await page.keyboard.press('ArrowDown');
+    const second = page.locator('[data-node-id="keyboard-second"]');
+    await second.locator('.tiptap').waitFor();
+    await page.keyboard.press('ArrowUp');
+    await first.locator('.tiptap').waitFor();
+    await page.keyboard.press('ArrowDown');
+    await second.locator('.tiptap').waitFor();
+    const beforeCount = (await rows()).length;
+    await second.locator('.tiptap').evaluate(el=>{
+      el.editor.commands.setTextSelection(6);
+      el.dispatchEvent(new InputEvent('beforeinput',{inputType:'insertParagraph',bubbles:true,cancelable:true}));
+    });
+    await page.waitForFunction(()=>document.querySelector('.tiptap')?.textContent?.trim()==='this note');
+    assert.equal((await rows()).length,beforeCount+1);
     assert.deepEqual(errors, []);
     console.log(`Outline gaps ${mobile ? "phone" : "desktop"}: split Enter makes a new bullet; trailing blank lines hidden`);
   }

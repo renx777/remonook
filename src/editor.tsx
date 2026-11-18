@@ -164,7 +164,7 @@ export function toEditor(node: Node): JSONContent {
   }
   return { type: "doc", content: [{ type: "paragraph", content }] };
 }
-export function fromEditor(json: JSONContent) {
+export function fromEditor(json: JSONContent, paragraphSeparator = "\n") {
   let text = "";
   const spans: any[] = [];
   function walk(n: JSONContent) {
@@ -193,7 +193,7 @@ export function fromEditor(json: JSONContent) {
     } else (n.content || []).forEach(walk);
   }
   (json.content || []).forEach((n, i) => {
-    if (i) text += "\n";
+    if (i) text += paragraphSeparator;
     walk(n);
   });
   const grouped = new Map<string, any[]>();
@@ -206,11 +206,18 @@ export function fromEditor(json: JSONContent) {
   }
   return { text, formatting: encode([...grouped.values()].flat()) };
 }
+function usesLiteralLines(node: Node) {
+  return !!node.codeLanguage || /^(?:```mermaid|\$\$|\\\[)/.test(node.text.trimStart());
+}
+
 export const RichRead = memo(function RichReadContent({ node, search = "", literal = false, connected = true }: { node: Node; search?: string; literal?: boolean; connected?:boolean }) {
   const visual=useVisualTools();
-  // Blank lines at the start or end of a bullet (left by keyboards that split the paragraph on
-  // Enter) are not drawn, so they don't show as gaps between bullets.
-  if(!node.codeLanguage&&/^\n|\n$/.test(node.text)&&node.text.trim()){const lead=node.text.length-node.text.replace(/^\n+/,'').length,end=node.text.replace(/\n+$/,'').length;if(end>lead)node=sliceNode(node,lead,end);}
+  // Omit legacy padding in the outline without rewriting saved text or its marks.
+  if (!literal && !usesLiteralLines(node) && /\n/.test(node.text)) {
+    const leading = /^[ \t]*(?:\r?\n[ \t]*)+/.exec(node.text)?.[0].length ?? 0;
+    const trailing = /(?:[ \t]*\r?\n)+[ \t]*$/.exec(node.text)?.index ?? node.text.length;
+    if (leading || trailing < node.text.length) node = sliceNode(node, leading, Math.max(leading, trailing));
+  }
   if(!literal && /^!\[[^\]]*\]\(https?:\/\/[^\s]+\)$/.test(node.text.trim()))return null;
   if(readTable(node.text))return <NoteTable id={node.id} text={node.text}/>;
   if (node.blockStyle === 'divider') {
@@ -376,11 +383,11 @@ function MountedBulletEditor({
   const splitRepair=useRef(0);
   const queueSplitRepair=(current:Editor)=>{
     const n=callbacks.current.node;
-    if(n.codeLanguage||/^(?:```mermaid|\$\$)/.test(n.text))return;
+    if(study || usesLiteralLines(n)) return;
     clearTimeout(splitRepair.current);
-    const repair=(tries:number)=>{
+    const repair=()=>{
       if(current.isDestroyed||current.state.doc.childCount<2)return;
-      if(current.view.composing&&tries<20){splitRepair.current=window.setTimeout(()=>repair(tries+1),50);return;}
+      if(current.view.composing){splitRepair.current=window.setTimeout(repair,50);return;}
       const doc=current.state.doc,{$from}=current.state.selection;
       const at=Math.max(1,Math.min(doc.childCount-1,$from.index(0)));
       let offset=0;for(let i=0;i<at;i++)offset+=doc.child(i).content.size;
@@ -391,7 +398,7 @@ function MountedBulletEditor({
       callbacks.current.onChange(node.id,content(current));
       callbacks.current.onCommand('enter',node.id,offset,offset);
     };
-    splitRepair.current=window.setTimeout(()=>repair(0),0);
+    splitRepair.current=window.setTimeout(repair,0);
   };
   useEffect(()=>()=>clearTimeout(splitRepair.current),[]);
   const content=(current:Editor)=>{if(serialized.current?.doc===current.state.doc)return serialized.current.value;const value=fromEditor(current.getJSON());serialized.current={doc:current.state.doc,value};return value;};
@@ -432,8 +439,26 @@ function MountedBulletEditor({
           role: "textbox",
           "aria-multiline": "true",
         },
-        handleKeyDown: (_view, event) => {
-          if (event.isComposing) return false;
+        handleDOMEvents: {
+          beforeinput: (view, rawEvent) => {
+            const event = rawEvent as InputEvent;
+            if (study || !event.cancelable || event.isComposing || view.composing) return false;
+            const { from, to } = view.state.selection;
+            // Android IMEs can send these edit intents without a usable keydown.
+            const current = callbacks.current.node;
+            const command = event.inputType === 'insertParagraph' && !usesLiteralLines(current)
+              ? 'enter'
+              : event.inputType === 'deleteContentBackward' && from === 1 && from === to
+                ? current.blockStyle === 'divider' ? 'deleteDivider' : 'merge'
+                : null;
+            if (!command) return false;
+            event.preventDefault();
+            callbacks.current.onCommand(command, current.id, from - 1, to - 1);
+            return true;
+          },
+        },
+        handleKeyDown: (view, event) => {
+          if (event.isComposing || view.composing) return false;
           if (connectionKeys.current?.(event)) { event.preventDefault();event.stopPropagation();return true; }
           if (slashKeys.current?.(event)) { event.preventDefault(); event.stopPropagation(); return true; }
           if (emojiKeys.current?.(event)) { event.preventDefault(); event.stopPropagation(); return true; }
@@ -462,14 +487,13 @@ function MountedBulletEditor({
             command = "moveDown";
           else if (event.altKey && event.key === "ArrowRight") command = "zoomIn";
           else if (event.altKey && event.key === "ArrowLeft") command = "zoomOut";
-          else if (event.key === "ArrowUp" && from === 1 && from === to)
-            command = "previous";
-          else if (
-            event.key === "ArrowDown" &&
-            start === callbacks.current.node.text.length &&
-            from === to
-          )
-            command = "next";
+          else if (!study && !modifier && !event.shiftKey && !event.altKey && from === to &&
+              (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+            const up = event.key === "ArrowUp";
+            if ((up ? from === 1 : to === view.state.doc.content.size - 1) ||
+                (typeof view.dom.getClientRects === "function" && view.endOfTextblock(up ? "up" : "down")))
+              command = up ? "previous" : "next";
+          }
           else if (
             event.key === "Enter" &&
             !event.shiftKey &&
@@ -551,8 +575,14 @@ function MountedBulletEditor({
         },
       },
       onUpdate: ({ editor }) => {
+        if (!study && !usesLiteralLines(callbacks.current.node) && editor.state.doc.childCount > 1) {
+          // Preserve text if the editor closes before repair, without publishing the
+          // IME's temporary paragraph boundary as a saved blank line.
+          callbacks.current.onChange(node.id, fromEditor(editor.getJSON(), ''));
+          queueSplitRepair(editor);
+          return;
+        }
         callbacks.current.onChange(node.id, content(editor));
-        if (editor.state.doc.childCount > 1) queueSplitRepair(editor);
       },
       onSelectionUpdate: ({ editor: current }) => callbacks.current.onReady(current),
     });
