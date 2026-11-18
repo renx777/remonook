@@ -2,6 +2,31 @@
 
 ## Current state
 
+### Outline keyboard and staging fixture cleanup, 18 November 2026
+
+Web staging runs branch `codex/outline-keyboard`, commit
+`eaef658c8d60fc297404535e8d08d7a46b7a9e5b`, release `2026-11-14.1`.
+The frontend Worker version is `fda47f75-39fa-4d8c-bf84-fe818419c28b`.
+
+The editor handles Android paragraph insertion and backward deletion input
+events, recalculates row measurements when opening a different outline,
+and navigates visible bullets with Up and Down. Backspace can send the
+first empty plain bullet to Trash. Desktop and phone-width Chromium checks
+passed locally and on web staging, including simulated Android input, Undo
+and navigation. Physical Android keyboard behavior has not been tested.
+
+The staging test no longer seeds permanent baseline notes. [Staging run #182](https://github.com/renx777/remonook/actions/runs/44224929401)
+removed the five untouched fixtures through sync, retained all 1,602 other
+notes and passed all 13 sync checks. The local suite passed 608 tests and
+[CI #346](https://github.com/renx777/remonook/actions/runs/44224935611) passed.
+
+[Android build #14](https://github.com/renx777/remonook/actions/runs/44224218169)
+published staging APK `0.1.14` from application commit
+`7b0b543fcdebfabce18277c4e39971639b5a6769`. The later web commit updates
+the cleanup and browser scripts. The live APK advertises 0.1.14 and its
+signing certificate matches 0.1.13, allowing an in-place update.
+
+
 
 ### Stable note visibility on staging, 17 November 2026
 
