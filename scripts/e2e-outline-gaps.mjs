@@ -66,11 +66,11 @@ try {
     await first.locator('.text-button').focus();
     await page.keyboard.press('ArrowDown');
     const second = page.locator('[data-node-id="keyboard-second"]');
-    await second.locator('.tiptap').waitFor();
+    await second.locator('.tiptap.ProseMirror-focused').waitFor();
     await page.keyboard.press('ArrowUp');
-    await first.locator('.tiptap').waitFor();
+    await first.locator('.tiptap.ProseMirror-focused').waitFor();
     await page.keyboard.press('ArrowDown');
-    await second.locator('.tiptap').waitFor();
+    await second.locator('.tiptap.ProseMirror-focused').waitFor();
     const beforeCount = (await rows()).length;
     await second.locator('.tiptap').evaluate(el=>{
       el.editor.commands.setTextSelection(6);

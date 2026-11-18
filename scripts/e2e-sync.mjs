@@ -57,16 +57,21 @@ async function removeLegacyBaseline(){
  const {states,revision,doc}=await server();
  const referenced=new Set(doc.tables.bullets.flatMap(n=>[n.parentId,n.mirrorSourceId]));
  for(const row of [...doc.tables.media,...doc.tables.decks]){referenced.add(row.bulletId);referenced.add(row.rootId);}
- const metadata=JSON.stringify(doc.web);
+ // Position normalization and its bookkeeping timestamps are routine on outline edits.
+ const {noteTimes,...sharedMetadata}=doc.web;
+ const metadata=JSON.stringify(sharedMetadata);
  const drop=new Set();
+ let found=0;
  for(let k=1;k<=5;k++){
   const id='e2e-baseline-'+k;
   const node=doc.tables.bullets.find(n=>n.id===id);
+  if(node)found++;
   const original=bullet(id,{text:`Sync check baseline note ${k} (keep)`,position:100+k});
   if(node && !referenced.has(id) && !metadata.includes(JSON.stringify(id)) &&
      Object.entries(node).every(([key,value])=>key==='position'||key==='collapsed'||value===original[key]) &&
      node.text===original.text && node.parentId===null) drop.add(id);
  }
+ console.log(`legacy baseline fixtures: ${found} found, ${drop.size} untouched, ${found-drop.size} retained`);
  if(!drop.size)return;
  const next={...doc,tables:{...doc.tables,bullets:doc.tables.bullets.filter(n=>!drop.has(n.id))}};
  const {updates}=applyDocument(states,doc,next,{clientID:Math.floor(Math.random()*2**31)});
