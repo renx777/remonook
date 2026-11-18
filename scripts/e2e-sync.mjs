@@ -52,16 +52,34 @@ async function cleanup(){
  return drop.size;
 }
 
-/** Keeps five permanent baseline notes on the test account, so "deletes nothing" always has
- something to protect (they never start with MARK and are never removed by this script). */
-async function ensureBaseline(){
- const {states,revision,doc}=await server(),missing=[1,2,3,4,5].filter(k=>!doc.tables.bullets.some(n=>n.id==='e2e-baseline-'+k));
- if(!missing.length)return;
- const next={...doc,tables:{...doc.tables,bullets:[...doc.tables.bullets,...missing.map(k=>bullet('e2e-baseline-'+k,{text:`Sync check baseline note ${k} (keep)`,position:100+k}))]}};
+/** Remove only untouched fixtures created by the retired baseline seeder. */
+async function removeLegacyBaseline(){
+ const {states,revision,doc}=await server();
+ const referenced=new Set(doc.tables.bullets.flatMap(n=>[n.parentId,n.mirrorSourceId]));
+ for(const row of [...doc.tables.media,...doc.tables.decks]){referenced.add(row.bulletId);referenced.add(row.rootId);}
+ // Position normalization and its bookkeeping timestamps are routine on outline edits.
+ const {noteTimes,...sharedMetadata}=doc.web;
+ const metadata=JSON.stringify(sharedMetadata);
+ const drop=new Set();
+ let found=0;
+ for(let k=1;k<=5;k++){
+  const id='e2e-baseline-'+k;
+  const node=doc.tables.bullets.find(n=>n.id===id);
+  if(node)found++;
+  const original=bullet(id,{text:`Sync check baseline note ${k} (keep)`,position:100+k});
+  if(node && !referenced.has(id) && !metadata.includes(JSON.stringify(id)) &&
+     Object.entries(node).every(([key,value])=>key==='position'||key==='collapsed'||value===original[key]) &&
+     node.text===original.text && node.parentId===null) drop.add(id);
+ }
+ console.log(`legacy baseline fixtures: ${found} found, ${drop.size} untouched, ${found-drop.size} retained`);
+ if(!drop.size)return;
+ const next={...doc,tables:{...doc.tables,bullets:doc.tables.bullets.filter(n=>!drop.has(n.id))}};
  const {updates}=applyDocument(states,doc,next,{clientID:Math.floor(Math.random()*2**31)});
  const r=await fetch(`${API}/sync/v3`,{method:'POST',headers:{Authorization:token,Origin:APP,'Content-Type':'application/json'},body:JSON.stringify({operationId:crypto.randomUUID(),updates,since:revision})});
- if(!r.ok)throw Error(`baseline failed: ${r.status} ${await r.text()}`);
- console.log(`added ${missing.length} baseline notes`);
+ if(!r.ok)throw Error(`baseline cleanup failed: ${r.status}`);
+ const after=(await server()).doc.tables.bullets;
+ if(after.some(n=>drop.has(n.id)))throw Error('Untouched baseline notes remain after cleanup');
+ console.log(`removed ${drop.size} legacy baseline notes`);
 }
 
 // ---- devices: a fresh browser context each, so no shared storage
@@ -109,7 +127,7 @@ try{
  let signInError=null;signingIn.catch(e=>{signInError=e;});
  for(let i=0;i<900&&!token&&!signInError;i++)await sleep(100);
  if(!token)throw signInError||Error('device A did not reach the sync server within 90 s');
- await ensureBaseline();
+ if(APP==='https://staging.remonook.com' && API==='https://remo-sync-staging.remo-978fb.workers.dev') await removeLegacyBaseline();
  before=(await server()).doc.tables.bullets.filter(n=>!n.text.startsWith(MARK)).map(n=>n.id).sort();
  console.log(`account has ${before.length} notes`);
  release();const A=await signingIn;
