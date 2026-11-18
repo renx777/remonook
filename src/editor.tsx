@@ -11,6 +11,22 @@ import { SlashMenu } from "./SlashMenu";
 import { CodeRead, codeHighlight, codeLanguages } from "./CodeBlock";
 import { InlineEmojiPicker } from './InlineEmojiPicker';
 import { Editor, Mark, type JSONContent } from "@tiptap/core";
+// A destroyed editor clears its command manager, so `editor.commands` on a stale reference (a
+// toolbar button whose bullet moved or finished editing a moment earlier) threw "Cannot read
+// properties of null (reading 'commands')" and took the app to its recovery screen. chain() and
+// can() already degrade to no-ops in that state; make commands do the same.
+{
+  const described = Object.getOwnPropertyDescriptor(Editor.prototype, "commands");
+  if (described?.get && !(described.get as any).remoSafe) {
+    const original = described.get;
+    const inert: any = new Proxy({}, { get: () => () => false });
+    const safe = function (this: any) {
+      return this.commandManager ? original.call(this) : inert;
+    };
+    (safe as any).remoSafe = true;
+    Object.defineProperty(Editor.prototype, "commands", { ...described, get: safe });
+  }
+}
 import { Fragment, Slice } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
@@ -210,7 +226,9 @@ export const RichRead = memo(function RichReadContent({ node, search = "", liter
   const visual=useVisualTools();
   // Blank lines at the start or end of a bullet (left by keyboards that split the paragraph on
   // Enter) are not drawn, so they don't show as gaps between bullets.
-  if(!node.codeLanguage&&/^\n|\n$/.test(node.text)&&node.text.trim()){const lead=node.text.length-node.text.replace(/^\n+/,'').length,end=node.text.replace(/\n+$/,'').length;if(end>lead)node=sliceNode(node,lead,end);}
+  // Keyboards also add a space next to the break (autospace), so any edge whitespace that holds a
+  // line break counts.
+  if(!node.codeLanguage&&node.text.trim()){const head=node.text.match(/^[\s\u200b]*\n[\s\u200b]*/),tail=node.text.match(/[\s\u200b]*\n[\s\u200b]*$/);if(head||tail){const lead=head?head[0].length:0,end=node.text.length-(tail?tail[0].length:0);if(end>lead)node=sliceNode(node,lead,end);}}
   if(!literal && /^!\[[^\]]*\]\(https?:\/\/[^\s]+\)$/.test(node.text.trim()))return null;
   if(readTable(node.text))return <NoteTable id={node.id} text={node.text}/>;
   if (node.blockStyle === 'divider') {

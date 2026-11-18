@@ -619,12 +619,19 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const lastEdit=React.useRef<{id:string;tab:string;where:string}|null>(null);
   React.useEffect(()=>{
     const prev=lastEdit.current,current=docRef.current;
+    // Leaving a bullet: drop a trailing blank line (with any autospace) that an Android keyboard's
+    // Enter left behind, so it can't show as a gap anywhere.
+    if(prev&&prev.id!==editing&&current&&!disabled){
+      const row=current.tables.bullets.find(x=>x.id===prev.id) as Node|undefined;
+      const tail=row&&!row.codeLanguage&&!/^(?:```|\$\$)/.test(row.text)&&row.text.trim()?row.text.match(/[\s\u200b]*\n[\s\u200b]*$/):null;
+      if(row&&tail)changeBulletContent(row.id,{text:row.text.slice(0,row.text.length-tail[0].length),formatting:row.formatting||''},false);
+    }
     if(prev&&prev.id!==editing&&current){
       const n=current.tables.bullets.find(x=>x.id===prev.id),to=n?outlineDestination(current,prev.id):null;
       const viewKind=prev.tab==='notes'?'notes':prev.tab;
-      if(n&&to&&to!==prev.where&&to!==viewKind&&!(prev.tab==='notes'?scope:outlineScopes[prev.tab]))setMoved({id:n.id,to,text:String(n.text||'').replace(/<[^>]*>/g,'').trim()||'Bullet'});
+      if(prev.tab&&n&&to&&to!==prev.where&&to!==viewKind&&!(prev.tab==='notes'?scope:outlineScopes[prev.tab]))setMoved({id:n.id,to,text:String(n.text||'').replace(/<[^>]*>/g,'').trim()||'Bullet'});
     }
-    lastEdit.current=editing&&current&&(tab==='notes'||dedicatedOutline)?{id:editing,tab,where:outlineDestination(current,editing)}:null;
+    lastEdit.current=editing&&current?{id:editing,tab:tab==='notes'||dedicatedOutline?tab:'',where:outlineDestination(current,editing)}:null;
   },[editing]);
   React.useEffect(()=>{if(!moved)return;const t=setTimeout(()=>setMoved(null),7000);return()=>clearTimeout(t);},[moved]);
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
@@ -2036,7 +2043,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style => command('dividerStyle:' + style, selected.id, 0, 0)} onDividerColor={color => command('dividerColor:' + color, selected.id, 0, 0)} />}
           </>
         )}
-        {selected && (dedicatedOutline||(tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && tab!=="canvas")) && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}} onImages={files=>{void attachImages(selected.id,files);}}/>}
+        {selected && (dedicatedOutline||(tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && tab!=="canvas")) && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{if(activeEditor&&!activeEditor.isDestroyed)activeEditor.commands.blur();command('stop',selected.id,0,0);}} onImages={files=>{void attachImages(selected.id,files);}}/>}
         {doc&&<NowBar placement="phone" doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>}
         <MobileNav canvas={canvasEnabled} tab={tab} onTab={id=>{if(id==='mindmap')setMindmapTarget(null);setTab(id);setEditing(null);}}/>
       </main>
