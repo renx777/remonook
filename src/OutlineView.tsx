@@ -19,7 +19,7 @@ import { MediaContent } from "./MediaContent";
 import { mediaLinks } from "./media.mjs";
 import { imageType } from "./media.mjs";
 import { depthIndent } from "./outline-layout.mjs";
-import {bulletTagStyle,toggleTagCheckbox} from "./tags.mjs";
+import {bulletTagStyle,toggleTagCheckbox,hasTag} from "./tags.mjs";
 import {TagSettingsContext} from "./TagSettingsContext";
 import {marks as markRanges,encode as encodeMarks} from "./domain.mjs";
 import {useContext} from "react";
@@ -118,7 +118,10 @@ export function OutlineView(p: Props) {
       },
       [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds,p.excludedIds],
     );
-  const viewMode=p.scope&&galleryContext?bulletView(galleryContext.doc,p.scope):'outline';
+  // Grid, compact list and table views are offered only on bullets tagged #views; without the tag
+  // a page is the ordinary outline (a view chosen earlier comes back when the tag does).
+  const viewsTagged=!!p.scope&&hasTag(String(idx.byId.get(p.scope)?.text||''),'views');
+  const viewMode=viewsTagged&&galleryContext?bulletView(galleryContext.doc,p.scope!):'outline';
   const collectionActive=viewMode!=='outline'&&!p.search&&!p.editing;
   // Publish the complete filtered outline, not just the virtualised viewport.
   const visibleRowIds=useMemo(()=>collectionActive?[]:rs.map(row=>row.bullet.id),[rs,collectionActive]);
@@ -612,7 +615,7 @@ export function OutlineView(p: Props) {
 
   if(collectionActive&&scopedNode&&galleryContext)return <section ref={scroller} className="outline-scroll collection-page" aria-label={scopedNode.text+' collection'}>
     <div className="zoomed-header"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/></div>
-    <BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>
+    {viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
     <BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>
   </section>;
   return (
@@ -670,6 +673,7 @@ export function OutlineView(p: Props) {
             <LiveTitleInput key={scopedNode.id}
               readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text}
               className="zoomed-title zoomed-title-input"
+              hideTags
               value={scopedNode.text}
               placeholder="Untitled"
               aria-label="Zoomed node title"
@@ -693,7 +697,7 @@ export function OutlineView(p: Props) {
                 }
               }}
             />
-            <BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>
+            {viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
             {viewMode!=='outline'&&p.editing&&<div className="collection-editing-hint">Editing in outline<button type="button" onClick={()=>p.onEdit(null)}>Return to {viewMode==='list'?'compact list':viewMode}</button></div>}
           </div>
         ) : <h1 className="page-title-hidden">My notes</h1>)}
@@ -743,7 +747,7 @@ export function OutlineView(p: Props) {
                 event.preventDefault();
                 if (!p.disabled) openMenu(n.id, event.currentTarget);
               }}
-              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
+              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${/^(?:\s*#[\p{L}\p{N}_\/-]+)+\s*$/u.test(n.text) ? "tags-only" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
               style={{
                 top: r.top,
                 paddingLeft: depthIndent(r.depth, view.width),

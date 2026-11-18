@@ -36,7 +36,7 @@ test('slash after text, inline links, backlinks, tags and editable mirrored bran
  await act(async()=>{editor.commands.focus('end');editor.commands.insertContent(' /h2');});await wait(()=>document.querySelector('[aria-label="Bullet commands"]'));await key('Enter');
  assert.equal(editor.getText(),'Reference ');assert.equal((await stored()).tables.bullets.find(n=>n.id==='ref').blockStyle,'h2');
  await act(async()=>{editor.commands.focus('end');editor.commands.insertContent('[[Phys');});await wait(()=>document.querySelector('[aria-label="Link suggestions"]'));await key('Enter');assert.match(editor.getText(),/\[\[Physics #imp\|source\]\]/);
- await key('Escape');await click('[data-node-id="ref"] .note-reference');assert.equal(document.querySelector('.zoomed-title').value,'Physics #imp');assert.match(document.querySelector('.backlinks-panel').textContent,/1 backlink/);
+ await key('Escape');await click('[data-node-id="ref"] .note-reference');assert.equal(document.querySelector('.zoomed-title').value,'Physics');assert.match(document.querySelector('.backlinks-panel').textContent,/1 backlink/);
  await click('[aria-label="Go to parent"]');await click('[data-node-id="source"] .note-tag');assert.equal(document.querySelector('.topbar-search input').value,'#imp');assert.ok(document.querySelector('[data-node-id="source"].is-important'));assert.equal(document.querySelector('[data-node-id="ref"]'),null,'A tag inside a link label is not a tag on its referring bullet');
  // Clear filtering by navigating home, then insert a mirror into an empty bullet.
  await click('.tag-header-path button');await click('[data-node-id="slot"] .text-button');editor=document.querySelector('.tiptap').editor;

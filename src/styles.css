@@ -2284,3 +2284,9 @@ html {
     bottom: 140px;
   }
 }
+.bullet-view-hint {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
