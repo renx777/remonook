@@ -2,7 +2,7 @@ import {bullet,index} from './domain.mjs';
 import {sourceId} from './relations.mjs';
 import {configureMcq} from './mcq.mjs';
 import {captureReadingHighlight,readingBook} from './reading.mjs';
-import {validateAiResult,byteLength} from './ai-contract.mjs';
+import {validateAiResult,byteLength,AI_STRUCTURE_OPERATIONS,structureRows,mermaidSource} from './ai-contract.mjs';
 export function aiContext(nodes,id,selected=[]){
  const idx=index(nodes),root=sourceId(nodes,id),ids=new Set((selected.length>1?selected:[root]).map(id=>sourceId(nodes,id))),seen=new Set(),parts=[];
  const visit=(id,depth)=>{if(seen.has(id))return;seen.add(id);const n=idx.byId.get(id);if(!n)return;parts.push('  '.repeat(Math.min(depth,12))+n.text);if(selected.length<=1)for(const child of idx.children.get(id)||[])visit(child.id,depth+1);};
@@ -27,6 +27,14 @@ export function insertAi(doc,draft){
    if(ai.operation==='flashcards')nodes.push(bullet(id+'-a',{text:c.answer,kind:'ANSWER',parentId:id,position:0}));else c.options.forEach((text,j)=>nodes.push(bullet(id+'-o'+j,{text,parentId:id,position:j})));}
   next={...next,tables:{...next.tables,bullets:nodes,decks:[...next.tables.decks,{rootId:insertion,createdAt:Date.now(),pinned:0,layout:'FLAT'}]},web:{...next.web,deckTypes:{...next.web.deckTypes,[insertion]:ai.operation==='mcqs'?'MCQ':'QA'}}};
   if(ai.operation==='mcqs')chosen.forEach((c,i)=>{const id=insertion+'-q'+i;next=configureMcq(next,id,{correctOptionId:id+'-o'+c.correct,explanation:c.explanation});});
+ }else if(AI_STRUCTURE_OPERATIONS.includes(ai.operation)){
+  // The first new bullet carries the insertion identity, so retries and the saved-check work as for answers.
+  if(ai.operation==='diagram'){const code=mermaidSource(draft.answer);if(!code)throw Error('Enter a valid Mermaid diagram (for example, starting with flowchart TD).');nodes.push(bullet(insertion,{text:'```mermaid\n'+code+'\n```',parentId:target,position}));}
+  else{const rows=structureRows(draft.answer);if(!rows.length)throw Error('Add at least one line to insert.');if(rows.length>200)throw Error('Insert up to 200 lines at a time.');
+   const parents=[target],counts=new Map();
+   rows.forEach((row,i)=>{const id=i?insertion+'-'+i:insertion,parentId=parents[row.depth]||target,at=parentId===target?position+(counts.get(target)||0):counts.get(parentId)||0;counts.set(parentId,(counts.get(parentId)||0)+1);parents[row.depth+1]=id;parents.length=row.depth+2;nodes.push(bullet(id,{text:row.text,parentId,position:at}));});
+   if(ai.operation==='mindmap')nodes=nodes.map(n=>n.id===target?{...n,mindmap:true}:n);}
+  next={...next,tables:{...next.tables,bullets:nodes}};
  }else{if(!draft.answer.trim()||draft.answer.length>16000)throw Error('Enter an answer up to 16,000 characters.');nodes.push(bullet(insertion,{text:draft.answer,parentId:target,position,kind:ai.operation==='answer'?'ANSWER':'NOTE'}));next={...next,tables:{...next.tables,bullets:nodes}};}
  return next;
 }

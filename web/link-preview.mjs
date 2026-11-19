@@ -37,19 +37,22 @@ export function metadataPreview({meta={},title='',scripts=[]},base,now=Date.now(
 }
 function amazonPage(value){const url=new URL(value);return /(?:^|\.)amazon\.(?:com|in|co\.uk|de|fr|it|es|co\.jp|ca|com\.au|com\.br|com\.mx|nl|se|pl|com\.be|com\.tr|ae|sa|sg|eg)$/.test(url.hostname)&&/(?:\/dp\/|\/gp\/product\/)[A-Z0-9]{10}(?:[/?]|$)/i.test(url.pathname);}
 function primaryImage(el){const hires=el.getAttribute('data-old-hires');if(hires)return hires;try{const images=JSON.parse(el.getAttribute('data-a-dynamic-image')||'{}'),best=Object.entries(images).sort((a,b)=>(b[1]?.[0]||0)*(b[1]?.[1]||0)-(a[1]?.[0]||0)*(a[1]?.[1]||0))[0];if(best)return best[0];}catch{}return el.getAttribute('src')||'';}
+/** Reads preview fields from a parsed, inert document: local Vite (linkedom) and the
+ apps (the webview's DOMParser, which never runs scripts or loads images). */
+export function documentPreview(doc,url,now=Date.now()){
+ const data={meta:{},title:'',scripts:[]};
+ for(const el of Array.from(doc.querySelectorAll('meta')).slice(0,100)){const key=(el.getAttribute('property')||el.getAttribute('name')||el.getAttribute('itemprop')||'').toLowerCase();if(key&&!data.meta[key])data.meta[key]=(el.getAttribute('content')||'').slice(0,4096);}
+ data.title=doc.querySelector('title')?.textContent.slice(0,512)||'';
+ data.meta.image_src=doc.querySelector('link[rel="image_src"]')?.getAttribute('href')||'';
+ if(amazonPage(url)){data.meta['amazon:title']=doc.querySelector('#productTitle')?.textContent.slice(0,512)||'';const image=doc.querySelector('img#landingImage,img#imgBlkFront');if(image)data.meta['amazon:image']=primaryImage(image);}
+ data.scripts=Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).slice(0,12).map(el=>el.textContent).filter(text=>text.length<=MAX_SCRIPT);
+ return metadataPreview(data,url,now);
+}
 /** HTMLRewriter parses bounded public HTML without executing page scripts. */
 export async function readMetadata(response,url){
  const amazon=amazonPage(url),html=await prefix(response,amazon?MAX_HTML*2:MAX_HTML),data={meta:{},title:'',scripts:[]};let script=null;
  // Local Vite runs in Node; production uses Workers' native streaming parser.
- if(typeof HTMLRewriter==='undefined'){
-  const {DOMParser}=await import('linkedom/worker'),doc=new DOMParser().parseFromString(html,'text/html');
-  for(const el of Array.from(doc.querySelectorAll('meta')).slice(0,100)){const key=(el.getAttribute('property')||el.getAttribute('name')||el.getAttribute('itemprop')||'').toLowerCase();if(key&&!data.meta[key])data.meta[key]=(el.getAttribute('content')||'').slice(0,4096);}
-  data.title=doc.querySelector('title')?.textContent.slice(0,512)||'';
-  data.meta.image_src=doc.querySelector('link[rel="image_src"]')?.getAttribute('href')||'';
-  if(amazon){data.meta['amazon:title']=doc.querySelector('#productTitle')?.textContent.slice(0,512)||'';const image=doc.querySelector('img#landingImage,img#imgBlkFront');if(image)data.meta['amazon:image']=primaryImage(image);}
-  data.scripts=Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).slice(0,12).map(el=>el.textContent).filter(text=>text.length<=MAX_SCRIPT);
-  return metadataPreview(data,url);
- }
+ if(typeof HTMLRewriter==='undefined'){const {DOMParser}=await import('linkedom/worker');return documentPreview(new DOMParser().parseFromString(html,'text/html'),url);}
  const rewriter=new HTMLRewriter().on('meta',{element(el){const key=(el.getAttribute('property')||el.getAttribute('name')||el.getAttribute('itemprop')||'').toLowerCase();if(key&&Object.keys(data.meta).length<100&&!data.meta[key])data.meta[key]=(el.getAttribute('content')||'').slice(0,4096);}})
  .on('title',{text(chunk){if(data.title.length<512)data.title+=chunk.text.slice(0,512-data.title.length);}})
  .on('link[rel="image_src"]',{element(el){data.meta.image_src=el.getAttribute('href')||'';}})

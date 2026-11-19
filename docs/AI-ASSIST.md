@@ -74,3 +74,25 @@ No prompts, source excerpts or responses enter server storage, logs or shared
 caches. Reservation metadata records completion timing and outcome. Inspect
 Cloudflare AI usage and operational events for errors/latency. AI_ENABLED=false
 is the kill switch; notes, drafts and sync continue working.
+
+## Structure operations and /ai commands
+
+The outline slash menu offers `/ai list`, `/ai outline`, `/ai diagram`, `/ai mindmap`
+and `/ai answer`. Each opens the same reviewed draft for the bullet, with the
+bullet text as the editable topic (add an instruction such as "names only"). The
+operations `list`, `outline`, `mindmap` and `diagram` request JSON
+(`{"items"}`, `{"outline"}` or `{"mermaid"}`), use general knowledge with the
+bullet and its children as context, and share the existing model, byte limits,
+quota and reservation path; no new model or provider is used.
+
+`validateAiResult` normalizes them to editable preview text: one item per line,
+two-space indentation (at most four levels and 80 entries) or Mermaid source that
+must start with a known diagram type. Nothing is inserted until accepted. Lists and
+outlines become child bullets after existing children; mindmap also sets the
+bullet's existing `mindmap` flag; diagrams become one fenced Mermaid bullet, shown
+with the normal diagram renderer in the preview. The first new bullet carries the
+insertion identity, so retries never duplicate and one undo removes the insertion.
+
+Generated images are not offered: the configured model is text-only. Adding an
+image model would change the reserved neuron bound above and needs a separate
+budget review, media upload path and staging validation.
