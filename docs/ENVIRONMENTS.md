@@ -37,14 +37,17 @@ top bar has no overflow and shows the current page at 950 and 770 px with
 the sidebar open and with two panes, and at 760 px.
 
 [Desktop app #31](https://github.com/renx777/remonook/actions/runs/44632918243)
-(environment staging) was building from `9eeae29` when this was recorded.
-Earlier desktop runs #29 and #30 were cancelled so the build includes both fixes.
+built Windows, macOS and Linux from `9eeae29` and published desktop staging
+**0.1.31**; the staging `latest.json` advertises it. Desktop runs #29 and #30
+were cancelled so the build includes both fixes.
+[Android app #16](https://github.com/renx777/remonook/actions/runs/44637207438)
+published Android staging **0.1.16** from `7940b43` (the same application
+source plus this record); `android.json` advertises it and the APK downloads.
 
 Not verified here: Amazon previews end to end (Amazon serves this test
 machine a captcha), an amzn.in short link, live `/ai` generation with insert
 and single undo, and colored bullets syncing to a second signed-in session.
-These need the staging test account or the desktop app. Android was not
-rebuilt; its link-preview fix ships with the next Android build.
+These need the staging test account or the apps on a real device.
 
 ### Outline keyboard and staging fixture cleanup, 18 November 2026
 
