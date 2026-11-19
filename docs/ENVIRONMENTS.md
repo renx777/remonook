@@ -2,6 +2,50 @@
 
 ## Current state
 
+### Narrow top bar, colored bullets, app link previews and /ai commands, 19 November 2026
+
+Web staging runs branch `fix/narrow-header-colored-bullets-links`, commit
+`9eeae2903aa1b76bb3e4e9ed65ac2e299a7860eb`, release `2026-11-14.1`
+(pull request [#93](https://github.com/renx777/remonook/pull/93) into the
+staging branch). The frontend Worker version is
+`06fd8815-809d-454e-abc1-209193a887e6`.
+
+[Staging frontend #185](https://github.com/renx777/remonook/actions/runs/44630764319)
+on `ea8d7d8` deployed but failed the sync release check: the narrower top bar
+folds search into an icon at the check's window size, so the check could not
+type its query. No notes were lost (1,600 of 1,600 kept). The check now opens
+the folded search first (`e9f43c2`).
+[Staging frontend #186](https://github.com/renx777/remonook/actions/runs/44631843794)
+on `e9f43c2` and [#187](https://github.com/renx777/remonook/actions/runs/44632913005)
+on `9eeae29` passed all **13 sync checks** and the link-collection checks at
+1280 and 390 px. [CI #351](https://github.com/renx777/remonook/actions/runs/44632898141)
+passed; the local suite passed 614 tests.
+
+The sync Worker `remo-sync-staging` was redeployed from this branch for the
+new AI structure operations: version `fdfae843-a18f-41c2-9c3b-2d257d027620`
+(previous `bc772e1b-c43d-4e44-8c91-b35fc3148cc4`). Bindings, variables, cron,
+limits and secrets matched the live Worker before deploying. `/health` reports
+sync protocol 3, Workdays schema 2, AI assist 1 with AI enabled; signed-out
+`/ai/status` returns 401.
+
+Two fixes were made during the release: the apps' native link-preview fetch
+now decodes gzip, brotli and deflate responses (`24745a6`; Amazon sends
+compressed pages), and the current page in the top bar shrinks last with an
+ellipsis instead of being cut off with two panes at about 770 px (`9eeae29`).
+Guest acceptance on staging passed: a colored bullet survives reload, and the
+top bar has no overflow and shows the current page at 950 and 770 px with
+the sidebar open and with two panes, and at 760 px.
+
+[Desktop app #31](https://github.com/renx777/remonook/actions/runs/44632918243)
+(environment staging) was building from `9eeae29` when this was recorded.
+Earlier desktop runs #29 and #30 were cancelled so the build includes both fixes.
+
+Not verified here: Amazon previews end to end (Amazon serves this test
+machine a captcha), an amzn.in short link, live `/ai` generation with insert
+and single undo, and colored bullets syncing to a second signed-in session.
+These need the staging test account or the desktop app. Android was not
+rebuilt; its link-preview fix ships with the next Android build.
+
 ### Outline keyboard and staging fixture cleanup, 18 November 2026
 
 Web staging runs branch `codex/outline-keyboard`, commit
