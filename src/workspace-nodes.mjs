@@ -6,7 +6,7 @@ export function withNodes(doc, nodes) {
   nodes = syncMirrors(doc.tables.bullets, nodes);
   const oldNodes=new Map(doc.tables.bullets.map(n=>[n.id,n]));
   const noteTimes={...doc.web.noteTimes},now=Date.now();
-  for(const n of nodes){const before=oldNodes.get(n.id);if(!before||['text','formatting','parentId','position','taskState','dueDate','kind','blockStyle','codeLanguage','dividerStyle','dividerColor'].some(k=>before[k]!==n[k]))noteTimes[n.id]={...noteTimes[n.id],...(!before?{createdAt:now}:{}),updatedAt:now};}
+  for(const n of nodes){const before=oldNodes.get(n.id);if(!before||['text','formatting','parentId','position','taskState','dueDate','kind','blockStyle','codeLanguage','dividerStyle','dividerColor','bulletColor'].some(k=>before[k]!==n[k]))noteTimes[n.id]={...noteTimes[n.id],...(!before?{createdAt:now}:{}),updatedAt:now};}
   doc={...doc,web:{...doc.web,noteTimes}};
   const detached=nodes.filter(n=>!n.mirrorSourceId&&oldNodes.get(n.id)?.mirrorSourceId);
   const detachedMedia=detached.flatMap(n=>doc.tables.media.filter(m=>m.bulletId===oldNodes.get(n.id).mirrorSourceId).map(m=>({...m,id:uuid(),bulletId:n.id})));

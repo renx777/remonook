@@ -502,3 +502,35 @@ kbd { font: 11px inherit; color: var(--muted); white-space: nowrap; }
 
 /* Important tags ring the bullet whether or not it has children. */
 .outline-row.is-important .bullet-dot-btn .bullet-outer-circle{stroke:#e06c66;opacity:.6}
+
+/* Top bar sized by its own width, not the screen: split windows, an open sidebar and
+   several panes all narrow it. The breadcrumb keeps priority; search collapses to an
+   icon that opens over the bar, and rarely used buttons step aside (their shortcuts remain). */
+.topbar { container: topbar / inline-size; position: relative; }
+.topbar .breadcrumbs { flex: 1 1 0; scrollbar-width: none; }
+.topbar .breadcrumbs::-webkit-scrollbar { display: none; }
+.topbar .topbar-right { flex-shrink: 0; }
+@media (min-width: 761px) {
+  .topbar .breadcrumbs button { flex-shrink: 8; min-width: 2.6em; }
+  /* The current page shrinks last, and ends in an ellipsis rather than being cut off. */
+  .topbar .breadcrumbs button:last-child { flex-shrink: 1; min-width: 5em; max-width: min(260px, 45cqi); }
+  @container topbar (max-width: 1080px) {
+    .topbar .topbar-right .topbar-search { flex: none; width: 34px; height: 34px; padding: 0; gap: 0; border: 0; justify-content: center; background: transparent; }
+    .topbar .search-trigger { width: 34px; height: 34px; }
+    .topbar .search-box.has-query .search-trigger { color: var(--accent); background: var(--soft); }
+    .topbar .search-box input, .topbar .search-box .topbar-search-clear { display: none; }
+    .topbar .topbar-right .search-box.is-open { position: absolute; left: 12px; right: 12px; top: 6px; width: auto; height: 36px; padding: 0 8px; gap: 6px; justify-content: flex-start; border: 1px solid var(--muted); border-radius: 9999px; background: var(--panel); z-index: 60; }
+    .topbar .search-box.is-open input { display: block; flex: 1; width: 100%; }
+    .topbar .search-box.is-open .topbar-search-clear { display: inline-flex; }
+    .topbar .search-box.is-open .search-close { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 30px; height: 30px; border: 0; background: transparent; padding: 0; color: var(--muted); }
+    .topbar .search-box.is-open .search-options { left: 0; right: auto; }
+  }
+  @container topbar (max-width: 900px) {
+    .topbar .breadcrumbs > button:first-child:not(:last-child) { font-size: 0; gap: 0; min-width: 0; }
+    .topbar [aria-label="Undo"], .topbar [aria-label="Redo"], .topbar [data-guide-help] { display: none; }
+  }
+  @container topbar (max-width: 720px) {
+    .topbar .completed-toggle, .topbar [aria-label="Commands & notes"] { display: none; }
+    .topbar .focus-pill .focus-pill-label { display: none; }
+  }
+}

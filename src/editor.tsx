@@ -664,7 +664,7 @@ function MountedBulletEditor({
       ) : (
         <div key="text-editor" ref={host} className="bullet-editor" />
       )}
-      {emojiEditor && !study && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':['pane','date','image','complete','countdown','table','gallery','music','divider','diagram','drawing','mindmap'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
+      {emojiEditor && !study && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':id.startsWith('ai-')?'action:':['pane','date','image','complete','countdown','table','gallery','music','divider','diagram','drawing','mindmap'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
       {emojiEditor && !study && <InlineConnections editor={emojiEditor} nodeId={node.id} enabled={!disabled&&!node.codeLanguage&&!unsupportedFormatting(node)} keyHandler={connectionKeys}/>}
       {emojiEditor && <InlineEmojiPicker editor={emojiEditor} nodeId={node.id} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node) && !/^(?:```|\$\$|\\\[)/.test(node.text)} keyHandler={emojiKeys} />}
       {!node.codeLanguage && notationParts(node.text).length > 0 && <div className="notation-preview"><small>Preview · edit source above</small><RichRead node={node} /></div>}

@@ -26,6 +26,7 @@ import {useContext} from "react";
 import {SearchContext} from "./SearchBox";
 import {searchMatcher} from "./search.mjs";
 import { readerSelection } from "./outline-selection";
+import { bulletColorOf } from "./BulletColors";
 type Props = {
   hideTitle?: boolean;
   /** Size the canvas to its rows so a parent page can scroll it (short outlines only). */
@@ -824,6 +825,7 @@ export function OutlineView(p: Props) {
               {/* Numbers replace the dot while retaining zoom and drag controls. */}
               <button
                 className={`bullet-dot-btn ${n.listType === "ORDERED" ? "is-numbered" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${childCount > 0 && n.collapsed ? "is-collapsed outer-slate" : "is-expanded"}`}
+                data-bullet-color={bulletColorOf(n.bulletColor)}
                 aria-label="Zoom into bullet"
                 title="Click to zoom; drag to move"
                 disabled={p.disabled}

@@ -9,7 +9,7 @@ import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
 import {aiContext,insertAi} from './ai-assist.mjs';
 import {useResearchDrafts} from './ai-drafts';
-import type {ResearchDraft} from './data';
+import type {ResearchDraft,AiDraft} from './data';
 import {planTrashPurge} from './trash-purge';
 import {cacheArticle,articleAccount} from './article-cache.mjs';
 import {uploadCachedArticles} from './article-api';
@@ -156,6 +156,7 @@ import { StudyDesk } from "./StudyDesk";
 import { imageType, mediaLink } from "./media.mjs";
 import { EmojiProvider } from './AnimatedEmoji';
 import {BulletMenuBody} from './BulletMenuBody';
+import {BulletColorPicker} from './BulletColors';
 import {useEmojiAssetRepair} from './useEmojiAssetRepair';
 import { EmojiPicker } from './EmojiPicker';
 import {WorkdayMarker,WorkMode} from './WorkMode';
@@ -667,12 +668,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setViewMenu(false);
     setMenu(id);
   };
-  const openAi=async(id:string,mode:'general'|'web'='general')=>{
+  const openAi=async(id:string,mode:'general'|'web'='general',operation:AiDraft['operation']='answer')=>{
     if(!research.state)return;const selected=menuSelection.current.includes(id)?[...menuSelection.current]:[];try{
       await flush();if(failed.current)throw Error('Save your notes before opening AI assist.');const current=docRef.current!,context=aiContext(current.tables.bullets,id,selected),node=current.tables.bullets.find(n=>n.id===context.id);
       researchOrigin.current=menuAnchor.current;setMenu(null);setEditing(null);
       const prior=research.state.drafts[context.id];
-      if(!prior?.ai)await research.put({id:context.id,query:node?.text||'',answer:prior?.answer||'',updatedAt:Date.now(),ai:{operation:'answer',mode,context:context.context,sourceIds:context.sourceIds,selectionIds:selected,sourceTexts:context.sourceIds.map(id=>current.tables.bullets.find(n=>n.id===id)?.text||''),complete:false}},context.id);
+      // A slash command picks the action; an unfinished draft of another action is reset to it (its text stays as the topic).
+      if(prior?.ai&&operation!=='answer'&&prior.ai.operation!==operation&&!prior.insertedId)await research.put({...prior,query:prior.query||node?.text||'',answer:'',updatedAt:Date.now(),ai:{...prior.ai,operation,mode:'general',complete:false,candidates:[],sources:[],supported:undefined}},context.id);
+      if(!prior?.ai)await research.put({id:context.id,query:node?.text||'',answer:prior?.answer||'',updatedAt:Date.now(),ai:{operation,mode,context:context.context,sourceIds:context.sourceIds,selectionIds:selected,sourceTexts:context.sourceIds.map(id=>current.tables.bullets.find(n=>n.id===id)?.text||''),complete:false}},context.id);
       setResearchTarget(context.id);
     }catch(e){showError(e);}
   };
@@ -1082,6 +1085,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       });
       return;
     }
+    if(action.startsWith('action:ai-')){const operation=action.slice('action:ai-'.length) as AiDraft['operation'];if(['list','outline','mindmap','diagram','answer'].includes(operation))void openAi(id,'general',operation);return;}
     if(action==='action:diagram'){openDiagram({id});return;}
     if(action==='action:drawing'){openDrawing(id);return;}
     if(action==='action:pane'){openPane(id);return;}
@@ -1741,7 +1745,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {dedicatedOutline&&outlineScopes[tab]&&<button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={()=>{const parent=idx.byId.get(outlineScopes[tab]!)?.parentId;setOutlineScopes(value=>({...value,[tab]:parent&&outlineDestination(docRef.current!,parent)===tab?parent:null}));setEditing(null);}}><Icon name="back" size={16}/></button>}
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
-          <div className="breadcrumbs">
+          <div className="breadcrumbs" ref={el=>{if(el&&el.scrollWidth>el.clientWidth)el.scrollLeft=el.scrollWidth;}}>
             {dedicatedOutline && outlineScopes[tab] ? (()=>{
               // Zoomed into a view's outline: the view, then the path down to this bullet.
               const path:any[]=[];let at=idx.byId.get(outlineScopes[tab]!);const seen=new Set<string>();
@@ -2089,7 +2093,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <button disabled={disabled} onClick={() => { command("complete", menuNode.id, 0, 0); setMenu(null); }}><Icon name="check" size={16} /><span>{menuNode.taskState === "DONE" ? "Uncomplete" : "Complete"}</span><kbd>Ctrl ↵</kbd></button>
             <button disabled={disabled} onClick={() => { toggleStar(menuNode.id); setMenu(null); }}><Icon name="star" size={16} /><span>{starred.includes(menuNode.id) ? "Unstar" : "Star"}</span></button>
             {(idx.children.get(menuNode.id) || []).length > 0 && <button disabled={disabled} onClick={() => { command("toggleCollapse", menuNode.id, 0, 0); setMenu(null); }}><Icon name={menuNode.collapsed ? "expand" : "collapse"} size={16} /><span>{menuNode.collapsed ? "Expand" : "Collapse"}</span><kbd>Ctrl Space</kbd></button>}
-</div><details data-tour="format-category" className="bullet-action-section"><summary><Icon name="format" size={16}/><span>Format & type</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <label className="field-label">Text style<select aria-label="Bullet text style" disabled={disabled} value={['h1','h2','h3','quote','divider'].includes(menuNode.blockStyle) ? menuNode.blockStyle : 'paragraph'} onChange={event => command('block:' + event.target.value, menuNode.id, 0, 0)}><option value="paragraph">Paragraph</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option><option value="quote">Quote</option><option value="divider">Divider</option></select></label>
+</div>{menuNode.blockStyle !== 'divider' && <BulletColorPicker value={menuNode.bulletColor} disabled={disabled} onChange={color => mutate(ns => ns.map(n => n.id === menuNode.id ? { ...n, bulletColor: color } : n))}/>}<details data-tour="format-category" className="bullet-action-section"><summary><Icon name="format" size={16}/><span>Format & type</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <label className="field-label">Text style<select aria-label="Bullet text style" disabled={disabled} value={['h1','h2','h3','quote','divider'].includes(menuNode.blockStyle) ? menuNode.blockStyle : 'paragraph'} onChange={event => command('block:' + event.target.value, menuNode.id, 0, 0)}><option value="paragraph">Paragraph</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option><option value="quote">Quote</option><option value="divider">Divider</option></select></label>
             {menuNode.blockStyle === 'divider' && (
               <>
                 <label className="field-label">Divider line style

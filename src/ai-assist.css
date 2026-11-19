@@ -2,3 +2,5 @@
 .ai-options{border-top:1px solid var(--line);padding-top:8px;font-size:13px}
 .ai-options>summary{cursor:pointer;color:var(--muted);padding:4px 0}
 .ai-options>.field-label{margin-top:8px}
+
+.ai-diagram-preview{margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:auto;max-height:340px}.ai-diagram-preview svg{max-width:100%;height:auto}

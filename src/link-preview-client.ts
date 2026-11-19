@@ -1,4 +1,9 @@
 import {previewUrl} from './public-preview-url.mjs';
+import {desktopInvoke,isApp} from './desktop';
+// The website asks its same-origin Worker. The apps have no such origin (a relative
+// /api path returns the app's own index.html), so they read the page natively.
+async function webPreview(key:string,signal:AbortSignal){const r=await fetch('/api/link-preview?url='+encodeURIComponent(key),{credentials:'omit',signal});if(!r.ok)throw Error(r.status===429?'Preview limit reached. Try again shortly.':'Preview unavailable.');if(!/json/i.test(r.headers.get('content-type')||''))throw Error('Preview unavailable.');return r.json();}
+async function appPreview(key:string){const page=await desktopInvoke<{url:string;html:string}>('link_preview_fetch',{url:key});const {documentPreview}=await import('../web/link-preview.mjs');return documentPreview(new DOMParser().parseFromString(page.html,'text/html'),page.url);}
 export type LinkMetadata={schema:1;url:string;site:string;title:string;description:string;image:string|null;kind:'product'|'page';brand:string|null;price:{amount:string;currency:string;from:boolean}|null;availability:string|null;rating:{value:number;best:number;count:number|null}|null;capturedAt:number};
 const cache=new Map<string,{expires:number;value?:LinkMetadata;promise?:Promise<LinkMetadata>}>();
 let running=0;const queue:Array<()=>void>=[];
@@ -14,7 +19,7 @@ export function loadLinkPreview(value:string):Promise<LinkMetadata>{
  let key:string;try{key=previewUrl(value).href;}catch{return Promise.reject(Error('Preview unavailable.'));}
  const prior=cache.get(key);if(prior?.promise&&prior.expires>Date.now())return prior.promise;
  const entry:{expires:number;value?:LinkMetadata;promise?:Promise<LinkMetadata>}={expires:Date.now()+3600000};
- entry.promise=slot(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);try{const r=await fetch('/api/link-preview?url='+encodeURIComponent(key),{credentials:'omit',signal:controller.signal});if(!r.ok)throw Error(r.status===429?'Preview limit reached. Try again shortly.':'Preview unavailable.');const value=validateLinkMetadata(await r.json());entry.value=value;return value;}catch(error){entry.expires=Date.now()+30000;throw error;}finally{clearTimeout(timer);}});
+ entry.promise=slot(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);try{const value=validateLinkMetadata(isApp()?await appPreview(key):await webPreview(key,controller.signal));entry.value=value;return value;}catch(error){entry.expires=Date.now()+30000;throw error;}finally{clearTimeout(timer);}});
  cache.delete(key);cache.set(key,entry);if(cache.size>128)cache.delete(cache.keys().next().value!);return entry.promise;
 }
 export function previewPrice(value:LinkMetadata['price'],locale?:string){if(!value)return '';try{return (value.from?'From ':'')+new Intl.NumberFormat(locale,{style:'currency',currency:value.currency}).format(Number(value.amount));}catch{return value.currency+' '+value.amount;}}

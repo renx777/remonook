@@ -4,6 +4,12 @@ import type { Editor } from '@tiptap/core';
 import {Icon} from './icons';
 
 export const blockCommands = [
+  // AI commands open the reviewed AI draft for this bullet; nothing is added until you accept it.
+  {id:'ai-list',label:'AI list',detail:'Answer as child bullets, names only',keys:'',terms:'ai list ai bullets ai answer types items children',icon:'star'},
+  {id:'ai-outline',label:'AI outline',detail:'Nested child bullets on this topic',keys:'',terms:'ai outline ai notes ai expand ai explain nested',icon:'star'},
+  {id:'ai-diagram',label:'AI diagram',detail:'A Mermaid diagram that explains this',keys:'',terms:'ai diagram ai mermaid ai flowchart ai chart ai image',icon:'star'},
+  {id:'ai-mindmap',label:'AI mindmap',detail:'Branches as a mindmap of this bullet',keys:'',terms:'ai mindmap ai map ai branches',icon:'star'},
+  {id:'ai-answer',label:'AI answer',detail:'One answer bullet from general knowledge',keys:'',terms:'ai answer ai ask ai question',icon:'star'},
   {id:'diagram',label:'Diagram',detail:'Templates and a live Mermaid preview',keys:'',terms:'diagram mermaid flowchart mindmap sequence chart',icon:'diagram'},
   {id:'drawing',label:'Drawing',detail:'Sketch with Excalidraw',keys:'',terms:'drawing draw sketch canvas excalidraw whiteboard',icon:'sketch'},
   {id:'music',label:'Music gallery',detail:'Audio files, YouTube Music and Spotify',keys:'',terms:'music audio playlist spotify youtube',icon:'music'},

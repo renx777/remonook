@@ -106,7 +106,10 @@ const status=d=>d.page.evaluate(()=>document.querySelector('.save-status')?.titl
 const synced=(d,timeout=60000)=>d.page.waitForFunction(()=>document.querySelector('.save-status')?.title.includes('Cloud: Synced'),null,{timeout});
 // Accounts can be large and the outline only renders rows on screen, so the check reads and
 // edits its notes through the app's search, which filters the outline to matching bullets.
-async function search(d,q){const box=d.page.locator('input[placeholder="Search notes"]');if(await box.inputValue()!==q){await box.fill(q);await sleep(700);}await box.press('Escape');await sleep(250);
+async function search(d,q){const box=d.page.locator('input[placeholder="Search notes"]');
+ // In a narrower top bar (an open sidebar at this window size) search folds into an icon; open it first.
+ if(!(await box.isVisible())){const open=d.page.getByRole('button',{name:'Open search'}).first();if(await open.isVisible())await open.click();}
+ if(await box.inputValue()!==q){await box.fill(q);await sleep(700);}await box.press('Escape');await sleep(250);
  // Escape closes the suggestions; if it also cleared the search, set it again without focus.
  if(await box.inputValue()!==q){await box.evaluate((e,v)=>{const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(e,v);e.dispatchEvent(new Event('input',{bubbles:true}));e.blur();},q);await sleep(700);}
  if(await d.page.locator('text=Combine terms').isVisible().catch(()=>false))throw Error('the search suggestions stayed open');}
