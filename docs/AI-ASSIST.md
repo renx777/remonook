@@ -96,3 +96,21 @@ insertion identity, so retries never duplicate and one undo removes the insertio
 Generated images are not offered: the configured model is text-only. Adding an
 image model would change the reserved neuron bound above and needs a separate
 budget review, media upload path and staging validation.
+
+## Using your own AI app
+
+Every AI assist draft for a bullet (not reader passages) has **Use your own Claude
+or ChatGPT**. It builds a prompt for an app connected through Settings → AI apps
+(MCP; see [MCP.md](MCP.md)): read the bullet with `read_page`, then add the result
+under it with `write_notes`, `write_mindmap`, `create_flashcards` or
+`create_mcqs`, matching the chosen action. The prompt carries the bullet id, its
+title as a label and the typed request; the app reads the note itself through the
+connector. **Copy prompt** copies it, and **Open in Claude** / **Open in ChatGPT**
+open a new chat with it filled in (system browser in the apps).
+
+The work runs on the person's own AI plan and writes back as an ordinary AI app
+change (listed in recent activity, synced, undoable like other connector edits).
+It uses none of the built-in daily allowance, so the section opens by itself when
+generation is paused, the account's 10 daily generations are used, or the shared
+allowance is spent. Nothing is sent anywhere until the person sends the prompt in
+their app.

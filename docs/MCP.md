@@ -20,8 +20,11 @@ can read and write the signed-in user's cloud notes.
 
 ## Tools
 
-`search`, `list_pages`, `read_page`, `write_notes`, `update_note`, `move_notes`, `delete_notes`,
+`search`, `list_pages`, `read_page`, `write_notes`, `write_mindmap`, `update_note`, `move_notes`, `delete_notes`,
 `create_flashcards`, `create_mcqs`, `add_bookmark`, `recent_changes`. Tools beyond a token's scope are not listed.
+`write_mindmap` adds branches from a nested Markdown list under an existing bullet (`root_id`)
+and sets its `mindmap` flag, or creates a new mindmap bullet from `title` (optionally under
+`parent_id`); existing children are kept and nothing else changes.
 
 Markdown (`src/ai-markdown.mjs`): nested lists, `[ ]`/`[x]` tasks, numbered lists, `#` headings (content nests under
 them), `---` dividers, fenced code (language kept), ```` ```mermaid ```` diagrams, GFM tables (become `remo-table`),
