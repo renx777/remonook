@@ -2,6 +2,28 @@
 
 ## Current state
 
+### AI assist handoff to your own AI app, 20 November 2026
+
+Web staging runs branch `feat/ai-apps-handoff`, commit
+`bdb8967612021e03eb4e5f14a5a3243873b8e3e9`, release `2026-11-14.1`
+(pull request [#94](https://github.com/renx777/remonook/pull/94), stacked on #93,
+so staging also keeps everything below). AI assist drafts offer "Use your own
+Claude or ChatGPT", and the MCP connector gains `write_mindmap`.
+
+[Staging frontend #188](https://github.com/renx777/remonook/actions/runs/44678247247)
+passed, including the 13 sync checks, and [CI #354](https://github.com/renx777/remonook/actions/runs/44678282281)
+passed; the local suite passed 617 tests. The staging sync Worker was redeployed
+with owner approval for the new tool: version `e6f22fb8-777c-4e95-b04a-e6b16f5bd284`
+(previous `fdfae843-a18f-41c2-9c3b-2d257d027620`), same bindings, `/health`
+unchanged, signed-out `/mcp` returns 401. Browser checks on staging: the section
+renders, the copied prompt matches the action (including `write_mindmap`), both
+app links carry the prompt and Set up AI apps opens Settings → AI apps.
+
+Not verified: a real Claude or ChatGPT conversation carrying out the prompt, and
+`write_mindmap` over the live connector (needs a connected test account).
+Desktop and Android apps were not rebuilt; they pick up the panel change with
+their next build, and their local MCP gains `write_mindmap` then.
+
 ### Narrow top bar, colored bullets, app link previews and /ai commands, 19 November 2026
 
 Web staging runs branch `fix/narrow-header-colored-bullets-links`, commit
