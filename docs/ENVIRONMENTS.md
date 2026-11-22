@@ -2,6 +2,23 @@
 
 ## Current state
 
+### AI actions in the bulk bar and slash menu, 22 November 2026
+
+Web staging runs branch `feat/ai-bulk-bar-slash`, commit
+`22e4be655462004b43f4ea2216a83d989b3a037b`, release `2026-11-14.1`, built on
+`codex/ai-images-bulk` (`df8caa9`). The bulk bar has an AI menu (Answer each,
+Summarize, Outline, Flashcards, MCQs, Mindmap, and Generate image for one
+bullet); the slash menu adds AI answer children, AI image, AI summary, AI
+flashcards and AI MCQs. Frontend only; the sync Worker is unchanged.
+
+[Staging frontend #191](https://github.com/renx777/remonook/actions/runs/45061437029)
+passed all 13 sync checks on attempt 3. Attempt 1 failed "an offline edit syncs
+after reconnecting" (not received in 30 s); attempt 2 failed "concurrent edits
+to one bullet keep both and converge": both devices converged but the merged
+text lost a space and a bracket (`n3[A]B]`). Neither area changed in this
+commit, every attempt kept all 1,654 notes, and the preceding Codex run passed,
+but the character loss needs its own investigation. Local suite: 621 tests passed.
+
 
 ### AI image generation and bulk answers on web staging, 22 November 2026
 
