@@ -10,6 +10,7 @@ import {restoreLocalBook,isBookPath} from './local-books';
 import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
 import {aiBulletTargets,aiContext,insertAi,insertBulkAnswers} from './ai-assist.mjs';
+import {joinTranscript} from './dictation-text.mjs';
 import type {AiAnswer,AiQuestion} from './AiBulletDialog';
 import {useResearchDrafts} from './ai-drafts';
 import type {ResearchDraft,AiDraft} from './data';
@@ -188,6 +189,7 @@ import "./navigation-refinement.css";
 const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
 const AiBulletDialog = React.lazy(()=>import('./AiBulletDialog'));
+const DictationPill = React.lazy(()=>import('./Dictation').then(m=>({default:m.DictationPill})));
 const AiAssist = React.lazy(()=>import('./AiAssist'));
 const AiDraftList = React.lazy(()=>import('./AiAssist').then(m=>({default:m.AiDraftList})));
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
@@ -686,6 +688,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const [aiBulletTarget,setAiBulletTarget]=useState<(
     {mode:'image';target:AiQuestion}|{mode:'answers';targets:AiQuestion[]}
   )&{account:string}|null>(null);
+  // Dictation into one bullet: at the cursor while it is being edited, otherwise appended to its text,
+  // so a transcript that arrives after editing ends is never lost.
+  const editingRef=useRef(editing);editingRef.current=editing;
+  const [dictateTarget,setDictateTarget]=useState<{id:string;account:string}|null>(null);
+  const insertDictation=(id:string,text:string)=>{
+    const e=editor.current,nodes=docRef.current?.tables.bullets||[],target=sourceId(nodes,id);
+    if(e&&!e.isDestroyed&&editingRef.current&&sourceId(nodes,editingRef.current)===target){const add=joinTranscript(e.state.doc.textBetween(0,e.state.selection.from,'\n'),text);if(add)e.chain().insertContent({type:'text',text:add}).run();return;}
+    const n=nodes.find(x=>x.id===target);if(!n)return;const add=joinTranscript(n.text,text);if(add)changeBulletContent(n.id,{text:n.text+add,formatting:n.formatting});
+  };
   const openBulletAi=async(mode:'image'|'answers',ids:string[])=>{
     const account=storageAccountKey();
     setMenu(null);
@@ -1178,6 +1189,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if(action==='action:ai-bulk'){void openBulletAi('answers',selectedIds||[id]);return;}
+    if(action==='action:dictate'){if(!cloudUser){setNotice('Sign in to dictate.');return;}setDictateTarget({id,account:storageAccountKey()});return;}
     if(action==='action:ai-image'){void openBulletAi('image',[id]);return;}
     // Answer each child of this bullet as its own question (the slash command for bulk answers).
     if(action==='action:ai-answer-children'){const kids=(docRef.current?.tables.bullets||[]).filter(n=>n.parentId===sourceId(docRef.current!.tables.bullets,id)&&!n.deleted).sort((a,b)=>a.position-b.position).map(n=>n.id);if(!kids.length){setNotice('Add questions as child bullets first.');return;}void openBulletAi('answers',kids);return;}
@@ -2179,6 +2191,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           setNotice("MCQ saved. Study it in Study Desk, or make an MCQ notebook from its parent branch.");
         } catch (error) { showError(error); }
       }} />}
+      {dictateTarget&&dictateTarget.account===storageAccountKey()&&<React.Suspense fallback={null}><DictationPill key={dictateTarget.id} user={cloudUser} onText={text=>insertDictation(dictateTarget.id,text)} onClose={()=>setDictateTarget(null)}/></React.Suspense>}
       {aiBulletTarget&&aiBulletTarget.account===storageAccountKey()&&<React.Suspense fallback={null}>
         {aiBulletTarget.mode==='image'
           ?<AiBulletDialog mode="image" target={aiBulletTarget.target} user={cloudUser} disabled={disabled||failed.current} onClose={()=>setAiBulletTarget(null)} onSave={saveAiImage}/>
@@ -2191,6 +2204,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
             <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
+            {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:dictate',menuNode.id,0,0);}}><Icon name="mic" size={16}/><span>Dictate</span></button>}
             {menuSelection.current.length>1&&<button disabled={disabled} onClick={()=>void openBulletAi('answers',[...menuSelection.current])}><Icon name="study" size={16}/><span>Answer selected bullets…</span></button>}
             {menuNode.blockStyle!=='divider'&&<button disabled={disabled} onClick={()=>void openBulletAi('image',[menuNode.id])}><Icon name="image" size={16}/><span>Generate image…</span></button>}
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>

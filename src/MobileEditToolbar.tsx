@@ -28,6 +28,7 @@ export function MobileEditToolbar({editor,disabled,formattingDisabled,blockStyle
    <button type="button" aria-label="Outdent bullet" title="Outdent" disabled={disabled} onClick={()=>{onCommand('outdent');refocus();}}><Icon name="outdent" size={20}/></button>
    <button type="button" aria-label="Indent bullet" title="Indent" disabled={disabled} onClick={()=>{onCommand('indent');refocus();}}><Icon name="indent" size={20}/></button>
    {onImages&&<label className="mobile-tool-image" aria-label="Add image" title="Add image"><Icon name="image" size={20}/><input type="file" accept="image/*" multiple hidden disabled={disabled} onChange={e=>{const files=[...(e.target.files||[])];e.target.value='';if(files.length)onImages(files);}}/></label>}
+   <button type="button" aria-label="Dictate" title="Dictate" disabled={disabled} onClick={()=>onCommand('action:dictate')}><Icon name="mic" size={20}/></button>
    <span className="mobile-tool-divider"/>
    {(['bold','italic','underline','strike'] as const).map((mark,i)=><button key={mark} type="button" aria-label={['Bold','Italic','Underline','Strikethrough'][i]} aria-pressed={editor.isActive(mark)} disabled={formatDisabled} onClick={()=>editor.chain().focus().toggleMark(mark).run()}><Icon name={mark} size={20}/></button>)}
    <FormattingPalette allowCaret editor={editor} disabled={formatDisabled}/><FormattingPalette allowCaret editor={editor} disabled={formatDisabled} mode="highlight"/><RoughAnnotationPicker editor={editor} disabled={formatDisabled}/>

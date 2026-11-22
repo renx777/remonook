@@ -145,3 +145,26 @@ per-account trigger and preserves every reservation already recorded.
 
 All of them open the same reviewed drafts and dialogs; nothing is added until
 accepted, and limits are unchanged.
+
+## Dictation
+
+Type `/dictate`, choose Dictate from the bullet menu, or tap the microphone in the
+phone editing toolbar. A pill shows "Listening" with the time left today; Done (or
+Escape) stops, and the transcript goes in at the cursor, or is appended to the
+bullet if editing has ended, so a late transcript is never lost. Capitals and spaces
+are joined to the text before it (`src/dictation-text.mjs`).
+
+The browser records with MediaRecorder at 32 kbps (WebM/Opus in Chrome, Edge,
+Firefox and Android; MP4/AAC in Safari and macOS WebViews) in one-minute chunks,
+each a complete file sent in order to `POST /ai/transcribe?id=<uuid>` with the
+audio as the body (at most 3 MB). The Worker runs `@cf/openai/whisper-large-v3-turbo`
+with voice-activity filtering and returns `{text, language, duration,
+remainingSeconds}`. Audio and text are never stored; `ai_requests` keeps only the
+usual operational row, with an `audio:` id prefix.
+
+Cost: the model is about 46.63 neurons per audio minute; the Worker reserves 56 per
+minute (20% margin) for a full two-minute chunk, then settles the row to the
+measured duration. Each account has 10 dictation minutes per UTC day (counted from
+those rows, separately from text and images) inside the shared 8,000-neuron app
+limit; `/ai/status` reports `audioRemainingSeconds`. Language is detected
+automatically. A sentence can be split where one chunk ends and the next begins.

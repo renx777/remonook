@@ -4,11 +4,20 @@ const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Contr
 const fail=(message,status=400,code)=>{throw Object.assign(Error(message),{status,code});};
 const IMAGE_MODEL='@cf/black-forest-labs/flux-1-schnell', IMAGE_STEPS=4;
 const IMAGE_RESERVED=120, IMAGE_BYTES=2*1024*1024;
+// Dictation: Whisper large-v3-turbo costs about 46.63 neurons per audio minute; reserve 56 (20% margin).
+// A chunk is at most two minutes; the reservation is settled to the measured duration afterwards.
+const AUDIO_MODEL='@cf/openai/whisper-large-v3-turbo', AUDIO_BYTES=3*1024*1024, AUDIO_SECONDS=120, AUDIO_DAILY_SECONDS=600;
+export const audioReserve=seconds=>Math.max(1,Math.ceil(Math.min(Math.max(seconds,1),3600)/60*56));
+const AUDIO_TYPES=/^audio\/(webm|ogg|mp4|mpeg|mp3|wav|x-wav|x-m4a|aac)\b/;
+async function audioUsed(env,uid,day){return (await env.DB.prepare("SELECT COALESCE(SUM(reserved),0) AS used FROM ai_requests WHERE uid=? AND day=? AND id LIKE 'audio:%'").bind(uid,day).first()).used;}
+const audioLeft=used=>Math.max(0,Math.floor((audioReserve(AUDIO_DAILY_SECONDS)-used)/56*60));
+const base64=bytes=>{let out='';for(let i=0;i<bytes.length;i+=0x8000)out+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(out);};
 export const aiEnabled=env=>env.AI_ENABLED==='true'&&env.AI_FREE_TIER_CONFIRMED==='true'&&!!env.AI&&!!env.DB;
 export async function aiStatus(env,uid,now=Date.now()){
  const day=new Date(now).toISOString().slice(0,10);
  const app=await env.DB.prepare('SELECT COALESCE(SUM(reserved),0) AS used FROM ai_requests WHERE day=?').bind(day).first();
- return {enabled:aiEnabled(env),appAvailable:app.used<8000,resetsAt:new Date(Date.parse(day)+86400000).toISOString(),model:AI_MODEL,version:AI_VERSION};
+ const audio=await audioUsed(env,uid,day);
+ return {enabled:aiEnabled(env),appAvailable:app.used<8000,audioRemainingSeconds:audioLeft(audio),resetsAt:new Date(Date.parse(day)+86400000).toISOString(),model:AI_MODEL,version:AI_VERSION};
 }
 export function aiPrompt(input,sources=[]){
  const build=AI_STRUCTURE_OPERATIONS.includes(input.operation),structured=build||['flashcards','mcqs'].includes(input.operation)||input.mode==='web';
@@ -55,12 +64,43 @@ async function generateImage(request,env,uid,raw,waitUntil){
  }
 }
 
+/** Transcribes one recorded chunk. The audio is passed to the model and never stored. */
+async function transcribe(request,env,uid,readLimited,waitUntil){
+ const requestId=new URL(request.url).searchParams.get('id')||'';
+ if(!/^[a-f\d-]{36}$/i.test(requestId))fail('Invalid request identity.');
+ if(!AUDIO_TYPES.test(request.headers.get('Content-Type')||''))fail('Send the recording as WebM, Ogg, MP4, MP3 or WAV audio.',415);
+ const bytes=await readLimited(request,AUDIO_BYTES);
+ if(bytes.length<256)fail('The recording was empty. Try again.');
+ const now=Date.now(),day=new Date(now).toISOString().slice(0,10);
+ if(audioLeft(await audioUsed(env,uid,day))<=0)fail('Your 10 dictation minutes for today are used. More are available after 00:00 UTC.',429,'audio_limit');
+ if(request.signal.aborted)fail('Request cancelled.',499);
+ const id='audio:'+requestId;
+ await reserveAi(env,uid,id,audioReserve(AUDIO_SECONDS),now);
+ let success=false,reserved=audioReserve(AUDIO_SECONDS),duration=0;
+ try{
+  const signal=AbortSignal.any([request.signal,AbortSignal.timeout(60000)]);
+  let result;
+  try{result=await env.AI.run(AUDIO_MODEL,{audio:base64(bytes),vad_filter:true},{signal});}
+  catch{fail(signal.aborted?'Transcription was interrupted.':'The recording could not be transcribed. Try again.',signal.aborted?504:502);}
+  const text=typeof result?.text==='string'?result.text.replace(/\s+/g,' ').trim():'';
+  duration=Number(result?.transcription_info?.duration)||0;
+  if(duration>0)reserved=audioReserve(duration);
+  if(text.length>20000)fail('The transcript was too long.',502);
+  success=true;
+  return json({text,language:typeof result?.transcription_info?.language==='string'?result.transcription_info.language:'',duration:Math.round(duration*10)/10,remainingSeconds:audioLeft(await audioUsed(env,uid,day)-audioReserve(AUDIO_SECONDS)+reserved)});
+ }finally{
+  waitUntil(env.DB.prepare('UPDATE ai_requests SET state=?,reserved=?,finished_at=? WHERE uid=? AND id=?').bind(success?'succeeded':'failed',reserved,Date.now(),uid,id).run().catch(()=>{}));
+  console.log(JSON.stringify({event:'ai_request',operation:'transcribe',result:success?'completed':'failed',reserved,durationS:Math.round(duration),bytes:bytes.length,version:AI_VERSION}));
+ }
+}
+
 export async function aiRoute(request,env,uid,{readLimited,waitUntil=p=>p.catch(()=>{})}){
  const path=new URL(request.url).pathname;
  if(path==='/ai/status'&&request.method==='GET'){try{return json(await aiStatus(env,uid));}catch{return json({error:'AI usage status is unavailable.'},503);}}
- if(!['/ai/generate','/ai/image'].includes(path)||request.method!=='POST')return json({error:'Not found.'},404);
+ if(!['/ai/generate','/ai/image','/ai/transcribe'].includes(path)||request.method!=='POST')return json({error:'Not found.'},404);
  try{
   if(!aiEnabled(env))fail('AI assist is paused. Your drafts and notes are still available.',503);
+  if(path==='/ai/transcribe')return await transcribe(request,env,uid,readLimited,waitUntil);
   if(!request.headers.get('Content-Type')?.startsWith('application/json'))fail('Send a JSON request.',415);
   let raw;try{raw=JSON.parse(new TextDecoder().decode(await readLimited(request,18000)));}catch{fail('Invalid AI request.');}
   if(typeof raw?.requestId!=='string'||!/^[a-f\d-]{36}$/i.test(raw.requestId))fail('Invalid request identity.');

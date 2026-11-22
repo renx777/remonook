@@ -5,6 +5,7 @@ import {Icon} from './icons';
 
 export const blockCommands = [
   // AI commands open the reviewed AI draft for this bullet; nothing is added until you accept it.
+  {id:'dictate',label:'Dictate',detail:'Speak, and the words appear in this bullet',keys:'',terms:'dictate voice speak speech microphone mic transcribe talk',icon:'mic'},
   {id:'ai-list',label:'AI list',detail:'Answer as child bullets, names only',keys:'',terms:'ai list ai bullets ai answer types items children',icon:'star'},
   {id:'ai-outline',label:'AI outline',detail:'Nested child bullets on this topic',keys:'',terms:'ai outline ai notes ai expand ai explain nested',icon:'star'},
   {id:'ai-diagram',label:'AI diagram',detail:'A Mermaid diagram that explains this',keys:'',terms:'ai diagram ai mermaid ai flowchart ai chart ai image',icon:'star'},
