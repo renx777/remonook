@@ -3,9 +3,28 @@
 ## Current state
 
 
+### AI image generation and bulk answers on web staging, 22 November 2026
+
+Web staging runs `codex/ai-images-bulk` at
+`a8aba461d71588a89574e5a36cb995fef3174d8f`, release `2026-11-14.1`,
+with frontend Worker version `832d0586-1ac4-4329-a984-188319c61d65`.
+[Staging frontend #190](https://github.com/renx777/remonook/actions/runs/45022250636)
+passed the build, regression, sync and link-collection checks. The local suite
+passed 621 tests. Browser checks on live staging confirmed the image dialog at
+desktop and mobile widths and the selected-question dialog on desktop.
+Provider responses were covered by mocked tests.
+
+The staging sync Worker runs version `30c3f801-ab2a-4f09-803e-57b355576278`
+from `98d8ea7cbbc1ce04c59b0cb449b7bef94be09622`. The later frontend commit
+changes only selected-question targeting and tests. The D1 testing migration
+removed per-account quotas while retaining existing reservations and the single
+8,000-Neuron daily cap. Health shows sync protocol 3, Workdays schema 2,
+AI Assist 1, image AI 1 and AI enabled. The existing bindings, secrets, CPU limit
+and scheduled cleanup were preserved. Production and native releases were untouched.
+
 ### Bullet images and OCR on web staging, 22 November 2026
 
-Web staging is running `codex/bullet-image-capture` at
+Web staging ran `codex/bullet-image-capture` at
 `eaea77aaaf62e47d872085e307163d8d40e69fcf`, release `2026-11-14.1`.
 The frontend Worker version is `839194a8-e0f6-4c07-b463-d2268a75e49c`.
 
