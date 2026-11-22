@@ -2,6 +2,32 @@
 
 ## Current state
 
+### Dictation, 22 November 2026
+
+Web staging runs branch `feat/dictation`, commit
+`36c9f987ce0c041be308a7118d442b9f7bbeaf8e`, release `2026-11-14.1`, on top of
+`feat/ai-bulk-bar-slash` and `codex/ai-images-bulk`. `/dictate`, Dictate in the
+bullet menu and a phone-toolbar microphone record speech; `POST /ai/transcribe`
+runs Whisper large-v3-turbo and stores nothing. 10 dictation minutes per account
+per UTC day inside the shared 8,000-neuron limit; no schema change.
+
+The staging sync Worker was redeployed with owner approval: version
+`d4593064-cc6a-4385-9ddb-e7e3cb249da6` (previous `30c3f801-ab2a-4f09-803e-57b355576278`,
+Codex's image release, whose routes this branch keeps). Bindings matched the dry
+run, `/health` is unchanged (`aiImage` still reported), and signed-out
+`/ai/transcribe` and `/ai/status` return 401. The live database has only the
+shared `ai_shared_limits` trigger, so dictation rows do not count against text.
+
+[Staging frontend #192](https://github.com/renx777/remonook/actions/runs/45067247970)
+passed all 13 sync checks on the first attempt; the local suite passed 626 tests.
+Before release, Chromium's real MediaRecorder (fake microphone playing a spoken
+sentence) produced WebM/Opus that live Whisper transcribed exactly, including a
+four-chunk run inserted in order; MP4/AAC and Ogg were also accepted. On staging,
+`/dictate` is listed and asks guests to sign in.
+
+Not verified: signed-in dictation on staging and on a real phone microphone.
+Desktop and Android need microphone permission entries and a rebuild.
+
 ### AI actions in the bulk bar and slash menu, 22 November 2026
 
 Web staging runs branch `feat/ai-bulk-bar-slash`, commit
