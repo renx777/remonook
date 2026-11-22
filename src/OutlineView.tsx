@@ -1056,6 +1056,9 @@ export function OutlineView(p: Props) {
           <span className="selection-count">
             {selectedRoots.length} bullet{selectedRoots.length === 1 ? "" : "s"} selected
           </span>
+          {selectedIds.size>1&&<button type="button" className="selection-btn" title="Answer selected bullets with AI" aria-label="Answer selected bullets with AI" disabled={p.disabled} onClick={()=>runOnSelection('action:ai-bulk')}>
+            <Icon name="star" size={16}/>
+          </button>}
           <span className="separator" />
           <div className="selection-segment" role="group" aria-label="Selected list style">
             <button

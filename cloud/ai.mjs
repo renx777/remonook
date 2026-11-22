@@ -1,13 +1,14 @@
 import {AI_MODEL,AI_VERSION,AI_STRUCTURE_OPERATIONS,AI_INPUT_BYTES,AI_OUTPUT_TOKENS,byteLength,validateAiInput,validateAiResult} from '../src/ai-contract.mjs';
 import {researchSearch} from './ai-search.mjs';
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
-const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
+const fail=(message,status=400,code)=>{throw Object.assign(Error(message),{status,code});};
+const IMAGE_MODEL='@cf/black-forest-labs/flux-1-schnell', IMAGE_STEPS=4;
+const IMAGE_RESERVED=120, IMAGE_BYTES=2*1024*1024;
 export const aiEnabled=env=>env.AI_ENABLED==='true'&&env.AI_FREE_TIER_CONFIRMED==='true'&&!!env.AI&&!!env.DB;
 export async function aiStatus(env,uid,now=Date.now()){
  const day=new Date(now).toISOString().slice(0,10);
- const row=await env.DB.prepare('SELECT COUNT(*) AS used FROM ai_requests WHERE uid=? AND day=?').bind(uid,day).first();
  const app=await env.DB.prepare('SELECT COALESCE(SUM(reserved),0) AS used FROM ai_requests WHERE day=?').bind(day).first();
- return {enabled:aiEnabled(env),remaining:Math.max(0,10-row.used),appAvailable:app.used<8000,resetsAt:new Date(Date.parse(day)+86400000).toISOString(),model:AI_MODEL,version:AI_VERSION};
+ return {enabled:aiEnabled(env),appAvailable:app.used<8000,resetsAt:new Date(Date.parse(day)+86400000).toISOString(),model:AI_MODEL,version:AI_VERSION};
 }
 export function aiPrompt(input,sources=[]){
  const build=AI_STRUCTURE_OPERATIONS.includes(input.operation),structured=build||['flashcards','mcqs'].includes(input.operation)||input.mode==='web';
@@ -23,17 +24,47 @@ export function aiPrompt(input,sources=[]){
 }
 export async function reserveAi(env,uid,id,reserved,now=Date.now()){
  try{await env.DB.prepare('INSERT INTO ai_requests(uid,id,day,minute,reserved,created_at,expires_at) VALUES(?,?,?,?,?,?,?)').bind(uid,id,new Date(now).toISOString().slice(0,10),Math.floor(now/60000),reserved,now,now+120000).run();}
- catch(e){const s=String(e);if(s.includes('UNIQUE'))fail('This request was already submitted. Generate again only if you need a new answer.',409);if(s.includes('ai_daily_limit'))fail('Your 10 daily generations have been used. More are available after 00:00 UTC.',429);if(s.includes('ai_app_limit'))fail('Today’s shared AI allowance is used. Your notes and drafts are still available.',429);if(s.includes('ai_minute_limit'))fail('Please wait until the next minute before generating again.',429);if(s.includes('ai_active_limit'))fail('An AI request is already running for your account.',429);fail('AI usage limits could not be verified. Try again later.',503);}
+ catch(e){const s=String(e);if(s.includes('UNIQUE'))fail('This request was already submitted. Generate again only if you need a new answer.',409);if(s.includes('ai_daily_limit'))fail('Your 10 daily generations have been used. More are available after 00:00 UTC.',429);if(s.includes('ai_app_limit'))fail('Today’s shared AI allowance is used. Your notes and drafts are still available.',429,'shared_allowance');if(s.includes('ai_minute_limit'))fail('Please wait until the next minute before generating again.',429);if(s.includes('ai_active_limit'))fail('An AI request is already running for your account.',429);fail('AI usage limits could not be verified. Try again later.',503);}
 }
+async function generateImage(request,env,uid,raw,waitUntil){
+ const prompt=typeof raw.prompt==='string'?raw.prompt.trim():'';
+ if(!prompt||prompt.length>2048)fail('Enter an image prompt of up to 2,048 characters.');
+ if(request.signal.aborted)fail('Request cancelled.',499);
+ await reserveAi(env,uid,raw.requestId,IMAGE_RESERVED);
+ let success=false;
+ try{
+  const signal=AbortSignal.any([request.signal,AbortSignal.timeout(90000)]);
+  signal.throwIfAborted();
+  let stop;
+  const cancelled=new Promise((_,reject)=>{
+   stop=()=>reject(Object.assign(Error('Image generation was interrupted.'),{status:signal.reason?.name==='TimeoutError'?504:499}));
+   signal.addEventListener('abort',stop,{once:true});
+  });
+  let result;
+  try{result=await Promise.race([env.AI.run(IMAGE_MODEL,{prompt,steps:IMAGE_STEPS},{signal}),cancelled]);}
+  finally{signal.removeEventListener('abort',stop);}
+  if(typeof result?.image!=='string'||result.image.length>Math.ceil(IMAGE_BYTES/3)*4)fail('The generated image could not be opened.',502);
+  const binary=atob(result.image);
+  if(binary.length<4||binary.length>IMAGE_BYTES||!binary.startsWith('\xff\xd8\xff'))fail('The generated image could not be opened.',502);
+  const bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));
+  success=true;
+  return new Response(bytes,{headers:{'Content-Type':'image/jpeg','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+ }finally{
+  waitUntil(env.DB.prepare('UPDATE ai_requests SET state=?,finished_at=? WHERE uid=? AND id=?').bind(success?'succeeded':'failed',Date.now(),uid,raw.requestId).run().catch(()=>{}));
+  console.log(JSON.stringify({event:'ai_request',operation:'image',result:success?'completed':'failed',reserved:IMAGE_RESERVED,version:AI_VERSION}));
+ }
+}
+
 export async function aiRoute(request,env,uid,{readLimited,waitUntil=p=>p.catch(()=>{})}){
  const path=new URL(request.url).pathname;
  if(path==='/ai/status'&&request.method==='GET'){try{return json(await aiStatus(env,uid));}catch{return json({error:'AI usage status is unavailable.'},503);}}
- if(path!=='/ai/generate'||request.method!=='POST')return json({error:'Not found.'},404);
+ if(!['/ai/generate','/ai/image'].includes(path)||request.method!=='POST')return json({error:'Not found.'},404);
  try{
   if(!aiEnabled(env))fail('AI assist is paused. Your drafts and notes are still available.',503);
   if(!request.headers.get('Content-Type')?.startsWith('application/json'))fail('Send a JSON request.',415);
   let raw;try{raw=JSON.parse(new TextDecoder().decode(await readLimited(request,18000)));}catch{fail('Invalid AI request.');}
-  if(typeof raw.requestId!=='string'||!/^[a-f\d-]{36}$/i.test(raw.requestId))fail('Invalid request identity.');
+  if(typeof raw?.requestId!=='string'||!/^[a-f\d-]{36}$/i.test(raw.requestId))fail('Invalid request identity.');
+  if(path==='/ai/image')return await generateImage(request,env,uid,raw,waitUntil);
   let input;try{input=validateAiInput(raw);}catch(e){fail(e.message);}let sources=[];
   if(input.mode==='web'){
    const response=await researchSearch(new Request('https://internal.invalid/api/research/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:input.question})}));
@@ -59,5 +90,5 @@ export async function aiRoute(request,env,uid,{readLimited,waitUntil=p=>p.catch(
   }catch{await send({type:'error',error:'AI could not complete a valid preview. Your draft is kept. Generate again to retry.'});}
   finally{timeout.removeEventListener('abort',rejectDeadline);try{await reader?.cancel();}catch{}try{await env.DB.prepare("UPDATE ai_requests SET state=?,finished_at=? WHERE uid=? AND id=?").bind(success?'succeeded':'failed',Date.now(),uid,raw.requestId).run();}catch{}console.log(JSON.stringify({event:'ai_request',operation:input.operation,result:success?'completed':'failed',durationMs:Date.now()-started,reserved:prompt.reserved,version:AI_VERSION}));try{await writer.close();}catch{}}})();
   waitUntil(work);return new Response(stream.readable,{headers:{'Content-Type':'application/x-ndjson','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
- }catch(e){return json({error:e.status?e.message:'AI could not be reached. Try again later.'},e.status||503);}
+ }catch(e){return json({error:e.status?e.message:'AI could not be reached. Try again later.',...(e.code?{code:e.code}:{})},e.status||503);}
 }

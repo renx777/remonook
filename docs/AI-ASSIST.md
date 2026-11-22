@@ -23,8 +23,8 @@ per UTF-8 byte, 512 template tokens, 2,048 output tokens, the current rates of
 Changing model, tokenizer/template, rates or token limits requires revalidating
 the bound before activation.
 
-A D1 BEFORE INSERT trigger atomically enforces ten attempts/user/UTC day,
-two/user/minute, one active request/user and 8,000 reserved neurons/app/UTC day.
+A D1 BEFORE INSERT trigger atomically enforces 8,000 reserved neurons/app/UTC day.
+During staging testing there are no individual-account quotas.
 An attempt is admitted only after complete prompt validation. Failed or stopped
 inference is never refunded. UUIDs reject duplicate submissions without replay.
 The 120-second operational lease exceeds the 90-second provider deadline.
@@ -64,7 +64,7 @@ persisted insertion identity, including when retrying a failed local save.
 5. Validate mobile and desktop generation, editing, acceptance, undo/redo,
    reload, account isolation, source failures and quota exhaustion.
 
-GET /ai/status returns availability, personal remaining attempts and UTC reset.
+GET /ai/status returns availability and the shared UTC reset.
 POST /ai/generate accepts requestId, operation, mode, question and context;
 it streams progress/text/done/error NDJSON. A completion is actionable only after
 server validation. Search with zero sources returns a non-supported JSON result
@@ -114,3 +114,20 @@ It uses none of the built-in daily allowance, so the section opens by itself whe
 generation is paused, the account's 10 daily generations are used, or the shared
 allowance is spent. Nothing is sent anywhere until the person sends the prompt in
 their app.
+
+## Images and selected questions
+
+Choose Generate image from a bullet menu, edit the prompt, generate, then attach
+the reviewed JPEG. The Worker calls FLUX.1 Schnell at four steps and reserves
+120 neurons to cover up to a 2048 × 2048 result. It returns the image directly
+and keeps only operational metadata. Accepted images use ordinary attachments.
+
+Select multiple bullets and choose Answer selected bullets with AI. The dialog
+generates one answer per question in order using general knowledge. It keeps
+finished answers available when an attempt fails, is stopped or hits the shared
+budget. Review, edit or deselect the answers, then append them together in one
+undo step. Mirrored bullets resolve to their source.
+
+For an existing staging database run `cloud/ai-testing-quota.sql` before rolling
+out the updated client. It installs the shared guard, retires the earlier
+per-account trigger and preserves every reservation already recorded.

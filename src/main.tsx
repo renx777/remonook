@@ -9,7 +9,8 @@ import {retireDesktopOfflineShell} from './desktop';
 import {restoreLocalBook,isBookPath} from './local-books';
 import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
-import {aiContext,insertAi} from './ai-assist.mjs';
+import {aiContext,insertAi,insertBulkAnswers} from './ai-assist.mjs';
+import type {AiAnswer,AiQuestion} from './AiBulletDialog';
 import {useResearchDrafts} from './ai-drafts';
 import type {ResearchDraft,AiDraft} from './data';
 import {planTrashPurge} from './trash-purge';
@@ -186,6 +187,7 @@ import "./mobile.css";
 import "./navigation-refinement.css";
 const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
+const AiBulletDialog = React.lazy(()=>import('./AiBulletDialog'));
 const AiAssist = React.lazy(()=>import('./AiAssist'));
 const AiDraftList = React.lazy(()=>import('./AiAssist').then(m=>({default:m.AiDraftList})));
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
@@ -681,6 +683,62 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       setResearchTarget(context.id);
     }catch(e){showError(e);}
   };
+  const [aiBulletTarget,setAiBulletTarget]=useState<(
+    {mode:'image';target:AiQuestion}|{mode:'answers';targets:AiQuestion[]}
+  )&{account:string}|null>(null);
+  const openBulletAi=async(mode:'image'|'answers',ids:string[])=>{
+    const account=storageAccountKey();
+    setMenu(null);
+    setEditing(null);
+    await flush();
+    if(account!==storageAccountKey()||!docRef.current||failed.current)return;
+    const nodes=docRef.current.tables.bullets;
+    const byId=index(nodes).byId;
+    const targets=[...new Set(ids.map(id=>sourceId(nodes,id)))].flatMap(id=>{
+      const node=byId.get(id);
+      if(!node||node.blockStyle==='divider'||mode==='answers'&&!node.text.trim())return [];
+      return [{id,question:node.text}];
+    });
+    if(!targets.length){setNotice('Select a bullet with text first.');return;}
+    setAiBulletTarget(mode==='image'?{account,mode,target:targets[0]}:{account,mode,targets});
+  };
+  const saveBulkAnswers=async(answers:AiAnswer[])=>{
+    const current=docRef.current;
+    if(!current||!aiBulletTarget||aiBulletTarget.account!==storageAccountKey()||failed.current)
+      throw Error('Saving is unavailable. Your answers are still open.');
+    const next=insertBulkAnswers(current,answers);
+    if(next!==current)commit(withNodes(next,next.tables.bullets as Node[]));
+    await flush();
+    const saved=new Set(persisted.current?.tables.bullets.map(node=>node.id));
+    if(failed.current||aiBulletTarget.account!==storageAccountKey()||!answers.every(answer=>saved.has(answer.insertion)))
+      throw Error('Could not confirm saving. Your answers are still open.');
+    setAiBulletTarget(null);
+    setNotice(answers.length===1?'Answer added.':`${answers.length} answers added. Undo removes them together.`);
+  };
+  const saveAiImage=async(blob:Blob,id:string)=>{
+    const current=docRef.current,target=aiBulletTarget;
+    if(!current||target?.mode!=='image'||target.account!==storageAccountKey()||failed.current)
+      throw Error('Saving is unavailable. Download the image to keep a copy.');
+    if(!current.tables.bullets.some(node=>node.id===target.target.id))
+      throw Error('The destination bullet was removed. You can still download the image.');
+    if(!current.tables.media.some(item=>item.id===id)){
+      const fileName=id+'.jpg', path='media/'+fileName;
+      const file=new File([blob],'AI-generated image.jpg',{type:'image/jpeg'});
+      checkUploadFile(file);
+      const nextAssets=new Map(assetsRef.current).set(path,blob);
+      checkAttachmentBudget(nextAssets);
+      const item={id,bulletId:target.target.id,fileName,mimeType:'image/jpeg',sourceUrl:'',credit:file.name,licenseUrl:''};
+      pendingAssets.current.set(path,blob);
+      assetsRef.current=nextAssets;
+      setAssets(nextAssets);
+      commit(withNodes({...current,tables:{...current.tables,media:[...current.tables.media,item]}},current.tables.bullets as Node[]));
+    }
+    await flush();
+    if(failed.current||target.account!==storageAccountKey()||!persisted.current?.tables.media.some(item=>item.id===id))
+      throw Error('Could not confirm saving. Download the image to keep a copy.');
+    setAiBulletTarget(null);
+    setNotice('Image attached to your bullet.');
+  };
   const openReaderAi=async(book:any,selection:any,fingerprint:string)=>{
     const id='reader-'+fingerprint;try{if(!research.state)throw Error('Drafts are still loading.');
       if(!research.state.drafts[id])await research.put({id,query:'Explain this passage',answer:'',updatedAt:Date.now(),ai:{operation:'explain',mode:'general',context:selection.quote,sourceIds:[],sourceTexts:[],complete:false,reader:{hash:book.hash,selection,fingerprint}}},id);
@@ -1125,6 +1183,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       });
       return;
     }
+    if(action==='action:ai-bulk'){void openBulletAi('answers',[...targets]);return;}
     if(action.startsWith('action:ai-')){const operation=action.slice('action:ai-'.length) as AiDraft['operation'];if(['list','outline','mindmap','diagram','answer'].includes(operation))void openAi(id,'general',operation);return;}
     if(action==='action:diagram'){openDiagram({id});return;}
     if(action==='action:drawing'){openDrawing(id);return;}
@@ -2123,12 +2182,20 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           setNotice("MCQ saved. Study it in Study Desk, or make an MCQ notebook from its parent branch.");
         } catch (error) { showError(error); }
       }} />}
+      {aiBulletTarget&&aiBulletTarget.account===storageAccountKey()&&<React.Suspense fallback={null}>
+        {aiBulletTarget.mode==='image'
+          ?<AiBulletDialog mode="image" target={aiBulletTarget.target} user={cloudUser} disabled={disabled||failed.current} onClose={()=>setAiBulletTarget(null)} onSave={saveAiImage}/>
+          :<AiBulletDialog mode="answers" targets={aiBulletTarget.targets} user={cloudUser} disabled={disabled||failed.current} onClose={()=>setAiBulletTarget(null)} onSave={saveBulkAnswers}
+            isCurrent={target=>docRef.current?.tables.bullets.find(node=>node.id===target.id)?.text===target.question}/>}
+      </React.Suspense>}
       {researchTarget!==null&&research.state?.drafts[researchTarget]?.ai&&<AiAssistBoundary key={researchTarget+storageAccountKey()} onClose={closeResearch}><React.Suspense fallback={<div className="research-panel" role="status">Opening AI assist…</div>}><AiAssist key={researchTarget+storageAccountKey()} draft={research.state.drafts[researchTarget]} doc={doc} user={cloudUser} disabled={disabled||failed.current} error={research.error} onEdit={draft=>research.put(draft,draft.id)} onInsert={insertAiDraft} onClose={closeResearch} onDiscard={async()=>{await research.put(null,researchTarget);setResearchTarget(null);}}/></React.Suspense></AiAssistBoundary>}
       {researchTarget===''&&<React.Suspense fallback={null}><AiDraftList drafts={Object.values(research.state?.drafts||{})} onChoose={setResearchTarget} onClose={closeResearch}/></React.Suspense>}
       {menuNode && (
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
             <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
+            {menuSelection.current.length>1&&<button disabled={disabled} onClick={()=>void openBulletAi('answers',[...menuSelection.current])}><Icon name="study" size={16}/><span>Answer selected bullets…</span></button>}
+            {menuNode.blockStyle!=='divider'&&<button disabled={disabled} onClick={()=>void openBulletAi('image',[menuNode.id])}><Icon name="image" size={16}/><span>Generate image…</span></button>}
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
             <button disabled={disabled} onClick={()=>command('action:mindmap',menuNode.id,0,0)}><Icon name="mindmap" size={16}/><span>{menuNode.mindmap?'Remove mindmap':'Mindmap'}</span></button>
             <button disabled={disabled} onClick={()=>command('action:date',menuNode.id,0,0)}><Icon name="calendar" size={16}/><span>Add date…</span></button>

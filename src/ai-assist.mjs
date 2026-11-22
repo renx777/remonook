@@ -38,3 +38,14 @@ export function insertAi(doc,draft){
  }else{if(!draft.answer.trim()||draft.answer.length>16000)throw Error('Enter an answer up to 16,000 characters.');nodes.push(bullet(insertion,{text:draft.answer,parentId:target,position,kind:ai.operation==='answer'?'ANSWER':'NOTE'}));next={...next,tables:{...next.tables,bullets:nodes}};}
  return next;
 }
+
+export function insertBulkAnswers(doc, answers) {
+ const sources=index(doc.tables.bullets).byId;
+ for(const entry of answers){
+  if(sources.has(entry.insertion))continue;
+  if(sources.get(entry.id)?.text!==entry.question)throw Error('A question changed. Review the remaining answers before adding.');
+ }
+ return answers.reduce((next,{id,insertion,answer})=>insertAi(next,{
+  id,insertedId:insertion,answer,ai:{operation:'answer',complete:true,sourceIds:[id]},
+ }),doc);
+}
