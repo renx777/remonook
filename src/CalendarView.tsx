@@ -181,6 +181,7 @@ type CalendarViewProps = {
   showCompleted: boolean;
   readingSize?: number;
   onImages?: (id: string, files: File[]) => void;
+  onImageDrop?: (id:string, image:File[]|string) => void;
   onRemoveMedia?: (id: string) => void;
   onResizeMedia?: (id:string,width:number)=>void;
   onOccludeMedia?: (id:string)=>void;
@@ -370,6 +371,7 @@ export function CalendarView(props: CalendarViewProps) {
             showCompleted={props.showCompleted}
             readingSize={props.readingSize}
             onImages={(id,files)=>{if(id===draft.id&&files.length)materializeDraft();props.onImages?.(id,files);}}
+            onImageDrop={props.onImageDrop ? (id,image)=>{if(id===draft.id)materializeDraft();props.onImageDrop?.(id,image);} : undefined}
             onRemoveMedia={props.onRemoveMedia}
             onResizeMedia={props.onResizeMedia}
             onOccludeMedia={props.onOccludeMedia}

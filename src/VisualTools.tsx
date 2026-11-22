@@ -1,8 +1,9 @@
+import type {ImageTextSource} from './ImageTextDialog';
 import './visual-tools.css';
 import {Component,Suspense,createContext,useContext,type ReactNode} from 'react';
 import {ImageDialog} from './ImageTools';
 export type DiagramTarget={id:string;source?:string;original?:string;start?:number;base?:string};
-export const VisualToolsContext=createContext<{diagram?:(target:DiagramTarget)=>void;drawing?:(id:string,mediaId?:string)=>void}>({});
+export const VisualToolsContext=createContext<{diagram?:(target:DiagramTarget)=>void;drawing?:(id:string,mediaId?:string)=>void;ocr?:(source:ImageTextSource)=>void}>({});
 export const useVisualTools=()=>useContext(VisualToolsContext);
 export function UnsavedChanges({onKeep,onDiscard}:{onKeep:()=>void;onDiscard:()=>void}){return <div className="visual-discard" role="alert"><span>Discard unsaved changes?</span><button autoFocus onClick={onKeep}>Keep editing</button><button onClick={onDiscard}>Discard changes</button></div>;}
 

@@ -1,3 +1,5 @@
+import {ImageTextDialog,type ImageTextSource} from './ImageTextDialog';
+import {fetchDroppedImage} from './image-drop';
 import {saveCardDetails} from './card-details.mjs';
 import {bulletView,setBulletView} from './bullet-views.mjs';
 import {BulletViewSwitch} from './BulletCollection';
@@ -153,7 +155,7 @@ import {
 import { OutlineView } from "./OutlineView";
 import { OutlinePopover, OutlineSidebar } from "./OutlineChrome";
 import { StudyDesk } from "./StudyDesk";
-import { imageType, mediaLink } from "./media.mjs";
+import { imageType, mediaLink, mediaLinks } from "./media.mjs";
 import { EmojiProvider } from './AnimatedEmoji';
 import {BulletMenuBody} from './BulletMenuBody';
 import {BulletColorPicker} from './BulletColors';
@@ -698,23 +700,56 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const navigateAiResult=(id:string)=>{setTab('notes');setSearch('');setScope(docRef.current!.tables.bullets.find(n=>n.id===id)?.parentId||null);setEditing(id);setCaret(null);};
   const closeResearch=()=>{setResearchTarget(null);requestAnimationFrame(()=>{if(researchOrigin.current?.isConnected)researchOrigin.current.focus();});};
-  const attachImages = async (id: string, files: File[]) => {
+  const imageAttachmentBusy=useRef(false);
+  const [imageTextTarget,setImageTextTarget]=useState<(ImageTextSource&{account:string;childId:string})|null>(null);
+  const extractImageText=(source:ImageTextSource)=>{
+    if(working||failed.current)return;
+    setMenu(null);
+    setEditing(null);
+    setImageTextTarget({...source,account:storageAccountKey(),childId:crypto.randomUUID()});
+  };
+  const insertImageText=async(text:string)=>{
+    const target=imageTextTarget,current=docRef.current;
+    if(!target||!current||target.account!==storageAccountKey())throw Error('The workspace changed. Copy the extracted text before closing.');
+    if(failed.current||working)throw Error('Saving needs attention. The extracted text is still here.');
+    const nodes=current.tables.bullets as Node[];
+    const parent=nodes.find(node=>node.id===target.bulletId);
+    if(!parent||target.mediaId&&!current.tables.media.some(item=>item.id===target.mediaId&&item.bulletId===parent.id)||
+        target.url&&!mediaLinks(parent.text).some(link=>link.kind==='image'&&link.href===target.url))
+      throw Error('The source image was removed. Copy the extracted text before closing.');
+    if(!nodes.some(node=>node.id===target.childId)){
+      const expanded=nodes.map(node=>node.id===parent.id?{...node,collapsed:false}:node);
+      const next=move([...expanded,bullet(target.childId,{text})],target.childId,parent.id,index(nodes).children.get(parent.id)?.length||0);
+      commit(withNodes(current,next));
+    }
+    await flush();
+    if(failed.current||target.account!==storageAccountKey())throw Error('Could not confirm saving. The extracted text is still here.');
+    setNotice('Text added as a child bullet.');
+  };
+  const attachImages = async (id: string, input: File[] | string) => {
     id=sourceId(docRef.current!.tables.bullets,id);
-    if (working || failed.current || !files.length) return;
+    if (working || failed.current || imageAttachmentBusy.current || !input.length) return;
+    const account=storageAccountKey();
+    imageAttachmentBusy.current=true;
     setWorking(true);
+    const controller=new AbortController();
+    const timeout=typeof input==='string'?setTimeout(()=>controller.abort(),15000):null;
     try {
+      const files=typeof input==='string'?[await fetchDroppedImage(input,controller.signal)]:input;
       files.forEach(checkUploadFile);
       const accepted = files.map(file => ({ file, mime: /^(video\/(mp4|webm|ogg)|audio\/[a-zA-Z0-9.+-]+)$/.test(file.type)?file.type:imageType(file.name, file.type) }));
       if (accepted.some(({ file, mime }) => !mime || file.size > 2 * 1024 * 1024))
         throw Error("Choose images, audio or MP4/WebM/OGG videos up to 2 MB each. Unsupported previews keep their original file for download.");
-      const nextAssets = new Map(assetsRef.current), added = [];
+      const blobs = new Map<string,Blob>(), added = [];
       for (const { file, mime } of accepted) {
         const mediaId = crypto.randomUUID(), extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "img",
           fileName = mediaId + "." + extension,
           blob = new Blob([await file.arrayBuffer()], { type: mime });
-        nextAssets.set("media/" + fileName, blob);
+        blobs.set("media/" + fileName, blob);
         added.push({ id: mediaId, bulletId: id, fileName, mimeType: mime, sourceUrl: "", credit: file.name, licenseUrl: "" });
       }
+      if (account!==storageAccountKey()) return;
+      const nextAssets=new Map([...assetsRef.current,...blobs]);
       checkAttachmentBudget(nextAssets);
       const current = docRef.current!;
       if (!current.tables.bullets.some(node => node.id === id)) throw Error("This bullet no longer exists.");
@@ -724,8 +759,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       commit(withNodes({ ...current, tables: { ...current.tables, media: [...current.tables.media, ...added] } }, current.tables.bullets as Node[]));
       setMenu(null);
       setNotice(`${added.length} media file${added.length === 1 ? "" : "s"} added`);
-    } catch (error) { showError(error); }
-    finally { setWorking(false); }
+    } catch (error) {
+      showError(controller.signal.aborted?Error('The image download timed out. Save the picture, then drop the file.'):error);
+    } finally {
+      if(timeout!==null)clearTimeout(timeout);
+      imageAttachmentBusy.current=false;
+      setWorking(false);
+    }
   };
   // Canvas image cards: store image files like bullet images (same limits and sync) and return
   // their media records; the caller adds the records, the bullet and the card in one change.
@@ -1715,7 +1755,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       </aside>
   );
   return (
-    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onPreviewDetails:disabled?undefined:async(id,url,details)=>{if(failed.current)throw Error('Saving needs attention. Your details remain in this form.');const next=saveCardDetails(docRef.current!,id,url,details);if(next!==docRef.current)commit(next);await flush();if(failed.current)throw Error('Could not save on this device. Your details remain in this form.');},onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
+    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onPreviewDetails:disabled?undefined:async(id,url,details)=>{if(failed.current)throw Error('Saving needs attention. Your details remain in this form.');const next=saveCardDetails(docRef.current!,id,url,details);if(next!==docRef.current)commit(next);await flush();if(failed.current)throw Error('Could not save on this device. Your details remain in this form.');},onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing,ocr:extractImageText}}>
     <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
@@ -1898,6 +1938,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               showCompleted={pane.completed??showCompleted}
               readingSize={ap.size || 16}
               onImages={(id, files) => { void attachImages(id, files); }}
+              onImageDrop={(id, image) => { void attachImages(id, image); }}
               onRemoveMedia={removeMedia}
               onResizeMedia={resizeMedia}
               onOccludeMedia={setOcclusionImage}
@@ -2048,6 +2089,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             showCompleted={showCompleted}
             readingSize={ap.size || 16}
             onImages={(id, files) => { void attachImages(id, files); }}
+              onImageDrop={(id, image) => { void attachImages(id, image); }}
             onRemoveMedia={removeMedia}
               onResizeMedia={resizeMedia}
               onOccludeMedia={setOcclusionImage}
@@ -2601,6 +2643,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {tablePicker&&<TablePicker onClose={()=>setTablePicker(null)} onPick={grid=>insertTable(tablePicker,grid)}/>}
       {reminderEditor&&<ReminderEditor key={`${reminderEditor.id||'new'}:${reminderEditor.date}`} doc={doc} target={reminderEditor} disabled={disabled} onChange={next=>commit(next)} onClose={()=>setReminderEditor(null)}/>}
       {diagramTarget&&<VisualToolLoader title="Diagram workspace" onClose={()=>setDiagramTarget(null)}><DiagramEditor source={diagramTarget.source} editing={!!diagramTarget.original} disabled={disabled} onClose={()=>setDiagramTarget(null)} onSave={source=>{if(disabled)throw Error('Saving is unavailable.');const next=saveDiagram(docRef.current!.tables.bullets,diagramTarget,source);commit(withNodes(docRef.current!,next));setDiagramTarget(null);setNotice('Diagram saved to your note.');}}/></VisualToolLoader>}
+      {imageTextTarget&&<ImageTextDialog source={imageTextTarget} onClose={()=>setImageTextTarget(null)} onInsert={insertImageText}/>}
       {drawingTarget&&<VisualToolLoader title="Drawing workspace" onClose={()=>setDrawingTarget(null)}><DrawingEditor blob={drawingTarget.mediaId?assets.get('media/'+doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.fileName):undefined} title={drawingTarget.mediaId?doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.credit:undefined} theme={['Light','Catppuccin Latte'].includes(theme)?'light':'dark'} disabled={disabled} onClose={()=>setDrawingTarget(null)} onSave={saveDrawing}/></VisualToolLoader>}
       {occlusionImage && doc.tables.media.some(item=>item.id===occlusionImage) && <OcclusionEditor groupId={(Object.values(doc.web.occlusions||{}) as any[]).find(config=>config.mediaId===occlusionImage)?.groupId} doc={doc} item={doc.tables.media.find(item=>item.id===occlusionImage)!} assets={assets} disabled={disabled} onSave={next=>{commit(next);setNotice('Image occlusion cards saved to Study Desk.');}} onClose={()=>setOcclusionImage(null)}/>}
       <ReleaseUpdate enabled={import.meta.env.PROD} onApply={async()=>{
