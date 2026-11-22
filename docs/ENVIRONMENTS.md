@@ -2,6 +2,33 @@
 
 ## Current state
 
+### Meaning search, voice review, photo to notes and automatic occlusion, 22 November 2026
+
+Web staging runs branch `feat/meaning-voice-photo`, commit
+`ab72aa94af8bb973a7bcb68fac2df1c2ef9675fa`, release `2026-11-14.1`, on top of
+`feat/dictation`. Adds opt-in meaning search (search results by meaning, Related
+notes, duplicate flashcards), voice review in study sessions, photo to notes or
+flashcards, and Detect labels in the occlusion editor. See AI-ASSIST.md.
+
+The staging sync Worker was redeployed with owner approval: version
+`abc482d4-5032-4ef4-9f9f-0c407f3fba39` (previous `d4593064-cc6a-4385-9ddb-e7e3cb249da6`),
+adding `/ai/embed`, `/ai/grade` and `/ai/photo`; bindings matched the dry run, no
+schema change, `/health` unchanged, and all three routes return 401 signed out.
+
+[Staging frontend #193](https://github.com/renx777/remonook/actions/runs/45074198620)
+passed all 13 sync checks on the first attempt; the local suite passed 640 tests.
+Before release each feature ran end to end in Chromium against the real server
+code and Workers AI models: meaning search found the lipase note for "enzymes that
+digest lipids" and paired duplicate Mizoram questions (0.97) but not Nagaland;
+voice review graded a spoken paraphrase Correct and a two-of-three answer Partly
+right; a textbook-page photo became an accurate outline or 8 flashcards in about
+7 s; Detect labels found all four labels of a test diagram on the device. On
+staging as a guest, `/photo` is listed and the sign-in prompts appear without errors.
+
+Not verified: signed-in use on staging, a real phone microphone and camera, and
+Detect labels clicked inside the occlusion editor (the detection itself was
+tested). Desktop and Android need microphone and camera permissions and a rebuild.
+
 ### Dictation, 22 November 2026
 
 Web staging runs branch `feat/dictation`, commit
