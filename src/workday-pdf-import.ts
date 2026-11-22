@@ -1,6 +1,7 @@
 import { openPdf } from "./pdf-runtime";
 import { positionedLines } from "./workday-holidays.mjs";
-export const OCR_BASE = "/ocr/workdays-v1/";
+import {abortable, createLocalOcrWorker} from "./local-ocr";
+export {OCR_BASE} from "./local-ocr";
 export async function extractHolidayPdf(
   file: File,
   pages: number[],
@@ -47,18 +48,8 @@ export async function extractHolidayPdf(
       if (ocr) {
         if (!worker) {
           onProgress("Loading on-device text recognition…");
-          const { createWorker } = await import("tesseract.js");
-          worker = await createWorker("eng", 1, {
-            workerPath: OCR_BASE + "worker.min.js",
-            corePath: OCR_BASE,
-            langPath: OCR_BASE + "lang",
-            workerBlobURL: false,
-            logger: (m) => {
-              if (m.status === "recognizing text")
-                onProgress(
-                  `Recognizing page ${pageNumber} · ${Math.round(m.progress * 100)}%`,
-                );
-            },
+          worker = await createLocalOcrWorker(progress => {
+            onProgress(`Recognizing page ${pageNumber} · ${Math.round(progress * 100)}%`);
           });
         }
         const view = page.getViewport({ scale: 1 }),
@@ -111,18 +102,4 @@ export async function extractHolidayPdf(
     await worker?.terminate();
     await task.destroy();
   }
-}
-
-function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const abort = () => reject(new DOMException("Cancelled", "AbortError"));
-    if (signal.aborted) {
-      reject(new DOMException("Cancelled", "AbortError"));
-      return;
-    }
-    signal.addEventListener("abort", abort, { once: true });
-    promise
-      .then(resolve, reject)
-      .finally(() => signal.removeEventListener("abort", abort));
-  });
 }

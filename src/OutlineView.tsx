@@ -1,3 +1,4 @@
+import {droppedImage,mayDropImage} from './image-drop';
 import {BulletCollection,BulletViewSwitch} from './BulletCollection';
 import {bulletView} from './bullet-views.mjs';
 import {LiveTitleInput} from './LiveTitleInput';
@@ -17,7 +18,6 @@ import type { Node } from "./data";
 import { formatDateBadge } from "./CalendarView";
 import { MediaContent } from "./MediaContent";
 import { mediaLinks } from "./media.mjs";
-import { imageType } from "./media.mjs";
 import { depthIndent } from "./outline-layout.mjs";
 import {bulletTagStyle,toggleTagCheckbox,hasTag} from "./tags.mjs";
 import {TagSettingsContext} from "./TagSettingsContext";
@@ -41,6 +41,7 @@ type Props = {
   showCompleted: boolean;
   readingSize?: number;
   onImages?: (id: string, files: File[]) => void;
+  onImageDrop?: (id:string, image:File[]|string) => void;
   onRemoveMedia?: (id: string) => void;
   onResizeMedia?: (id:string,width:number)=>void;
   onOccludeMedia?: (id:string)=>void;
@@ -736,11 +737,27 @@ export function OutlineView(p: Props) {
               data-depth={r.depth}
               data-block-style={n.blockStyle || "paragraph"}
               data-question={n.kind === "QUESTION" || undefined}
-              onDragOver={event => { if (!p.disabled && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
-              onDrop={event => {
-                if (p.disabled || !p.onImages) return;
-                const files = [...event.dataTransfer.files].filter(file => imageType(file.name, file.type));
-                if (files.length) { event.preventDefault(); event.stopPropagation(); p.onImages(n.id, files); }
+              onDragOverCapture={event => {
+                if (p.disabled || !p.onImageDrop || !mayDropImage(event.dataTransfer)) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+                event.currentTarget.classList.add('image-drop-target');
+              }}
+              onDragLeave={event => {
+                if (!(event.relatedTarget instanceof window.Node) || !event.currentTarget.contains(event.relatedTarget))
+                  event.currentTarget.classList.remove('image-drop-target');
+              }}
+              onDropCapture={event => {
+                event.currentTarget.classList.remove('image-drop-target');
+                if (!mayDropImage(event.dataTransfer)) return;
+                const image = droppedImage(event.dataTransfer);
+                if (!image) {
+                  if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+                  return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                if (!p.disabled) p.onImageDrop?.(n.id,image);
               }}
               onContextMenu={event => {
                 // Touch long-press belongs to native text selection, not menus.

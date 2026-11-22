@@ -2,6 +2,20 @@
 
 ## Current state
 
+
+### Bullet images and OCR on web staging, 22 November 2026
+
+Web staging is running `codex/bullet-image-capture` at
+`eaea77aaaf62e47d872085e307163d8d40e69fcf`, release `2026-11-14.1`.
+The frontend Worker version is `839194a8-e0f6-4c07-b463-d2268a75e49c`.
+
+[Staging run #189](https://github.com/renx777/remonook/actions/runs/45017809871)
+passed all 13 sync checks and desktop and mobile collection checks.
+Guest browser acceptance on the live deployment confirmed file and HTML image
+drops, crop, rotation, inversion, real English OCR, copy, safe retry and
+persistence of the edited child note and both attachments after reload.
+The rollout covers web staging.
+
 ### AI assist handoff to your own AI app, 20 November 2026
 
 Web staging runs branch `feat/ai-apps-handoff`, commit
