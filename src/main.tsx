@@ -9,7 +9,7 @@ import {retireDesktopOfflineShell} from './desktop';
 import {restoreLocalBook,isBookPath} from './local-books';
 import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
-import {aiContext,insertAi,insertBulkAnswers} from './ai-assist.mjs';
+import {aiBulletTargets,aiContext,insertAi,insertBulkAnswers} from './ai-assist.mjs';
 import type {AiAnswer,AiQuestion} from './AiBulletDialog';
 import {useResearchDrafts} from './ai-drafts';
 import type {ResearchDraft,AiDraft} from './data';
@@ -692,13 +692,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setEditing(null);
     await flush();
     if(account!==storageAccountKey()||!docRef.current||failed.current)return;
-    const nodes=docRef.current.tables.bullets;
-    const byId=index(nodes).byId;
-    const targets=[...new Set(ids.map(id=>sourceId(nodes,id)))].flatMap(id=>{
-      const node=byId.get(id);
-      if(!node||node.blockStyle==='divider'||mode==='answers'&&!node.text.trim())return [];
-      return [{id,question:node.text}];
-    });
+    const targets=aiBulletTargets(docRef.current.tables.bullets,ids,mode);
     if(!targets.length){setNotice('Select a bullet with text first.');return;}
     setAiBulletTarget(mode==='image'?{account,mode,target:targets[0]}:{account,mode,targets});
   };
@@ -1183,7 +1177,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       });
       return;
     }
-    if(action==='action:ai-bulk'){void openBulletAi('answers',[...targets]);return;}
+    if(action==='action:ai-bulk'){void openBulletAi('answers',selectedIds||[id]);return;}
     if(action.startsWith('action:ai-')){const operation=action.slice('action:ai-'.length) as AiDraft['operation'];if(['list','outline','mindmap','diagram','answer'].includes(operation))void openAi(id,'general',operation);return;}
     if(action==='action:diagram'){openDiagram({id});return;}
     if(action==='action:drawing'){openDrawing(id);return;}

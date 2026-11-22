@@ -39,6 +39,17 @@ export function insertAi(doc,draft){
  return next;
 }
 
+export function aiBulletTargets(nodes, ids, mode){
+ const byId=index(nodes).byId;
+ const chosen=new Set(ids);
+ const roots=ids.filter(id=>mode==='image'||!chosen.has(byId.get(id)?.parentId));
+ return [...new Set(roots.map(id=>sourceId(nodes,id)))].flatMap(id=>{
+  const node=byId.get(id);
+  if(!node||node.blockStyle==='divider'||mode==='answers'&&!node.text.trim())return [];
+  return [{id,question:node.text}];
+ });
+}
+
 export function insertBulkAnswers(doc, answers) {
  const sources=index(doc.tables.bullets).byId;
  for(const entry of answers){

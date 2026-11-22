@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
 import {aiRoute,aiPrompt,reserveAi,aiStatus} from '../cloud/ai.mjs';import {route,readLimited} from '../cloud/worker.mjs';
-import {validateAiResult} from '../src/ai-contract.mjs';import {aiContext,insertBulkAnswers,insertAi,aiSourceChanged} from '../src/ai-assist.mjs';
+import {validateAiResult} from '../src/ai-contract.mjs';import {aiContext,aiBulletTargets,insertBulkAnswers,insertAi,aiSourceChanged} from '../src/ai-assist.mjs';
 import {empty,withNodes} from './.build/data.mjs';import {bullet} from '../src/domain.mjs';import {createMirror} from '../src/relations.mjs';import {studyQueue} from '../src/study.mjs';
 import {registerBooks} from '../src/book-storage.mjs';
 import {outlineUndoState} from '../src/outline-history.mjs';
@@ -59,6 +59,12 @@ test('generated images require valid input and use the same shared allowance as 
   assert.equal((await limited.json()).code,'shared_allowance');
   assert.equal(runs,1);
  }finally{f.close();}
+});
+test('bulk answer targets use selected branch roots and deduplicate mirrors',()=>{
+ const nodes=createMirror([bullet('q',{text:'First?'}),bullet('child',{parentId:'q',text:'Context'}),
+  bullet('b',{text:'Second?',position:1}),bullet('mirror',{position:2})],'mirror','q').nodes;
+ assert.deepEqual(aiBulletTargets(nodes,['q','child','b','mirror'],'answers'),[{id:'q',question:'First?'},{id:'b',question:'Second?'}]);
+ assert.deepEqual(aiBulletTargets(nodes,['child','b'],'answers'),[{id:'child',question:'Context'},{id:'b',question:'Second?'}]);
 });
 test('bulk answers append by destination, tolerate repeat saves and reject a stale target atomically',()=>{
  const before=withNodes(empty(),[bullet('q',{text:'First?',kind:'QUESTION',collapsed:true}),bullet('old',{text:'Existing',parentId:'q'}),bullet('other',{text:'Second?'})]);
