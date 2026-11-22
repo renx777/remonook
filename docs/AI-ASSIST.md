@@ -168,3 +168,60 @@ measured duration. Each account has 10 dictation minutes per UTC day (counted fr
 those rows, separately from text and images) inside the shared 8,000-neuron app
 limit; `/ai/status` reports `audioRemainingSeconds`. Language is detected
 automatically. A sentence can be split where one chunk ends and the next begins.
+
+## Meaning search, related notes and duplicate flashcards
+
+Opt-in per account (the search options panel, Related notes or Study Desk → Find
+duplicates offer "Turn on meaning search"). Bullet texts (4+ characters with a
+letter; not code, dividers or mirrors) are sent in batches of up to 48 to
+`POST /ai/embed`, which runs `@cf/baai/bge-m3` (multilingual) and returns unit
+vectors as int8. Vectors are stored only on the device, in IndexedDB
+`remo-meaning-v1-<account>`, keyed by bullet with a text fingerprint, so only new
+or edited bullets are sent again, four seconds after typing stops. Search embeds
+the typed query and ranks locally; Related notes and duplicates use stored vectors.
+Turning it off deletes the index on the device.
+
+Thresholds come from measured scores: search and related at 0.45/0.5 (unrelated
+pairs scored 0.29–0.40), duplicate flashcards at 0.85 (rewordings 0.87–0.97,
+"capital of Mizoram" vs "of Nagaland" 0.53), and a duplicate notice when a bullet
+becomes a flashcard at 0.78 (which also catches a Hindi rewording, 0.79). Cost is
+about 1.1 neurons per 1,000 tokens; the Worker reserves 1.8 per 1,000 estimated
+tokens and each account may use 400 neurons a day (indexing resumes the next day).
+
+## Voice review
+
+In a study session, "Answer aloud" (text flashcards only) records until Done or a
+1.8-second pause after speaking (60 seconds at most), transcribes with
+`/ai/transcribe`, then checks the answer: "I don't know"/"skip" and answers that
+contain every answer point are handled on the device; otherwise `POST /ai/grade`
+asks Gemma which numbered answer points were stated correctly and whether anything
+wrong was claimed (JSON, 200-token cap). The verdict is computed from those ticks
+(`src/voice-review.mjs`), never taken from the model: all points and nothing wrong
+→ Correct (suggests Good), some → Partly right (Hard), none → Not quite (Again).
+The answer is revealed with a tick or cross per answer bullet; Enter accepts the
+suggested grade and any grade button overrides it. Grading reserves about 21
+neurons and settles to actual use (about 3); 1,500 neurons per account per day.
+In testing a full paraphrased answer was graded Correct and a two-of-three answer
+Partly right, about 8–12 neurons per card including transcription.
+
+## Photo to notes or flashcards
+
+`/photo` or Photo to notes… in the bullet menu: take or choose a photo, choose
+Notes or Flashcards, Read photo, review and edit, then add it under the bullet as
+one undo step (cards become a new flashcard deck). The photo is shrunk to 1,600 px
+JPEG on the device and sent to `POST /ai/photo?id=&mode=notes|cards`, which asks
+Gemma 4 (image input) for `{title, outline}` or `{title, cards}` using only what is
+visible; nothing is stored. Gemma was chosen after comparing Llama 4 Scout and
+Mistral Small 3.1 on the same page: it was fastest (about 7 s) and cheapest
+(10–16 neurons a page) with equal quality. 600 neurons per account per day
+(the reservation is 69 and settles to actual use).
+
+## Automatic image occlusion
+
+The occlusion editor's Detect labels button runs the bundled Tesseract OCR on this
+device (sparse-text mode; nothing is uploaded and no AI allowance is used), groups
+words into labels, joins pieces of one label split by a pointer line, and adds one
+padded region per label, named after its text, as one undo step. Regions that
+overlap existing ones are skipped; the 100-region limit applies. Labels crossed by
+lines can come out partly misread; the region is still placed and the answer can
+be corrected.

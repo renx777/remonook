@@ -92,3 +92,25 @@ export async function recognizeImageText(image: HTMLImageElement, options:OcrOpt
     await worker?.terminate();
   }
 }
+
+/** Text lines with word boxes for automatic image occlusion. Coordinates are in the returned width/height. */
+export async function recognizeImageWords(blob: Blob, signal: AbortSignal, onProgress: (value: number) => void) {
+  let worker: Worker | undefined;
+  const canvas=document.createElement('canvas');
+  try {
+    const image=await decodeOcrImage(blob,signal);
+    drawOcrImage(canvas,image,0,fullImage,false,3500,4_000_000);
+    const starting=createLocalOcrWorker(onProgress);
+    void starting.then(created=>{if(signal.aborted)void created.terminate();},()=>{});
+    worker=await abortable(starting,signal);
+    const {PSM}=await abortable(import('tesseract.js'),signal);
+    // Diagram labels are scattered short phrases: sparse mode finds them better than page layout.
+    await abortable(worker.setParameters({tessedit_pageseg_mode:PSM.SPARSE_TEXT}),signal);
+    const result=await abortable(worker.recognize(canvas,{},{blocks:true,text:false}),signal);
+    const lines=(result.data.blocks||[]).flatMap(b=>b.paragraphs.flatMap(p=>p.lines.map(l=>l.words.map(w=>({text:w.text,confidence:w.confidence,bbox:w.bbox})))));
+    return {lines,width:canvas.width,height:canvas.height};
+  } finally {
+    canvas.width=canvas.height=0;
+    await worker?.terminate();
+  }
+}

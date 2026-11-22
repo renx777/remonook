@@ -1,3 +1,5 @@
+import {validateGradeInput,gradePrompt,validateGrade} from '../src/voice-review.mjs';
+import {photoPrompt,validatePhotoResult,PHOTO_MODES,PHOTO_LIMITS} from '../src/photo-notes.mjs';
 import {AI_MODEL,AI_VERSION,AI_STRUCTURE_OPERATIONS,AI_INPUT_BYTES,AI_OUTPUT_TOKENS,byteLength,validateAiInput,validateAiResult} from '../src/ai-contract.mjs';
 import {researchSearch} from './ai-search.mjs';
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
@@ -9,15 +11,27 @@ const IMAGE_RESERVED=120, IMAGE_BYTES=2*1024*1024;
 const AUDIO_MODEL='@cf/openai/whisper-large-v3-turbo', AUDIO_BYTES=3*1024*1024, AUDIO_SECONDS=120, AUDIO_DAILY_SECONDS=600;
 export const audioReserve=seconds=>Math.max(1,Math.ceil(Math.min(Math.max(seconds,1),3600)/60*56));
 const AUDIO_TYPES=/^audio\/(webm|ogg|mp4|mpeg|mp3|wav|x-wav|x-m4a|aac)\b/;
-async function audioUsed(env,uid,day){return (await env.DB.prepare("SELECT COALESCE(SUM(reserved),0) AS used FROM ai_requests WHERE uid=? AND day=? AND id LIKE 'audio:%'").bind(uid,day).first()).used;}
+// Per-account daily allowances for each feature, counted from ai_requests rows by id prefix.
+async function kindUsed(env,uid,day,kind){return (await env.DB.prepare('SELECT COALESCE(SUM(reserved),0) AS used FROM ai_requests WHERE uid=? AND day=? AND id LIKE ?').bind(uid,day,kind+':%').first()).used;}
+const audioUsed=(env,uid,day)=>kindUsed(env,uid,day,'audio');
+// Meaning search: bge-m3 embeddings, about 1.1 neurons per 1,000 tokens; reserve 1.8 per 1,000
+// estimated tokens (3 bytes each). 400 neurons a day per account indexes roughly 200,000 tokens.
+// Voice review grading: per-account allowance in neurons (about 100+ cards a day), settled to actual use.
+const GRADE_DAILY=1500;
+// Photo to notes or flashcards: Gemma 4 reads the image (about 13 neurons a page in testing).
+// Reserve for up to 1,600 output tokens, settle to actual use; 600 neurons a day per account.
+const PHOTO_DAILY=600, PHOTO_RESERVED=Math.ceil((1500*9091+1600*27273)/1e6*1.2);
+const IMAGE_TYPES=/^image\/(jpeg|png|webp)$/;
+const EMBED_MODEL='@cf/baai/bge-m3', EMBED_DIMS=1024, EMBED_DAILY=400, EMBED_TEXTS=64, EMBED_BYTES=32000;
+export const embedReserve=bytes=>Math.max(1,Math.ceil(bytes/3/1000*1.8));
 const audioLeft=used=>Math.max(0,Math.floor((audioReserve(AUDIO_DAILY_SECONDS)-used)/56*60));
 const base64=bytes=>{let out='';for(let i=0;i<bytes.length;i+=0x8000)out+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(out);};
 export const aiEnabled=env=>env.AI_ENABLED==='true'&&env.AI_FREE_TIER_CONFIRMED==='true'&&!!env.AI&&!!env.DB;
 export async function aiStatus(env,uid,now=Date.now()){
  const day=new Date(now).toISOString().slice(0,10);
  const app=await env.DB.prepare('SELECT COALESCE(SUM(reserved),0) AS used FROM ai_requests WHERE day=?').bind(day).first();
- const audio=await audioUsed(env,uid,day);
- return {enabled:aiEnabled(env),appAvailable:app.used<8000,audioRemainingSeconds:audioLeft(audio),resetsAt:new Date(Date.parse(day)+86400000).toISOString(),model:AI_MODEL,version:AI_VERSION};
+ const audio=await audioUsed(env,uid,day),embed=await kindUsed(env,uid,day,'embed');
+ return {enabled:aiEnabled(env),appAvailable:app.used<8000,audioRemainingSeconds:audioLeft(audio),meaningAvailable:embed<EMBED_DAILY,photoAvailable:(await kindUsed(env,uid,day,'photo'))+PHOTO_RESERVED<=PHOTO_DAILY,voiceReviewAvailable:(await kindUsed(env,uid,day,'grade'))<GRADE_DAILY-20,resetsAt:new Date(Date.parse(day)+86400000).toISOString(),model:AI_MODEL,version:AI_VERSION};
 }
 export function aiPrompt(input,sources=[]){
  const build=AI_STRUCTURE_OPERATIONS.includes(input.operation),structured=build||['flashcards','mcqs'].includes(input.operation)||input.mode==='web';
@@ -94,17 +108,74 @@ async function transcribe(request,env,uid,readLimited,waitUntil){
  }
 }
 
+/** Grades one spoken flashcard answer against its answer points. Nothing is stored. */
+async function gradeAnswer(env,uid,raw,waitUntil){
+ let input;try{input=validateGradeInput(raw);}catch(e){fail(e.message);}
+ const prompt=gradePrompt(input),now=Date.now(),day=new Date(now).toISOString().slice(0,10);
+ if(await kindUsed(env,uid,day,'grade')+prompt.reserved>GRADE_DAILY)fail('Today’s voice reviews are used. Reveal and grade cards as usual; more are available after 00:00 UTC.',429,'grade_limit');
+ const id='grade:'+raw.requestId;await reserveAi(env,uid,id,prompt.reserved,now);let success=false,reserved=prompt.reserved;
+ try{
+  let result;try{result=await env.AI.run(AI_MODEL,{messages:prompt.messages,max_tokens:200,max_completion_tokens:200,temperature:.1,chat_template_kwargs:{enable_thinking:false},store:false,response_format:{type:'json_object'}},{signal:AbortSignal.timeout(30000)});}catch{fail('The answer could not be checked. Reveal it and grade as usual.',502);}
+  const text=typeof result?.response==='string'?result.response:result?.response&&typeof result.response==='object'?JSON.stringify(result.response):result?.choices?.[0]?.message?.content;
+  let parsed;try{parsed=typeof text==='string'?JSON.parse(text):null;}catch{parsed=null;}
+  if(!parsed)fail('The answer could not be checked. Reveal it and grade as usual.',502);
+  const used=Number(result?.usage?.neurons);if(used>0)reserved=Math.max(1,Math.ceil(used*1.2));
+  success=true;return json(validateGrade(parsed,input.points.length));
+ }finally{waitUntil(env.DB.prepare('UPDATE ai_requests SET state=?,reserved=?,finished_at=? WHERE uid=? AND id=?').bind(success?'succeeded':'failed',reserved,Date.now(),uid,id).run().catch(()=>{}));}
+}
+
+/** Reads a photo of study material into an outline or flashcards. The image is not stored. */
+async function readPhoto(request,env,uid,readLimited,waitUntil){
+ const url=new URL(request.url),requestId=url.searchParams.get('id')||'',mode=url.searchParams.get('mode')||'';
+ if(!/^[a-f\d-]{36}$/i.test(requestId))fail('Invalid request identity.');
+ if(!PHOTO_MODES.includes(mode))fail('Choose notes or flashcards.');
+ const type=(request.headers.get('Content-Type')||'').split(';')[0].trim();if(!IMAGE_TYPES.test(type))fail('Send a JPEG, PNG or WebP photo.',415);
+ const bytes=await readLimited(request,PHOTO_LIMITS.bytes);if(bytes.length<512)fail('The photo was empty.');
+ const now=Date.now(),day=new Date(now).toISOString().slice(0,10);
+ if(await kindUsed(env,uid,day,'photo')+PHOTO_RESERVED>PHOTO_DAILY)fail('Today’s photo reading is used. More is available after 00:00 UTC.',429,'photo_limit');
+ const id='photo:'+requestId;await reserveAi(env,uid,id,PHOTO_RESERVED,now);let success=false,reserved=PHOTO_RESERVED;
+ try{
+  let result;try{result=await env.AI.run(AI_MODEL,{messages:[{role:'user',content:[{type:'text',text:photoPrompt(mode)},{type:'image_url',image_url:{url:`data:${type};base64,${base64(bytes)}`}}]}],max_tokens:1600,max_completion_tokens:1600,temperature:.2,chat_template_kwargs:{enable_thinking:false},store:false},{signal:AbortSignal.any([request.signal,AbortSignal.timeout(60000)])});}
+  catch{fail('The photo could not be read. Try again.',502);}
+  const used=Number(result?.usage?.neurons);if(used>0)reserved=Math.max(1,Math.ceil(used*1.2));
+  const text=typeof result?.response==='string'?result.response:result?.response&&typeof result.response==='object'?result.response:result?.choices?.[0]?.message?.content;
+  let value;try{value=validatePhotoResult(mode,text);}catch(e){fail(e.message,422);}
+  success=true;return json(value);
+ }finally{waitUntil(env.DB.prepare('UPDATE ai_requests SET state=?,reserved=?,finished_at=? WHERE uid=? AND id=?').bind(success?'succeeded':'failed',reserved,Date.now(),uid,id).run().catch(()=>{}));}
+}
+
+/** Embeds note texts for on-device meaning search. Vectors are returned (unit length, as int8) and never stored. */
+async function embed(env,uid,raw,waitUntil){
+ const texts=Array.isArray(raw.texts)?raw.texts:null;
+ if(!texts||!texts.length||texts.length>EMBED_TEXTS||texts.some(t=>typeof t!=='string'||!t.trim()||t.length>2000))fail(`Send 1 to ${EMBED_TEXTS} texts of up to 2,000 characters.`);
+ const bytes=texts.reduce((n,t)=>n+new TextEncoder().encode(t).length,0);if(bytes>EMBED_BYTES)fail('Send fewer texts at once.',413);
+ const now=Date.now(),day=new Date(now).toISOString().slice(0,10),reserved=embedReserve(bytes);
+ if(await kindUsed(env,uid,day,'embed')+reserved>EMBED_DAILY)fail('Today’s meaning-search indexing is used. It continues after 00:00 UTC.',429,'embed_limit');
+ const id='embed:'+raw.requestId;await reserveAi(env,uid,id,reserved,now);let success=false;
+ try{
+  let result;try{result=await env.AI.run(EMBED_MODEL,{text:texts},{signal:AbortSignal.timeout(30000)});}catch{fail('Notes could not be indexed. Try again later.',502);}
+  const data=result?.data;if(!Array.isArray(data)||data.length!==texts.length||data.some(v=>!Array.isArray(v)||v.length!==EMBED_DIMS))fail('Notes could not be indexed. Try again later.',502);
+  const out=new Int8Array(texts.length*EMBED_DIMS);
+  data.forEach((v,i)=>{const norm=Math.hypot(...v)||1;for(let k=0;k<EMBED_DIMS;k++)out[i*EMBED_DIMS+k]=Math.max(-127,Math.min(127,Math.round(v[k]/norm*127)));});
+  success=true;
+  return json({dims:EMBED_DIMS,vectors:base64(new Uint8Array(out.buffer))});
+ }finally{waitUntil(env.DB.prepare('UPDATE ai_requests SET state=?,finished_at=? WHERE uid=? AND id=?').bind(success?'succeeded':'failed',Date.now(),uid,id).run().catch(()=>{}));}
+}
+
 export async function aiRoute(request,env,uid,{readLimited,waitUntil=p=>p.catch(()=>{})}){
  const path=new URL(request.url).pathname;
  if(path==='/ai/status'&&request.method==='GET'){try{return json(await aiStatus(env,uid));}catch{return json({error:'AI usage status is unavailable.'},503);}}
- if(!['/ai/generate','/ai/image','/ai/transcribe'].includes(path)||request.method!=='POST')return json({error:'Not found.'},404);
+ if(!['/ai/generate','/ai/image','/ai/transcribe','/ai/embed','/ai/grade','/ai/photo'].includes(path)||request.method!=='POST')return json({error:'Not found.'},404);
  try{
   if(!aiEnabled(env))fail('AI assist is paused. Your drafts and notes are still available.',503);
   if(path==='/ai/transcribe')return await transcribe(request,env,uid,readLimited,waitUntil);
+  if(path==='/ai/photo')return await readPhoto(request,env,uid,readLimited,waitUntil);
   if(!request.headers.get('Content-Type')?.startsWith('application/json'))fail('Send a JSON request.',415);
-  let raw;try{raw=JSON.parse(new TextDecoder().decode(await readLimited(request,18000)));}catch{fail('Invalid AI request.');}
+  let raw;try{raw=JSON.parse(new TextDecoder().decode(await readLimited(request,path==='/ai/embed'?40000:18000)));}catch{fail('Invalid AI request.');}
   if(typeof raw?.requestId!=='string'||!/^[a-f\d-]{36}$/i.test(raw.requestId))fail('Invalid request identity.');
   if(path==='/ai/image')return await generateImage(request,env,uid,raw,waitUntil);
+  if(path==='/ai/embed')return await embed(env,uid,raw,waitUntil);
+  if(path==='/ai/grade')return await gradeAnswer(env,uid,raw,waitUntil);
   let input;try{input=validateAiInput(raw);}catch(e){fail(e.message);}let sources=[];
   if(input.mode==='web'){
    const response=await researchSearch(new Request('https://internal.invalid/api/research/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:input.question})}));

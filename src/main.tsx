@@ -11,6 +11,9 @@ import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
 import {aiBulletTargets,aiContext,insertAi,insertBulkAnswers} from './ai-assist.mjs';
 import {joinTranscript} from './dictation-text.mjs';
+import {useMeaning} from './useMeaning';
+import {insertPhotoResult} from './photo-notes.mjs';
+import {MeaningSearch,RelatedNotes,DuplicateCards} from './MeaningPanels';
 import type {AiAnswer,AiQuestion} from './AiBulletDialog';
 import {useResearchDrafts} from './ai-drafts';
 import type {ResearchDraft,AiDraft} from './data';
@@ -189,6 +192,8 @@ import "./navigation-refinement.css";
 const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
 const AiBulletDialog = React.lazy(()=>import('./AiBulletDialog'));
+const NO_NODES:Node[]=[];
+const PhotoNotes = React.lazy(()=>import('./PhotoNotes').then(m=>({default:m.PhotoNotes})));
 const DictationPill = React.lazy(()=>import('./Dictation').then(m=>({default:m.DictationPill})));
 const AiAssist = React.lazy(()=>import('./AiAssist'));
 const AiDraftList = React.lazy(()=>import('./AiAssist').then(m=>({default:m.AiDraftList})));
@@ -691,6 +696,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   // Dictation into one bullet: at the cursor while it is being edited, otherwise appended to its text,
   // so a transcript that arrives after editing ends is never lost.
   const editingRef=useRef(editing);editingRef.current=editing;
+  // Meaning search (opt-in): search results by meaning, Related notes and duplicate flashcards.
+  const meaning=useMeaning(cloudUser,(doc?.tables.bullets as Node[]|undefined)||NO_NODES),meaningRef=useRef(meaning);meaningRef.current=meaning;
+  const [relatedTarget,setRelatedTarget]=useState<string|null>(null),[duplicatesOpen,setDuplicatesOpen]=useState(false);
+  const [photoTarget,setPhotoTarget]=useState<{id:string;account:string}|null>(null);
+  const checkDuplicateCard=(id:string)=>{const m=meaningRef.current;if(!m.enabled||!m.indexed(id))return;const questions=new Set((docRef.current?.tables.bullets||[]).filter(n=>n.kind==='QUESTION'&&n.id!==id).map(n=>n.id));const hit=m.similarTo(id,questions)[0];const d=hit&&m.describe(hit.id);if(d)setNotice(`A similar flashcard already exists: “${d.title.slice(0,80)}”. Study Desk → Find duplicates lists them.`);};
   const [dictateTarget,setDictateTarget]=useState<{id:string;account:string}|null>(null);
   const insertDictation=(id:string,text:string)=>{
     const e=editor.current,nodes=docRef.current?.tables.bullets||[],target=sourceId(nodes,id);
@@ -1166,6 +1176,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const bulletTargets = (id: string, selectedIds?: string[]) => new Set((selectedIds?.includes(id) ? selectedIds : menu === id ? menuSelection.current : [id]).map(target => sourceId(docRef.current!.tables.bullets, target)));
   const command = (action: string, id: string, start: number, end: number, selectedIds?: string[], paneId=views.activePane) => {
+    if(action==='block:question'||action==='question')setTimeout(()=>checkDuplicateCard(id),300);
     const renderedIds=outlineRows.current.get(tab+':'+paneId);
     const displayId=id;
     const targets = bulletTargets(id, selectedIds);
@@ -1189,6 +1200,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if(action==='action:ai-bulk'){void openBulletAi('answers',selectedIds||[id]);return;}
+    if(action==='action:photo'){if(!cloudUser){setNotice('Sign in to read photos with AI.');return;}setPhotoTarget({id:sourceId(docRef.current!.tables.bullets,id),account:storageAccountKey()});return;}
     if(action==='action:dictate'){if(!cloudUser){setNotice('Sign in to dictate.');return;}setDictateTarget({id,account:storageAccountKey()});return;}
     if(action==='action:ai-image'){void openBulletAi('image',[id]);return;}
     // Answer each child of this bullet as its own question (the slash command for bulk answers).
@@ -1911,7 +1923,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
           <div className="topbar-right">
             <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
-            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
+            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
               className={`icon-button completed-toggle ${paneCompleted ? "is-active" : ""}`}
@@ -2079,7 +2091,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onNotes={id=>navigateTo(id)} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/></React.Suspense>
         ) : tab === "study" ? (
-          <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
+          <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} onDuplicates={cloudUser?()=>setDuplicatesOpen(true):undefined} user={cloudUser} />
         ) : tab === "canvas" && canvasEnabled ? (
           <React.Suspense fallback={<section role="status">Loading canvas…</section>}><CanvasStudio doc={doc} disabled={disabled||failed.current} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention before editing this canvas.');const next=update(docRef.current!);validateCanvases(next.web.canvases);commit(next);}} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} onOpenNote={id=>navigateAiResult(id)} assets={assets} onStoreImages={storeImages} open={canvasOpen} user={cloudUser}/></React.Suspense>
         ) : tab === "mindmap" ? (
@@ -2191,6 +2203,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           setNotice("MCQ saved. Study it in Study Desk, or make an MCQ notebook from its parent branch.");
         } catch (error) { showError(error); }
       }} />}
+      {photoTarget&&photoTarget.account===storageAccountKey()&&cloudUser&&doc&&<React.Suspense fallback={null}><PhotoNotes user={cloudUser} targetTitle={doc.tables.bullets.find(n=>n.id===photoTarget.id)?.text||''} disabled={disabled||failed.current} onClose={()=>setPhotoTarget(null)} onSave={async result=>{await flush();if(failed.current||photoTarget.account!==storageAccountKey())throw Error('Saving needs attention first.');const current=docRef.current!,next=insertPhotoResult(current,photoTarget.id,result,crypto.randomUUID());commit(next,undefined,true);setNotice(result.cards?`${result.cards.length} flashcard${result.cards.length===1?'':'s'} added. Undo removes them together.`:'Notes added. Undo removes them together.');}}/></React.Suspense>}
+      {relatedTarget&&doc&&<RelatedNotes meaning={meaning} id={relatedTarget} onOpen={id=>{setRelatedTarget(null);revealBullet(id);}} onClose={()=>setRelatedTarget(null)}/>}
+      {duplicatesOpen&&doc&&<DuplicateCards meaning={meaning} questionIds={doc.tables.bullets.filter(n=>n.kind==='QUESTION').map(n=>n.id)} onOpen={id=>{setDuplicatesOpen(false);revealBullet(id);}} onClose={()=>setDuplicatesOpen(false)}/>}
       {dictateTarget&&dictateTarget.account===storageAccountKey()&&<React.Suspense fallback={null}><DictationPill key={dictateTarget.id} user={cloudUser} onText={text=>insertDictation(dictateTarget.id,text)} onClose={()=>setDictateTarget(null)}/></React.Suspense>}
       {aiBulletTarget&&aiBulletTarget.account===storageAccountKey()&&<React.Suspense fallback={null}>
         {aiBulletTarget.mode==='image'
@@ -2205,6 +2220,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 <BulletMenuBody><div className="popover-quick-actions">
             <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
             {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:dictate',menuNode.id,0,0);}}><Icon name="mic" size={16}/><span>Dictate</span></button>}
+            {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:photo',menuNode.id,0,0);}}><Icon name="camera" size={16}/><span>Photo to notes…</span></button>}
+            {cloudUser&&<button onClick={()=>{setMenu(null);setRelatedTarget(sourceId(docRef.current!.tables.bullets,menuNode.id));}}><Icon name="link" size={16}/><span>Related notes</span></button>}
             {menuSelection.current.length>1&&<button disabled={disabled} onClick={()=>void openBulletAi('answers',[...menuSelection.current])}><Icon name="study" size={16}/><span>Answer selected bullets…</span></button>}
             {menuNode.blockStyle!=='divider'&&<button disabled={disabled} onClick={()=>void openBulletAi('image',[menuNode.id])}><Icon name="image" size={16}/><span>Generate image…</span></button>}
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
