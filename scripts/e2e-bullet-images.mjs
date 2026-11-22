@@ -15,16 +15,23 @@ try {
         canvas.width=920;
         canvas.height=250;
         const ctx=canvas.getContext('2d');
-        ctx.fillStyle='white';
+        ctx.fillStyle=type==='file'?'#101010':'white';
         ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle='black';
+        ctx.fillStyle=type==='file'?'#ffffff':'black';
         ctx.font='64px Arial';
         ctx.fillText('Photosynthesis',42,100);
         ctx.font='42px Arial';
         ctx.fillText('Plants use light to make sugar.',42,185);
         const transfer=new DataTransfer();
         if(type==='file'){
-          const blob=await new Promise(resolve=>canvas.toBlob(resolve));
+          const sideways=document.createElement('canvas');
+          sideways.width=canvas.height;
+          sideways.height=canvas.width;
+          const rotated=sideways.getContext('2d');
+          rotated.translate(0,canvas.width);
+          rotated.rotate(-Math.PI/2);
+          rotated.drawImage(canvas,0,0);
+          const blob=await new Promise(resolve=>sideways.toBlob(resolve));
           transfer.items.add(new File([blob],'science.png',{type:'image/png'}));
         }else{
           transfer.setData('text/html',`<img src="${canvas.toDataURL()}" alt="study image">`);
@@ -41,11 +48,31 @@ try {
     await drop('html');
     await page.waitForFunction(id=>document.querySelector(`[data-node-id="${id}"]`).querySelectorAll('figure.note-image').length===2,id);
     await row.getByRole('button',{name:'Extract text',exact:true}).first().click();
-    const draft=page.getByRole('textbox',{name:'Extracted text'});
-    await draft.waitFor({timeout:90000});
+    const dialog=page.getByRole('dialog',{name:'Extract text from image'});
+    const draft=dialog.getByRole('textbox',{name:'Extracted text'});
+    await dialog.getByRole('button',{name:'Rotate 90°'}).click();
+    await dialog.getByRole('button',{name:'Invert'}).click();
+    await dialog.getByRole('button',{name:'Crop',exact:true}).click();
+    // Keyboard crop controls must select the heading without the lower line.
+    const bottom=dialog.getByRole('slider',{name:'Bottom edge (%)'});
+    await bottom.focus();
+    for(let step=0;step<48;step++)await bottom.press('ArrowLeft');
+    await dialog.getByLabel('Text layout').selectOption('block');
+    await dialog.getByRole('button',{name:'Extract text',exact:true}).click();
+    await dialog.getByText('Text extracted.',{exact:true}).waitFor({timeout:90000});
     assert.match(await draft.inputValue(),/Photosynthesis/i);
-    assert.match(await draft.inputValue(),/Plants use light to make sugar/i);
-    await draft.fill('Photosynthesis\nPlants turn light into chemical energy.');
+    assert.doesNotMatch(await draft.inputValue(),/Plants use light/i);
+    const edited='Photosynthesis\nPlants turn light into chemical energy.';
+    await draft.fill(edited);
+    await dialog.getByRole('button',{name:'Reset crop'}).click();
+    await dialog.getByRole('button',{name:'Run again'}).click();
+    const newResult=dialog.getByRole('textbox',{name:'New OCR result'});
+    await newResult.waitFor({timeout:90000});
+    assert.match(await newResult.inputValue(),/Plants use light to make sugar/i);
+    assert.equal(await draft.inputValue(),edited,'retry must preserve the edited text');
+    await dialog.getByRole('button',{name:'Keep my edits'}).click();
+    await dialog.getByRole('button',{name:'Copy text'}).click();
+    await dialog.getByText(/Copied text|Text selected/).waitFor();
     await page.getByRole('button',{name:'Add as child bullet'}).click();
     await page.getByRole('dialog',{name:'Extract text from image'}).waitFor({state:'detached'});
     await page.reload();
@@ -53,7 +80,7 @@ try {
       const {load}=await import('/src/data.ts'),doc=await load();
       return doc.tables.bullets.some(n=>n.parentId===id&&n.text==='Photosynthesis\nPlants turn light into chemical energy.')&&doc.tables.media.filter(m=>m.bulletId===id).length===2;
     },{id});
-    console.log(`${viewport.width}px: file/HTML drop, real OCR, edited child and original attachments persisted`);
+    console.log(`${viewport.width}px: file/HTML drop, crop/rotate/invert OCR, safe retry, copy and persistence`);
     await page.close();
   }
 } finally {await browser.close();}
