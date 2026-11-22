@@ -1178,7 +1178,10 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if(action==='action:ai-bulk'){void openBulletAi('answers',selectedIds||[id]);return;}
-    if(action.startsWith('action:ai-')){const operation=action.slice('action:ai-'.length) as AiDraft['operation'];if(['list','outline','mindmap','diagram','answer'].includes(operation))void openAi(id,'general',operation);return;}
+    if(action==='action:ai-image'){void openBulletAi('image',[id]);return;}
+    // Answer each child of this bullet as its own question (the slash command for bulk answers).
+    if(action==='action:ai-answer-children'){const kids=(docRef.current?.tables.bullets||[]).filter(n=>n.parentId===sourceId(docRef.current!.tables.bullets,id)&&!n.deleted).sort((a,b)=>a.position-b.position).map(n=>n.id);if(!kids.length){setNotice('Add questions as child bullets first.');return;}void openBulletAi('answers',kids);return;}
+    if(action.startsWith('action:ai-')){const operation=action.slice('action:ai-'.length) as AiDraft['operation'];if(['list','outline','mindmap','diagram','answer','summarize','explain','flashcards','mcqs'].includes(operation)){if(selectedIds?.length)menuSelection.current=selectedIds;void openAi(id,'general',operation);}return;}
     if(action==='action:diagram'){openDiagram({id});return;}
     if(action==='action:drawing'){openDrawing(id);return;}
     if(action==='action:pane'){openPane(id);return;}

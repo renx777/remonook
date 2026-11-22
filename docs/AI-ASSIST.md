@@ -131,3 +131,17 @@ undo step. Mirrored bullets resolve to their source.
 For an existing staging database run `cloud/ai-testing-quota.sql` before rolling
 out the updated client. It installs the shared guard, retires the earlier
 per-account trigger and preserves every reservation already recorded.
+
+## Where AI actions appear
+
+- **Bullet menu (⋯):** Ask AI, Answer selected bullets, Generate image.
+- **Bulk bar** (several bullets selected): an **AI** button opens Answer each
+  (one answer under every selected root), Summarize, Outline, Flashcards, MCQs
+  and Mindmap (the selection is the context and the result goes under the first
+  selected bullet), and Generate image when one bullet is selected.
+- **Slash menu:** `/ai list`, `/ai outline`, `/ai diagram`, `/ai mindmap`,
+  `/ai answer`, `/ai answer children` (answers each child as its own question),
+  `/ai image`, `/ai summary`, `/ai flashcards` and `/ai mcqs`.
+
+All of them open the same reviewed drafts and dialogs; nothing is added until
+accepted, and limits are unchanged.

@@ -69,6 +69,16 @@ type Props = {
   onDeleteNodes?: (ids: string[]) => void;
   setNotice?: (msg: string) => void;
 };
+const SELECTION_AI = [
+  ['ai-bulk', 'Answer each', 'An answer under every selected bullet'],
+  ['ai-summarize', 'Summarize', 'One summary of the selection'],
+  ['ai-outline', 'Outline', 'Nested notes from the selection'],
+  ['ai-flashcards', 'Flashcards', 'Study cards from the selection'],
+  ['ai-mcqs', 'MCQs', 'Multiple-choice questions from the selection'],
+  ['ai-mindmap', 'Mindmap', 'Branches from the selection'],
+  ['ai-image', 'Generate image', 'An image for this bullet'],
+] as const;
+
 export function OutlineView(p: Props) {
   const {times}=useContext(SearchContext);
   const tagSettings=useContext(TagSettingsContext);
@@ -146,6 +156,8 @@ export function OutlineView(p: Props) {
   dragRef.current = drag;
   const moveCallback = useRef(p.onMove);
   moveCallback.current = p.onMove;
+  // AI actions offered for a multi-bullet selection (the bulk bar); answers go under each bullet, the rest use the selection as context.
+  const [aiMenu, setAiMenu] = useState(false), aiMenuRef = useRef<HTMLDivElement>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()),
     selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
@@ -494,6 +506,13 @@ export function OutlineView(p: Props) {
       .join("\n");
   };
 
+  useEffect(() => { if (!selectedIds.size) setAiMenu(false); }, [selectedIds]);
+  useEffect(() => {
+    if (!aiMenu) return;
+    const away = (e: MouseEvent) => { if (!aiMenuRef.current?.contains(e.target as HTMLElement)) setAiMenu(false); };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [aiMenu]);
   const runOnSelection = (action: string) => {
     const ids = [...selectedIds];
     if (!ids.length) return;
@@ -1056,9 +1075,16 @@ export function OutlineView(p: Props) {
           <span className="selection-count">
             {selectedRoots.length} bullet{selectedRoots.length === 1 ? "" : "s"} selected
           </span>
-          {selectedIds.size>1&&<button type="button" className="selection-btn" title="Answer selected bullets with AI" aria-label="Answer selected bullets with AI" disabled={p.disabled} onClick={()=>runOnSelection('action:ai-bulk')}>
-            <Icon name="star" size={16}/>
-          </button>}
+          <div className="selection-ai" ref={aiMenuRef}>
+            <button type="button" className="selection-btn selection-ai-btn" title="AI actions" aria-label="AI actions for selected bullets" aria-haspopup="menu" aria-expanded={aiMenu} disabled={p.disabled} onClick={()=>setAiMenu(v=>!v)}>
+              <Icon name="star" size={15}/><span>AI</span>
+            </button>
+            {aiMenu&&<div className="selection-ai-menu" role="menu" aria-label="AI actions" onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();setAiMenu(false);}}}>
+              {SELECTION_AI.filter(([id])=>id!=='ai-image'||selectedRoots.length===1).map(([id,label,detail])=><button key={id} type="button" role="menuitem" disabled={p.disabled} onClick={()=>{setAiMenu(false);runOnSelection('action:'+id);}}>
+                <strong>{label}</strong><small>{detail}</small>
+              </button>)}
+            </div>}
+          </div>
           <span className="separator" />
           <div className="selection-segment" role="group" aria-label="Selected list style">
             <button
