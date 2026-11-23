@@ -62,16 +62,14 @@ class WidgetScreenshotsTest {
         StudyWidgetStore.preferences(context,101).edit().putInt("palette",1).commit()
         StudyWidgetProvider.refreshAll(context)
         for(id in listOf(101,102)){
-            val remote=shadowOf(manager).getAppWidgetViews(id)
-            assertNotNull(remote)
-            assertNotNull(remote.apply(context,FrameLayout(context)))
+            assertNotNull(shadowOf(manager).getViewFor(id))
         }
         assertEquals("immutable evidence",evidence.readText())
         assertEquals("invalid cache",snapshot.readText())
         // Exercise actual responsive map construction/update, not only paintView.
         StudyWidgetStore.preferences(context,101).edit().clear().commit()
         StudyWidgetProvider().onUpdate(context,manager,intArrayOf(101,102))
-        assertNotNull(shadowOf(manager).getAppWidgetViews(102))
+        assertNotNull(shadowOf(manager).getViewFor(102))
     }
     @Test fun renderNativeStates(){
         for((palette,mode)in listOf("marigold" to Configuration.UI_MODE_NIGHT_NO,"iris" to Configuration.UI_MODE_NIGHT_YES)){
