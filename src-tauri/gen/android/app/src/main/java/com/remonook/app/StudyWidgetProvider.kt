@@ -94,6 +94,13 @@ class StudyWidgetProvider : AppWidgetProvider() {
             return PendingIntent.getActivity(context,id,Intent(context,MainActivity::class.java).setData(uri.build()),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         }
+        private fun textLayout(context:Context,text:String,width:Int,size:Float,bold:Boolean):android.text.StaticLayout {
+            val paint=android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            paint.textSize=android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,size,context.resources.displayMetrics)
+            paint.typeface=if(bold)android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+            val pixels=maxOf(1,(width*context.resources.displayMetrics.density).toInt())
+            return android.text.StaticLayout.Builder.obtain(text,0,text.length,paint,pixels).setIncludePad(true).build()
+        }
         internal fun layout(width:Int,height:Int):Int = when {
             width<110||height<110 -> R.layout.study_widget_message
             width<260 -> R.layout.study_widget_glance
@@ -216,6 +223,13 @@ class StudyWidgetProvider : AppWidgetProvider() {
             v.setTextViewText(R.id.widget_status,if(pending>0)"$pending saved on device · pending app" else "")
             val rating=visible&&phase=="answer"&&part==pages.lastIndex
             if(rating&&height<240+scale*70)return message("Make this widget taller to review safely.")
+            if(visible&&!rating&&pages.size>1&&layout==R.layout.study_widget_prompt){
+                val controls=maxOf(48f,12*scale*1.5f+12)
+                val available=height-32-18*scale-2*controls-(if(pending>0)18*scale else 0f)
+                val measured=textLayout(context,bodyText,width-32,if(phase=="answer")14f else 16f,phase!="answer")
+                if(measured.height>available*context.resources.displayMetrics.density)
+                    return message("Make this widget taller to read every text part.")
+            }
             v.setViewVisibility(R.id.widget_primary,if(rating)View.GONE else View.VISIBLE)
             v.setTextViewText(R.id.widget_reveal,if(!visible||phase=="answer")"Show question" else "Reveal answer")
             v.setOnClickPendingIntent(R.id.widget_reveal,action(context,id,token,if(!visible)"UNHIDE" else "REVEAL"))
@@ -230,7 +244,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 v.setBoolean(R.id.widget_previous,"setEnabled",part>0)
                 v.setBoolean(R.id.widget_next_part,"setEnabled",part<pages.lastIndex)
             }
-            if(visible&&phase=="answer"&&card.question.length<100&&height>400&&scale<=1.3f){
+            if(visible&&phase=="answer"&&height>400&&scale<=1.3f&&textLayout(context,card.question,width-32,16f,true).lineCount<=3){
                 v.setViewVisibility(R.id.widget_section,View.GONE)
                 v.setViewVisibility(R.id.widget_question,View.VISIBLE)
                 v.setTextViewText(R.id.widget_question,card.question)
