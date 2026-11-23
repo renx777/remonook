@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Record dictation and spoken flashcard answers when you choose to use the microphone.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Capture a photo to turn it into notes or flashcards when you choose the camera.</string>
   <key>NSLocalNetworkUsageDescription</key>
   <string>RemoNook finds and syncs with your other computers on this network when you turn on local sync.</string>
   <key>NSBonjourServices</key>
