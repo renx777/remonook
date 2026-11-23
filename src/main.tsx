@@ -678,6 +678,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       try{
         const url=new URL(link);
         if(url.protocol!=='remonook:'||url.hostname!=='study')return true;
+        if(url.searchParams.get('scope')&&url.searchParams.get('scope')!==storageAccountKey()){setNotice('Open the original workspace to study this widget’s cards.');return true;}
         const card=url.searchParams.get('card');
         const deck=url.searchParams.get('deck');
         if(card&&!docRef.current.tables.cards.some(c=>c.id===card)) {setNotice('This card is no longer available in this workspace.');return true;}

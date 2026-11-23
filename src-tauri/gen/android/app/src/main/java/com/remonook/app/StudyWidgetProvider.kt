@@ -88,6 +88,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
 
         private fun open(context:Context,id:Int,deck:String?,card:String?=null,voice:Boolean=false):PendingIntent {
             val uri=Uri.Builder().scheme("remonook").authority("study").appendQueryParameter("deck",deck ?: "")
+            uri.appendQueryParameter("scope",StudyWidgetStore.preferences(context,id).getString("scope",""))
             if(card!=null)uri.appendQueryParameter("card",card)
             if(voice)uri.appendQueryParameter("voice","1")
             return PendingIntent.getActivity(context,id,Intent(context,MainActivity::class.java).setData(uri.build()),
