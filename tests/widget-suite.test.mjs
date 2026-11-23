@@ -63,3 +63,11 @@ test('resurface uses existing related-note results and observes UTF-8 budgets',(
  const doc=fixture(),r=resurfacePresentation(doc,()=>[{id:'b'}],NOW);
  assert.ok(r.id);assert.ok(r.relatedText);assert.ok(Buffer.byteLength(r.text)<=240);assert.ok(Buffer.byteLength(r.path)<=120);
 });
+
+
+test('Today and Resurface never expose a flashcard or MCQ answer through another widget',()=>{
+ const doc=fixture();doc.tables.bullets.push(bullet('private-question',{kind:'QUESTION',text:'A private question',parentId:'journal-'+DATE}),bullet('private-answer',{text:'Private study answer content to keep hidden',parentId:'private-question'}));
+ assert.ok(widgetToday(doc,NOW).every(n=>!n.id.includes('private-')));
+ const r=resurfacePresentation(doc,()=>[{id:'private-answer'}],NOW);
+ assert.ok(!r.id.includes('private-'));assert.equal(r.relatedText,'');
+});

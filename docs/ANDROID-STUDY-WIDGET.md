@@ -143,3 +143,10 @@ native intent. A stable delivery UUID prevents repeated polling from creating
 extra Inbox bullets. Scope checks prevent stale launcher instances from capturing
 into a different workspace. Android date/time/configuration broadcasts refresh all
 providers, and per-instance rendering errors cannot block app startup.
+
+
+Phase 2 filesystem tests run on Android API 28 and 33 emulators using actual
+`Os.rename`, directory `open` and `fsync`. Robolectric covers rendering and reads
+of already queued actions; its host filesystem cannot open directories for fsync,
+so it is not used to claim durable publication. Emulator tests verify publication,
+retries, collision preservation, archive replay and widget removal retaining files.

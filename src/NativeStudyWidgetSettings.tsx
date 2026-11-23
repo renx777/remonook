@@ -67,7 +67,7 @@ export function NativeStudyWidgetSettings({
           <button onClick={widget.refresh}>Refresh widget cache</button>
           <p role="status">
             {widget.pending
-              ? `${widget.pending} review${widget.pending === 1 ? "" : "s"} saved on this device · pending app processing`
+              ? `${widget.pending} action${widget.pending === 1 ? "" : "s"} saved on this device · pending app processing`
               : "Reviews use normal saving and synchronization after the app processes them."}
           </p>
         </>

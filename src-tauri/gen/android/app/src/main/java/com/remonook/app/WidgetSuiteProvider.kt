@@ -128,13 +128,16 @@ internal object WidgetSuiteRendering {
             v.setViewVisibility(R.id.widget_deck,View.GONE);v.setViewVisibility(R.id.widget_status,View.GONE)
             v.setViewVisibility(R.id.widget_private_1,View.GONE);v.setViewVisibility(R.id.widget_private_2,View.GONE)
             v.setViewVisibility(R.id.widget_title,if(height<120*scale)View.GONE else View.VISIBLE)
-            v.setOnClickPendingIntent(R.id.widget_root,if(setup)configure(context,id) else link(context,id,if(kind=="focus")"focus" else "today"))
+            val host=when(kind){"focus"->"focus";"rhythm"->"study";"resurface"->"note";"capture"->"capture";else->"today"}
+            val params=when(kind){"resurface"->mapOf("id" to (snapshot?.resurface?.id?:""));"capture"->mapOf("mode" to "text");else->emptyMap()}
+            v.setOnClickPendingIntent(R.id.widget_root,if(setup)configure(context,id) else link(context,id,host,params))
             return v
         }
         if(snapshot==null)return message("Open RemoNook to refresh the widget cache.")
         if(snapshot.scope==null)return message("Enable widgets in RemoNook → Settings → Study, then configure this widget.",true)
         if(snapshot.scope!=prefs.getString("scope",null))return message("Choose this workspace in widget settings.",true)
-        if(context.getSystemService(KeyguardManager::class.java).isDeviceLocked||prefs.getBoolean("privacy",false))return message("Unlock and open RemoNook to see your notes.")
+        if(context.getSystemService(KeyguardManager::class.java).isDeviceLocked)return message("Unlock and open RemoNook to see your notes.")
+        if(prefs.getBoolean("privacy",false)&&kind !in listOf("capture","rhythm"))return message("Private widget · open RemoNook to view.")
         val narrow=kind=="capture"&&scale>1.3f&&width<240 || kind !in listOf("capture","focus")&&width<260
         if(narrow||width<150||height<if(kind=="capture"&&width>=260)72*scale else if(kind=="rhythm")90*scale else 150*scale)return message("Make this widget larger to see more.")
         val layout=when(kind){"today"->R.layout.widget_suite_today;"capture"->if(width>=260&&height<170)R.layout.widget_suite_capture_wide else R.layout.widget_suite_capture;"focus"->R.layout.widget_suite_focus;"rhythm"->R.layout.widget_suite_rhythm;else->R.layout.widget_suite_resurface}

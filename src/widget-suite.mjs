@@ -12,10 +12,19 @@ export function widgetLabel(value,limit){
  return text;
 }
 const digest=value=>contentDigest(JSON.stringify(value));
+function isStudyContent(doc,node,byId){
+ const seen=new Set();
+ while(node&&!seen.has(node.id)){
+  seen.add(node.id);
+  if(node.kind==='QUESTION'||node.kind==='ANSWER'||doc.web?.mcqs?.[node.id]||doc.web?.occlusions?.[node.id])return true;
+  node=byId.get(node.parentId);
+ }
+ return false;
+}
 export function widgetToday(doc,now=Date.now()){
  const date=localDate(new Date(now)),nodes=doc.tables.bullets,byId=new Map(nodes.map(n=>[n.id,n]));
  const journal=n=>{const seen=new Set();while(n&&!seen.has(n.id)){seen.add(n.id);if(n.journalDate===date||n.id==='journal-'+date)return true;n=byId.get(n.parentId);}return false;};
- const bullets=nodes.filter(n=>!n.mirrorSourceId&&displayText(n.text).trim()&&n.id!=='journal-'+date&&!n.journalDate&&(n.dueDate===date||journal(byId.get(n.parentId))));
+ const bullets=nodes.filter(n=>!n.mirrorSourceId&&!isStudyContent(doc,n,byId)&&displayText(n.text).trim()&&n.id!=='journal-'+date&&!n.journalDate&&(n.dueDate===date||journal(byId.get(n.parentId))));
  const result=eventsOnDate(calendarEvents(doc),date).map(e=>({id:'reminder:'+e.id,text:widgetLabel(e.title,200),time:e.time,done:e.completed.includes(date),date,fingerprint:digest([e.title,e.date,e.time,e.repeat,e.kind])}));
  for(const n of bullets){result.push({id:'bullet:'+n.id,text:widgetLabel(displayText(n.text),200),time:'',done:n.taskState==='DONE',date,fingerprint:digest([n.text,n.formatting,n.parentId,n.dueDate])});}
  return result.sort((a,b)=>Number(a.done)-Number(b.done)||(a.time||'99:99').localeCompare(b.time||'99:99')||a.id.localeCompare(b.id)).slice(0,8);
@@ -35,7 +44,8 @@ export function widgetRhythm(doc,now=Date.now()){
 }
 /** A deterministic daily candidate. Related text comes only from the existing opt-in index. */
 export function resurfaceCandidate(doc,now=Date.now()){
- const nodes=doc.tables.bullets.filter(n=>n.kind==='NOTE'&&!n.mirrorSourceId&&!n.journalDate&&displayText(n.text).trim().length>15&&n.id!=='quick-capture-inbox'&&!n.id.startsWith('widget-'));
+ const byId=new Map(doc.tables.bullets.map(n=>[n.id,n]));
+ const nodes=doc.tables.bullets.filter(n=>!isStudyContent(doc,n,byId)&&n.kind==='NOTE'&&!n.mirrorSourceId&&!n.journalDate&&displayText(n.text).trim().length>15&&n.id!=='quick-capture-inbox'&&!n.id.startsWith('widget-'));
  if(!nodes.length)return null;
  const touched=n=>doc.web?.noteTimes?.[n.id]?.updatedAt||0;
  const older=nodes.filter(n=>touched(n)<now-86400000);
@@ -47,7 +57,8 @@ export function widgetExtras(doc,now=Date.now()){
 }
 export function resurfacePresentation(doc,related,now=Date.now()){
  const node=resurfaceCandidate(doc,now);if(!node)return null;
- const hit=related(node.id).find(h=>doc.tables.bullets.some(n=>n.id===h.id));
+ const byId=new Map(doc.tables.bullets.map(n=>[n.id,n]));
+ const hit=related(node.id).find(h=>byId.has(h.id)&&!isStudyContent(doc,byId.get(h.id),byId));
  const neighbour=hit&&doc.tables.bullets.find(n=>n.id===hit.id);
  return {id:node.id,text:widgetLabel(displayText(node.text),240),path:widgetLabel(node.parentId?notePath(doc.tables.bullets,node.parentId,index(doc.tables.bullets)):'My notes',120),relatedText:widgetLabel(neighbour?displayText(neighbour.text):'',160)};
 }

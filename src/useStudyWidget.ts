@@ -150,6 +150,7 @@ export function useStudyWidget(options: Options) {
                 await desktopInvoke("study_widget_publish", { snapshot });
                 lastSnapshot = JSON.stringify({
                   ...snapshot,
+                  cacheDay: new Date(snapshot.updatedAt).toDateString(),
                   updatedAt: 0,
                   revision: 0,
                 });
@@ -202,6 +203,7 @@ export function useStudyWidget(options: Options) {
             snapshot.resurface = latest.current.resurface?.(current) ?? null;
             const key = JSON.stringify({
               ...snapshot,
+              cacheDay: new Date(snapshot.updatedAt).toDateString(),
               updatedAt: 0,
               revision: 0,
             });

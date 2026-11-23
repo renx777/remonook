@@ -5,7 +5,7 @@ plugins {
 android {
  namespace="com.remonook.app"
  compileSdk=36
- defaultConfig {minSdk=24}
+ defaultConfig {minSdk=24;testInstrumentationRunner="androidx.test.runner.AndroidJUnitRunner"}
  sourceSets["main"].apply {
   manifest.srcFile("src/main/AndroidManifest.xml")
   res.srcDirs("../../src-tauri/gen/android/app/src/main/res")
@@ -18,6 +18,8 @@ android {
  kotlinOptions {jvmTarget="17"}
 }
 dependencies {
+ androidTestImplementation("androidx.test.ext:junit:1.2.1")
+ androidTestImplementation("androidx.test:runner:1.6.2")
  testImplementation("junit:junit:4.13.2")
  testImplementation("org.robolectric:robolectric:4.16.1")
  implementation("androidx.core:core-ktx:1.15.0")
