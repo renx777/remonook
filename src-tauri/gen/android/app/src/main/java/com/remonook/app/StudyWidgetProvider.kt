@@ -128,6 +128,10 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val paint=WidgetPaint.effective(context,snapshot,override)
             fun message(body:String,caught:Boolean=false,lockedState:Boolean=false,needsDeck:Boolean=false):RemoteViews {
                 val v=RemoteViews(context.packageName,R.layout.study_widget_message)
+                v.setViewVisibility(R.id.widget_title,View.VISIBLE)
+                v.setViewVisibility(R.id.widget_deck,View.VISIBLE)
+                v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,16f)
+                v.setOnClickPendingIntent(R.id.widget_root,null)
                 paint.background(v,R.id.widget_root,if(caught)"goodBg" else "surface","28")
                 paint.text(v,R.id.widget_title,if(caught)"goodFg" else "eyebrow")
                 paint.text(v,R.id.widget_body,if(caught)"goodFg" else "onSurface")
@@ -185,6 +189,9 @@ class StudyWidgetProvider : AppWidgetProvider() {
             // Preserve the existing character budget. When controls cannot fit, ask for more room.
             if(height<160||width-32<scale*144||height<120+scale*48)return message("Make this widget taller to read and review safely.")
             val v=RemoteViews(context.packageName,layout)
+            v.setViewVisibility(R.id.widget_header,View.VISIBLE)
+            v.setViewVisibility(R.id.widget_section,View.VISIBLE)
+            v.setContentDescription(R.id.widget_content,null)
             paint.background(v,R.id.widget_root,"surface","28")
             for(view in listOf(R.id.widget_title,R.id.widget_section))paint.text(v,view,"eyebrow")
             for(view in listOf(R.id.widget_body,R.id.widget_question))paint.text(v,view,"onSurface")
@@ -218,7 +225,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             if(phase!="answer")styled.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0,styled.length,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             v.setTextViewText(R.id.widget_body,styled)
             v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,if(phase=="answer")14f else 16f)
-            if(visible&&phase=="answer")paint.background(v,R.id.widget_body,"surfaceAlt")
+            paint.background(v,R.id.widget_body,if(visible&&phase=="answer")"surfaceAlt" else "surface")
             v.setViewVisibility(R.id.widget_status,if(pending>0)View.VISIBLE else View.GONE)
             v.setTextViewText(R.id.widget_status,if(pending>0)"$pending saved on device · pending app" else "")
             val rating=visible&&phase=="answer"&&part==pages.lastIndex

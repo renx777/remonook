@@ -87,6 +87,10 @@ class WidgetScreenshotsTest {
             context.resources.updateConfiguration(config,context.resources.displayMetrics)
             snapshot()
             prefs.edit().putString("phase","answer").commit()
+            manager.updateAppWidgetOptions(id,Bundle().apply{
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,420)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,600)
+            })
             val enlarged=StudyWidgetProvider.paintView(context,id,"test",420,600).apply(context,FrameLayout(context))
             screenshot(context,"$palette-200-percent",enlarged,420,600)
             config.fontScale=1f
@@ -96,6 +100,26 @@ class WidgetScreenshotsTest {
                 Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id)).setup().get()
             screenshot(activity,"$palette-configure",activity.window.decorView,400,800)
             assertEquals("marigold",WidgetPaint.palette("unknown"))
+            manager.updateAppWidgetOptions(id,Bundle().apply{
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,360)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,440)
+            })
+            prefs.edit().putBoolean("visible",true).putString("phase","answer").commit()
+            val reused=StudyWidgetProvider.paintView(context,id,"test",360,440).apply(context,FrameLayout(context))
+            assertNotNull(reused.findViewById<View>(R.id.widget_content).contentDescription)
+            prefs.edit().putBoolean("visible",false).putString("phase","question").commit()
+            StudyWidgetProvider.paintView(context,id,"test",360,440).reapply(context,reused)
+            assertNull(reused.findViewById<View>(R.id.widget_content).contentDescription)
+            assertEquals(View.GONE,reused.findViewById<View>(R.id.widget_review).visibility)
+            assertEquals(View.VISIBLE,reused.findViewById<View>(R.id.widget_section).visibility)
+            assertFalse(reused.findViewById<android.widget.TextView>(R.id.widget_body).text.contains("Aizawl"))
+            root.put("scope",JSONObject.NULL)
+            snapshot()
+            val compact=StudyWidgetProvider.paintView(context,id,"test",100,100).apply(context,FrameLayout(context))
+            StudyWidgetProvider.paintView(context,id,"test",360,440).reapply(context,compact)
+            assertEquals(View.VISIBLE,compact.findViewById<View>(R.id.widget_deck).visibility)
+            assertEquals(View.VISIBLE,compact.findViewById<View>(R.id.widget_title).visibility)
+
         }
     }
 }
