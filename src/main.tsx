@@ -756,7 +756,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const editingRef=useRef(editing);editingRef.current=editing;
   // Meaning search (opt-in): search results by meaning, Related notes and duplicate flashcards.
   const meaning=useMeaning(cloudUser,(doc?.tables.bullets as Node[]|undefined)||NO_NODES),meaningRef=useRef(meaning);meaningRef.current=meaning;
-  useEffect(()=>{if(isApp())nativeWidget.refresh();},[meaning.enabled,meaning.version]);
+  useEffect(()=>{if(isApp())nativeWidget.refreshPresentation();},[meaning.enabled,meaning.version]);
   const [relatedTarget,setRelatedTarget]=useState<string|null>(null),[duplicatesOpen,setDuplicatesOpen]=useState(false);
   const [photoTarget,setPhotoTarget]=useState<{id:string;account:string}|null>(null);
   const checkDuplicateCard=(id:string)=>{const m=meaningRef.current;if(!m.enabled||!m.indexed(id))return;const questions=new Set((docRef.current?.tables.bullets||[]).filter(n=>n.kind==='QUESTION'&&n.id!==id).map(n=>n.id));const hit=m.similarTo(id,questions)[0];const d=hit&&m.describe(hit.id);if(d)setNotice(`A similar flashcard already exists: “${d.title.slice(0,80)}”. Study Desk → Find duplicates lists them.`);};

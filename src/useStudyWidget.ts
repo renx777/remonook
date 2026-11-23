@@ -67,6 +67,7 @@ export function useStudyWidget(options: Options) {
   const enabled =
     sharing.scope === scope ? sharing.enabled : widgetEnabled(scope);
   const tick = useRef<() => void>(() => {});
+  const presentationRevision=useRef(0);
   useEffect(() => {
     if (!isApp()) return;
     const token = ++generation;
@@ -75,7 +76,8 @@ export function useStudyWidget(options: Options) {
       running = false,
       lastSnapshot = "",
       lastDoc: Workspace | null = null,
-      lastBuiltAt = 0;
+      lastBuiltAt = 0,
+      lastPresentation = -1;
     const valid = () =>
       !disposed &&
       !suspended &&
@@ -187,7 +189,8 @@ export function useStudyWidget(options: Options) {
           if (!latest.current.canApply()) return;
           const current = latest.current.getDoc();
           if (!current) return;
-          if (current !== lastDoc || Date.now() - lastBuiltAt > 30000) {
+          const presentation = presentationRevision.current;
+          if (current !== lastDoc || Date.now() - lastBuiltAt > 30000 || presentation !== lastPresentation) {
             const snapshot = await buildWidgetSnapshot(
               current,
               scope,
@@ -214,6 +217,7 @@ export function useStudyWidget(options: Options) {
             }
             lastDoc = current;
             lastBuiltAt = Date.now();
+            lastPresentation = presentation;
           }
           const state = await desktopInvoke<{ pending: number }>(
             "study_widget_state",
@@ -278,6 +282,7 @@ export function useStudyWidget(options: Options) {
     open: () =>
       desktopInvoke("study_widget_open").catch((e) => setError(String(e))),
     refresh: () => setRefresh((v) => v + 1),
+    refreshPresentation: () => {presentationRevision.current++;tick.current();},
     desktop: isDesktop(),
   };
 }
