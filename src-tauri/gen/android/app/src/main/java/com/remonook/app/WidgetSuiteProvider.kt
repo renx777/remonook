@@ -112,7 +112,7 @@ internal object WidgetSuiteRendering {
         if(fits(text))return text
         val words=text.trim().split(Regex("\\s+"));var result=""
         for(word in words){val next=if(result.isEmpty())word else "$result $word";if(!fits("$next…"))break;result=next}
-        return if(result.isEmpty())"Open in app" else "$result…"
+        return if(result.isEmpty())"Open" else "$result…"
     }
     internal fun paint(context:Context,id:Int,kind:String,token:String,width:Int,height:Int):RemoteViews {
         val prefs=StudyWidgetStore.preferences(context,id)
@@ -123,8 +123,10 @@ internal object WidgetSuiteRendering {
             val v=RemoteViews(context.packageName,R.layout.study_widget_message)
             paint.background(v,R.id.widget_root,"surface","28");paint.text(v,R.id.widget_title,"eyebrow");paint.text(v,R.id.widget_body,"onSurface")
             v.setTextViewText(R.id.widget_title,names[kind]?:"RemoNook")
-            v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,14f)
-            v.setTextViewText(R.id.widget_body,fit(context,copy,width-32,maxOf(1,((height-60)/(20*scale)).toInt())))
+            val size=if(width<160||height<120*scale)12f else 14f
+            v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,size)
+            v.setTextViewText(R.id.widget_body,fit(context,copy,width-32,maxOf(1,((height-60)/(20*scale)).toInt()),size))
+            v.setContentDescription(R.id.widget_body,copy)
             v.setViewVisibility(R.id.widget_deck,View.GONE);v.setViewVisibility(R.id.widget_status,View.GONE)
             v.setViewVisibility(R.id.widget_private_1,View.GONE);v.setViewVisibility(R.id.widget_private_2,View.GONE)
             v.setViewVisibility(R.id.widget_title,if(height<120*scale)View.GONE else View.VISIBLE)

@@ -83,8 +83,22 @@ class WidgetSuiteTest {
                 configuration.fontScale=2f;context.resources.updateConfiguration(configuration,context.resources.displayMetrics)
                 val large=WidgetSuiteRendering.paint(context,500,"today","fixture",420,600).apply(context,FrameLayout(context))
                 screenshot(context,"suite-$palette-large-text",large,420,600)
+                assertEquals(View.GONE,large.findViewById<View>(R.id.suite_time_1).visibility)
+                assertTrue(large.findViewById<TextView>(R.id.suite_item_1).text.toString().startsWith("16:00"))
             }
         }
+        val enlarged=Configuration(context.resources.configuration).apply {fontScale=2f}
+        context.resources.updateConfiguration(enlarged,context.resources.displayMetrics)
+        shadowOf(context.getSystemService(KeyguardManager::class.java)).setIsDeviceLocked(true)
+        for((index,pair)in WidgetSuiteRendering.providers.withIndex()){
+            val height=if(pair.second=="capture")72 else 110
+            val message=WidgetSuiteRendering.paint(context,500+index,pair.second,"fixture",110,height).apply(context,FrameLayout(context))
+            message.measure(View.MeasureSpec.makeMeasureSpec(110,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(height,View.MeasureSpec.EXACTLY));message.layout(0,0,110,height)
+            val body=message.findViewById<TextView>(R.id.widget_body)
+            assertTrue("${pair.second} compact private message clips",body.layout.height+body.totalPaddingTop+body.totalPaddingBottom<=body.height)
+            assertNotNull(body.contentDescription)
+        }
+        shadowOf(context.getSystemService(KeyguardManager::class.java)).setIsDeviceLocked(false)
         // Native schema compatibility and complete cache bounds.
         for(schema in 1..2){val root=fixture(context,"marigold");root.put("schema",schema);listOf("today","focus","rhythm","resurface").forEach {root.remove(it)};File(StudyWidgetStore.directory(context),"snapshot.json").writeText(root.toString());assertTrue(StudyWidgetStore.snapshot(context).today.isEmpty())}
         val root=fixture(context,"marigold");root.getJSONArray("today").put(JSONObject(root.getJSONArray("today").getJSONObject(0).toString()).put("text","x".repeat(201)))

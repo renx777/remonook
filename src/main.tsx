@@ -712,7 +712,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         }
         if(url.hostname==='today'){setTab('calendar');setCalendarDate(localDate(new Date()));setEditing(null);return true;}
         if(url.hostname==='note'){
-          const id=url.searchParams.get('id');const node=current.tables.bullets.find(n=>n.id===id);
+          const id=url.searchParams.get('id');
+          if(!id){setTab('notes');setSearch('');setEditing(null);setNotice('Open search and enable meaning search to revisit your notes.');return true;}
+          const node=current.tables.bullets.find(n=>n.id===id);
           if(node){setTab('notes');setSearch('');setScope(node.parentId);setEditing(node.id);setCaret(null);}else setNotice('This note is no longer available.');return true;
         }
         const mode=url.searchParams.get('mode');
