@@ -8,6 +8,7 @@ import {
   scopedCards,
   reviewCard,
   deckOwners,
+  intervalLabel,
 } from "./study.mjs";
 import { displayText } from "./relations.mjs";
 import { fsrsSettings } from "./fsrs-scheduler.mjs";
@@ -121,7 +122,7 @@ function supportedSource(doc, card, context) {
       }),
     ),
   );
-  return { id: card.id, fingerprint, question, answer };
+  return { id: card.id, fingerprint, question, answer, intervals: Object.fromEntries([...GRADES].map(grade=>[grade,intervalLabel(card,grade,context.now,doc)])) };
 }
 
 export function createWidgetSnapshot(
@@ -133,7 +134,7 @@ export function createWidgetSnapshot(
   if (!safeScope(scope) || !safeTime(now))
     throw Error("Invalid widget workspace.");
   const context = createStudyContext(doc, now),
-    source = sourceContext(doc, context.owners),
+    source = {...sourceContext(doc, context.owners),now},
     definitions = [
       { id: WIDGET_ALL_DECKS, title: "All flashcards" },
       ...doc.tables.decks

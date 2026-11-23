@@ -17,6 +17,7 @@ class MainActivity : TauriActivity() {
   private var studyWebView: WebView? = null
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
+    webView.settings.userAgentString += " RemoAndroidAPI/"+android.os.Build.VERSION.SDK_INT
     studyWebView=webView
     deliverStudyLink()
   }

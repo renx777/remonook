@@ -15,6 +15,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - run: bash gradlew testDebugUnitTest --stacktrace 2>&1 | tee verification.log
+        shell: bash
         working-directory: tools/widget-screenshots
       - uses: actions/upload-artifact@v4
         if: always()

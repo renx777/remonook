@@ -210,6 +210,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 v.setViewVisibility(R.id.widget_review,View.VISIBLE)
                 v.setViewVisibility(R.id.widget_recall,View.VISIBLE)
                 for((view,grade)in listOf(R.id.widget_again to "AGAIN",R.id.widget_hard to "HARD",R.id.widget_good to "GOOD",R.id.widget_easy to "EASY")){
+                    v.setTextViewText(view,grade.lowercase().replaceFirstChar {it.uppercase()}+"\n"+(card.intervals[grade] ?: ""))
                     val role=grade.lowercase()
                     paint.background(v,view,if(grade=="EASY")"primary" else role+"Bg")
                     paint.text(v,view,if(grade=="EASY")"onPrimary" else role+"Fg")

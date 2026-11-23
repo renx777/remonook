@@ -17,6 +17,7 @@ export function NativeStudyWidgetSettings({
   };
 }) {
   const [appearance,setAppearance]=useState(widgetAppearance);
+  const androidApi=Number(navigator.userAgent.match(/RemoAndroidAPI\/(\d+)/)?.[1]||0);
   const androidVersion=Number(navigator.userAgent.match(/Android (\d+)/)?.[1]||0);
   const change=(next:WidgetAppearance)=>{
     localStorage.setItem(accountLocalKey('remo-widget-appearance'),JSON.stringify(next));
@@ -80,7 +81,7 @@ export function NativeStudyWidgetSettings({
             <span><input type="radio" name="widget-palette" value={id} checked={appearance.palette===id} onChange={()=>change({...appearance,palette:id as WidgetAppearance['palette']})}/>{palette.name}{id==='marigold'&&<small>Default</small>}</span>
           </label>)}
         </div></fieldset>
-        {androidVersion>=12&&<label className="widget-wallpaper"><input type="checkbox" checked={appearance.dynamic} onChange={event=>change({...appearance,dynamic:event.target.checked})}/>Match my wallpaper on Android 12 and later</label>}
+        {(androidApi>=31||androidVersion>=12)&&<label className="widget-wallpaper"><input type="checkbox" checked={appearance.dynamic} onChange={event=>change({...appearance,dynamic:event.target.checked})}/>Match my wallpaper on Android 12 and later</label>}
         <div className="widget-live-preview" aria-label="Widget preview">
           <div style={{background:tokens.surfaceAlt,color:tokens.onSurface}}><small style={{color:tokens.eyebrow}}>PREVIEW · GEOGRAPHY</small><strong>What is the capital of Mizoram?</strong><span style={{background:tokens.primary,color:tokens.onPrimary}}>Reveal</span></div>
           <div style={{background:tokens.hero,color:tokens.onHero}}><small style={{color:tokens.heroAccent}}>STUDY</small><b>12</b></div>
