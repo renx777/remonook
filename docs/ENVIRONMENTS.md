@@ -2,6 +2,27 @@
 
 ## Current state
 
+### Native staging release, 23 November 2026
+
+Branch `codex/native-staging-rollup`, commit
+`3b1b584365285b89c96d9be5ae0bd220272a5b38`, incorporates the web staging
+branch `feat/meaning-voice-photo` through `0f10caa`, including image generation,
+bulk AI answers, OCR, AI handoff, dictation, meaning search, voice review and photo
+tools. Android declares microphone permissions for the existing WebView permission
+flow. macOS includes microphone and camera usage descriptions.
+
+Desktop staging 0.1.32 is published for Windows x64, Linux x64 and universal macOS
+(Intel and Apple silicon). Android staging 0.1.17 is published with the existing
+release key. The public update manifests identify these versions, all desktop
+platform entries have signatures, and their download URLs return successfully.
+
+[Desktop run #32](https://github.com/renx777/remonook/actions/runs/45103674323)
+and [Android run #17](https://github.com/renx777/remonook/actions/runs/45103677442)
+passed, including native widget storage tests. Local staging build and all 640
+tests passed, as did four Android widget tests. Microphone and camera operation
+on installed devices remains unverified. This release uses staging services.
+
+
 ### Meaning search, voice review, photo to notes and automatic occlusion, 22 November 2026
 
 Web staging runs branch `feat/meaning-voice-photo`, commit
