@@ -52,9 +52,25 @@ class StudyWidgetConfigureActivity : Activity() {
                 val swatches=mutableListOf<Button>()
                 fun swatchBackground(value:String,selected:Boolean):LayerDrawable {
                     val colors=WidgetPaint(this,WidgetPaint.palette(if(value=="app")snapshot.palette else value))
-                    val circle=GradientDrawable().apply {shape=GradientDrawable.OVAL;setColor(colors.color("hero"));setStroke(dp(if(selected)3 else 1),paint.color(if(selected)"onSurface" else "outline"))}
-                    val accent=GradientDrawable().apply {shape=GradientDrawable.OVAL;setColor(colors.color("accent"))}
-                    return LayerDrawable(arrayOf(circle,accent)).apply {setLayerInset(1,dp(28),dp(28),dp(3),dp(3))}
+                    val ring=GradientDrawable().apply {
+                        shape=GradientDrawable.OVAL
+                        setColor(paint.color("surface"))
+                        if(selected)setStroke(dp(3),paint.color("onSurface"))
+                    }
+                    val circle=GradientDrawable().apply {
+                        shape=GradientDrawable.OVAL
+                        setColor(colors.color(if(value=="app")"surface" else "hero"))
+                    }
+                    val accent=GradientDrawable().apply {
+                        shape=GradientDrawable.RECTANGLE
+                        setColor(colors.color(if(value=="app")"surface" else "accent"))
+                        cornerRadii=floatArrayOf(0f,0f,0f,0f,dp(28).toFloat(),dp(28).toFloat(),0f,0f)
+                    }
+                    return LayerDrawable(arrayOf(ring,circle,accent)).apply {
+                        val inset=if(selected)dp(5) else 0
+                        setLayerInset(1,inset,inset,inset,inset)
+                        setLayerInset(2,dp(28),dp(28),inset,inset)
+                    }
                 }
                 var row=LinearLayout(this)
                 content.addView(row)
@@ -63,8 +79,8 @@ class StudyWidgetConfigureActivity : Activity() {
                     val name=if(value=="app")"App" else WidgetPaint.names[WidgetPaint.ids.indexOf(value)]
                     val tile=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(8),dp(4),dp(8))}
                     val circle=Button(this).apply {
-                        tag=value;contentDescription=name;minWidth=dp(56);minHeight=dp(56)
-                        text=if(value=="app")"App" else "";textSize=12f;setTextColor(WidgetPaint(this@StudyWidgetConfigureActivity,if(value=="app")snapshot.palette else value).color("onHero"))
+                        tag=value;contentDescription=name;minWidth=dp(56);minHeight=dp(56);isAllCaps=false;isSelected=chosen==value
+                        text=if(value=="app")"App" else "";textSize=12f;setTextColor(WidgetPaint(this@StudyWidgetConfigureActivity,if(value=="app")snapshot.palette else value).color(if(value=="app")"onSurface" else "onHero"))
                         background=swatchBackground(value,chosen==value)
                         setOnClickListener {
                             chosen=value
@@ -80,7 +96,7 @@ class StudyWidgetConfigureActivity : Activity() {
                 val privacy=CheckBox(this).apply {text="Keep text hidden until I tap Show question";isChecked=prefs.getBoolean("privacy",true);setTextColor(paint.color("onSurface"));setPadding(0,dp(12),0,dp(12))}
                 content.addView(privacy)
                 text("Question and answer text can be visible on your home screen. Only text cards are cached; unsupported media cards stay in the app.",13f)
-                content.addView(Button(this).apply {setTextColor(paint.color("onSurface"));backgroundTintList=ColorStateList.valueOf(paint.color("surfaceAlt"));text=if(prefs.contains("deckId"))"Save" else "Add widget";minHeight=dp(48);setTextColor(paint.color("onPrimary"));backgroundTintList=ColorStateList.valueOf(paint.color("primary"));setOnClickListener {
+                content.addView(Button(this).apply {setTextColor(paint.color("onSurface"));backgroundTintList=ColorStateList.valueOf(paint.color("surfaceAlt"));text=if(prefs.contains("deckId"))"Save" else "Add widget";isAllCaps=false;textSize=16f;minHeight=dp(48);background=GradientDrawable().apply {cornerRadius=dp(28).toFloat();setColor(paint.color("primary"))};setTextColor(paint.color("onPrimary"));backgroundTintList=ColorStateList.valueOf(paint.color("primary"));setOnClickListener {
                     val current=try {StudyWidgetStore.snapshot(this@StudyWidgetConfigureActivity)}catch(_:Exception){null}
                     if(current?.scope!=snapshot.scope){finish();return@setOnClickListener}
                     prefs.edit().putString("palette",chosen).putString("scope",snapshot.scope).putString("deckId",snapshot.decks[spinner.selectedItemPosition].id).putBoolean("privacy",privacy.isChecked)

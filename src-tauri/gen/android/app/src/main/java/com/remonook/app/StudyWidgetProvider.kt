@@ -193,7 +193,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             v.setContentDescription(R.id.widget_voice,"Answer aloud")
             v.setOnClickPendingIntent(R.id.widget_voice,open(context,id,deck.id,card.id,true))
             for(view in listOf(R.id.widget_parts,R.id.widget_review,R.id.widget_recall,R.id.widget_question))v.setViewVisibility(view,View.GONE)
-            v.setTextViewText(R.id.widget_title,deck.title.uppercase()+" · "+cards.size+" due")
+            v.setTextViewText(R.id.widget_title,deck.title.uppercase()+" · "+cards.size+" DUE")
             val visible=prefs.getBoolean("visible",!prefs.getBoolean("privacy",true))
             val phase=prefs.getString("phase","question") ?: "question"
             val pages=StudyWidgetPages.split(if(phase=="answer")card.answer else card.question,budget(context,id))
@@ -204,8 +204,12 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 if(height<160+scale*20)return message("Make this widget taller to read every text part.")
             }
             val part=prefs.getInt("part",0).coerceIn(0,pages.lastIndex)
-            v.setTextViewText(R.id.widget_section,if(!visible)"Private" else if(pages.size>1)deck.title.uppercase()+" · "+cards.size+" due" else if(phase=="answer")"Answer" else (cards.indexOf(card)+1).toString()+" / "+cards.size)
-            v.setTextViewText(R.id.widget_body,if(!visible)"Tap Show question when you are ready." else pages[part].trim())
+            v.setTextViewText(R.id.widget_section,if(!visible)"Private" else if(pages.size>1)deck.title.uppercase()+" · "+cards.size+" DUE" else if(phase=="answer")"Answer" else (cards.indexOf(card)+1).toString()+" / "+cards.size)
+            val bodyText=if(!visible)"Tap Show question when you are ready." else pages[part].trim()
+            val styled=android.text.SpannableString(bodyText)
+            if(phase!="answer")styled.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0,styled.length,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            v.setTextViewText(R.id.widget_body,styled)
+            v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,if(phase=="answer")14f else 16f)
             if(visible&&phase=="answer")paint.background(v,R.id.widget_body,"surfaceAlt")
             v.setViewVisibility(R.id.widget_status,if(pending>0)View.VISIBLE else View.GONE)
             v.setTextViewText(R.id.widget_status,if(pending>0)"$pending saved on device · pending app" else "")
@@ -226,6 +230,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 v.setBoolean(R.id.widget_next_part,"setEnabled",part<pages.lastIndex)
             }
             if(visible&&phase=="answer"&&card.question.length<100&&height>400&&scale<=1.3f){
+                v.setViewVisibility(R.id.widget_section,View.GONE)
                 v.setViewVisibility(R.id.widget_question,View.VISIBLE)
                 v.setTextViewText(R.id.widget_question,card.question)
             }
