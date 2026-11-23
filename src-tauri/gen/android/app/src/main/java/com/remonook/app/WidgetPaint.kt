@@ -9,6 +9,11 @@ internal class WidgetPaint(val context:Context,val palette:String,val dynamic:Bo
     companion object {
         val ids=listOf("marigold","iris","forest","graphite")
         val names=listOf("Marigold Ink","Electric Iris","Forest & Peach","Graphite & Coral")
+        fun effective(context:Context,snapshot:StudyWidgetStore.Snapshot?,override:String?):WidgetPaint {
+            val followsApp=override==null||override=="app"
+            return WidgetPaint(context,palette(if(followsApp)snapshot?.palette else override),
+                followsApp&&snapshot?.dynamic==true)
+        }
         fun palette(value:String?)=value?.takeIf {it in ids} ?: "marigold"
     }
     private val dark get()=context.resources.configuration.uiMode and 48 == 32

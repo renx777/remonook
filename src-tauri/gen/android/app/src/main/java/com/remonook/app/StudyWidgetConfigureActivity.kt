@@ -28,7 +28,7 @@ class StudyWidgetConfigureActivity : Activity() {
         val density=resources.displayMetrics.density
         fun dp(n:Int)=(n*density).toInt()
         val initial=try {StudyWidgetStore.snapshot(this)}catch(_:Exception){null}
-        val paint=WidgetPaint(this,initial?.palette ?: "marigold")
+        val paint=WidgetPaint.effective(this,initial,StudyWidgetStore.preferences(this,id).getString("palette","app"))
         val content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(24),dp(28),dp(24),dp(20));setBackgroundColor(paint.color("surface")) }
         fun text(value:String,size:Float=15f) { content.addView(TextView(this).apply {text=value;textSize=size;setTextColor(paint.color("onSurface"));setPadding(0,dp(6),0,dp(14))}) }
         text("Study widget",24f)
@@ -64,7 +64,7 @@ class StudyWidgetConfigureActivity : Activity() {
                     val tile=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(8),dp(4),dp(8))}
                     val circle=Button(this).apply {
                         tag=value;contentDescription=name;minWidth=dp(56);minHeight=dp(56)
-                        text=if(value=="app")"App" else "";textSize=12f;setTextColor(paint.color("onHero"))
+                        text=if(value=="app")"App" else "";textSize=12f;setTextColor(WidgetPaint(this@StudyWidgetConfigureActivity,if(value=="app")snapshot.palette else value).color("onHero"))
                         background=swatchBackground(value,chosen==value)
                         setOnClickListener {
                             chosen=value

@@ -118,8 +118,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val prefs=StudyWidgetStore.preferences(context,id)
             val snapshot=try {StudyWidgetStore.snapshot(context)}catch(_:Exception){null}
             val override=prefs.getString("palette","app")
-            val palette=WidgetPaint.palette(if(override=="app")snapshot?.palette else override)
-            val paint=WidgetPaint(context,palette,snapshot?.dynamic==true&&override=="app")
+            val paint=WidgetPaint.effective(context,snapshot,override)
             fun message(body:String,caught:Boolean=false,lockedState:Boolean=false,needsDeck:Boolean=false):RemoteViews {
                 val v=RemoteViews(context.packageName,R.layout.study_widget_message)
                 paint.background(v,R.id.widget_root,if(caught)"goodBg" else "surface","28")

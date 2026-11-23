@@ -38,6 +38,10 @@ class WidgetScreenshotsTest {
     @Test @Config(sdk=[28]) fun legacyPaletteBackgrounds(){
         val context=RuntimeEnvironment.getApplication()
         assertEquals("marigold",WidgetPaint.palette("future"))
+        val legacy=StudyWidgetStore.Snapshot("test","Notes",1,1,emptyList())
+        assertEquals("marigold",WidgetPaint.effective(context,legacy,"app").palette)
+        for(id in WidgetPaint.ids)assertEquals(id,WidgetPaint.effective(context,legacy,id).palette)
+        assertEquals("marigold",WidgetPaint.effective(context,legacy,"unknown").palette)
         for(palette in WidgetPaint.ids){
             val paint=WidgetPaint(context,palette)
             val remote=android.widget.RemoteViews(context.packageName,R.layout.study_widget_message)
