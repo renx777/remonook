@@ -33,7 +33,7 @@ internal object StudyWidgetStore {
         require(file.length() <= 4 * 1024 * 1024) { "Widget cache is too large. Open RemoNook to refresh it." }
         val root = JSONObject(file.readText())
         require(root.getInt("schema") in 1..2)
-        if (root.isNull("scope")) return Snapshot(null, "", root.optLong("revision"), root.optLong("updatedAt"), emptyList())
+        if (root.isNull("scope")) return Snapshot(null, "", root.optLong("revision"), root.optLong("updatedAt"), emptyList(),WidgetPaint.palette(root.optJSONObject("appearance")?.optString("palette")),root.optJSONObject("appearance")?.optBoolean("dynamic",false) ?: false)
         val scope = text(root, "scope", 200)
         require(scope.isNotBlank())
         val list = root.getJSONArray("decks")

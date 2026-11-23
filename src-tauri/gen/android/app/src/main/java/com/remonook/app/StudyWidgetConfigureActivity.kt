@@ -32,7 +32,6 @@ class StudyWidgetConfigureActivity : Activity() {
         val content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(24),dp(28),dp(24),dp(20));setBackgroundColor(paint.color("surface")) }
         fun text(value:String,size:Float=15f) { content.addView(TextView(this).apply {text=value;textSize=size;setTextColor(paint.color("onSurface"));setPadding(0,dp(6),0,dp(14))}) }
         text("Study widget",24f)
-        text("Choose a flashcard deck for this home-screen widget. Reveal and grade here; reviews are saved privately on this device and applied when RemoNook runs.")
         try {
             val snapshot=StudyWidgetStore.snapshot(this)
             if(snapshot.scope==null||snapshot.decks.isEmpty()) {
