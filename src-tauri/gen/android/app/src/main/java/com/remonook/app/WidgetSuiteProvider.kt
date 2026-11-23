@@ -149,7 +149,7 @@ internal object WidgetSuiteRendering {
         }
         when(kind){
             "today"->{
-                if(date(snapshot.updatedAt)!=date(System.currentTimeMillis()))return message("Open RemoNook to refresh today’s list.")
+                if(date(snapshot.updatedAt)!=date(System.currentTimeMillis())||snapshot.today.any {it.date!=date(System.currentTimeMillis())})return message("Open RemoNook to refresh today’s list.")
                 prefs.getString("suite-error",null)?.let{return message(it)}
                 val count=maxOf(1,((height-100*scale)/(maxOf(48f,52*scale))).toInt()).coerceAtMost(8)
                 val items=snapshot.today.take(count)

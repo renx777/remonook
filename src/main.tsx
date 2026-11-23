@@ -158,6 +158,7 @@ import {
   type Workspace,
   type Node,
   storageAccountKey,
+  accountLocalKey,
   syncOperation,
 } from "./data";
 import { OutlineView } from "./OutlineView";

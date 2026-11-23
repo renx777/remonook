@@ -3,7 +3,7 @@ import {bullet,index} from './domain.mjs';
 import {displayText,notePath} from './relations.mjs';
 import {contentDigest} from './content-digest.mjs';
 import {calendarEvents,eventsOnDate,localDate,completeCalendarEvent,eventOnDate,validEventDate} from './calendar-events.mjs';
-import {dashboard,updateWidget,timerDuration,timerRemaining} from './dashboard.mjs';
+import {dashboard,updateWidget,timerDuration,timerRemaining,finishTimer} from './dashboard.mjs';
 import {withNodes} from './workspace-nodes.mjs';
 
 export function widgetLabel(value,limit){
@@ -78,6 +78,7 @@ export function applyWidgetCompletion(doc,intent,scope,now=Date.now()){
 export function widgetFocusAction(doc,id,cycle,action,now=Date.now()){
  const widget=dashboard(doc).widgets[id];
  if(!widget||widget.removed||widget.kind!=='focus'||(widget.timer?.cycle||'')!==cycle)return doc;
+ if(widget.timer?.running&&widget.timer.endsAt<=now)return widgetFocusAction(finishTimer(doc,id,now),id,cycle,action,now);
  const timer=widget.timer,mode=timer?.mode||'focus',duration=timer?.duration||timerDuration(widget,mode),remaining=timerRemaining(widget,now);
  if(action==='pause'&&timer?.running)return updateWidget(doc,id,{timer:{...timer,running:false,remaining,endsAt:0}});
  if(action==='end'&&timer)return updateWidget(doc,id,{timer:{...timer,running:false,remaining:0,endsAt:0}});

@@ -18,7 +18,7 @@ import './dashboard.css';
 
 type Box={x:number;y:number;w:number;h:number};
 type Timer={mode:string;running:boolean;endsAt:number;remaining:number;duration:number;cycle:string};
-type Widget={id:string;kind:string;title:string;order:number;removed:boolean;settings:Record<string,any>;layouts?:Record<string,Box>;timer?:Timer};
+type Widget={tabId?:string;id:string;kind:string;title:string;order:number;removed:boolean;settings:Record<string,any>;layouts?:Record<string,Box>;timer?:Timer};
 type Habit={id:string;title:string;order:number;archived:boolean};
 type DashboardData={version:number;widgets:Record<string,Widget>;habits:Record<string,Habit>;checks:Record<string,boolean>;focusSessions:Record<string,{id:string;endedAt:number;minutes:number}>};
 type Change=(update:(doc:Workspace)=>Workspace)=>void;

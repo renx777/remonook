@@ -31,3 +31,8 @@ val widgetSources by tasks.registering(Copy::class) {
  into(layout.buildDirectory.dir("widget-sources"))
 }
 tasks.named("preBuild") {dependsOn(widgetSources)}
+
+
+tasks.withType<Test>().configureEach {
+ testLogging { events("failed"); exceptionFormat=org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+}
