@@ -22,9 +22,12 @@ jobs:
           bash gradlew testDebugUnitTest --stacktrace > verification.log 2>&1
           result=$?
           if [ "$result" != 0 ]; then
-            head -80 verification.log | while IFS= read -r line; do
-              echo "::warning::$line"
-            done
+            python3 - <<'PYLOG'
+            import re
+            text = open('verification.log').read()
+            lines = [line for line in text.splitlines() if re.search(r'What went wrong|^> |^e:|error:|Caused by:|Could not|requires|not found|Exception|FAILURE|failed', line)]
+            print('::warning::' + '\n'.join(lines[:20]).replace('%', '%25').replace('\n', '%0A'))
+            PYLOG
           fi
           exit "$result"
       - uses: actions/upload-artifact@v4

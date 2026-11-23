@@ -140,6 +140,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val cards=StudyWidgetStore.available(deck,snapshot.scope,StudyWidgetStore.receipts(context))
             val locked=context.getSystemService(KeyguardManager::class.java).isDeviceLocked
             if(locked)return message("━━━━━━\n━━━━\n\n"+cards.size+" cards due · unlock to study")
+            if(width<260&&context.resources.configuration.fontScale>1.3f&&height<260)return message("Make this widget taller to study")
             if(width<110||height<110)return message("Make this widget wider to study")
             prefs.getString("error",null)?.let {return message(it)}
             if(cards.isEmpty())return message(if(pending>0)"These cached cards are reviewed. Open RemoNook to apply your saved reviews and refresh this deck." else "No supported cards are ready in this cached deck. Open RemoNook to refresh.",true)
@@ -168,6 +169,8 @@ class StudyWidgetProvider : AppWidgetProvider() {
             for(view in listOf(R.id.widget_body,R.id.widget_question))paint.text(v,view,"onSurface")
             for(view in listOf(R.id.widget_page,R.id.widget_recall,R.id.widget_status))paint.text(v,view,"muted")
             v.setOnClickPendingIntent(R.id.widget_deck,configure(context,id))
+            v.setViewVisibility(R.id.widget_deck,View.GONE)
+            v.setOnClickPendingIntent(R.id.widget_root,configure(context,id))
             for(view in listOf(R.id.widget_deck,R.id.widget_skip,R.id.widget_previous,R.id.widget_next_part)){
                 paint.background(v,view,"surfaceAlt","pill");paint.text(v,view,"onSurface")
             }
@@ -202,7 +205,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 v.setBoolean(R.id.widget_previous,"setEnabled",part>0)
                 v.setBoolean(R.id.widget_next_part,"setEnabled",part<pages.lastIndex)
             }
-            if(visible&&phase=="answer"&&card.question.length<100&&height>400){
+            if(visible&&phase=="answer"&&card.question.length<100&&height>400&&scale<=1.3f){
                 v.setViewVisibility(R.id.widget_question,View.VISIBLE)
                 v.setTextViewText(R.id.widget_question,card.question)
             }
