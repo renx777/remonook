@@ -63,3 +63,24 @@ of wallpaper colours; choose **App** to follow the wallpaper setting.
 required sizes and states, plus 200% text. The native suite also tests reapplying
 a previously revealed RemoteViews: hiding the answer clears its accessibility
 label as well as its visible text.
+
+
+## Release resource retention and startup recovery
+
+`WidgetPaint` selects palette resources by computed names. Release optimisation
+cannot infer those references. The palette generator therefore emits
+`res/raw/keep_widget_palettes.xml` with Android resource-shrinker keep rules for
+widget colours and drawables. Do not remove it. Debug rendering tests alone do
+not prove the signed release contains these resources.
+
+Before publishing, `android.yml` runs `scripts/check-widget-apk.py` against the
+signed APK's actual `resources.arsc`, requiring all 312 palette/shape/progress
+resource names. The original 0.1.35 staging APK fails this check. UTF-8/UTF-16
+fixtures test the validator, including missing resources and malformed tables.
+
+Android may retain a widget ID after an incomplete configuration attempt.
+Refreshing such an instance from app resume or the snapshot observer must never
+prevent the app opening. Each instance now catches rendering errors independently,
+logs the exception and attempts a minimal private recovery message using static
+resource references. Other instances continue. This recovery does not clear
+snapshots, widget preferences, outboxes or immutable review files.

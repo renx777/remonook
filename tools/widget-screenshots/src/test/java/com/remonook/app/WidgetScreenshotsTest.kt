@@ -49,6 +49,30 @@ class WidgetScreenshotsTest {
             assertNotNull(remote.apply(context,FrameLayout(context)).background)
         }
     }
+    @Test fun refreshAllocatedAndBrokenWidgetsDoesNotBlockTheApp(){
+        val context=RuntimeEnvironment.getApplication()
+        val manager=AppWidgetManager.getInstance(context)
+        val info=AppWidgetProviderInfo().apply{provider=ComponentName(context,StudyWidgetProvider::class.java)}
+        val directory=StudyWidgetStore.directory(context)
+        val evidence=File(directory,"inbox/preserved-review.json").apply {parentFile.mkdirs();writeText("immutable evidence")}
+        val snapshot=File(directory,"snapshot.json").apply {writeText("invalid cache")}
+        for(id in listOf(101,102))shadowOf(manager).addBoundWidget(id,info)
+        // A stale instance with a malformed preference fails before a view can be
+        // constructed. It must not stop refresh of the next allocated instance.
+        StudyWidgetStore.preferences(context,101).edit().putInt("palette",1).commit()
+        StudyWidgetProvider.refreshAll(context)
+        for(id in listOf(101,102)){
+            val remote=shadowOf(manager).getAppWidgetViews(id)
+            assertNotNull(remote)
+            assertNotNull(remote.apply(context,FrameLayout(context)))
+        }
+        assertEquals("immutable evidence",evidence.readText())
+        assertEquals("invalid cache",snapshot.readText())
+        // Exercise actual responsive map construction/update, not only paintView.
+        StudyWidgetStore.preferences(context,101).edit().clear().commit()
+        StudyWidgetProvider().onUpdate(context,manager,intArrayOf(101,102))
+        assertNotNull(shadowOf(manager).getAppWidgetViews(102))
+    }
     @Test fun renderNativeStates(){
         for((palette,mode)in listOf("marigold" to Configuration.UI_MODE_NIGHT_NO,"iris" to Configuration.UI_MODE_NIGHT_YES)){
             val context=RuntimeEnvironment.getApplication()

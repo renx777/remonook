@@ -40,6 +40,10 @@ export function outputs(){
  }
  files.set(base+'drawable-v31/widget_shape_28.xml',
   '<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="@color/widget_marigold_surface"/><corners android:radius="@android:dimen/system_app_widget_background_radius"/></shape>\n');
+ // WidgetPaint resolves these names at runtime. The release resource shrinker
+ // cannot discover computed getIdentifier calls from the palette/role strings.
+ files.set(base+'raw/keep_widget_palettes.xml',header+
+  '<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@color/widget_*,@drawable/widget_*"/>\n');
  return files;
 }
 if(process.argv.includes('--check')){

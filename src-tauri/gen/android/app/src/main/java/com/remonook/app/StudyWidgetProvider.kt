@@ -69,8 +69,12 @@ class StudyWidgetProvider : AppWidgetProvider() {
     companion object {
         private const val ACTION="com.remonook.app.STUDY_WIDGET_ACTION"
         fun refreshAll(context: Context) {
-            val manager=AppWidgetManager.getInstance(context)
-            manager.getAppWidgetIds(ComponentName(context,StudyWidgetProvider::class.java)).forEach { render(context,it) }
+            try {
+                val manager=AppWidgetManager.getInstance(context)
+                manager.getAppWidgetIds(ComponentName(context,StudyWidgetProvider::class.java)).forEach { render(context,it) }
+            } catch(error:RuntimeException) {
+                android.util.Log.e("RemoStudyWidget","Cannot enumerate launcher widgets",error)
+            }
         }
         private fun budget(context:Context,id:Int):Int {
             val opts=AppWidgetManager.getInstance(context).getAppWidgetOptions(id)
@@ -107,7 +111,35 @@ class StudyWidgetProvider : AppWidgetProvider() {
             height>=320 -> R.layout.study_widget_full
             else -> R.layout.study_widget_prompt
         }
-        private fun render(context:Context,id:Int)=synchronized(StudyWidgetStore.lock) {
+        // A launcher can retain an allocated ID after configuration is cancelled.
+        // Widget rendering is optional: never let it crash MainActivity.onResume or
+        // the snapshot observer, and never change review evidence on failure.
+        private fun render(context:Context,id:Int) {
+            try {
+                renderViews(context,id)
+            } catch(error:Exception) {
+                android.util.Log.e("RemoStudyWidget","Cannot render study widget $id",error)
+                try {
+                    // Static resource references also keep this recovery path safe
+                    // if a future release accidentally strips dynamic resources.
+                    val fallback=RemoteViews(context.packageName,R.layout.study_widget_message)
+                    fallback.setTextViewText(R.id.widget_title,"RemoNook")
+                    fallback.setTextViewText(R.id.widget_body,"Open RemoNook to refresh this widget.")
+                    fallback.setTextColor(R.id.widget_title,context.getColor(R.color.widget_marigold_onsurface))
+                    fallback.setTextColor(R.id.widget_body,context.getColor(R.color.widget_marigold_onsurface))
+                    fallback.setInt(R.id.widget_root,"setBackgroundResource",R.drawable.widget_marigold_surface_28)
+                    fallback.setViewVisibility(R.id.widget_deck,View.GONE)
+                    fallback.setViewVisibility(R.id.widget_status,View.GONE)
+                    fallback.setViewVisibility(R.id.widget_private_1,View.GONE)
+                    fallback.setViewVisibility(R.id.widget_private_2,View.GONE)
+                    fallback.setOnClickPendingIntent(R.id.widget_root,open(context,id,null))
+                    AppWidgetManager.getInstance(context).updateAppWidget(id,fallback)
+                } catch(fallbackError:Exception) {
+                    android.util.Log.e("RemoStudyWidget","Cannot show widget recovery message $id",fallbackError)
+                }
+            }
+        }
+        private fun renderViews(context:Context,id:Int)=synchronized(StudyWidgetStore.lock) {
             val prefs=StudyWidgetStore.preferences(context,id)
             val token=StudyWidgetStore.id()
             prefs.edit().putString("token",token).commit()
