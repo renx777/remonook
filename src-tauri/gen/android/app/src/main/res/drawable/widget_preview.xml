@@ -1,0 +1,4 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+ <item><shape><solid android:color="@color/widget_marigold_surface"/><corners android:radius="28dp"/><size android:width="320dp" android:height="180dp"/></shape></item>
+ <item android:left="16dp" android:right="16dp" android:top="112dp" android:bottom="16dp"><shape><solid android:color="@color/widget_marigold_primary"/><corners android:radius="24dp"/></shape></item>
+</layer-list>

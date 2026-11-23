@@ -23,7 +23,18 @@ pub struct Snapshot {
     pub updated_at: u64,
     pub revision: u64,
     pub decks: Vec<Deck>,
+    #[serde(default)]
+    pub appearance: Option<Appearance>,
 }
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Appearance {
+    pub palette: Palette,
+    pub dynamic: bool,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Palette { Iris, Forest, Graphite, #[serde(other)] Marigold }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Deck { pub id: String, pub title: String, pub cards: Vec<Card> }
@@ -56,7 +67,7 @@ fn event_id(s: &str) -> bool {
 }
 fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64 }
 fn snapshot_valid(s: &Snapshot) -> bool {
-    if s.schema != 1 || s.workspace_name.len() > 200 || s.decks.len() > 100 || s.updated_at > 9_007_199_254_740_991 || s.revision > 9_007_199_254_740_991 { return false; }
+    if ![1,2].contains(&s.schema) || s.workspace_name.len() > 200 || s.decks.len() > 100 || s.updated_at > 9_007_199_254_740_991 || s.revision > 9_007_199_254_740_991 { return false; }
     if s.scope.is_none() { return s.decks.is_empty(); }
     if !s.scope.as_ref().map(|v| bounded(v,200)).unwrap_or(false) { return false; }
     let mut ids=std::collections::HashSet::new();
@@ -242,8 +253,17 @@ pub fn study_widget_hide(app:tauri::AppHandle,window:tauri::WebviewWindow)->Resu
 #[cfg(test)]
 mod tests{
  use super::*;
- fn sample()->Snapshot{Snapshot{schema:1,scope:Some("account/workspace".into()),workspace_name:"Notes".into(),updated_at:1,revision:1,decks:vec![Deck{id:"deck".into(),title:"Deck".into(),cards:vec![Card{id:"card".into(),fingerprint:"v1".into(),question:"Question".into(),answer:"Answer".into()}]}]}}
+ fn sample()->Snapshot{Snapshot{appearance:None,schema:1,scope:Some("account/workspace".into()),workspace_name:"Notes".into(),updated_at:1,revision:1,decks:vec![Deck{id:"deck".into(),title:"Deck".into(),cards:vec![Card{id:"card".into(),fingerprint:"v1".into(),question:"Question".into(),answer:"Answer".into()}]}]}}
  #[test]fn snapshot_bounds_and_privacy(){assert!(snapshot_valid(&sample()));let mut s=sample();s.scope=None;assert!(!snapshot_valid(&s));s.decks.clear();assert!(snapshot_valid(&s));let mut s=sample();s.decks[0].cards[0].answer="x".repeat(80_001);assert!(!snapshot_valid(&s));}
+ #[test]fn snapshot_appearance_compatibility(){
+  let old=sample();assert!(snapshot_valid(&old));
+  let mut value=serde_json::to_value(old).unwrap();
+  value["schema"]=serde_json::json!(2);
+  value["appearance"]=serde_json::json!({"palette":"future","dynamic":true});
+  let parsed:Snapshot=serde_json::from_value(value).unwrap();
+  assert!(snapshot_valid(&parsed));
+  assert!(matches!(parsed.appearance.unwrap().palette,Palette::Marigold));
+ }
  #[test]fn intent_ids_and_clock(){let i=Intent{schema:1,id:"a-b_c123".into(),scope:"scope".into(),deck_id:"deck".into(),card_id:"card".into(),fingerprint:"v1".into(),grade:"GOOD".into(),reviewed_at:100,question:"Q".into(),answer:"A".into(),widget_id:None};assert!(intent_valid(&i,100));let mut bad=i.clone();bad.id="../escape".into();assert!(!intent_valid(&bad,100));for name in ["CON","prn","AUX","NUL","COM1","lpt9"]{assert!(!event_id(name));}let mut bad=i.clone();bad.grade="PRACTICE".into();assert!(!intent_valid(&bad,100));let mut bad=i;bad.reviewed_at=300_101;assert!(!intent_valid(&bad,100));}
  #[test]fn atomic_roundtrip_preserves_events(){let dir=std::env::temp_dir().join(format!("remonook-widget-test-{}-{}",std::process::id(),now()));private_dir(&dir).unwrap();private_dir(&dir.join("inbox")).unwrap();atomic_json(&dir.join("snapshot.json"),&sample(),SNAPSHOT_LIMIT).unwrap();assert_eq!(snapshot_at(&dir).unwrap().unwrap().revision,1);atomic_json(&dir.join("snapshot.json"),&sample(),SNAPSHOT_LIMIT).unwrap();let v=serde_json::json!({"id":"retained","scope":"account/workspace","grade":"BAD","reviewedAt":0});atomic_json(&dir.join("inbox/retained.json"),&v,INTENT_LIMIT).unwrap();assert_eq!(inbox_at(&dir,"account/workspace").unwrap(),vec![v]);assert_eq!(inbox_at(&dir,"other").unwrap().len(),0);fs::write(dir.join("inbox/broken.json"),b"{invalid").unwrap();let values=inbox_at(&dir,"account/workspace").unwrap();assert_eq!(values.len(),2);assert!(values.iter().any(|v|v.get("widgetIssue").is_some()));assert!(dir.join("inbox/broken.json").exists());fs::remove_dir_all(dir).unwrap();}
  #[test]fn immutable_review_cannot_replace_another_event(){

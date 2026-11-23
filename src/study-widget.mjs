@@ -180,7 +180,8 @@ export function createWidgetSnapshot(
     return { ...deck, cards };
   });
   return {
-    schema: 1,
+    schema: 2,
+    appearance: {palette: "marigold", dynamic: false},
     scope,
     workspaceName: label(workspaceName || "My notes", 200),
     revision:

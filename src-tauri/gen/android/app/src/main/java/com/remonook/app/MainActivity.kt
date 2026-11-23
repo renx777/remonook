@@ -1,6 +1,9 @@
 package com.remonook.app
 
 import android.content.Context
+import android.content.Intent
+import android.webkit.WebView
+import org.json.JSONObject
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.FileObserver
@@ -11,6 +14,28 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
+  private var studyWebView: WebView? = null
+  override fun onWebViewCreate(webView: WebView) {
+    super.onWebViewCreate(webView)
+    studyWebView=webView
+    deliverStudyLink()
+  }
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    deliverStudyLink()
+  }
+  private fun deliverStudyLink(attempt:Int=0) {
+    val uri=intent?.data ?: return
+    if(uri.scheme!="remonook"||uri.host!="study"||attempt>=30)return
+    val web=studyWebView ?: return
+    web.postDelayed({
+      val encoded=JSONObject.quote(uri.toString())
+      web.evaluateJavascript("window.remoOpenWidgetStudy ? window.remoOpenWidgetStudy("+encoded+") : false") { result ->
+        if(result=="true")intent.data=null else deliverStudyLink(attempt+1)
+      }
+    },500)
+  }
   // Local sync finds nearby devices with mDNS; Android drops multicast packets unless an app
   // holds this lock. Held only while the app is open.
   private var studyObserver: FileObserver? = null

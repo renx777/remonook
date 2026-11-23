@@ -147,6 +147,31 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     setScreen("session");
     if (preferImmersive) enterImmersive();
   };
+  useEffect(()=>{
+    const open=()=>{
+      const target=(window as any).remoWidgetStudy;
+      if(!target||disabled)return;
+      delete (window as any).remoWidgetStudy;
+      const scope=target.deck==='__all_flashcards__'?null:target.deck;
+      const next=newStudySession(doc,scope,mode,Date.now(),Math.random,null);
+      const ids=JSON.parse(next.queueJson);
+      if(target.card&&ids.includes(target.card)){
+        next.queueJson=JSON.stringify([target.card,...ids.filter((id:string)=>id!==target.card)]);
+        next.cursor=0;
+      }
+      updateSession({...next,tag:crypto.randomUUID()});
+      setScreen('session');
+      if(target.voice)(window as any).remoWidgetVoiceCard=target.card;
+    };
+    open();window.addEventListener('remo-widget-study',open);
+    return ()=>window.removeEventListener('remo-widget-study',open);
+  },[disabled]);
+  useEffect(()=>{
+    if(currentId&&(window as any).remoWidgetVoiceCard===currentId&&canVoice){
+      delete (window as any).remoWidgetVoiceCard;
+      setVoiceOpen(true);
+    }
+  },[currentId,screen,canVoice]);
   const openDeck = (scope: string | null) => {
     if (scope && deckTopics(doc, scope, Date.now()).length) { setTopicDeck(scope); setScreen('topics'); }
     else start(scope);

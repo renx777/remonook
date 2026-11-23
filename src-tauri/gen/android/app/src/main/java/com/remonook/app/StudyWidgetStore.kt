@@ -17,7 +17,7 @@ internal object StudyWidgetStore {
     const val SCHEMA = 1
     data class Card(val id: String, val fingerprint: String, val question: String, val answer: String)
     data class Deck(val id: String, val title: String, val cards: List<Card>)
-    data class Snapshot(val scope: String?, val workspace: String, val revision: Long, val updatedAt: Long, val decks: List<Deck>)
+    data class Snapshot(val scope: String?, val workspace: String, val revision: Long, val updatedAt: Long, val decks: List<Deck>, val palette:String="marigold", val dynamic:Boolean=false)
     data class Receipt(val id: String, val scope: String, val cardId: String, val fingerprint: String)
     fun directory(context: Context) = File(context.applicationInfo.dataDir, "remonook-study-widget")
     fun preferences(context: Context, id: Int): SharedPreferences = context.getSharedPreferences("study-widget-$id", Context.MODE_PRIVATE)
@@ -32,7 +32,7 @@ internal object StudyWidgetStore {
         if (!file.isFile) return Snapshot(null, "", 0, 0, emptyList())
         require(file.length() <= 4 * 1024 * 1024) { "Widget cache is too large. Open RemoNook to refresh it." }
         val root = JSONObject(file.readText())
-        require(root.getInt("schema") == SCHEMA)
+        require(root.getInt("schema") in 1..2)
         if (root.isNull("scope")) return Snapshot(null, "", root.optLong("revision"), root.optLong("updatedAt"), emptyList())
         val scope = text(root, "scope", 200)
         require(scope.isNotBlank())
@@ -47,7 +47,7 @@ internal object StudyWidgetStore {
                 Card(text(c,"id",200),text(c,"fingerprint",200),text(c,"question",20000),text(c,"answer",80000))
             })
         }
-        return Snapshot(scope, root.optString("workspaceName", "Workspace"),root.getLong("revision"),root.getLong("updatedAt"),decks)
+        return Snapshot(scope, root.optString("workspaceName", "Workspace"),root.getLong("revision"),root.getLong("updatedAt"),decks,WidgetPaint.palette(root.optJSONObject("appearance")?.optString("palette")),root.optJSONObject("appearance")?.optBoolean("dynamic",false) ?: false)
     }
     /** Both pending and archived receipts exclude this exact scheduled-card version. A new
      * canonical fingerprint releases it, without relying on device clocks or update order. */

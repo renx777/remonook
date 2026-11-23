@@ -6,7 +6,9 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.view.View
-import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
+import android.widget.ScrollView
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
@@ -25,32 +27,64 @@ class StudyWidgetConfigureActivity : Activity() {
         if(id==AppWidgetManager.INVALID_APPWIDGET_ID||AppWidgetManager.getInstance(this).getAppWidgetInfo(id)?.provider!=ComponentName(this,StudyWidgetProvider::class.java)) { finish();return }
         val density=resources.displayMetrics.density
         fun dp(n:Int)=(n*density).toInt()
-        val content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(24),dp(28),dp(24),dp(20));setBackgroundColor(getColor(R.color.study_widget_background)) }
-        fun text(value:String,size:Float=15f) { content.addView(TextView(this).apply {text=value;textSize=size;setTextColor(getColor(R.color.study_widget_text));setPadding(0,dp(6),0,dp(14))}) }
-        text("A little room to remember.",24f)
+        val initial=try {StudyWidgetStore.snapshot(this)}catch(_:Exception){null}
+        val paint=WidgetPaint(this,initial?.palette ?: "marigold")
+        val content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(24),dp(28),dp(24),dp(20));setBackgroundColor(paint.color("surface")) }
+        fun text(value:String,size:Float=15f) { content.addView(TextView(this).apply {text=value;textSize=size;setTextColor(paint.color("onSurface"));setPadding(0,dp(6),0,dp(14))}) }
+        text("Study widget",24f)
         text("Choose a flashcard deck for this home-screen widget. Reveal and grade here; reviews are saved privately on this device and applied when RemoNook runs.")
         try {
             val snapshot=StudyWidgetStore.snapshot(this)
             if(snapshot.scope==null||snapshot.decks.isEmpty()) {
                 text("Open RemoNook, enable Study widgets in Settings and publish a supported flashcard deck. Then add or configure this widget again.")
-                content.addView(Button(this).apply {setTextColor(getColor(R.color.study_widget_text));backgroundTintList=ColorStateList.valueOf(getColor(R.color.study_widget_button));text="Open RemoNook";setOnClickListener {startActivity(Intent(this@StudyWidgetConfigureActivity,MainActivity::class.java));finish()}})
+                content.addView(Button(this).apply {setTextColor(paint.color("onSurface"));backgroundTintList=ColorStateList.valueOf(paint.color("surfaceAlt"));text="Open RemoNook";setOnClickListener {startActivity(Intent(this@StudyWidgetConfigureActivity,MainActivity::class.java));finish()}})
             } else {
-                text(snapshot.workspace)
+                text("Deck")
                 val prefs=StudyWidgetStore.preferences(this,id)
                 val spinner=Spinner(this).apply {adapter=object:ArrayAdapter<String>(this@StudyWidgetConfigureActivity,android.R.layout.simple_spinner_dropdown_item,snapshot.decks.map { "${it.title} · ${it.cards.size} cached cards" }) {
-                    override fun getView(position:Int,convertView:View?,parent:ViewGroup):View=super.getView(position,convertView,parent).apply {(this as? TextView)?.setTextColor(getColor(R.color.study_widget_text))}
-                    override fun getDropDownView(position:Int,convertView:View?,parent:ViewGroup):View=super.getDropDownView(position,convertView,parent).apply {setBackgroundColor(getColor(R.color.study_widget_background));(this as? TextView)?.setTextColor(getColor(R.color.study_widget_text))}
+                    override fun getView(position:Int,convertView:View?,parent:ViewGroup):View=super.getView(position,convertView,parent).apply {(this as? TextView)?.setTextColor(paint.color("onSurface"))}
+                    override fun getDropDownView(position:Int,convertView:View?,parent:ViewGroup):View=super.getDropDownView(position,convertView,parent).apply {setBackgroundColor(paint.color("surface"));(this as? TextView)?.setTextColor(paint.color("onSurface"))}
                 }}
                 val selected=snapshot.decks.indexOfFirst {it.id==prefs.getString("deckId",null)}
                 spinner.setSelection(maxOf(0,selected))
                 content.addView(spinner,LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(56)))
-                val privacy=CheckBox(this).apply {text="Keep text hidden until I tap Show question";isChecked=prefs.getBoolean("privacy",true);setTextColor(getColor(R.color.study_widget_text));setPadding(0,dp(12),0,dp(12))}
+                text("Colours")
+                var chosen=prefs.getString("palette","app") ?: "app"
+                val swatches=mutableListOf<Button>()
+                fun swatchBackground(value:String,selected:Boolean):LayerDrawable {
+                    val colors=WidgetPaint(this,WidgetPaint.palette(if(value=="app")snapshot.palette else value))
+                    val circle=GradientDrawable().apply {shape=GradientDrawable.OVAL;setColor(colors.color("hero"));setStroke(dp(if(selected)3 else 1),paint.color(if(selected)"onSurface" else "outline"))}
+                    val accent=GradientDrawable().apply {shape=GradientDrawable.OVAL;setColor(colors.color("accent"))}
+                    return LayerDrawable(arrayOf(circle,accent)).apply {setLayerInset(1,dp(28),dp(28),dp(3),dp(3))}
+                }
+                var row=LinearLayout(this)
+                content.addView(row)
+                for((i,value)in (listOf("app")+WidgetPaint.ids).withIndex()){
+                    if(i==3){row=LinearLayout(this);content.addView(row)}
+                    val name=if(value=="app")"App" else WidgetPaint.names[WidgetPaint.ids.indexOf(value)]
+                    val tile=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(8),dp(4),dp(8))}
+                    val circle=Button(this).apply {
+                        tag=value;contentDescription=name;minWidth=dp(56);minHeight=dp(56)
+                        text=if(value=="app")"App" else "";textSize=12f;setTextColor(paint.color("onHero"))
+                        background=swatchBackground(value,chosen==value)
+                        setOnClickListener {
+                            chosen=value
+                            swatches.forEach {b->b.background=swatchBackground(b.tag as String,b.tag==chosen);b.isSelected=b.tag==chosen}
+                        }
+                    }
+                    swatches.add(circle)
+                    tile.addView(circle,LinearLayout.LayoutParams(dp(56),dp(56)))
+                    tile.addView(TextView(this).apply {text=name;textSize=12f;setTextColor(paint.color("onSurface"));setPadding(0,dp(6),0,0)},LinearLayout.LayoutParams(dp(92),ViewGroup.LayoutParams.WRAP_CONTENT))
+                    row.addView(tile,LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
+                }
+                text("“App” follows Settings → Study → Widgets. Pick a palette to give only this widget its own colours.",13f)
+                val privacy=CheckBox(this).apply {text="Keep text hidden until I tap Show question";isChecked=prefs.getBoolean("privacy",true);setTextColor(paint.color("onSurface"));setPadding(0,dp(12),0,dp(12))}
                 content.addView(privacy)
                 text("Question and answer text can be visible on your home screen. Only text cards are cached; unsupported media cards stay in the app.",13f)
-                content.addView(Button(this).apply {setTextColor(getColor(R.color.study_widget_text));backgroundTintList=ColorStateList.valueOf(getColor(R.color.study_widget_button));text="Use this deck";setOnClickListener {
+                content.addView(Button(this).apply {setTextColor(paint.color("onSurface"));backgroundTintList=ColorStateList.valueOf(paint.color("surfaceAlt"));text=if(prefs.contains("deckId"))"Save" else "Add widget";minHeight=dp(48);setTextColor(paint.color("onPrimary"));backgroundTintList=ColorStateList.valueOf(paint.color("primary"));setOnClickListener {
                     val current=try {StudyWidgetStore.snapshot(this@StudyWidgetConfigureActivity)}catch(_:Exception){null}
                     if(current?.scope!=snapshot.scope){finish();return@setOnClickListener}
-                    prefs.edit().putString("scope",snapshot.scope).putString("deckId",snapshot.decks[spinner.selectedItemPosition].id).putBoolean("privacy",privacy.isChecked)
+                    prefs.edit().putString("palette",chosen).putString("scope",snapshot.scope).putString("deckId",snapshot.decks[spinner.selectedItemPosition].id).putBoolean("privacy",privacy.isChecked)
                         .putBoolean("visible",!privacy.isChecked).putString("phase","question").putInt("part",0).remove("cardId").remove("fingerprint").remove("error").commit()
                     StudyWidgetProvider.refreshAll(this@StudyWidgetConfigureActivity)
                     setResult(RESULT_OK,Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id));finish()
@@ -59,6 +93,6 @@ class StudyWidgetConfigureActivity : Activity() {
         } catch(_:Exception) {
             text("The widget cache needs attention. Open RemoNook to refresh it. Existing saved review files are kept.")
         }
-        setContentView(content)
+        setContentView(ScrollView(this).apply {setBackgroundColor(paint.color("surface"));addView(content)})
     }
 }
