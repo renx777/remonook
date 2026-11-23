@@ -170,7 +170,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 v.setTextViewText(R.id.widget_title,deck.title.uppercase())
                 v.setTextViewText(R.id.widget_count,cards.size.toString())
                 v.setTextViewText(R.id.widget_body,"cards due · about "+maxOf(1,cards.size/2)+" min")
-                v.setProgressBar(R.id.widget_progress,100,((deck.doneToday+deck.cards.size-cards.size)*100/maxOf(1,deck.doneToday+deck.cards.size)),false)
+                paint.progress(v,((deck.doneToday+deck.cards.size-cards.size)*100/maxOf(1,deck.doneToday+deck.cards.size)))
                 v.setOnClickPendingIntent(R.id.widget_root,open(context,id,deck.id))
                 return v
             }
@@ -203,6 +203,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 v.setViewVisibility(R.id.widget_header,View.GONE)
                 if(height<160+scale*20)return message("Make this widget taller to read every text part.")
             }
+            if(visible&&phase=="answer"&&height<190*scale)return message("Make this widget taller to review safely.")
             val part=prefs.getInt("part",0).coerceIn(0,pages.lastIndex)
             v.setTextViewText(R.id.widget_section,if(!visible)"Private" else if(pages.size>1)deck.title.uppercase()+" · "+cards.size+" DUE" else if(phase=="answer")"Answer" else (cards.indexOf(card)+1).toString()+" / "+cards.size)
             val bodyText=if(!visible)"Tap Show question when you are ready." else pages[part].trim()
@@ -220,7 +221,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             v.setOnClickPendingIntent(R.id.widget_reveal,action(context,id,token,if(!visible)"UNHIDE" else "REVEAL"))
             v.setBoolean(R.id.widget_reveal,"setEnabled",!visible||part==pages.lastIndex)
             v.setOnClickPendingIntent(R.id.widget_skip,action(context,id,token,"NEXT"))
-            v.setOnClickPendingIntent(R.id.widget_body,action(context,id,token,"QUESTION"))
+            v.setOnClickPendingIntent(R.id.widget_content,if(visible&&phase=="answer")action(context,id,token,"QUESTION") else null)
             if(visible&&pages.size>1&&!rating){
                 v.setViewVisibility(R.id.widget_parts,View.VISIBLE)
                 v.setTextViewText(R.id.widget_page,"${part+1} / ${pages.size}")
@@ -244,7 +245,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                     paint.text(v,view,if(grade=="EASY")"onPrimary" else role+"Fg")
                     v.setOnClickPendingIntent(view,action(context,id,token,grade))
                 }
-                v.setContentDescription(R.id.widget_body,"${pages[part].trim()}. Tap to read the question again.")
+                v.setContentDescription(R.id.widget_content,"${pages[part].trim()}. Tap to read the question again.")
             }
             return v
         }

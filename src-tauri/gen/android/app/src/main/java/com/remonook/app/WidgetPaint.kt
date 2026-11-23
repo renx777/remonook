@@ -42,5 +42,19 @@ internal class WidgetPaint(val context:Context,val palette:String,val dynamic:Bo
             views.setColorStateList(id,"setBackgroundTintList",ColorStateList.valueOf(color(role)))
         }else views.setInt(id,"setBackgroundResource",context.resources.getIdentifier("widget_"+palette+"_"+role.lowercase()+"_"+shape,"drawable",context.packageName))
     }
+    fun progress(views:RemoteViews,percent:Int){
+        val bars=listOf(R.id.widget_progress_marigold,R.id.widget_progress_iris,R.id.widget_progress_forest,R.id.widget_progress_graphite)
+        for((index,id)in bars.withIndex()){
+            val selected=ids[index]==palette
+            views.setViewVisibility(id,if(selected)android.view.View.VISIBLE else android.view.View.GONE)
+            if(selected){
+                views.setProgressBar(id,100,percent,false)
+                if(Build.VERSION.SDK_INT>=31){
+                    views.setColorStateList(id,"setProgressTintList",ColorStateList.valueOf(color("heroAccent")))
+                    views.setColorStateList(id,"setProgressBackgroundTintList",ColorStateList.valueOf(color("outline")))
+                }
+            }
+        }
+    }
     fun text(views:RemoteViews,id:Int,role:String)=views.setTextColor(id,color(role))
 }

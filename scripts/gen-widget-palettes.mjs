@@ -14,7 +14,11 @@ export function outputs(){
    '<?xml version="1.0" encoding="utf-8"?>\n<!-- Generated from docs/widgets/palettes.json. -->\n<resources>\n'+Object.entries(colors).map(([name,color])=>'    <color name="'+name+'">'+color+'</color>').join('\n')+'\n</resources>\n');
  }
  for(const id of Object.keys(data.palettes))for(const role of [...Object.keys(data.roles),...Object.keys(data.grades.light)])
-  for(const [shape,radius] of [['28','28dp'],['16','16dp'],['pill','999dp']])
+  for(const id of Object.keys(data.palettes)){
+  files.set(base+'drawable/widget_'+id+'_progress.xml',
+   '<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item android:id="@android:id/background"><shape><solid android:color="@color/widget_'+id+'_outline"/><corners android:radius="999dp"/></shape></item><item android:id="@android:id/progress"><clip><shape><solid android:color="@color/widget_'+id+'_heroaccent"/><corners android:radius="999dp"/></shape></clip></item></layer-list>\n');
+ }
+ for(const [shape,radius] of [['28','28dp'],['16','16dp'],['pill','999dp']])
    files.set(base+'drawable/widget_'+id+'_'+role.toLowerCase()+'_'+shape+'.xml',
     '<?xml version="1.0" encoding="utf-8"?>\n<!-- Generated from docs/widgets/palettes.json. -->\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="@color/widget_'+id+'_'+role.toLowerCase()+'"/><corners android:radius="'+radius+'"/></shape>\n');
  for(const [shape,radius] of [['28','28dp'],['16','16dp'],['pill','999dp']])
