@@ -33,6 +33,38 @@ jobs:
         run: |
           python3 -m pip install --quiet pillow
           python3 scripts/widget-contact-sheet.py
+      - name: Review marigold-2x2
+        run: python3 scripts/widget-review-image.py marigold-2x2
+      - name: Review marigold-4x2
+        run: python3 scripts/widget-review-image.py marigold-4x2
+      - name: Review marigold-4x4-revealed
+        run: python3 scripts/widget-review-image.py marigold-4x4-revealed
+      - name: Review marigold-caught-up
+        run: python3 scripts/widget-review-image.py marigold-caught-up
+      - name: Review marigold-locked
+        run: python3 scripts/widget-review-image.py marigold-locked
+      - name: Review marigold-too-small
+        run: python3 scripts/widget-review-image.py marigold-too-small
+      - name: Review marigold-configure
+        run: python3 scripts/widget-review-image.py marigold-configure
+      - name: Review marigold-200-percent
+        run: python3 scripts/widget-review-image.py marigold-200-percent
+      - name: Review iris-2x2
+        run: python3 scripts/widget-review-image.py iris-2x2
+      - name: Review iris-4x2
+        run: python3 scripts/widget-review-image.py iris-4x2
+      - name: Review iris-4x4-revealed
+        run: python3 scripts/widget-review-image.py iris-4x4-revealed
+      - name: Review iris-caught-up
+        run: python3 scripts/widget-review-image.py iris-caught-up
+      - name: Review iris-locked
+        run: python3 scripts/widget-review-image.py iris-locked
+      - name: Review iris-too-small
+        run: python3 scripts/widget-review-image.py iris-too-small
+      - name: Review iris-configure
+        run: python3 scripts/widget-review-image.py iris-configure
+      - name: Review iris-200-percent
+        run: python3 scripts/widget-review-image.py iris-200-percent
       - uses: actions/upload-artifact@v4
         if: always()
         with:
