@@ -1,5 +1,0 @@
-<resources>
-    <color name="study_widget_background">#19231F</color><color name="study_widget_border">#384940</color>
-    <color name="study_widget_button">#293A32</color><color name="study_widget_text">#E0E9E3</color>
-    <color name="study_widget_muted">#B0BDB4</color><color name="study_widget_accent">#9AC5B0</color>
-</resources>
