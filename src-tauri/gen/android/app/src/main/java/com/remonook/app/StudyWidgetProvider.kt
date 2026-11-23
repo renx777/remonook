@@ -107,7 +107,8 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val options=AppWidgetManager.getInstance(context).getAppWidgetOptions(id)
             fun view(width:Int,height:Int):RemoteViews = paintView(context,id,token,width,height)
             val views=if(Build.VERSION.SDK_INT>=31)RemoteViews(mapOf(
-                SizeF(110f,110f) to view(110,110),
+                SizeF(110f,110f) to view(100,100),
+                SizeF(160f,170f) to view(180,180),
                 SizeF(260f,180f) to view(260,180),
                 SizeF(260f,320f) to view(260,320)
             ))else view(options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,300),options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,300))
@@ -146,9 +147,9 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val locked=context.getSystemService(KeyguardManager::class.java).isDeviceLocked
             if(locked)return message(cards.size.toString()+" cards due · unlock to study",lockedState=true)
             if(width<260&&context.resources.configuration.fontScale>1.3f&&height<260)return message("Make this widget taller to study")
-            if(width<110||height<110)return message("Make this widget wider to study")
+            if(width<160||height<170)return message("Make this widget wider to study")
             prefs.getString("error",null)?.let {return message(it)}
-            if(cards.isEmpty())return message(if(pending>0)"These cached cards are reviewed. Open RemoNook to apply your saved reviews and refresh this deck." else "No supported cards are ready in this cached deck. Open RemoNook to refresh.",true)
+            if(cards.isEmpty())return message(if(deck.tomorrow>0)"Next ${deck.tomorrow} cards tomorrow morning" else if(pending>0)"These cached cards are reviewed. Open RemoNook to apply your saved reviews and refresh this deck." else "No supported cards are ready in this cached deck. Open RemoNook to refresh.",true)
             val selected=cards.find {it.id==prefs.getString("cardId",null)&&it.fingerprint==prefs.getString("fingerprint",null)}
             val card=selected ?: cards.first().also {
                 prefs.edit().putString("cardId",it.id).putString("fingerprint",it.fingerprint).putString("phase","question").putInt("part",0).putBoolean("visible",!prefs.getBoolean("privacy",true)).commit()
@@ -161,7 +162,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 v.setTextViewText(R.id.widget_title,deck.title.uppercase())
                 v.setTextViewText(R.id.widget_count,cards.size.toString())
                 v.setTextViewText(R.id.widget_body,"cards due · about "+maxOf(1,cards.size/2)+" min")
-                v.setProgressBar(R.id.widget_progress,100,((deck.cards.size-cards.size)*100/maxOf(1,deck.cards.size)),false)
+                v.setProgressBar(R.id.widget_progress,100,((deck.doneToday+deck.cards.size-cards.size)*100/maxOf(1,deck.doneToday+deck.cards.size)),false)
                 v.setOnClickPendingIntent(R.id.widget_root,open(context,id,deck.id))
                 return v
             }
@@ -188,7 +189,11 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val visible=prefs.getBoolean("visible",!prefs.getBoolean("privacy",true))
             val phase=prefs.getString("phase","question") ?: "question"
             val pages=StudyWidgetPages.split(if(phase=="answer")card.answer else card.question,budget(context,id))
-            if(visible&&pages.size>1&&height<220+scale*16)return message("Make this widget taller to read every text part.")
+            v.setViewPadding(R.id.widget_body,0,0,0,0)
+            if(visible&&pages.size>1){
+                v.setViewVisibility(R.id.widget_header,View.GONE)
+                if(height<160+scale*20)return message("Make this widget taller to read every text part.")
+            }
             val part=prefs.getInt("part",0).coerceIn(0,pages.lastIndex)
             v.setTextViewText(R.id.widget_section,if(!visible)"Private" else if(phase=="answer")"Answer" else (cards.indexOf(card)+1).toString()+" / "+cards.size)
             v.setTextViewText(R.id.widget_body,if(!visible)"Tap Show question when you are ready." else pages[part].trim())

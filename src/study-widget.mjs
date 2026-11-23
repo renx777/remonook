@@ -178,7 +178,13 @@ export function createWidgetSnapshot(
       remaining -= size;
       if (cards.length === WIDGET_LIMITS.cards) break;
     }
-    return { ...deck, cards };
+    const deckCards=scopedCards(doc,deck.id===WIDGET_ALL_DECKS?null:deck.id,now,context);
+    const ids=new Set(deckCards.map(card=>card.id));
+    const day=new Date(now);day.setHours(0,0,0,0);
+    const morning=new Date(day);morning.setDate(morning.getDate()+1);morning.setHours(9);
+    const doneToday=new Set(doc.tables.review_logs.filter(log=>ids.has(log.cardId)&&log.mode==="SPACED"&&log.reviewedAtEpochMillis>=day.getTime()&&log.reviewedAtEpochMillis<=now).map(log=>log.cardId)).size;
+    const tomorrow=deckCards.filter(card=>card.dueAtEpochMillis>now&&card.dueAtEpochMillis<=morning.getTime()).length;
+    return { ...deck, cards, doneToday, tomorrow };
   });
   return {
     schema: 2,

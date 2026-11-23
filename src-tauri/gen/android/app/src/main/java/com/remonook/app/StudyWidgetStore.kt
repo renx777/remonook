@@ -16,7 +16,7 @@ internal object StudyWidgetStore {
     val lock = Any()
     const val SCHEMA = 1
     data class Card(val id: String, val fingerprint: String, val question: String, val answer: String, val intervals:Map<String,String> = emptyMap())
-    data class Deck(val id: String, val title: String, val cards: List<Card>)
+    data class Deck(val id: String, val title: String, val cards: List<Card>, val doneToday:Int=0,val tomorrow:Int=0)
     data class Snapshot(val scope: String?, val workspace: String, val revision: Long, val updatedAt: Long, val decks: List<Deck>, val palette:String="marigold", val dynamic:Boolean=false)
     data class Receipt(val id: String, val scope: String, val cardId: String, val fingerprint: String)
     fun directory(context: Context) = File(context.applicationInfo.dataDir, "remonook-study-widget")
@@ -45,7 +45,7 @@ internal object StudyWidgetStore {
             Deck(text(d,"id",200), text(d,"title",1000), (0 until cards.length()).map { j ->
                 val c = cards.getJSONObject(j)
                 Card(text(c,"id",200),text(c,"fingerprint",200),text(c,"question",20000),text(c,"answer",80000),listOf("AGAIN","HARD","GOOD","EASY").associateWith {c.optJSONObject("intervals")?.optString(it,"") ?: ""})
-            })
+            },d.optInt("doneToday",0).coerceAtLeast(0),d.optInt("tomorrow",0).coerceAtLeast(0))
         }
         return Snapshot(scope, root.optString("workspaceName", "Workspace"),root.getLong("revision"),root.getLong("updatedAt"),decks,WidgetPaint.palette(root.optJSONObject("appearance")?.optString("palette")),root.optJSONObject("appearance")?.optBoolean("dynamic",false) ?: false)
     }

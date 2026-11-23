@@ -36,8 +36,8 @@ pub struct Appearance {
 #[serde(rename_all = "lowercase")]
 pub enum Palette { Iris, Forest, Graphite, #[serde(other)] Marigold }
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct Deck { pub id: String, pub title: String, pub cards: Vec<Card> }
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Deck { pub id: String, pub title: String, pub cards: Vec<Card>, #[serde(default)] pub done_today: u32, #[serde(default)] pub tomorrow: u32 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Card { pub id: String, pub fingerprint: String, pub question: String, pub answer: String, #[serde(default)] pub intervals: std::collections::BTreeMap<String,String> }
@@ -253,7 +253,7 @@ pub fn study_widget_hide(app:tauri::AppHandle,window:tauri::WebviewWindow)->Resu
 #[cfg(test)]
 mod tests{
  use super::*;
- fn sample()->Snapshot{Snapshot{appearance:None,schema:1,scope:Some("account/workspace".into()),workspace_name:"Notes".into(),updated_at:1,revision:1,decks:vec![Deck{id:"deck".into(),title:"Deck".into(),cards:vec![Card{id:"card".into(),fingerprint:"v1".into(),question:"Question".into(),answer:"Answer".into(),intervals:Default::default()}]}]}}
+ fn sample()->Snapshot{Snapshot{appearance:None,schema:1,scope:Some("account/workspace".into()),workspace_name:"Notes".into(),updated_at:1,revision:1,decks:vec![Deck{id:"deck".into(),title:"Deck".into(),done_today:0,tomorrow:0,cards:vec![Card{id:"card".into(),fingerprint:"v1".into(),question:"Question".into(),answer:"Answer".into(),intervals:Default::default()}]}]}}
  #[test]fn snapshot_bounds_and_privacy(){assert!(snapshot_valid(&sample()));let mut s=sample();s.scope=None;assert!(!snapshot_valid(&s));s.decks.clear();assert!(snapshot_valid(&s));let mut s=sample();s.decks[0].cards[0].answer="x".repeat(80_001);assert!(!snapshot_valid(&s));}
  #[test]fn snapshot_appearance_compatibility(){
   let old=sample();assert!(snapshot_valid(&old));
