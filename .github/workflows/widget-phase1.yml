@@ -29,7 +29,7 @@ jobs:
         if: success()
         run: |
           python3 -m pip install --quiet pillow
-          python3 -c 'from PIL import Image,ImageOps,ImageDraw; import pathlib,base64; paths=sorted(pathlib.Path("docs/widgets/screenshots").glob("*.png")); sheet=Image.new("RGB",(800,((len(paths)+3)//4)*240),"white"); draw=ImageDraw.Draw(sheet); [(sheet.paste(ImageOps.contain(Image.open(p).convert("RGB"),(190,210)),((i%4)*200,(i//4)*240+20)),draw.text(((i%4)*200,(i//4)*240),p.stem,fill="black")) for i,p in enumerate(paths)]; sheet.save("docs/widgets/screenshots/contact-sheet.webp",quality=25); data=base64.b64encode(pathlib.Path("docs/widgets/screenshots/contact-sheet.webp").read_bytes()).decode(); [print("::notice title=Widget contact sheet "+str(i//3000).zfill(2)+"::"+data[i:i+3000]) for i in range(0,min(len(data),30000),3000)]'
+          python3 scripts/widget-contact-sheet.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
