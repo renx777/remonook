@@ -118,7 +118,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val override=prefs.getString("palette","app")
             val palette=WidgetPaint.palette(if(override=="app")snapshot?.palette else override)
             val paint=WidgetPaint(context,palette,snapshot?.dynamic==true&&override=="app")
-            fun message(body:String,caught:Boolean=false):RemoteViews {
+            fun message(body:String,caught:Boolean=false,lockedState:Boolean=false):RemoteViews {
                 val v=RemoteViews(context.packageName,R.layout.study_widget_message)
                 paint.background(v,R.id.widget_root,if(caught)"goodBg" else "surface","28")
                 paint.text(v,R.id.widget_title,if(caught)"goodFg" else "eyebrow")
@@ -127,6 +127,10 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 paint.background(v,R.id.widget_deck,"primary","pill")
                 paint.text(v,R.id.widget_deck,"onPrimary")
                 v.setTextViewText(R.id.widget_title,if(caught)"✓  All caught up" else "RemoNook")
+                for(bar in listOf(R.id.widget_private_1,R.id.widget_private_2)){
+                    v.setViewVisibility(bar,if(lockedState)View.VISIBLE else View.GONE)
+                    paint.background(v,bar,"outline","pill")
+                }
                 v.setTextViewText(R.id.widget_body,body)
                 v.setTextViewText(R.id.widget_status,"")
                 v.setOnClickPendingIntent(R.id.widget_deck,configure(context,id))
@@ -139,7 +143,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val pending=StudyWidgetStore.pending(context,snapshot.scope)
             val cards=StudyWidgetStore.available(deck,snapshot.scope,StudyWidgetStore.receipts(context))
             val locked=context.getSystemService(KeyguardManager::class.java).isDeviceLocked
-            if(locked)return message("━━━━━━\n━━━━\n\n"+cards.size+" cards due · unlock to study")
+            if(locked)return message(cards.size.toString()+" cards due · unlock to study",lockedState=true)
             if(width<260&&context.resources.configuration.fontScale>1.3f&&height<260)return message("Make this widget taller to study")
             if(width<110||height<110)return message("Make this widget wider to study")
             prefs.getString("error",null)?.let {return message(it)}
@@ -183,6 +187,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val visible=prefs.getBoolean("visible",!prefs.getBoolean("privacy",true))
             val phase=prefs.getString("phase","question") ?: "question"
             val pages=StudyWidgetPages.split(if(phase=="answer")card.answer else card.question,budget(context,id))
+            if(visible&&pages.size>1&&height<220+scale*16)return message("Make this widget taller to read every text part.")
             val part=prefs.getInt("part",0).coerceIn(0,pages.lastIndex)
             v.setTextViewText(R.id.widget_section,if(!visible)"Private" else if(phase=="answer")"Answer" else (cards.indexOf(card)+1).toString()+" / "+cards.size)
             v.setTextViewText(R.id.widget_body,if(!visible)"Tap Show question when you are ready." else pages[part].trim())
