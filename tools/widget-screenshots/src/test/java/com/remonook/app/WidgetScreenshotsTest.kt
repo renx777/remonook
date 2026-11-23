@@ -57,12 +57,20 @@ class WidgetScreenshotsTest {
             shadowOf(manager).addBoundWidget(id,info)
             val prefs=StudyWidgetStore.preferences(context,id)
             val root=JSONObject("""{"schema":2,"scope":"fixture","workspaceName":"My notes","revision":1,"updatedAt":1,"appearance":{"palette":"$palette","dynamic":false},"decks":[{"id":"deck","title":"Geography","cards":[{"id":"q","fingerprint":"v1","question":"What is the capital of Mizoram?","answer":"Aizawl — on a ridge north of the Tlawng river."}]}]}""")
+            val demoCards=org.json.JSONArray()
+            for(index in 0 until 12){
+                demoCards.put(JSONObject().put("id",if(index==0)"q" else "q$index").put("fingerprint","v1")
+                    .put("question","What is the capital of Mizoram?")
+                    .put("answer","Aizawl — on a ridge north of the Tlawng river.")
+                    .put("intervals",JSONObject("""{"AGAIN":"1 min","HARD":"2 d","GOOD":"5 d","EASY":"12 d"}""")))
+            }
+            root.getJSONArray("decks").getJSONObject(0).put("cards",demoCards).put("tomorrow",9).put("doneToday",4)
             val directory=StudyWidgetStore.directory(context).apply{mkdirs()}
             fun snapshot(){File(directory,"snapshot.json").writeText(root.toString())}
             snapshot()
             for((name,w,h)in listOf(Triple("2x2",180,180),Triple("4x2",360,220),Triple("4x4-revealed",360,440),Triple("caught-up",180,240),Triple("locked",180,240),Triple("too-small",100,100))){
                 prefs.edit().clear().putString("scope","fixture").putString("deckId","deck").putBoolean("privacy",false).putBoolean("visible",true).putString("cardId","q").putString("fingerprint","v1").putString("phase",if(name.contains("revealed"))"answer" else "question").commit()
-                root.getJSONArray("decks").getJSONObject(0).put("cards",if(name=="caught-up")org.json.JSONArray() else org.json.JSONArray("""[{"id":"q","fingerprint":"v1","question":"What is the capital of Mizoram?","answer":"Aizawl — on a ridge north of the Tlawng river."}]"""))
+                root.getJSONArray("decks").getJSONObject(0).put("cards",if(name=="caught-up")org.json.JSONArray() else demoCards)
                 snapshot()
                 shadowOf(context.getSystemService(android.app.KeyguardManager::class.java)).setIsDeviceLocked(name=="locked")
                 manager.updateAppWidgetOptions(id,Bundle().apply{putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,w);putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,h)})

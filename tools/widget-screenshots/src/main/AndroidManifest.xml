@@ -1,1 +1,1 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application><activity android:name=".StudyWidgetConfigureActivity"/><receiver android:name=".StudyWidgetProvider" android:exported="false"/></application></manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:theme="@style/Theme.remonook_desktop"><activity android:name=".StudyWidgetConfigureActivity"/><receiver android:name=".StudyWidgetProvider" android:exported="false"/></application></manifest>

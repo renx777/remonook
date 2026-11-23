@@ -196,13 +196,14 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val visible=prefs.getBoolean("visible",!prefs.getBoolean("privacy",true))
             val phase=prefs.getString("phase","question") ?: "question"
             val pages=StudyWidgetPages.split(if(phase=="answer")card.answer else card.question,budget(context,id))
-            v.setViewPadding(R.id.widget_body,0,0,0,0)
+            val padding=if(visible&&phase=="answer")(8*context.resources.displayMetrics.density).toInt() else 0
+            v.setViewPadding(R.id.widget_body,padding,padding,padding,padding)
             if(visible&&pages.size>1){
                 v.setViewVisibility(R.id.widget_header,View.GONE)
                 if(height<160+scale*20)return message("Make this widget taller to read every text part.")
             }
             val part=prefs.getInt("part",0).coerceIn(0,pages.lastIndex)
-            v.setTextViewText(R.id.widget_section,if(!visible)"Private" else if(phase=="answer")"Answer" else (cards.indexOf(card)+1).toString()+" / "+cards.size)
+            v.setTextViewText(R.id.widget_section,if(!visible)"Private" else if(pages.size>1)deck.title.uppercase()+" · "+cards.size+" due" else if(phase=="answer")"Answer" else (cards.indexOf(card)+1).toString()+" / "+cards.size)
             v.setTextViewText(R.id.widget_body,if(!visible)"Tap Show question when you are ready." else pages[part].trim())
             if(visible&&phase=="answer")paint.background(v,R.id.widget_body,"surfaceAlt")
             v.setViewVisibility(R.id.widget_status,if(pending>0)View.VISIBLE else View.GONE)

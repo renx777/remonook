@@ -11,7 +11,10 @@ draw = ImageDraw.Draw(sheet)
 for index, path in enumerate(paths):
     column = (index % 4) * 200
     row = (index // 4) * 240
-    picture = ImageOps.contain(Image.open(path).convert("RGB"), (190, 210))
+    original = Image.open(path).convert("RGBA")
+    background = Image.new("RGBA", original.size, "white")
+    background.alpha_composite(original)
+    picture = ImageOps.contain(background.convert("RGB"), (190, 210))
     sheet.paste(picture, (column, row + 20))
     draw.text((column, row), path.stem, fill="black")
 sheet.save(directory / "contact-sheet.png")
