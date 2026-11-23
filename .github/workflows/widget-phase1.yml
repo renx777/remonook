@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: widget-phase1-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 jobs:
   native-screenshots:
     runs-on: ubuntu-latest
