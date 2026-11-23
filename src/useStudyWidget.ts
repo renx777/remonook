@@ -3,6 +3,7 @@ import { desktopInvoke, desktopListen, isApp, isDesktop } from "./desktop";
 import { storageAccountKey, type Workspace } from "./data";
 import { activeLocalWorkspace } from "./workspaces";
 import { widgetDrafts, removeWidgetDraft } from "./study-widget-drafts";
+import {applyWidgetCompletion} from "./widget-suite.mjs";
 import { applyWidgetReview } from "./study-widget.mjs";
 import { buildWidgetSnapshot, disposeWidgetCache } from "./study-widget-cache";
 
@@ -24,13 +25,14 @@ const exclusive = <T>(fn: () => Promise<T>) => {
   return run;
 };
 const emptySnapshot = () => ({
-  schema: 2,
+  schema: 3,
   appearance: widgetAppearance(),
   scope: null,
   workspaceName: "",
   revision: 0,
   updatedAt: Date.now(),
   decks: [],
+  resurface: null as any,
 });
 /** Clear presentation before an account/workspace transition, retaining every pending intent. */
 export async function clearNativeStudyWidget() {
@@ -49,6 +51,7 @@ type Options = {
   canApply: () => boolean;
   apply: (doc: Workspace) => Promise<void>;
   onNotice: (message: string) => void;
+  resurface?: (doc: Workspace) => any;
 };
 export function useStudyWidget(options: Options) {
   const scope = storageAccountKey(),
@@ -103,7 +106,7 @@ export function useStudyWidget(options: Options) {
               ...native,
             ].sort(
               (a, b) =>
-                a.reviewedAt - b.reviewedAt ||
+                (a.reviewedAt ?? a.at) - (b.reviewedAt ?? b.at) ||
                 String(a.id).localeCompare(String(b.id)),
             );
             for (const intent of intents) {
@@ -115,7 +118,7 @@ export function useStudyWidget(options: Options) {
                 continue;
               }
               try {
-                const result = applyWidgetReview(
+                const result = (intent.type === "complete" ? applyWidgetCompletion : applyWidgetReview)(
                   current,
                   intent,
                   scope,
@@ -143,6 +146,7 @@ export function useStudyWidget(options: Options) {
                 )
                   break;
                 snapshot.appearance = widgetAppearance();
+                snapshot.resurface = enabled ? latest.current.resurface?.(saved) ?? null : null;
                 await desktopInvoke("study_widget_publish", { snapshot });
                 lastSnapshot = JSON.stringify({
                   ...snapshot,
@@ -160,7 +164,7 @@ export function useStudyWidget(options: Options) {
                   });
                 removeWidgetDraft(intent.id);
                 if ("notice" in result && result.notice)
-                  latest.current.onNotice(result.notice);
+                  latest.current.onNotice(String(result.notice));
               } catch (e) {
                 issues.push(e instanceof Error ? e.message : String(e));
                 if (!latest.current.canApply()) break;
@@ -194,6 +198,8 @@ export function useStudyWidget(options: Options) {
               latest.current.getDoc() !== current
             )
               return;
+            snapshot.appearance = widgetAppearance();
+            snapshot.resurface = latest.current.resurface?.(current) ?? null;
             const key = JSON.stringify({
               ...snapshot,
               updatedAt: 0,

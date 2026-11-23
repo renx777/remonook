@@ -1,0 +1,7 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+ android:minWidth="260dp" android:minHeight="180dp" android:minResizeWidth="110dp" android:minResizeHeight="100dp"
+ android:maxResizeWidth="800dp" android:maxResizeHeight="800dp" android:targetCellWidth="4" android:targetCellHeight="2"
+ android:resizeMode="horizontal|vertical" android:updatePeriodMillis="1800000"
+ android:initialLayout="@layout/widget_suite_today" android:previewLayout="@layout/widget_suite_today"
+ android:previewImage="@mipmap/ic_launcher" android:configure="com.remonook.app.WidgetSuiteConfigureActivity"
+ android:widgetCategory="home_screen" android:widgetFeatures="reconfigurable"/>

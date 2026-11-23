@@ -1,3 +1,4 @@
+import {widgetExtras} from './widget-suite.mjs';
 import {contentDigest as widgetDigest} from './content-digest.mjs';
 export {widgetDigest};
 // Native widgets are views of normal study data. Only this canonical app path grades cards.
@@ -187,7 +188,8 @@ export function createWidgetSnapshot(
     return { ...deck, cards, doneToday, tomorrow };
   });
   return {
-    schema: 2,
+    schema: 3,
+    ...widgetExtras(doc,now),
     appearance: {palette: "marigold", dynamic: false},
     scope,
     workspaceName: label(workspaceName || "My notes", 200),

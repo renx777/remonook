@@ -156,6 +156,7 @@ export function Dashboard({doc,disabled,onChange,onCapture,onNote,onStudy,onCale
  const [editing,setEditing]=useState(false),[library,setLibrary]=useState(false),[settingsId,setSettingsId]=useState<string|null>(null),[menu,setMenu]=useState<string|null>(null),[removed,setRemoved]=useState<string|null>(null),[announcement,setAnnouncement]=useState(''),[error,setError]=useState('');
  const {width,containerRef,mounted}=useContainerWidth({initialWidth:1040,debounceTimeout:60});
  const bp=width>=1000?'lg':width>=650?'md':'sm',mobile=bp==='sm',mobileWidgets=phoneWidgets(value,activeTab) as Widget[],displayWidgets=mobile?mobileWidgets:widgets,layout=useMemo(()=>widgetLayout(widgets,bp),[value.widgets,bp,activeTab]) as Layout;
+ useEffect(()=>{const open=()=>{const id=(window as any).remoWidgetFocus;const target=value.widgets[id];if(target&&!target.removed){selectTab(target.tabId||'today');delete (window as any).remoWidgetFocus;}};open();window.addEventListener('remo-widget-focus',open);return()=>window.removeEventListener('remo-widget-focus',open);},[value.widgets]);
  const settingsWidget=settingsId?value.widgets[settingsId]:null;
  const change:Change=update=>{if(disabled)return;try{onChange(update);setError('');}catch(e){setError((e as Error).message);}};
  const saveLayout=(next:Layout)=>{change(doc=>saveDashboardLayout(doc,bp,next));setAnnouncement('Dashboard layout updated.');};

@@ -27,7 +27,7 @@ dependencies {
 
 val widgetSources by tasks.registering(Copy::class) {
  from("../../src-tauri/gen/android/app/src/main/java")
- include("**/StudyWidget*.kt","**/WidgetPaint.kt")
+ include("**/StudyWidget*.kt","**/WidgetPaint.kt","**/WidgetSuite*.kt")
  into(layout.buildDirectory.dir("widget-sources"))
 }
 tasks.named("preBuild") {dependsOn(widgetSources)}

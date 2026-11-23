@@ -84,3 +84,62 @@ prevent the app opening. Each instance now catches rendering errors independentl
 logs the exception and attempts a minimal private recovery message using static
 resource references. Other instances continue. This recovery does not clear
 snapshots, widget preferences, outboxes or immutable review files.
+
+
+## Phase 2: five additional Android widgets
+
+The launcher now offers **Today**, **Quick capture**, **Focus timer**, **Study rhythm**
+and **Resurface**, alongside Study flashcards. Enable widgets for the workspace in
+Settings → Study, then add each widget from the launcher. Each instance follows
+App colours or chooses one of the four palettes. Configuration also offers a
+private-home-screen mode; all note text is hidden while the device is locked.
+
+- Today caches up to eight dated bullets (including daily-note children) and
+  reminder occurrences. Tap a row to open its note or Calendar. A check-off is a
+  **set-to-done**, not a toggle; its caption says saved on device / pending app.
+  Smaller sizes show fewer rows and an Open Today button. Midnight/timezone
+  changes hide stale daily lists until the app refreshes.
+- Capture has a compact and a wide layout. Speak opens existing dictation into
+  Inbox; Type focuses an ordinary editable Inbox bullet; Photo opens Photo to
+  notes. Text works offline. Existing AI voice/photo tools retain their sign-in
+  and availability requirements. No new API or AI allowance is introduced.
+- Focus reads an existing Dashboard focus timer. The launcher host renders the
+  system Chronometer; no timer service runs in the widget. Start/Pause/End open
+  RemoNook and act only on the cached session identity, then show its Dashboard
+  tab. The app still owns completion/history. An overdue countdown can show
+  overtime until the app/launcher next refreshes it; no exact alarm is scheduled.
+- Rhythm shows 28 local calendar days of spaced-review counts and the total.
+  Practice and future-dated reviews are excluded. Tap to open Study Desk.
+- Resurface is available only when meaning search is enabled. It rotates an
+  existing note daily, preferring notes not touched today, plus a connection
+  already in the device’s meaning index. It makes no new AI request.
+
+### Snapshot and completion protocol
+
+Snapshot schema **3** adds optional bounded Today (8 × 200 UTF-8 bytes), Focus
+(label 80 bytes), Rhythm (28 counts), and Resurface (text 240, path 120, related
+text 160 bytes). Schema 1 and 2 remain readable. Clearing/disabling widgets
+publishes an empty, unscoped snapshot; no pending action files are deleted.
+
+Today uses the **existing private inbox and processed directory**, with distinct
+immutable schema-1 events: `{type:"complete", id:<event UUID>, scope, targetId,
+text, date, fingerprint, at}`. `targetId` distinguishes `bullet:` from `reminder:`.
+The original review event format, receipt index, text pager and budgets are
+unchanged. The native writer fsyncs a temporary file, publishes under the store
+lock without replacing an existing event, and fsyncs the inbox. Duplicate taps
+and other widget instances recognise already pending matching actions.
+
+The main app checks the current workspace and original content/date fingerprint,
+sets the task or reminder occurrence to done through normal mutations, and saves
+an idempotency receipt in `web.widgetActionReceipts`. If the source was edited or
+deleted, it preserves the check-off in **Recovered widget actions** instead.
+Only after a successful durable save and snapshot refresh does the normal broker
+archive the original event. Failed saves leave it pending. Review events continue
+through their existing canonical scheduler path. Both action types remain in the
+same durable inbox across account/workspace switches.
+
+Deep-link delivery waits for the app’s save acknowledgement before consuming the
+native intent. A stable delivery UUID prevents repeated polling from creating
+extra Inbox bullets. Scope checks prevent stale launcher instances from capturing
+into a different workspace. Android date/time/configuration broadcasts refresh all
+providers, and per-instance rendering errors cannot block app startup.

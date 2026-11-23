@@ -26,14 +26,30 @@ class MainActivity : TauriActivity() {
     setIntent(intent)
     deliverStudyLink()
   }
+  private var widgetDeliveryId=""
   private fun deliverStudyLink(attempt:Int=0) {
     val uri=intent?.data ?: return
-    if(uri.scheme!="remonook"||uri.host!="study"||attempt>=30)return
+    if(uri.scheme!="remonook"||uri.host !in listOf("study","capture","focus","note","today")||attempt>=60)return
     val web=studyWebView ?: return
+    if(attempt==0)widgetDeliveryId=java.util.UUID.randomUUID().toString()
+    val delivery=widgetDeliveryId
     web.postDelayed({
+      if(intent?.data!=uri||delivery!=widgetDeliveryId)return@postDelayed
       val encoded=JSONObject.quote(uri.toString())
-      web.evaluateJavascript("window.remoOpenWidgetStudy ? window.remoOpenWidgetStudy("+encoded+") : false") { result ->
-        if(result=="true")intent.data=null else deliverStudyLink(attempt+1)
+      val token=JSONObject.quote(delivery)
+      val handler=if(uri.host=="study")"remoOpenWidgetStudy" else "remoOpenWidgetLink"
+      // A capture/focus action must finish its normal durable save before the
+      // intent is consumed. Poll an acknowledgement rather than treating a JS
+      // Promise as success or replaying it while that save is still running.
+      val script="""(()=>{const key=$token;if(window.remoWidgetLinkDone===key)return true;
+        const handler=window.$handler;if(!handler)return false;
+        if(window.remoWidgetLinkPending!==key){window.remoWidgetLinkPending=key;
+          Promise.resolve(handler($encoded,key)).then(ok=>{if(ok)window.remoWidgetLinkDone=key;else if(window.remoWidgetLinkPending===key)window.remoWidgetLinkPending=null;}).catch(()=>{if(window.remoWidgetLinkPending===key)window.remoWidgetLinkPending=null;});}
+        return false;})()"""
+      web.evaluateJavascript(script) { result ->
+        if(delivery==widgetDeliveryId&&intent?.data==uri){
+          if(result=="true")intent.data=null else deliverStudyLink(attempt+1)
+        }
       }
     },500)
   }

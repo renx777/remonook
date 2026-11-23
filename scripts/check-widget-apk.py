@@ -51,6 +51,8 @@ def expected_names():
     names = {f'widget_{palette}_{role.lower()}' for palette in tokens['palettes'] for role in roles}
     drawables = ROOT / 'src-tauri/gen/android/app/src/main/res/drawable'
     names.update(path.stem for path in drawables.glob('widget_*.xml'))
+    for directory in ('layout','xml'):
+        names.update(path.stem for path in (drawables.parent / directory).glob('widget_suite_*.xml'))
     return names
 
 

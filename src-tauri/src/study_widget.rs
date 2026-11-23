@@ -25,7 +25,28 @@ pub struct Snapshot {
     pub decks: Vec<Deck>,
     #[serde(default)]
     pub appearance: Option<Appearance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub today: Option<Vec<TodayItem>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<Focus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rhythm: Option<Rhythm>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resurface: Option<Resurface>,
 }
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TodayItem {pub id:String,pub text:String,pub time:Option<String>,pub done:bool,pub date:String,pub fingerprint:String}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+pub struct Focus {pub id:String,pub running:bool,pub ends_at:u64,pub remaining:u32,pub label:String,pub cycle:String,pub mode:String}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rhythm {pub days:Vec<u32>,pub total:u32}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+pub struct Resurface {pub id:String,pub text:String,pub path:String,pub related_text:String}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Appearance {
@@ -66,9 +87,18 @@ fn event_id(s: &str) -> bool {
     !["CON","PRN","AUX","NUL"].contains(&upper.as_str()) && !(upper.len()==4 && (upper.starts_with("COM")||upper.starts_with("LPT")) && upper.as_bytes()[3].is_ascii_digit())
 }
 fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64 }
+fn date_shape(s:&str)->bool {s.len()==10&&s.bytes().enumerate().all(|(i,c)|if i==4||i==7{c==b'-'}else{c.is_ascii_digit()})}
 fn snapshot_valid(s: &Snapshot) -> bool {
-    if ![1,2].contains(&s.schema) || s.workspace_name.len() > 200 || s.decks.len() > 100 || s.updated_at > 9_007_199_254_740_991 || s.revision > 9_007_199_254_740_991 { return false; }
-    if s.scope.is_none() { return s.decks.is_empty(); }
+    if ![1,2,3].contains(&s.schema) || s.workspace_name.len() > 200 || s.decks.len() > 100 || s.updated_at > 9_007_199_254_740_991 || s.revision > 9_007_199_254_740_991 { return false; }
+    if s.scope.is_none() { return s.decks.is_empty() && s.today.as_ref().map(|v|v.is_empty()).unwrap_or(true) && s.focus.is_none() && s.rhythm.is_none() && s.resurface.is_none(); }
+    if s.schema<3 && (s.today.is_some()||s.focus.is_some()||s.rhythm.is_some()||s.resurface.is_some()){return false;}
+    if let Some(items)=&s.today {
+        let mut ids=std::collections::HashSet::new();
+        if items.len()>8 || items.iter().any(|i|!bounded(&i.id,210)||!ids.insert(&i.id)||!bounded(&i.text,200)||!date_shape(&i.date)||i.fingerprint.len()!=64||!i.fingerprint.bytes().all(|c|c.is_ascii_hexdigit())||i.time.as_ref().map(|t|!t.is_empty()&&!(t.len()==5&&t.as_bytes()[2]==b':'&&t.bytes().enumerate().all(|(at,c)|at==2||c.is_ascii_digit()))).unwrap_or(false)){return false;}
+    }
+    if let Some(f)=&s.focus {if !bounded(&f.id,200)||f.label.len()>80||f.cycle.len()>128||f.ends_at>9_007_199_254_740_991||f.remaining>7200||!["focus","short","long"].contains(&f.mode.as_str()){return false;}}
+    if let Some(r)=&s.rhythm {if r.days.len()!=28||r.days.iter().any(|n|*n>1_000_000)||r.total!=r.days.iter().sum::<u32>(){return false;}}
+    if let Some(r)=&s.resurface {if !bounded(&r.id,200)||!bounded(&r.text,240)||r.path.len()>120||r.related_text.len()>160{return false;}}
     if !s.scope.as_ref().map(|v| bounded(v,200)).unwrap_or(false) { return false; }
     let mut ids=std::collections::HashSet::new();
     for d in &s.decks {
@@ -253,7 +283,7 @@ pub fn study_widget_hide(app:tauri::AppHandle,window:tauri::WebviewWindow)->Resu
 #[cfg(test)]
 mod tests{
  use super::*;
- fn sample()->Snapshot{Snapshot{appearance:None,schema:1,scope:Some("account/workspace".into()),workspace_name:"Notes".into(),updated_at:1,revision:1,decks:vec![Deck{id:"deck".into(),title:"Deck".into(),done_today:0,tomorrow:0,cards:vec![Card{id:"card".into(),fingerprint:"v1".into(),question:"Question".into(),answer:"Answer".into(),intervals:Default::default()}]}]}}
+ fn sample()->Snapshot{Snapshot{appearance:None,today:None,focus:None,rhythm:None,resurface:None,schema:1,scope:Some("account/workspace".into()),workspace_name:"Notes".into(),updated_at:1,revision:1,decks:vec![Deck{id:"deck".into(),title:"Deck".into(),done_today:0,tomorrow:0,cards:vec![Card{id:"card".into(),fingerprint:"v1".into(),question:"Question".into(),answer:"Answer".into(),intervals:Default::default()}]}]}}
  #[test]fn snapshot_bounds_and_privacy(){assert!(snapshot_valid(&sample()));let mut s=sample();s.scope=None;assert!(!snapshot_valid(&s));s.decks.clear();assert!(snapshot_valid(&s));let mut s=sample();s.decks[0].cards[0].answer="x".repeat(80_001);assert!(!snapshot_valid(&s));}
  #[test]fn snapshot_appearance_compatibility(){
   let old=sample();assert!(snapshot_valid(&old));
@@ -263,6 +293,19 @@ mod tests{
   let parsed:Snapshot=serde_json::from_value(value).unwrap();
   assert!(snapshot_valid(&parsed));
   assert!(matches!(parsed.appearance.unwrap().palette,Palette::Marigold));
+ }
+ #[test]fn suite_snapshot_compatibility_bounds_and_privacy(){
+  let mut value=serde_json::to_value(sample()).unwrap();
+  value["schema"]=serde_json::json!(3);
+  value["today"]=serde_json::json!([{"id":"bullet:task","text":"Read a chapter","time":"16:00","done":false,"date":"2026-11-23","fingerprint":"a".repeat(64)}]);
+  value["rhythm"]=serde_json::json!({"days":vec![1;28],"total":28});
+  let valid:Snapshot=serde_json::from_value(value.clone()).unwrap();assert!(snapshot_valid(&valid));
+  let mut invalid=valid.clone();invalid.scope=None;assert!(!snapshot_valid(&invalid));
+  let mut invalid=valid.clone();invalid.today.as_mut().unwrap()[0].text="日".repeat(100);assert!(!snapshot_valid(&invalid));
+  let mut invalid=valid.clone();invalid.rhythm.as_mut().unwrap().days.push(1);assert!(!snapshot_valid(&invalid));
+  let mut invalid=valid.clone();invalid.schema=2;assert!(!snapshot_valid(&invalid));
+  value["resurface"]=serde_json::json!({"id":"note","text":"An idea","path":"Notes","relatedText":"A connection","unexpected":true});
+  assert!(serde_json::from_value::<Snapshot>(value).is_err());
  }
  #[test]fn intent_ids_and_clock(){let i=Intent{schema:1,id:"a-b_c123".into(),scope:"scope".into(),deck_id:"deck".into(),card_id:"card".into(),fingerprint:"v1".into(),grade:"GOOD".into(),reviewed_at:100,question:"Q".into(),answer:"A".into(),widget_id:None};assert!(intent_valid(&i,100));let mut bad=i.clone();bad.id="../escape".into();assert!(!intent_valid(&bad,100));for name in ["CON","prn","AUX","NUL","COM1","lpt9"]{assert!(!event_id(name));}let mut bad=i.clone();bad.grade="PRACTICE".into();assert!(!intent_valid(&bad,100));let mut bad=i;bad.reviewed_at=300_101;assert!(!intent_valid(&bad,100));}
  #[test]fn atomic_roundtrip_preserves_events(){let dir=std::env::temp_dir().join(format!("remonook-widget-test-{}-{}",std::process::id(),now()));private_dir(&dir).unwrap();private_dir(&dir.join("inbox")).unwrap();atomic_json(&dir.join("snapshot.json"),&sample(),SNAPSHOT_LIMIT).unwrap();assert_eq!(snapshot_at(&dir).unwrap().unwrap().revision,1);atomic_json(&dir.join("snapshot.json"),&sample(),SNAPSHOT_LIMIT).unwrap();let v=serde_json::json!({"id":"retained","scope":"account/workspace","grade":"BAD","reviewedAt":0});atomic_json(&dir.join("inbox/retained.json"),&v,INTENT_LIMIT).unwrap();assert_eq!(inbox_at(&dir,"account/workspace").unwrap(),vec![v]);assert_eq!(inbox_at(&dir,"other").unwrap().len(),0);fs::write(dir.join("inbox/broken.json"),b"{invalid").unwrap();let values=inbox_at(&dir,"account/workspace").unwrap();assert_eq!(values.len(),2);assert!(values.iter().any(|v|v.get("widgetIssue").is_some()));assert!(dir.join("inbox/broken.json").exists());fs::remove_dir_all(dir).unwrap();}

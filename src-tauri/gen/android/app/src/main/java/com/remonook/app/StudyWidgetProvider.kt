@@ -26,7 +26,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
     }
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context,intent)
-        if(intent.action == Intent.ACTION_CONFIGURATION_CHANGED) { refreshAll(context);return }
+        if(intent.action in listOf(Intent.ACTION_CONFIGURATION_CHANGED,Intent.ACTION_DATE_CHANGED,Intent.ACTION_TIMEZONE_CHANGED,Intent.ACTION_TIME_CHANGED)) { refreshAll(context);return }
         if(intent.action != ACTION) return
         val id=intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,AppWidgetManager.INVALID_APPWIDGET_ID)
         if(id==AppWidgetManager.INVALID_APPWIDGET_ID) return
@@ -72,6 +72,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             try {
                 val manager=AppWidgetManager.getInstance(context)
                 manager.getAppWidgetIds(ComponentName(context,StudyWidgetProvider::class.java)).forEach { render(context,it) }
+                WidgetSuiteRendering.refreshAll(context)
             } catch(error:RuntimeException) {
                 android.util.Log.e("RemoStudyWidget","Cannot enumerate launcher widgets",error)
             }

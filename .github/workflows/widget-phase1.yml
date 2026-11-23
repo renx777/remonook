@@ -1,7 +1,7 @@
-name: Widget phase 1 verification
+name: Android widget verification
 on:
   pull_request:
-    branches: [docs/widgets-spec]
+    branches: [docs/widgets-spec, codex/android-widget-palettes]
     paths:
       - 'src/**'
       - 'src-tauri/**'
@@ -41,38 +41,34 @@ jobs:
         run: |
           python3 -m pip install --quiet pillow
           python3 scripts/widget-contact-sheet.py
-      - name: Review marigold-2x2
-        run: python3 scripts/widget-review-image.py marigold-2x2
-      - name: Review marigold-4x2
-        run: python3 scripts/widget-review-image.py marigold-4x2
-      - name: Review marigold-4x4-revealed
-        run: python3 scripts/widget-review-image.py marigold-4x4-revealed
-      - name: Review marigold-caught-up
-        run: python3 scripts/widget-review-image.py marigold-caught-up
-      - name: Review marigold-locked
-        run: python3 scripts/widget-review-image.py marigold-locked
-      - name: Review marigold-too-small
-        run: python3 scripts/widget-review-image.py marigold-too-small
-      - name: Review marigold-configure
-        run: python3 scripts/widget-review-image.py marigold-configure
-      - name: Review marigold-200-percent
-        run: python3 scripts/widget-review-image.py marigold-200-percent
-      - name: Review iris-2x2
-        run: python3 scripts/widget-review-image.py iris-2x2
-      - name: Review iris-4x2
-        run: python3 scripts/widget-review-image.py iris-4x2
-      - name: Review iris-4x4-revealed
-        run: python3 scripts/widget-review-image.py iris-4x4-revealed
-      - name: Review iris-caught-up
-        run: python3 scripts/widget-review-image.py iris-caught-up
-      - name: Review iris-locked
-        run: python3 scripts/widget-review-image.py iris-locked
-      - name: Review iris-too-small
-        run: python3 scripts/widget-review-image.py iris-too-small
-      - name: Review iris-configure
-        run: python3 scripts/widget-review-image.py iris-configure
-      - name: Review iris-200-percent
-        run: python3 scripts/widget-review-image.py iris-200-percent
+      - name: Review suite-marigold-today
+        run: python3 scripts/widget-review-image.py suite-marigold-today
+      - name: Review suite-marigold-capture
+        run: python3 scripts/widget-review-image.py suite-marigold-capture
+      - name: Review suite-marigold-focus
+        run: python3 scripts/widget-review-image.py suite-marigold-focus
+      - name: Review suite-marigold-rhythm
+        run: python3 scripts/widget-review-image.py suite-marigold-rhythm
+      - name: Review suite-marigold-resurface
+        run: python3 scripts/widget-review-image.py suite-marigold-resurface
+      - name: Review suite-marigold-configure
+        run: python3 scripts/widget-review-image.py suite-marigold-configure
+      - name: Review suite-marigold-large-text
+        run: python3 scripts/widget-review-image.py suite-marigold-large-text
+      - name: Review suite-iris-today
+        run: python3 scripts/widget-review-image.py suite-iris-today
+      - name: Review suite-iris-capture
+        run: python3 scripts/widget-review-image.py suite-iris-capture
+      - name: Review suite-iris-focus
+        run: python3 scripts/widget-review-image.py suite-iris-focus
+      - name: Review suite-iris-rhythm
+        run: python3 scripts/widget-review-image.py suite-iris-rhythm
+      - name: Review suite-iris-resurface
+        run: python3 scripts/widget-review-image.py suite-iris-resurface
+      - name: Review suite-iris-configure
+        run: python3 scripts/widget-review-image.py suite-iris-configure
+      - name: Review suite-iris-large-text
+        run: python3 scripts/widget-review-image.py suite-iris-large-text
       - uses: actions/upload-artifact@v4
         if: always()
         with:
