@@ -2,6 +2,40 @@
 
 ## Current state
 
+### Android widget startup recovery, 23 November 2026
+
+Android staging **0.1.36** supersedes 0.1.35 on `codex/android-widget-palettes`.
+The signed app source is `e7e50cac0474fa7b95c80471e8239cd995876613`;
+`5233a2c2dfa272fe1ecb2aa6038983137290d4b8` only corrects the native regression
+assertion. [PR #96](https://github.com/renx777/remonook/pull/96) still targets
+`docs/widgets-spec`.
+
+Root cause: the 0.1.35 release optimiser stripped 294 widget resources referenced
+only through computed names. An unfinished widget configuration can leave an
+allocated launcher ID; refreshing it at app resume then crashed the app. Debug
+native screenshots had not exercised release resource stripping. The palette
+generator now emits resource-shrinker keep rules. The Android workflow validates
+all 312 expected names in the signed APK before publication. The validator fails
+on the actual old 0.1.35 APK. Rendering failures are isolated per instance with a
+minimal private recovery message; cached data and durable review evidence are
+not deleted or reset.
+
+[CI #396](https://github.com/renx777/remonook/actions/runs/45272095106) and
+[native/Rust verification #39](https://github.com/renx777/remonook/actions/runs/45272095258)
+passed. Local `npm test`: 646 passed, zero failures. Rust: 16 passed. Native tests
+cover refresh of allocated/unconfigured widgets, a broken per-widget preference,
+continued refresh of other instances and preservation of review files, as well
+as the existing screenshots. APK-validator fixtures cover complete UTF-8/UTF-16
+resource tables, stripped runtime colours and malformed resource tables.
+
+[Android staging #36](https://github.com/renx777/remonook/actions/runs/45271611538)
+passed signing, APK resource validation and publication. The public manifest and
+APK were checked after publication. Physical installation and reopening on the
+owner's affected phone still require confirmation. Install the update over the
+existing staging app using the same signing key; uninstalling is not needed.
+Web hosting, Workers, desktop releases and production were not changed.
+
+
 ### Android Study widget Phase 1, 23 November 2026
 
 Android staging runs **0.1.35**, branch `codex/android-widget-palettes`, application
