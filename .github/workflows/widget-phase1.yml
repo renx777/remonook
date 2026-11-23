@@ -14,9 +14,19 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - run: bash gradlew testDebugUnitTest --stacktrace 2>&1 | tee verification.log
+      - name: Render actual Android widget views
         shell: bash
         working-directory: tools/widget-screenshots
+        run: |
+          set +e
+          bash gradlew testDebugUnitTest --stacktrace > verification.log 2>&1
+          result=$?
+          if [ "$result" != 0 ]; then
+            tail -70 verification.log | while IFS= read -r line; do
+              echo "::warning::$line"
+            done
+          fi
+          exit "$result"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
