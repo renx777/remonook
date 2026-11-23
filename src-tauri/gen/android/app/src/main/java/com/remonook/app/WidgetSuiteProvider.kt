@@ -176,9 +176,11 @@ internal object WidgetSuiteRendering {
                     val event=Intent(context,TodayWidgetProvider::class.java).setAction(COMPLETE).setData(Uri.parse("remonook-widget://complete/$id/$token/$i"))
                         .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id).putExtra("token",token).putExtra("target",item.id).putExtra("fingerprint",item.fingerprint)
                     v.setOnClickPendingIntent(checkIds[i],PendingIntent.getBroadcast(context,0,event,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
-                    text(itemIds[i],fit(context,item.text,width-(if(item.time.isEmpty())88 else 144),2),if(done)"muted" else "onSurface")
-                    v.setContentDescription(itemIds[i],item.text)
-                    text(timeIds[i],item.time,"muted");v.setViewVisibility(timeIds[i],if(item.time.isEmpty())View.GONE else View.VISIBLE)
+                    val separateTime=item.time.isNotEmpty()&&scale<=1.3f
+                    val label=if(item.time.isNotEmpty()&&!separateTime)item.time+" · "+item.text else item.text
+                    text(itemIds[i],fit(context,label,width-(if(separateTime)144 else 88),2),if(done)"muted" else "onSurface")
+                    v.setContentDescription(itemIds[i],if(item.time.isEmpty())item.text else item.time+" · "+item.text)
+                    text(timeIds[i],item.time,"muted");v.setViewVisibility(timeIds[i],if(separateTime)View.VISIBLE else View.GONE)
                     v.setOnClickPendingIntent(itemIds[i],if(item.id.startsWith("bullet:"))link(context,id,"note",mapOf("id" to item.id.removePrefix("bullet:"))) else link(context,id,"today"))
                 }
                 text(R.id.suite_empty,if(items.isEmpty())"A little room in your day." else "")
@@ -229,10 +231,11 @@ internal object WidgetSuiteRendering {
                 text(R.id.suite_path,fit(context,note.path,width-32,1,12f),"muted")
                 text(R.id.suite_note,fit(context,note.text,width-32,if(height>=320*scale)5 else 2,16f))
                 v.setContentDescription(R.id.suite_note,note.text)
-                text(R.id.suite_related,fit(context,"Related · "+note.relatedText,width-48,2,13f))
+                text(R.id.suite_related,fit(context,"Related · "+note.relatedText,width-48,if(height>=260*scale)2 else 1,13f))
                 paint.background(v,R.id.suite_related,"surfaceAlt","16")
-                v.setViewVisibility(R.id.suite_related,if(note.relatedText.isNotEmpty()&&height>=260*scale)View.VISIBLE else View.GONE)
+                v.setViewVisibility(R.id.suite_related,if(note.relatedText.isNotEmpty())View.VISIBLE else View.GONE)
                 control(R.id.suite_open,"Open note",link(context,id,"note",mapOf("id" to note.id)),true)
+                v.setViewVisibility(R.id.suite_open,if(note.relatedText.isNotEmpty()&&height<220*scale)View.GONE else View.VISIBLE)
                 v.setViewVisibility(R.id.suite_status,View.GONE)
                 v.setOnClickPendingIntent(R.id.suite_root,link(context,id,"note",mapOf("id" to note.id)))
             }
