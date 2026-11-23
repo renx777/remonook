@@ -120,7 +120,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val override=prefs.getString("palette","app")
             val palette=WidgetPaint.palette(if(override=="app")snapshot?.palette else override)
             val paint=WidgetPaint(context,palette,snapshot?.dynamic==true&&override=="app")
-            fun message(body:String,caught:Boolean=false,lockedState:Boolean=false):RemoteViews {
+            fun message(body:String,caught:Boolean=false,lockedState:Boolean=false,needsDeck:Boolean=false):RemoteViews {
                 val v=RemoteViews(context.packageName,R.layout.study_widget_message)
                 paint.background(v,R.id.widget_root,if(caught)"goodBg" else "surface","28")
                 paint.text(v,R.id.widget_title,if(caught)"goodFg" else "eyebrow")
@@ -141,13 +141,14 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 }
                 v.setTextViewText(R.id.widget_body,if(height<170&&context.resources.configuration.fontScale>1.3f)"Resize" else body)
                 v.setTextViewText(R.id.widget_status,"")
-                v.setOnClickPendingIntent(R.id.widget_deck,configure(context,id))
+                v.setTextViewText(R.id.widget_deck,if(needsDeck)"Choose deck" else "Open RemoNook")
+                v.setOnClickPendingIntent(R.id.widget_deck,if(needsDeck)configure(context,id) else open(context,id,prefs.getString("deckId",null)))
                 return v
             }
             if(snapshot==null)return message("The study cache needs attention. Open RemoNook to refresh it. Saved review files have not been removed.")
             if(snapshot.scope==null)return message("Open RemoNook and enable Study widgets in Settings. Your reviews stay on this device until the app applies them.")
             val deck=snapshot.decks.find {it.id==prefs.getString("deckId",null)}
-            if(snapshot.scope!=prefs.getString("scope",null)||deck==null)return message("Choose a deck for this widget. If your account or workspace changed, choose it again.")
+            if(snapshot.scope!=prefs.getString("scope",null)||deck==null)return message("Choose a deck for this widget. If your account or workspace changed, choose it again.",needsDeck=true)
             val pending=StudyWidgetStore.pending(context,snapshot.scope)
             val cards=StudyWidgetStore.available(deck,snapshot.scope,StudyWidgetStore.receipts(context))
             val locked=context.getSystemService(KeyguardManager::class.java).isDeviceLocked
