@@ -165,7 +165,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     };
     open();window.addEventListener('remo-widget-study',open);
     return ()=>window.removeEventListener('remo-widget-study',open);
-  },[disabled]);
+  },[disabled,doc]);
   useEffect(()=>{
     if(currentId&&(window as any).remoWidgetVoiceCard===currentId&&canVoice){
       delete (window as any).remoWidgetVoiceCard;
