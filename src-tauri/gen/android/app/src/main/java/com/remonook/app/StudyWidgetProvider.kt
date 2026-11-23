@@ -140,19 +140,27 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 paint.text(v,R.id.widget_deck,"onPrimary")
                 v.setTextViewText(R.id.widget_title,if(caught)"✓  All caught up" else "RemoNook")
                 for(bar in listOf(R.id.widget_private_1,R.id.widget_private_2)){
-                    v.setViewVisibility(bar,if(lockedState)View.VISIBLE else View.GONE)
+                    v.setViewVisibility(bar,if(lockedState&&height>=200*context.resources.configuration.fontScale)View.VISIBLE else View.GONE)
                     paint.background(v,bar,"outline","pill")
                 }
-                if(height<170||height<120*context.resources.configuration.fontScale){
-                    v.setViewVisibility(R.id.widget_title,View.GONE)
+                if(height<170||height<=120*context.resources.configuration.fontScale){
+                    v.setViewVisibility(R.id.widget_title,if(height<170)View.GONE else View.VISIBLE)
                     v.setViewVisibility(R.id.widget_deck,View.GONE)
                     v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,12f)
-                    v.setOnClickPendingIntent(R.id.widget_root,configure(context,id))
+                    v.setOnClickPendingIntent(R.id.widget_root,if(needsDeck)configure(context,id) else open(context,id,prefs.getString("deckId",null)))
                 }
-                v.setTextViewText(R.id.widget_body,if(height<170&&body.length>60)"Open RemoNook" else if(height<170&&context.resources.configuration.fontScale>1.3f)"Resize" else body)
+                val small=height<170&&context.resources.configuration.fontScale>1.3f
+                val copy=when {
+                    small&&body.startsWith("Make") -> "Resize"
+                    small -> "Open app"
+                    body.length>60&&height<400*context.resources.configuration.fontScale ->
+                        if(needsDeck)"Choose a deck" else if(snapshot?.scope==null)"Enable Study widgets in RemoNook" else "Open RemoNook to refresh."
+                    else -> body
+                }
+                v.setTextViewText(R.id.widget_body,copy)
                 val pendingCount=snapshot?.scope?.let {StudyWidgetStore.pending(context,it)} ?: 0
                 v.setTextViewText(R.id.widget_status,if(pendingCount>0)"$pendingCount saved on device · pending app" else "")
-                v.setViewVisibility(R.id.widget_status,if(pendingCount>0&&height>=240)View.VISIBLE else View.GONE)
+                v.setViewVisibility(R.id.widget_status,if(pendingCount>0&&height>=240*context.resources.configuration.fontScale)View.VISIBLE else View.GONE)
                 v.setTextViewText(R.id.widget_deck,if(needsDeck)"Choose deck" else "Open RemoNook")
                 v.setOnClickPendingIntent(R.id.widget_deck,if(needsDeck)configure(context,id) else open(context,id,prefs.getString("deckId",null)))
                 return v

@@ -119,6 +119,16 @@ class WidgetScreenshotsTest {
             StudyWidgetProvider.paintView(context,id,"test",360,440).reapply(context,compact)
             assertEquals(View.VISIBLE,compact.findViewById<View>(R.id.widget_deck).visibility)
             assertEquals(View.VISIBLE,compact.findViewById<View>(R.id.widget_title).visibility)
+            config.fontScale=2f
+            context.resources.updateConfiguration(config,context.resources.displayMetrics)
+            val largeMessage=StudyWidgetProvider.paintView(context,id,"test",180,240).apply(context,FrameLayout(context))
+            largeMessage.measure(View.MeasureSpec.makeMeasureSpec(180,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(240,View.MeasureSpec.EXACTLY))
+            largeMessage.layout(0,0,180,240)
+            val messageText=largeMessage.findViewById<android.widget.TextView>(R.id.widget_body)
+            assertTrue(messageText.layout.height+messageText.totalPaddingTop+messageText.totalPaddingBottom<=messageText.height)
+            config.fontScale=1f
+            context.resources.updateConfiguration(config,context.resources.displayMetrics)
+
 
         }
     }

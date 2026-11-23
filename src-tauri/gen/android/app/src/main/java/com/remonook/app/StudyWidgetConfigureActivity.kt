@@ -79,7 +79,7 @@ class StudyWidgetConfigureActivity : Activity() {
                     val name=if(value=="app")"App" else WidgetPaint.names[WidgetPaint.ids.indexOf(value)]
                     val tile=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(8),dp(4),dp(8))}
                     val circle=Button(this).apply {
-                        tag=value;contentDescription=name;minWidth=dp(56);minHeight=dp(56);isAllCaps=false;isSelected=chosen==value
+                        tag=value;contentDescription=name;minWidth=dp(56);minHeight=dp(56);setPadding(0,0,0,0);isAllCaps=false;isSelected=chosen==value
                         text=if(value=="app")"App" else "";textSize=12f;setTextColor(WidgetPaint(this@StudyWidgetConfigureActivity,if(value=="app")snapshot.palette else value).color(if(value=="app")"onSurface" else "onHero"))
                         background=swatchBackground(value,chosen==value)
                         setOnClickListener {
