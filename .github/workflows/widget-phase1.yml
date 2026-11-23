@@ -22,7 +22,7 @@ jobs:
           bash gradlew testDebugUnitTest --stacktrace > verification.log 2>&1
           result=$?
           if [ "$result" != 0 ]; then
-            tail -70 verification.log | while IFS= read -r line; do
+            head -80 verification.log | while IFS= read -r line; do
               echo "::warning::$line"
             done
           fi
