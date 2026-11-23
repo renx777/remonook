@@ -2,6 +2,50 @@
 
 ## Current state
 
+### Android widget suite — Phase 2, 23 November 2026
+
+Android staging **0.1.39** runs `codex/android-widget-suite`, app commit
+`94bde89d7436a60c47396b4cfd654785f52d9809`. [PR #97](https://github.com/renx777/remonook/pull/97)
+targets the phone-confirmed Phase 1 branch `codex/android-widget-palettes`.
+Later documentation/screenshot commits do not change the deployed application.
+Adds Today, Quick capture, Focus, Study rhythm and Resurface: six Android widget
+types including the existing Study widget. No web, Worker, desktop or production
+release was made.
+
+[Android staging #39](https://github.com/renx777/remonook/actions/runs/45282664384)
+passed build, signing, verification of all **323** required palette/drawable/layout/
+provider resource names inside the signed APK, and publication. The public
+[manifest](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/android.json)
+reports `0.1.39`; the [APK](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.39_android.apk)
+was downloaded and independently passed the same resource check. Staging builds
+#37/#38 were cancelled before publication during screenshot/accessibility fixes;
+the previous published Android version was 0.1.36.
+
+[CI #403](https://github.com/renx777/remonook/actions/runs/45282667873) and
+[native verification #46](https://github.com/renx777/remonook/actions/runs/45282667880)
+passed on the deployed app source. Local full suite: **656 passed**, zero failures;
+TypeScript checks and the build passed. Rust: **17 passed**, zero failures.
+Robolectric renders all five widgets in four palettes in light/dark and exercises
+legacy layouts, scope/lock/private states, schema compatibility/bounds and 200%
+font scale. Two real Android filesystem tests passed on **API 28 and API 33**
+emulators, verifying rename/fsync publication, duplicate and colliding actions,
+archive replay and widget removal preserving evidence. Native renderer screenshots
+are [attached here](widgets/phase2-screenshots/README.md).
+
+Today check-offs share the existing immutable inbox and normal app save/archive
+path. Failed saves stay pending; edited/deleted sources keep a recovery note.
+Schema 3 remains compatible with schemas 1/2. Review exchange, paging, budgets,
+locking and the account durable outbox remain unchanged.
+
+Focus controls open the app; the system Chronometer may show overtime until its
+next refresh. Capture reuses Inbox/dictation/photo tools; text works offline,
+voice/photo retain existing sign-in requirements. Resurface uses the opt-in
+meaning index without a new AI request. Physical launcher/TalkBack/wallpaper,
+voice/photo handoff and interaction with the new widgets on the owner’s phone
+remain unverified. The owner confirmed that the preceding startup-fix build
+0.1.36 opened successfully on their phone.
+
+
 ### Android widget startup recovery, 23 November 2026
 
 Android staging **0.1.36** supersedes 0.1.35 on `codex/android-widget-palettes`.
@@ -30,8 +74,8 @@ resource tables, stripped runtime colours and malformed resource tables.
 
 [Android staging #36](https://github.com/renx777/remonook/actions/runs/45271611538)
 passed signing, APK resource validation and publication. The public manifest and
-APK were checked after publication. Physical installation and reopening on the
-owner's affected phone still require confirmation. Install the update over the
+APK were checked after publication. The owner subsequently confirmed 0.1.36 opened successfully on their phone;
+full physical widget-interaction checks remain separate. Install the update over the
 existing staging app using the same signing key; uninstalling is not needed.
 Web hosting, Workers, desktop releases and production were not changed.
 

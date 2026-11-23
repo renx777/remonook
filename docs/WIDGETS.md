@@ -345,10 +345,17 @@ See [the protocol](ANDROID-STUDY-WIDGET.md#snapshot-and-completion-protocol).
 - [x] Shared palette, per-instance override, lock/private states and resize paths.
 - [x] Schema 1/2 compatibility; schema 3 bounded and validated in JS/Rust/Kotlin.
 - [x] Today actions preserved through the existing inbox, save, receipt and archive path.
-- [ ] Full app, Rust and native tests passed; native screenshots reviewed.
-- [ ] Signed APK resource retention verified and released to Android staging.
-- [ ] Release record and PR screenshots attached.
+- [x] Full app, Rust and native tests passed; native screenshots reviewed.
+- [x] Signed APK resource retention verified and released to Android staging.
+- [x] Release record and PR screenshots attached.
 
 Phone confirmation: the owner reports the Phase 1 startup recovery build 0.1.36
 works on their phone. This confirms startup recovery, not every physical-launcher
 or accessibility acceptance case for these new widgets.
+
+
+Phase 2 shipped to Android staging **0.1.39** from
+`94bde89d7436a60c47396b4cfd654785f52d9809` in [PR #97](https://github.com/renx777/remonook/pull/97).
+656 app tests, 17 Rust tests, native rendering and real filesystem tests on
+Android API 28/33 passed. The downloaded signed APK retained all 323 required
+widget resources. [Screenshots and device-check limitations](widgets/phase2-screenshots/README.md).

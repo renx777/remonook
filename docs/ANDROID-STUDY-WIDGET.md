@@ -74,8 +74,8 @@ widget colours and drawables. Do not remove it. Debug rendering tests alone do
 not prove the signed release contains these resources.
 
 Before publishing, `android.yml` runs `scripts/check-widget-apk.py` against the
-signed APK's actual `resources.arsc`, requiring all 312 palette/shape/progress
-resource names. The original 0.1.35 staging APK fails this check. UTF-8/UTF-16
+signed APK's actual `resources.arsc`, requiring every palette/shape/progress resource name and all Phase 2 layout/provider
+resource names (323 total in the Phase 2 release). The original 0.1.35 staging APK fails this check. UTF-8/UTF-16
 fixtures test the validator, including missing resources and malformed tables.
 
 Android may retain a widget ID after an incomplete configuration attempt.
