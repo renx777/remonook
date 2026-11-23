@@ -8,6 +8,10 @@ type Snapshot = {
   revision: number;
   updatedAt: number;
   decks: any[];
+  today?: any[];
+  focus?: any;
+  rhythm?: any;
+  resurface?: any;
 };
 type Request = {
   resolve: (snapshot: Snapshot) => void;

@@ -949,3 +949,26 @@ test("desktop null-scope refresh removes old questions and cannot resume another
     await act(async () => root.unmount());
   }
 });
+
+
+test("Today check-offs wait for durable saving and republish before acknowledgement; failures remain pending",async()=>{
+ const scope=scopeName();setStorageName(scope);
+ let current=documentFixture();
+ const date=new Date();const day=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+ current.tables.bullets.push(bullet('today-task',{text:'Read one chapter',taskState:'TODO',dueDate:day}));
+ current=await save(null,current,'create');
+ const item=createWidgetSnapshot(current,scope,'Notes').today.find(i=>i.id==='bullet:today-task');
+ const event={schema:1,type:'complete',id:crypto.randomUUID(),scope,targetId:item.id,text:item.text,date:item.date,fingerprint:item.fingerprint,at:Date.now()};
+ const broker=nativeBroker();broker.inbox=[event];
+ localStorage.setItem('remo-native-study-widget:'+scope,'true');
+ let fail=true,commits=0;
+ broker.custom=cmd=>{if(cmd==='study_widget_ack'){assert.equal(commits,1);assert.equal(broker.snapshot.today.find(i=>i.id===item.id).done,true);}};
+ const hook=mountHook({ready:true,getDoc:()=>current,canApply:()=>true,apply:async next=>{if(fail)throw Error('test storage unavailable');current=await save(current,next,'widget-check-off');commits++;},onNotice:()=>{}});
+ try{
+  await hook.render();await until(()=>hook.value.error.includes('test storage unavailable'));
+  assert.equal(broker.inbox.length,1);assert.equal((await load()).tables.bullets.find(n=>n.id==='today-task').taskState,'TODO');
+  fail=false;await focus();await until(()=>broker.inbox.length===0);
+  assert.equal(commits,1);assert.equal((await load()).tables.bullets.find(n=>n.id==='today-task').taskState,'DONE');
+  assert.ok((await load()).web.widgetActionReceipts[event.id]);
+ }finally{await hook.close();}
+});

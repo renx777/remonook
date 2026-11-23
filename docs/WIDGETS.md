@@ -332,3 +332,30 @@ by the API 33 native rendering suite, API 28 resource tests, 645 JavaScript test
 macOS tinted/clear modes and desktop CI are outside Phase 1. Real launcher,
 TalkBack, wallpaper colours and physical microphone checks remain device acceptance;
 the checked items describe implementation and automated coverage, not those checks.
+
+
+### Phase 2 acceptance
+
+Separate branch `codex/android-widget-suite`, based on the phone-confirmed Phase 1
+staging branch. Includes five additional Android providers, schema 3, shared
+palettes/privacy, canonical Focus/Capture deep links and durable Today completion.
+See [the protocol](ANDROID-STUDY-WIDGET.md#snapshot-and-completion-protocol).
+
+- [x] Today, Quick capture, Focus, Study rhythm and Resurface providers implemented.
+- [x] Shared palette, per-instance override, lock/private states and resize paths.
+- [x] Schema 1/2 compatibility; schema 3 bounded and validated in JS/Rust/Kotlin.
+- [x] Today actions preserved through the existing inbox, save, receipt and archive path.
+- [x] Full app, Rust and native tests passed; native screenshots reviewed.
+- [x] Signed APK resource retention verified and released to Android staging.
+- [x] Release record and PR screenshots attached.
+
+Phone confirmation: the owner reports the Phase 1 startup recovery build 0.1.36
+works on their phone. This confirms startup recovery, not every physical-launcher
+or accessibility acceptance case for these new widgets.
+
+
+Phase 2 shipped to Android staging **0.1.39** from
+`94bde89d7436a60c47396b4cfd654785f52d9809` in [PR #97](https://github.com/renx777/remonook/pull/97).
+656 app tests, 17 Rust tests, native rendering and real filesystem tests on
+Android API 28/33 passed. The downloaded signed APK retained all 323 required
+widget resources. [Screenshots and device-check limitations](widgets/phase2-screenshots/README.md).

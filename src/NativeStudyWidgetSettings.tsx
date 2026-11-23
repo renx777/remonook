@@ -35,7 +35,7 @@ export function NativeStudyWidgetSettings({
       <h3>Study outside the main window</h3>
       <p>
         Review due text flashcards in a compact desktop study window or an
-        Android home-screen widget. MCQs, images and unsupported rich content
+        Android home-screen widgets for Study, Today, Focus, Capture, Study rhythm and Resurface. MCQs, images and unsupported rich content
         stay in Study Desk.
       </p>
       <label className="native-widget-enable">
@@ -47,7 +47,7 @@ export function NativeStudyWidgetSettings({
         Enable widgets for this workspace on this device
       </label>
       <p className="dialog-muted">
-        This caches question and answer text in private app storage on this
+        This caches widget note text, reminders, timer status and study counts in private app storage on this
         device. Turn it off to clear the visible card cache. Pending reviews
         remain safely associated with their original workspace.
       </p>
@@ -60,14 +60,14 @@ export function NativeStudyWidgetSettings({
           ) : (
             <p>
               On your Android home screen, open{" "}
-              <strong>Widgets → RemoNook → Study flashcards</strong>, then
-              choose a deck. Reveal, grade and advance without opening RemoNook.
+              <strong>Widgets → RemoNook</strong>, then
+              choose Study, Today, Focus, Quick capture, Study rhythm or Resurface. Each widget can follow the app colours or have its own palette.
             </p>
           )}
           <button onClick={widget.refresh}>Refresh widget cache</button>
           <p role="status">
             {widget.pending
-              ? `${widget.pending} review${widget.pending === 1 ? "" : "s"} saved on this device · pending app processing`
+              ? `${widget.pending} action${widget.pending === 1 ? "" : "s"} saved on this device · pending app processing`
               : "Reviews use normal saving and synchronization after the app processes them."}
           </p>
         </>

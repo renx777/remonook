@@ -48,6 +48,15 @@ test('a widget study link preserves edits made after Study Desk mounted',async()
   await act(async()=>new Promise(resolve=>setTimeout(resolve,300)));
   const saved=await load();
   assert.equal(saved.tables.bullets.find(node=>node.id==='qa').text,'First question revised');
+  const delivery=crypto.randomUUID();
+  await act(async()=>{assert.equal(await window.remoOpenWidgetLink('remonook://capture?mode=text',delivery),true);});
+  let captured=await load();assert.ok(captured.tables.bullets.some(n=>n.id===delivery&&n.parentId==='quick-capture-inbox'));
+  const count=captured.tables.bullets.length;
+  await act(async()=>{await window.remoOpenWidgetLink('remonook://capture?mode=text',delivery);});
+  assert.equal((await load()).tables.bullets.length,count,'delivery retry cannot duplicate the Inbox bullet');
+  await act(async()=>{await window.remoOpenWidgetLink('remonook://capture?mode=text&scope=another-workspace',crypto.randomUUID());});
+  assert.equal((await load()).tables.bullets.length,count,'a stale widget cannot capture into another workspace');
+
  }finally{
   if(app)await act(async()=>app.appRoot.unmount());
   dom.window.close();

@@ -1,3 +1,6 @@
+import {localDate} from "./calendar-events.mjs";
+import {resurfacePresentation,widgetFocusAction} from "./widget-suite.mjs";
+import {INBOX_ID} from "./quick-capture.mjs";
 import {ImageTextDialog,type ImageTextSource} from './ImageTextDialog';
 import {fetchDroppedImage} from './image-drop';
 import {saveCardDetails} from './card-details.mjs';
@@ -155,6 +158,7 @@ import {
   type Workspace,
   type Node,
   storageAccountKey,
+  accountLocalKey,
   syncOperation,
 } from "./data";
 import { OutlineView } from "./OutlineView";
@@ -529,7 +533,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
-  const nativeWidget=useStudyWidget({ready:!!doc&&!failed.current,revision:doc?.revision,getDoc:()=>docRef.current,canApply:()=>!dirty.current&&!failed.current&&!working&&!cloudApplying.current&&!activeEditor?.view.composing,apply:async next=>{if(failed.current)throw Error('Saving needs attention.');commit(next,undefined,false);await flush();if(failed.current)throw Error('Widget review could not be saved.');},onNotice:setNotice});
+  const nativeWidget=useStudyWidget({resurface:current=>meaningRef.current?.enabled?resurfacePresentation(current,(id:string)=>meaningRef.current.related(id)):null,ready:!!doc&&!failed.current,revision:doc?.revision,getDoc:()=>docRef.current,canApply:()=>!dirty.current&&!failed.current&&!working&&!cloudApplying.current&&!activeEditor?.view.composing,apply:async next=>{if(failed.current)throw Error('Saving needs attention.');commit(next,undefined,false);await flush();if(failed.current)throw Error('Widget review could not be saved.');},onNotice:setNotice});
   useDesktop({ready:!!doc&&!failed.current,getDoc:()=>docRef.current,commit:next=>commit(next),flush,onError:message=>setError(message||null),onNotice:setNotice});
   useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{
     const current=docRef.current;
@@ -690,6 +694,44 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     };
     return ()=>{delete (window as any).remoOpenWidgetStudy;};
   },[]);
+  useEffect(()=>{
+    (window as any).remoOpenWidgetLink=async(link:string,deliveryId?:string)=>{
+      if(!docRef.current||failed.current)return false;
+      try{
+        const url=new URL(link);
+        if(url.protocol!=='remonook:'||!['capture','focus','note','today'].includes(url.hostname))return true;
+        const owner=storageAccountKey();
+        if(url.searchParams.get('scope')&&url.searchParams.get('scope')!==owner){setNotice('Open the original workspace to use this widget.');return true;}
+        await flush();if(failed.current||cloudApplying.current||storageAccountKey()!==owner)return false;
+        const current=docRef.current!;
+        if(url.hostname==='focus'){
+          const next=widgetFocusAction(current,url.searchParams.get('id')||'',url.searchParams.get('cycle')||'',url.searchParams.get('action')||'');
+          if(next!==current){commit(next,undefined,false);await flush();}
+          const focusId=url.searchParams.get('id')||'';const target=next.web.dashboard?.widgets?.[focusId];if(target?.tabId)try{localStorage.setItem(accountLocalKey('dashboard-tab'),target.tabId);}catch{}
+          (window as any).remoWidgetFocus=focusId;setTab('dashboard');setEditing(null);window.dispatchEvent(new Event('remo-widget-focus'));return true;
+        }
+        if(url.hostname==='today'){setTab('calendar');setCalendarDate(localDate(new Date()));setEditing(null);return true;}
+        if(url.hostname==='note'){
+          const id=url.searchParams.get('id');
+          if(!id){setTab('notes');setSearch('');setEditing(null);setNotice('Open search and enable meaning search to revisit your notes.');return true;}
+          const node=current.tables.bullets.find(n=>n.id===id);
+          if(node){setTab('notes');setSearch('');setScope(node.parentId);setEditing(node.id);setCaret(null);}else setNotice('This note is no longer available.');return true;
+        }
+        const mode=url.searchParams.get('mode');
+        if(!['voice','text','photo'].includes(mode||''))return true;
+        if(mode!=='text'&&!authenticatedUid()){setNotice('Sign in to use voice or AI photo capture. Text capture is available offline.');return true;}
+        let nodes=current.tables.bullets as Node[];
+        if(!nodes.some(n=>n.id===INBOX_ID))nodes=[...nodes.map(n=>n.parentId===null?{...n,position:n.position+1}:n),bullet(INBOX_ID,{text:'Inbox'}) as Node];
+        const id=deliveryId||crypto.randomUUID();if(!nodes.some(n=>n.id===id)){nodes=[...nodes,bullet(id,{parentId:INBOX_ID,position:nodes.filter(n=>n.parentId===INBOX_ID).length}) as Node];commit(withNodes(current,nodes),undefined,true);}await flush();
+        if(failed.current||storageAccountKey()!==owner)return false;
+        setTab('notes');setSearch('');setScope(INBOX_ID);setEditing(id);setCaret(0);
+        if(mode==='voice')setDictateTarget({id,account:owner});
+        if(mode==='photo')setPhotoTarget({id,account:owner});
+        return true;
+      }catch(e){showError(e);return true;}
+    };
+    return()=>{delete (window as any).remoOpenWidgetLink;};
+  },[]);
   const openBulletMenu = (id: string, anchor?: HTMLElement, selectedIds?: string[]) => {
     if(viewTimer.current)publishView(true);
     menuAnchor.current = anchor || [...document.querySelectorAll<HTMLElement>("[data-node-id]")].find(el => el.dataset.nodeId === id) || null;
@@ -716,6 +758,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const editingRef=useRef(editing);editingRef.current=editing;
   // Meaning search (opt-in): search results by meaning, Related notes and duplicate flashcards.
   const meaning=useMeaning(cloudUser,(doc?.tables.bullets as Node[]|undefined)||NO_NODES),meaningRef=useRef(meaning);meaningRef.current=meaning;
+  useEffect(()=>{if(isApp())nativeWidget.refreshPresentation();},[meaning.enabled,meaning.version]);
   const [relatedTarget,setRelatedTarget]=useState<string|null>(null),[duplicatesOpen,setDuplicatesOpen]=useState(false);
   const [photoTarget,setPhotoTarget]=useState<{id:string;account:string}|null>(null);
   const checkDuplicateCard=(id:string)=>{const m=meaningRef.current;if(!m.enabled||!m.indexed(id))return;const questions=new Set((docRef.current?.tables.bullets||[]).filter(n=>n.kind==='QUESTION'&&n.id!==id).map(n=>n.id));const hit=m.similarTo(id,questions)[0];const d=hit&&m.describe(hit.id);if(d)setNotice(`A similar flashcard already exists: “${d.title.slice(0,80)}”. Study Desk → Find duplicates lists them.`);};
