@@ -2,6 +2,14 @@ name: Widget phase 1 verification
 on:
   pull_request:
     branches: [docs/widgets-spec]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'tools/**'
+      - 'docs/widgets/palettes.json'
+      - '.github/workflows/widget-phase1.yml'
   workflow_dispatch:
 permissions:
   contents: read
