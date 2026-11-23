@@ -139,7 +139,9 @@ class StudyWidgetProvider : AppWidgetProvider() {
                     v.setOnClickPendingIntent(R.id.widget_root,configure(context,id))
                 }
                 v.setTextViewText(R.id.widget_body,if(height<170&&body.length>60)"Open RemoNook" else if(height<170&&context.resources.configuration.fontScale>1.3f)"Resize" else body)
-                v.setTextViewText(R.id.widget_status,"")
+                val pendingCount=snapshot?.scope?.let {StudyWidgetStore.pending(context,it)} ?: 0
+                v.setTextViewText(R.id.widget_status,if(pendingCount>0)"$pendingCount saved on device · pending app" else "")
+                v.setViewVisibility(R.id.widget_status,if(pendingCount>0&&height>=240)View.VISIBLE else View.GONE)
                 v.setTextViewText(R.id.widget_deck,if(needsDeck)"Choose deck" else "Open RemoNook")
                 v.setOnClickPendingIntent(R.id.widget_deck,if(needsDeck)configure(context,id) else open(context,id,prefs.getString("deckId",null)))
                 return v
