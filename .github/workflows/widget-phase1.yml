@@ -1,5 +1,7 @@
 name: Widget phase 1 verification
 on:
+  pull_request:
+    branches: [docs/widgets-spec]
   workflow_dispatch:
 permissions:
   contents: read
