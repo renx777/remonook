@@ -130,7 +130,9 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 val v=RemoteViews(context.packageName,R.layout.study_widget_message)
                 v.setViewVisibility(R.id.widget_title,View.VISIBLE)
                 v.setViewVisibility(R.id.widget_deck,View.VISIBLE)
+                v.setTextViewTextSize(R.id.widget_title,android.util.TypedValue.COMPLEX_UNIT_SP,12f)
                 v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,16f)
+                v.setInt(R.id.widget_body,"setGravity",android.view.Gravity.CENTER_VERTICAL)
                 v.setOnClickPendingIntent(R.id.widget_root,null)
                 paint.background(v,R.id.widget_root,if(caught)"goodBg" else "surface","28")
                 paint.text(v,R.id.widget_title,if(caught)"goodFg" else "eyebrow")
@@ -159,6 +161,21 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 }
                 v.setTextViewText(R.id.widget_body,copy)
                 val pendingCount=snapshot?.scope?.let {StudyWidgetStore.pending(context,it)} ?: 0
+                if(caught){
+                    val caption=if(body.startsWith("Next "))body else "Open RemoNook to refresh"
+                    val heading="All caught up"
+                    val text=android.text.SpannableString(heading+"\n"+caption)
+                    text.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0,heading.length,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    text.setSpan(android.text.style.RelativeSizeSpan(1.125f),0,heading.length,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    text.setSpan(android.text.style.RelativeSizeSpan(.75f),heading.length+1,text.length,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    v.setTextViewText(R.id.widget_title,"✓")
+                    v.setTextViewTextSize(R.id.widget_title,android.util.TypedValue.COMPLEX_UNIT_SP,32f)
+                    if(height<=120*context.resources.configuration.fontScale)v.setViewVisibility(R.id.widget_title,View.GONE)
+                    v.setTextViewText(R.id.widget_body,text)
+                    v.setInt(R.id.widget_body,"setGravity",android.view.Gravity.BOTTOM)
+                    v.setViewVisibility(R.id.widget_deck,View.GONE)
+                    v.setOnClickPendingIntent(R.id.widget_root,open(context,id,prefs.getString("deckId",null)))
+                }
                 v.setTextViewText(R.id.widget_status,if(pendingCount>0)"$pendingCount saved on device · pending app" else "")
                 v.setViewVisibility(R.id.widget_status,if(pendingCount>0&&height>=240*context.resources.configuration.fontScale)View.VISIBLE else View.GONE)
                 v.setTextViewText(R.id.widget_deck,if(needsDeck)"Choose deck" else "Open RemoNook")
@@ -176,7 +193,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             if(width<260&&context.resources.configuration.fontScale>1.3f&&height<260)return message("Make this widget taller to study")
             if(width<160||height<170)return message("Make this widget wider to study")
             prefs.getString("error",null)?.let {return message(it)}
-            if(cards.isEmpty())return message(if(deck.tomorrow>0)"Next ${deck.tomorrow} cards tomorrow morning" else if(pending>0)"These cached cards are reviewed. Open RemoNook to apply your saved reviews and refresh this deck." else "No supported cards are ready in this cached deck. Open RemoNook to refresh.",true)
+            if(cards.isEmpty())return message(if(deck.tomorrow>0)"Next ${deck.tomorrow} cards tomorrow morning" else if(pending>0)"These cached cards are reviewed. Open RemoNook to apply your saved reviews and refresh this deck." else "No supported cards are ready in this cached deck. Open RemoNook to refresh.",pending>0||deck.doneToday>0||deck.tomorrow>0||deck.cards.isNotEmpty())
             val selected=cards.find {it.id==prefs.getString("cardId",null)&&it.fingerprint==prefs.getString("fingerprint",null)}
             val card=selected ?: cards.first().also {
                 prefs.edit().putString("cardId",it.id).putString("fingerprint",it.fingerprint).putString("phase","question").putInt("part",0).putBoolean("visible",!prefs.getBoolean("privacy",true)).commit()
