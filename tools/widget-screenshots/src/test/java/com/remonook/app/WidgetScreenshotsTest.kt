@@ -35,6 +35,16 @@ class WidgetScreenshotsTest {
         val dir=File("../../docs/widgets/screenshots").apply{mkdirs()}
         File(dir,"$name.png").outputStream().use{image.compress(Bitmap.CompressFormat.PNG,100,it)}
     }
+    @Test @Config(sdk=[28]) fun legacyPaletteBackgrounds(){
+        val context=RuntimeEnvironment.getApplication()
+        assertEquals("marigold",WidgetPaint.palette("future"))
+        for(palette in WidgetPaint.ids){
+            val paint=WidgetPaint(context,palette)
+            val remote=android.widget.RemoteViews(context.packageName,R.layout.study_widget_message)
+            paint.background(remote,R.id.widget_root,"surface","28")
+            assertNotNull(remote.apply(context,FrameLayout(context)).background)
+        }
+    }
     @Test fun renderNativeStates(){
         for((palette,mode)in listOf("marigold" to Configuration.UI_MODE_NIGHT_NO,"iris" to Configuration.UI_MODE_NIGHT_YES)){
             val context=RuntimeEnvironment.getApplication()
@@ -61,6 +71,14 @@ class WidgetScreenshotsTest {
                 screenshot(context,"$palette-$name",view,w,h)
                 if(name=="locked")assertFalse((view.findViewById<android.widget.TextView>(R.id.widget_body)).text.contains("Aizawl"))
             }
+            config.fontScale=2f
+            context.resources.updateConfiguration(config,context.resources.displayMetrics)
+            snapshot()
+            prefs.edit().putString("phase","answer").commit()
+            val enlarged=StudyWidgetProvider.paintView(context,id,"test",420,600).apply(context,FrameLayout(context))
+            screenshot(context,"$palette-200-percent",enlarged,420,600)
+            config.fontScale=1f
+            context.resources.updateConfiguration(config,context.resources.displayMetrics)
             shadowOf(context.getSystemService(android.app.KeyguardManager::class.java)).setIsDeviceLocked(false)
             val activity=Robolectric.buildActivity(StudyWidgetConfigureActivity::class.java,
                 Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id)).setup().get()

@@ -25,6 +25,11 @@ jobs:
             python3 -c 'import re; text=open("verification.log").read(); lines=[line for line in text.splitlines() if re.search(r"What went wrong|^> |^e:|error:|Caused by:|Could not|requires|not found|Exception|FAILURE|failed",line)]; print("::warning::"+"\n".join(lines[:20] or text.splitlines()[-20:]).replace("%","%25").replace("\n","%0A"))'
           fi
           exit "$result"
+      - name: Render a review contact sheet
+        if: success()
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 -c 'from PIL import Image,ImageOps,ImageDraw; import pathlib,base64; paths=sorted(pathlib.Path("docs/widgets/screenshots").glob("*.png")); sheet=Image.new("RGB",(800,((len(paths)+3)//4)*240),"white"); draw=ImageDraw.Draw(sheet); [(sheet.paste(ImageOps.contain(Image.open(p).convert("RGB"),(190,210)),((i%4)*200,(i//4)*240+20)),draw.text(((i%4)*200,(i//4)*240),p.stem,fill="black")) for i,p in enumerate(paths)]; sheet.save("docs/widgets/screenshots/contact-sheet.png"); print("::notice title=Widget contact sheet::"+base64.b64encode(pathlib.Path("docs/widgets/screenshots/contact-sheet.png").read_bytes()).decode())'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

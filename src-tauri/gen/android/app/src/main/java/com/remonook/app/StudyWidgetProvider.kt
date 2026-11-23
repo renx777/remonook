@@ -133,7 +133,13 @@ class StudyWidgetProvider : AppWidgetProvider() {
                     v.setViewVisibility(bar,if(lockedState)View.VISIBLE else View.GONE)
                     paint.background(v,bar,"outline","pill")
                 }
-                v.setTextViewText(R.id.widget_body,body)
+                if(height<170){
+                    v.setViewVisibility(R.id.widget_title,View.GONE)
+                    v.setViewVisibility(R.id.widget_deck,View.GONE)
+                    v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,12f)
+                    v.setOnClickPendingIntent(R.id.widget_root,configure(context,id))
+                }
+                v.setTextViewText(R.id.widget_body,if(height<170&&context.resources.configuration.fontScale>1.3f)"Resize" else body)
                 v.setTextViewText(R.id.widget_status,"")
                 v.setOnClickPendingIntent(R.id.widget_deck,configure(context,id))
                 return v
