@@ -2,6 +2,40 @@
 
 ## Current state
 
+### Android Study widget Phase 1, 23 November 2026
+
+Android staging runs **0.1.35**, branch `codex/android-widget-palettes`, application
+commit `252d9bf5b13d5b8a10f4931b306645904a5a5986`, branched from
+`docs/widgets-spec` (`a241632`). [PR #96](https://github.com/renx777/remonook/pull/96)
+targets that specification branch. Later documentation/screenshot commits do not
+change the deployed application. This release changes Android and the shared
+widget-settings/snapshot code; web hosting, backend Workers and desktop releases
+were not deployed by this task.
+
+[Android #35](https://github.com/renx777/remonook/actions/runs/45162316815), dispatched
+with `environment=staging`, passed signing, pagination tests, APK build and publish.
+The public [update manifest](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/android.json)
+was checked after publication: `version: 0.1.35`; the signed
+[APK](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.35_android.apk)
+returned HTTP 200 (150,560,122 bytes).
+
+[CI #393](https://github.com/renx777/remonook/actions/runs/45162326271) and
+[Phase 1 verification #36](https://github.com/renx777/remonook/actions/runs/45162326204)
+passed on the deployed source. Local `npm test`: 645 passed, zero failures;
+`npm run check` passed. `cargo test` in `src-tauri`: 16 passed, zero failures.
+Native Android rendering passed on API 33, with legacy palette-resource tests on
+API 28; includes privacy on RemoteViews reuse, malformed-cache messages, sizing
+and 200% font scale. Original palette tests and generated-file freshness passed.
+
+[Sixteen screenshots](widgets/screenshots/README.md) cover Marigold Ink light and
+Electric Iris dark for glance, prompt, full revealed, caught up, locked, too small,
+configure and 200% text. These are native Robolectric renders using synthetic data.
+Real launcher sizing, TalkBack, wallpaper colours and physical microphone/voice
+handoff remain unverified on a device. The original durable review exchange,
+locking, lossless text pager and budgets remain in place. Review intents stay
+schema 1; snapshots accept schema 1 and 2.
+
+
 ### Meaning search, voice review, photo to notes and automatic occlusion, 22 November 2026
 
 Web staging runs branch `feat/meaning-voice-photo`, commit

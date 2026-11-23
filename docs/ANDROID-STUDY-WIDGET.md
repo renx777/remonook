@@ -52,3 +52,14 @@ The generated palette resources are checked with
 palette-source change with `node scripts/gen-widget-palettes.mjs`.
 The native rendering verification workflow applies the actual RemoteViews and
 exports screenshots in an artifact, including Marigold light and Iris dark.
+
+
+The schema also accepts optional deck progress (`doneToday`, `tomorrow`) for
+launcher captions, calculated in the canonical app. It does not change scheduling
+or review-intent acknowledgement. An explicit launcher-instance palette opts out
+of wallpaper colours; choose **App** to follow the wallpaper setting.
+
+[Phase 1 screenshots and verification](widgets/screenshots/README.md) cover all
+required sizes and states, plus 200% text. The native suite also tests reapplying
+a previously revealed RemoteViews: hiding the answer clears its accessibility
+label as well as its visible text.
