@@ -129,6 +129,9 @@ class WidgetScreenshotsTest {
             config.fontScale=1f
             context.resources.updateConfiguration(config,context.resources.displayMetrics)
 
+            File(directory,"snapshot.json").writeText("invalid cache")
+            val errorMessage=StudyWidgetProvider.paintView(context,id,"test",180,240).apply(context,FrameLayout(context))
+            assertTrue(errorMessage.findViewById<android.widget.TextView>(R.id.widget_body).text.contains("refresh"))
 
         }
     }

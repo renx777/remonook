@@ -156,7 +156,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
                     small&&body.startsWith("Make") -> "Resize"
                     small -> "Open app"
                     body.length>60&&height<400*context.resources.configuration.fontScale ->
-                        if(needsDeck)"Choose a deck" else if(snapshot?.scope==null)"Enable Study widgets in RemoNook" else "Open RemoNook to refresh."
+                        if(needsDeck)"Choose a deck" else if(snapshot!=null&&snapshot.scope==null)"Enable Study widgets in RemoNook" else "Open RemoNook to refresh."
                     else -> body
                 }
                 v.setTextViewText(R.id.widget_body,copy)
