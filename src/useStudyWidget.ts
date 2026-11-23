@@ -6,6 +6,7 @@ import { widgetDrafts, removeWidgetDraft } from "./study-widget-drafts";
 import { applyWidgetReview } from "./study-widget.mjs";
 import { buildWidgetSnapshot, disposeWidgetCache } from "./study-widget-cache";
 
+import {widgetAppearance} from "./widget-appearance";
 const preference = (scope: string) => "remo-native-study-widget:" + scope;
 export const widgetEnabled = (scope: string) => {
   try {
@@ -23,7 +24,8 @@ const exclusive = <T>(fn: () => Promise<T>) => {
   return run;
 };
 const emptySnapshot = () => ({
-  schema: 1,
+  schema: 2,
+  appearance: widgetAppearance(),
   scope: null,
   workspaceName: "",
   revision: 0,
@@ -140,6 +142,7 @@ export function useStudyWidget(options: Options) {
                   latest.current.getDoc() !== saved
                 )
                   break;
+                snapshot.appearance = widgetAppearance();
                 await desktopInvoke("study_widget_publish", { snapshot });
                 lastSnapshot = JSON.stringify({
                   ...snapshot,
@@ -197,7 +200,8 @@ export function useStudyWidget(options: Options) {
               revision: 0,
             });
             if (key !== lastSnapshot) {
-              await desktopInvoke("study_widget_publish", { snapshot });
+              snapshot.appearance = widgetAppearance();
+                await desktopInvoke("study_widget_publish", { snapshot });
               lastSnapshot = key;
             }
             lastDoc = current;

@@ -2,6 +2,74 @@
 
 ## Current state
 
+### Android widget startup recovery, 23 November 2026
+
+Android staging **0.1.36** supersedes 0.1.35 on `codex/android-widget-palettes`.
+The signed app source is `e7e50cac0474fa7b95c80471e8239cd995876613`;
+`5233a2c2dfa272fe1ecb2aa6038983137290d4b8` only corrects the native regression
+assertion. [PR #96](https://github.com/renx777/remonook/pull/96) still targets
+`docs/widgets-spec`.
+
+Root cause: the 0.1.35 release optimiser stripped 294 widget resources referenced
+only through computed names. An unfinished widget configuration can leave an
+allocated launcher ID; refreshing it at app resume then crashed the app. Debug
+native screenshots had not exercised release resource stripping. The palette
+generator now emits resource-shrinker keep rules. The Android workflow validates
+all 312 expected names in the signed APK before publication. The validator fails
+on the actual old 0.1.35 APK. Rendering failures are isolated per instance with a
+minimal private recovery message; cached data and durable review evidence are
+not deleted or reset.
+
+[CI #396](https://github.com/renx777/remonook/actions/runs/45272095106) and
+[native/Rust verification #39](https://github.com/renx777/remonook/actions/runs/45272095258)
+passed. Local `npm test`: 646 passed, zero failures. Rust: 16 passed. Native tests
+cover refresh of allocated/unconfigured widgets, a broken per-widget preference,
+continued refresh of other instances and preservation of review files, as well
+as the existing screenshots. APK-validator fixtures cover complete UTF-8/UTF-16
+resource tables, stripped runtime colours and malformed resource tables.
+
+[Android staging #36](https://github.com/renx777/remonook/actions/runs/45271611538)
+passed signing, APK resource validation and publication. The public manifest and
+APK were checked after publication. Physical installation and reopening on the
+owner's affected phone still require confirmation. Install the update over the
+existing staging app using the same signing key; uninstalling is not needed.
+Web hosting, Workers, desktop releases and production were not changed.
+
+
+### Android Study widget Phase 1, 23 November 2026
+
+Android staging runs **0.1.35**, branch `codex/android-widget-palettes`, application
+commit `252d9bf5b13d5b8a10f4931b306645904a5a5986`, branched from
+`docs/widgets-spec` (`a241632`). [PR #96](https://github.com/renx777/remonook/pull/96)
+targets that specification branch. Later documentation/screenshot commits do not
+change the deployed application. This release changes Android and the shared
+widget-settings/snapshot code; web hosting, backend Workers and desktop releases
+were not deployed by this task.
+
+[Android #35](https://github.com/renx777/remonook/actions/runs/45162316815), dispatched
+with `environment=staging`, passed signing, pagination tests, APK build and publish.
+The public [update manifest](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/android.json)
+was checked after publication: `version: 0.1.35`; the signed
+[APK](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.35_android.apk)
+returned HTTP 200 (150,560,122 bytes).
+
+[CI #393](https://github.com/renx777/remonook/actions/runs/45162326271) and
+[Phase 1 verification #36](https://github.com/renx777/remonook/actions/runs/45162326204)
+passed on the deployed source. Local `npm test`: 645 passed, zero failures;
+`npm run check` passed. `cargo test` in `src-tauri`: 16 passed, zero failures.
+Native Android rendering passed on API 33, with legacy palette-resource tests on
+API 28; includes privacy on RemoteViews reuse, malformed-cache messages, sizing
+and 200% font scale. Original palette tests and generated-file freshness passed.
+
+[Sixteen screenshots](widgets/screenshots/README.md) cover Marigold Ink light and
+Electric Iris dark for glance, prompt, full revealed, caught up, locked, too small,
+configure and 200% text. These are native Robolectric renders using synthetic data.
+Real launcher sizing, TalkBack, wallpaper colours and physical microphone/voice
+handoff remain unverified on a device. The original durable review exchange,
+locking, lossless text pager and budgets remain in place. Review intents stay
+schema 1; snapshots accept schema 1 and 2.
+
+
 ### Meaning search, voice review, photo to notes and automatic occlusion, 22 November 2026
 
 Web staging runs branch `feat/meaning-voice-photo`, commit

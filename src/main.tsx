@@ -672,6 +672,24 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setCaret(pos);
   };
   const openPane=(id:string|null=scope)=>{if(!docRef.current)return;views.add(id,docRef.current.tables.bullets as Node[]);setTab('notes');setEditing(null);setMenu(null);};
+  useEffect(()=>{
+    (window as any).remoOpenWidgetStudy=(link:string)=>{
+      if(!docRef.current||failed.current)return false;
+      try{
+        const url=new URL(link);
+        if(url.protocol!=='remonook:'||url.hostname!=='study')return true;
+        if(url.searchParams.get('scope')&&url.searchParams.get('scope')!==storageAccountKey()){setNotice('Open the original workspace to study this widget’s cards.');return true;}
+        const card=url.searchParams.get('card');
+        const deck=url.searchParams.get('deck');
+        if(card&&!docRef.current.tables.cards.some(c=>c.id===card)) {setNotice('This card is no longer available in this workspace.');return true;}
+        (window as any).remoWidgetStudy={card,deck,voice:url.searchParams.get('voice')==='1'};
+        setTab('study');
+        window.dispatchEvent(new Event('remo-widget-study'));
+        return true;
+      }catch{return true;}
+    };
+    return ()=>{delete (window as any).remoOpenWidgetStudy;};
+  },[]);
   const openBulletMenu = (id: string, anchor?: HTMLElement, selectedIds?: string[]) => {
     if(viewTimer.current)publishView(true);
     menuAnchor.current = anchor || [...document.querySelectorAll<HTMLElement>("[data-node-id]")].find(el => el.dataset.nodeId === id) || null;

@@ -2,6 +2,7 @@ import type { Workspace } from "./data";
 
 type Snapshot = {
   schema: number;
+  appearance: {palette:string;dynamic:boolean};
   scope: string | null;
   workspaceName: string;
   revision: number;

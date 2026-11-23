@@ -1,0 +1,96 @@
+name: Widget phase 1 verification
+on:
+  pull_request:
+    branches: [docs/widgets-spec]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'tools/**'
+      - 'docs/widgets/palettes.json'
+      - '.github/workflows/widget-phase1.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: widget-phase1-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  native-screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Render actual Android widget views
+        shell: bash
+        working-directory: tools/widget-screenshots
+        run: |
+          set +e
+          bash gradlew testDebugUnitTest --stacktrace > verification.log 2>&1
+          result=$?
+          if [ "$result" != 0 ]; then
+            python3 -c 'import re; text=open("verification.log").read(); lines=[line for line in text.splitlines() if not line.startswith(("> Task","> Configure")) and re.search(r"What went wrong|^> |^e:|error:|Caused by:|Could not|requires|not found|Exception|FAILURE|failed",line)]; print("::warning::"+"\n".join(lines[:20] or text.splitlines()[-20:]).replace("%","%25").replace("\n","%0A"))'
+          fi
+          exit "$result"
+      - name: Render a review contact sheet
+        if: success()
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 scripts/widget-contact-sheet.py
+      - name: Review marigold-2x2
+        run: python3 scripts/widget-review-image.py marigold-2x2
+      - name: Review marigold-4x2
+        run: python3 scripts/widget-review-image.py marigold-4x2
+      - name: Review marigold-4x4-revealed
+        run: python3 scripts/widget-review-image.py marigold-4x4-revealed
+      - name: Review marigold-caught-up
+        run: python3 scripts/widget-review-image.py marigold-caught-up
+      - name: Review marigold-locked
+        run: python3 scripts/widget-review-image.py marigold-locked
+      - name: Review marigold-too-small
+        run: python3 scripts/widget-review-image.py marigold-too-small
+      - name: Review marigold-configure
+        run: python3 scripts/widget-review-image.py marigold-configure
+      - name: Review marigold-200-percent
+        run: python3 scripts/widget-review-image.py marigold-200-percent
+      - name: Review iris-2x2
+        run: python3 scripts/widget-review-image.py iris-2x2
+      - name: Review iris-4x2
+        run: python3 scripts/widget-review-image.py iris-4x2
+      - name: Review iris-4x4-revealed
+        run: python3 scripts/widget-review-image.py iris-4x4-revealed
+      - name: Review iris-caught-up
+        run: python3 scripts/widget-review-image.py iris-caught-up
+      - name: Review iris-locked
+        run: python3 scripts/widget-review-image.py iris-locked
+      - name: Review iris-too-small
+        run: python3 scripts/widget-review-image.py iris-too-small
+      - name: Review iris-configure
+        run: python3 scripts/widget-review-image.py iris-configure
+      - name: Review iris-200-percent
+        run: python3 scripts/widget-review-image.py iris-200-percent
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-widget-screenshots
+          path: |
+            docs/widgets/screenshots/
+            tools/widget-screenshots/build/reports/
+            tools/widget-screenshots/verification.log
+  rust:
+    runs-on: ubuntu-22.04
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - run: npm ci && npm run build
+      - run: cargo test
+        working-directory: src-tauri

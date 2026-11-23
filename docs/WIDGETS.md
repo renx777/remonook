@@ -315,11 +315,20 @@ after launch, locked/redacted state hides text.
 
 ## 7. Acceptance checklist (each phase's PR)
 
-- [ ] Matches the referenced images in layout, spacing, hierarchy and copy; colours only from `palettes.json`.
-- [ ] All four palettes selectable: app default and per-widget override; App option follows the default.
-- [ ] Light and dark follow the system; tinted/clear (macOS) and dynamic colour (Android 12+) handled.
-- [ ] Existing study widget behaviour unchanged: private review exchange, durability, locking, paging, messages.
-- [ ] Touch targets ≥ 48 dp / 44 pt; every icon button labelled; 200% font scale works.
-- [ ] `npm test` (incl. `tests/widget-palettes.test.mjs`), `cargo test`, Android/desktop CI green.
-- [ ] Docs updated: this file, `docs/ANDROID-STUDY-WIDGET.md`, `docs/ENVIRONMENTS.md` release record.
-- [ ] Released to **staging only** (`android.yml` / `desktop.yml` with environment=staging); no production, no merge to `main`.
+- [x] Matches the referenced images in layout, spacing, hierarchy and copy; colours only from `palettes.json`.
+- [x] All four palettes selectable: app default and per-widget override; App option follows the default.
+- [x] Light and dark follow the system; tinted/clear (macOS) and dynamic colour (Android 12+) handled.
+- [x] Existing study widget behaviour unchanged: private review exchange, durability, locking, paging, messages.
+- [x] Touch targets ≥ 48 dp / 44 pt; every icon button labelled; 200% font scale works.
+- [x] `npm test` (incl. `tests/widget-palettes.test.mjs`), `cargo test`, Android/desktop CI green.
+- [x] Docs updated: this file, `docs/ANDROID-STUDY-WIDGET.md`, `docs/ENVIRONMENTS.md` release record.
+- [x] Released to **staging only** (`android.yml` / `desktop.yml` with environment=staging); no production, no merge to `main`.
+
+
+Phase 1 verification (23 November 2026): Android-only acceptance above is covered
+by the API 33 native rendering suite, API 28 resource tests, 645 JavaScript tests,
+16 Rust tests and the staging APK build. See
+[the screenshots and verification limitations](widgets/screenshots/README.md).
+macOS tinted/clear modes and desktop CI are outside Phase 1. Real launcher,
+TalkBack, wallpaper colours and physical microphone checks remain device acceptance;
+the checked items describe implementation and automated coverage, not those checks.

@@ -1,4 +1,7 @@
-import React from "react";
+import React, {useState,useEffect} from "react";
+import {accountLocalKey} from "./data";
+import {widgetAppearance,palettes,type WidgetAppearance} from "./widget-appearance";
+import "./widget-appearance.css";
 import { isApp } from "./desktop";
 export function NativeStudyWidgetSettings({
   widget,
@@ -13,6 +16,16 @@ export function NativeStudyWidgetSettings({
     refresh: () => void;
   };
 }) {
+  const [appearance,setAppearance]=useState(widgetAppearance);
+  const androidApi=Number(navigator.userAgent.match(/RemoAndroidAPI\/(\d+)/)?.[1]||0);
+  const androidVersion=Number(navigator.userAgent.match(/Android (\d+)/)?.[1]||0);
+  const change=(next:WidgetAppearance)=>{
+    localStorage.setItem(accountLocalKey('remo-widget-appearance'),JSON.stringify(next));
+    setAppearance(next);widget.refresh();
+  };
+  const [theme,setTheme]=useState<'light'|'dark'>(()=>matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  useEffect(()=>{const query=matchMedia('(prefers-color-scheme: dark)');const change=()=>setTheme(query.matches?'dark':'light');query.addEventListener('change',change);return()=>query.removeEventListener('change',change);},[]);
+  const tokens=palettes.palettes[appearance.palette][theme];
   if (!isApp()) return null;
   return (
     <section
@@ -59,6 +72,21 @@ export function NativeStudyWidgetSettings({
           </p>
         </>
       )}
+      <section className="widget-colours">
+        <h3>Widget colours</h3>
+        <p>Used by every RemoNook widget on this device unless a widget picks its own.</p>
+        <fieldset><legend className="widget-sr">Widget colours</legend><div className="widget-palette-grid">
+          {Object.entries(palettes.palettes).map(([id,palette])=><label key={id} className={appearance.palette===id?'chosen':''}>
+            <span className="widget-swatches" aria-hidden="true">{['hero','accent','surfaceAlt'].map(role=><i key={role} style={{background:palette[theme][role as keyof typeof tokens]}}/>)}</span>
+            <span><input type="radio" name="widget-palette" value={id} checked={appearance.palette===id} onChange={()=>change({...appearance,palette:id as WidgetAppearance['palette']})}/>{palette.name}{id==='marigold'&&<small>Default</small>}</span>
+          </label>)}
+        </div></fieldset>
+        {(androidApi>=31||androidVersion>=12)&&<label className="widget-wallpaper"><input type="checkbox" checked={appearance.dynamic} onChange={event=>change({...appearance,dynamic:event.target.checked})}/>Match my wallpaper on Android 12 and later</label>}
+        <div className="widget-live-preview" aria-label="Widget preview">
+          <div style={{background:tokens.surfaceAlt,color:tokens.onSurface}}><small style={{color:tokens.eyebrow}}>PREVIEW · GEOGRAPHY</small><strong>What is the capital of Mizoram?</strong><span style={{background:tokens.primary,color:tokens.onPrimary}}>Reveal</span></div>
+          <div style={{background:tokens.hero,color:tokens.onHero}}><small style={{color:tokens.heroAccent}}>STUDY</small><b>12</b></div>
+        </div>
+      </section>
       <p className="dialog-muted">
         Android can queue reviews while the app is closed. Open RemoNook to
         process them and refresh due cards. Desktop study windows use the

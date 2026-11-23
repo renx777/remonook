@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from docs/widgets/palettes.json. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="@color/widget_iris_surfacealt"/><corners android:radius="28dp"/></shape>

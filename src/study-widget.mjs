@@ -8,6 +8,7 @@ import {
   scopedCards,
   reviewCard,
   deckOwners,
+  intervalLabel,
 } from "./study.mjs";
 import { displayText } from "./relations.mjs";
 import { fsrsSettings } from "./fsrs-scheduler.mjs";
@@ -121,7 +122,7 @@ function supportedSource(doc, card, context) {
       }),
     ),
   );
-  return { id: card.id, fingerprint, question, answer };
+  return { id: card.id, fingerprint, question, answer, intervals: Object.fromEntries([...GRADES].map(grade=>[grade,intervalLabel(card,grade,context.now,doc)])) };
 }
 
 export function createWidgetSnapshot(
@@ -133,7 +134,7 @@ export function createWidgetSnapshot(
   if (!safeScope(scope) || !safeTime(now))
     throw Error("Invalid widget workspace.");
   const context = createStudyContext(doc, now),
-    source = sourceContext(doc, context.owners),
+    source = {...sourceContext(doc, context.owners),now},
     definitions = [
       { id: WIDGET_ALL_DECKS, title: "All flashcards" },
       ...doc.tables.decks
@@ -177,10 +178,17 @@ export function createWidgetSnapshot(
       remaining -= size;
       if (cards.length === WIDGET_LIMITS.cards) break;
     }
-    return { ...deck, cards };
+    const deckCards=scopedCards(doc,deck.id===WIDGET_ALL_DECKS?null:deck.id,now,context);
+    const ids=new Set(deckCards.map(card=>card.id));
+    const day=new Date(now);day.setHours(0,0,0,0);
+    const morning=new Date(day);morning.setDate(morning.getDate()+1);morning.setHours(9);
+    const doneToday=new Set(doc.tables.review_logs.filter(log=>ids.has(log.cardId)&&log.mode==="SPACED"&&log.reviewedAtEpochMillis>=day.getTime()&&log.reviewedAtEpochMillis<=now).map(log=>log.cardId)).size;
+    const tomorrow=deckCards.filter(card=>card.dueAtEpochMillis>now&&card.dueAtEpochMillis<=morning.getTime()).length;
+    return { ...deck, cards, doneToday, tomorrow };
   });
   return {
-    schema: 1,
+    schema: 2,
+    appearance: {palette: "marigold", dynamic: false},
     scope,
     workspaceName: label(workspaceName || "My notes", 200),
     revision:
