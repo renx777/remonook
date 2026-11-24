@@ -90,7 +90,7 @@ export function widgetFocusAction(doc,id,cycle,action,now=Date.now()){
  return doc;
 }
 
-export function focusFingerprint(doc,id){const w=dashboard(doc).widgets[id];return w&&w.kind==='focus'&&!w.removed?digest([w.id,w.settings,w.timer||null]):null;}
+export function focusFingerprint(doc,id){const w=dashboard(doc).widgets[id];return w&&w.kind==='focus'&&!w.removed?digest([w.id,Object.entries(w.settings||{}).sort(([a],[b])=>a.localeCompare(b)),w.timer?[w.timer.mode,w.timer.duration,w.timer.running,w.timer.remaining,w.timer.endsAt,w.timer.cycle]:null]):null;}
 /** Parent links preserve causal order even when the clock moves backwards. */
 export function orderWidgetActions(events){const pending=[...events].sort((a,b)=>(a.reviewedAt??a.at??0)-(b.reviewedAt??b.at??0)||String(a.id).localeCompare(String(b.id))),ordered=[];
  while(pending.length){let index=pending.findIndex(e=>!e.previousId||!pending.some(p=>p.id===e.previousId));if(index<0)index=0;ordered.push(pending.splice(index,1)[0]);}return ordered;}
@@ -116,7 +116,9 @@ export function applyWidgetCapture(doc,intent,scope,now=Date.now()){
  // One stable ordinary note retains line breaks and makes retries idempotent.
  let nodes=doc.tables.bullets;const root='quick-capture-inbox',id='widget-capture-'+intent.id.toLowerCase();
  if(!nodes.some(n=>n.id===root))nodes=[...nodes,bullet(root,{text:'Inbox',position:Math.max(-1,...nodes.filter(n=>n.parentId===null).map(n=>n.position))+1})];
- if(!nodes.some(n=>n.id===id))nodes=[...nodes.map(n=>n.id===root?{...n,collapsed:false}:n),bullet(id,{parentId:root,text:intent.text,position:nodes.filter(n=>n.parentId===root).length})];
+ const existing=nodes.find(n=>n.id===id);
+ if(existing&&existing.text!==intent.text)return actionReceipt(doc,intent,recovered(doc,{...intent,date:localDate(new Date(intent.at))},'The capture destination already contains different text. Both versions are kept.',now));
+ if(!existing)nodes=[...nodes.map(n=>n.id===root?{...n,collapsed:false}:n),bullet(id,{parentId:root,text:intent.text,position:nodes.filter(n=>n.parentId===root).length})];
  return actionReceipt(doc,intent,{doc:withNodes(doc,nodes),outcome:'applied'});
 }
 export function resurfacePresentations(doc,related,now=Date.now(),limit=8){

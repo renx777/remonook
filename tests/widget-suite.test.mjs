@@ -92,3 +92,9 @@ test('native quick capture keeps newlines, appends once, retains unrelated notes
  assert.equal(applyWidgetCapture(made,event,SCOPE,NOW).doc,made);assert.ok(made.tables.bullets.some(n=>n.id==='a'));
  assert.throws(()=>applyWidgetCapture(d,event,'another',NOW));assert.throws(()=>applyWidgetCapture(d,{...event,text:'日'.repeat(3000)},SCOPE,NOW));
 });
+test('Focus fingerprint is stable after metadata property reordering and capture ID collisions retain both texts',async()=>{
+ const {focusFingerprint,applyWidgetCapture}=await import('../src/widget-suite.mjs');const d=fixture(),id=widgetFocus(d,NOW).id,fp=focusFingerprint(d,id),w=d.web.dashboard.widgets[id];
+ w.settings=Object.fromEntries(Object.entries(w.settings).reverse());assert.equal(focusFingerprint(d,id),fp);
+ const event={schema:1,type:'capture',id:crypto.randomUUID(),scope:SCOPE,text:'Preserve this new capture',at:NOW};d.tables.bullets.push(bullet('widget-capture-'+event.id,{text:'An existing edited capture'}));
+ const result=applyWidgetCapture(d,event,SCOPE,NOW);assert.equal(result.outcome,'recovered');assert.ok(result.doc.tables.bullets.some(n=>n.text==='An existing edited capture'));assert.ok(result.doc.tables.bullets.some(n=>n.text.includes(event.text)));
+});
