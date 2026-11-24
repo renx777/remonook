@@ -91,8 +91,11 @@ internal object WidgetSuiteRendering {
         target?.let{intent.putExtra("target",it.id).putExtra("fingerprint",it.fingerprint)}
         return PendingIntent.getBroadcast(context,0,intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
-    private fun capture(context:Context,id:Int,scope:String,mode:String)=PendingIntent.getActivity(context,id,
+    private fun capture(context:Context,id:Int,scope:String,mode:String):PendingIntent {
+        if(mode=="photo")return link(context,id,"capture",mapOf("mode" to "photo"))
+        return PendingIntent.getActivity(context,id,
         Intent(context,WidgetSuiteCaptureActivity::class.java).setData(Uri.parse("remonook-widget://capture/$id/$mode")).putExtra("scope",scope).putExtra("mode",mode),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
     private fun configure(context:Context,id:Int)=PendingIntent.getActivity(context,id,
         Intent(context,WidgetSuiteConfigureActivity::class.java).setData(Uri.parse("remonook-widget://configure/$id")).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     fun render(context:Context,id:Int,kind:String){
