@@ -152,6 +152,14 @@ class WidgetSuiteTest {
                 assertNotNull("$kind must retain a native action",primary);assertTrue(primary.hasOnClickListeners())
                 assertTrue(primary.height>=48);assertFalse(primary.text.contains("larger"))
             }
+            val snap=StudyWidgetStore.Snapshot("suite-test","My notes",1,1,emptyList())
+            val card=StudyWidgetStore.Card("q","v1","What makes learning stick?","Spaced practice and active recall.",mapOf("GOOD" to "10m"))
+            val deck=StudyWidgetStore.Deck("deck","Learning",listOf(card))
+            val prefs=StudyWidgetStore.preferences(context,900);prefs.edit().clear().putBoolean("visible",true).putString("phase","question").commit()
+            val pending=android.app.PendingIntent.getBroadcast(context,1,Intent("test"),android.app.PendingIntent.FLAG_IMMUTABLE)
+            val study=WidgetSuiteStudy.paint(context,900,snap,deck,card,"fixture",110,110,{pending},pending).apply(context,FrameLayout(context))
+            screenshot(context,"adaptive-study-${scale.toInt()}",study,110,110)
+            assertTrue(study.findViewById<TextView>(R.id.widget_reveal).hasOnClickListeners())
         }
     }
     @Test fun measuredStudyPagingRetainsEveryCharacterAtSmallSizes(){

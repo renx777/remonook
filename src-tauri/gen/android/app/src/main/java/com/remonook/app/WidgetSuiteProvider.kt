@@ -266,7 +266,7 @@ internal object WidgetSuiteRendering {
         val scale=context.resources.configuration.fontScale
         paint.background(v,R.id.suite_root,if(kind=="capture")"hero" else "surface","28")
         fun text(view:Int,value:String,role:String="onSurface"){v.setTextViewText(view,value);paint.text(v,view,role)}
-        fun primary(label:String,pending:PendingIntent){text(R.id.suite_primary,label,"onPrimary");paint.background(v,R.id.suite_primary,"primary","pill");v.setContentDescription(R.id.suite_primary,label);v.setOnClickPendingIntent(R.id.suite_primary,pending)}
+        fun primary(label:String,pending:PendingIntent){text(R.id.suite_primary,label,if(kind=="capture")"onAccent" else "onPrimary");paint.background(v,R.id.suite_primary,if(kind=="capture")"accent" else "primary","pill");v.setContentDescription(R.id.suite_primary,label);v.setOnClickPendingIntent(R.id.suite_primary,pending)}
         v.setViewVisibility(R.id.suite_title,if(height>=180*scale)View.VISIBLE else View.GONE)
         text(R.id.suite_title,names[kind]?:"RemoNook",if(kind=="capture")"heroAccent" else "eyebrow")
         v.setViewVisibility(R.id.suite_clock,View.GONE);v.setViewVisibility(R.id.suite_end,View.GONE);v.setViewVisibility(R.id.suite_note,View.VISIBLE)

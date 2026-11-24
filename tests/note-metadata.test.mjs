@@ -58,3 +58,7 @@ test('internal links in reusable templates point to fresh child IDs',()=>{
  const child=made.doc.tables.bullets.find(n=>n.parentId===made.id),root=made.doc.tables.bullets.find(n=>n.id===made.id);
  assert.ok(root.text.includes(child.id));assert.ok(!root.text.includes('@template/'));
 });
+test('templates and property histories survive the server projection acceptance check',async()=>{
+ const {sharedSnapshot}=await import('../src/sync-validate.mjs');let d=fixture();const p=createProperty(d,{name:'Status',type:'text'});d=setPropertyValues(p.doc,'source',{[p.id]:'Draft'});d=setPropertyValues(d,'source',{[p.id]:'Reviewed'});const t=saveNoteTemplate(d,'source','Reusable outline');
+ const y=seed(t.doc);try{const accepted=sharedSnapshot(y).doc;assert.equal(propertyHistory(accepted,'source',p.id).length,2);assert.equal(noteTemplates(accepted).find(n=>n.id===t.id).name,'Reusable outline');assert.equal(propertyValue(accepted,'source',p.id),'Reviewed');}finally{y.destroy();}
+});
