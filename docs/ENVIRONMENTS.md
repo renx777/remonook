@@ -2,6 +2,56 @@
 
 ## Current state
 
+### NookTraits shelves and mobile study dock — web staging, 24 November 2026
+
+Web staging runs `codex/nooktraits-shelves`, application commit
+`ccf77f80b10ddfae25d65f4c5d2ff61bfc4e167d` in
+[PR #100](https://github.com/renx777/remonook/pull/100), stacked on
+`codex/nooktraits` without rewriting that branch. This replaces its initial
+NookTraits preview for the owner-requested fixes. The live
+[staging-source.json](https://staging.remonook.com/staging-source.json) confirms
+the branch/SHA; the inherited release marker remains `2026-11-14.1`. Later
+documentation commits do not change the deployed application.
+
+Answer aloud has an aligned secondary row inside the study dock, separate from
+the fixed reveal grid, hint and navigation. The voice panel scrolls within its
+budget; card editing closes it before the dock becomes inert. NookTraits now
+enables fields only; `#views` is a separate explicit layout opt-in. No existing
+user tags are stripped.
+
+Book/Movie shelves add original-child creation, movie status tabs, cover/poster
+and attached-image cards, image fallbacks, search, typed all/any filters and
+user-named views with independent layouts/columns/cover/sort. Scope/type remains
+explicit and common to the shelf. Active views stay device-local per account;
+archived views retain history and leave notes alone.
+[Review, examples, screenshots and remaining Bases gaps](NOOKTRAITS-REVIEW.md).
+
+Validation on the released application:
+- Local TypeScript/build and **699 automated tests passed**, zero failures.
+- [CI](https://github.com/renx777/remonook/actions/runs/45441065085) passed on
+  the exact deployed application source.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45441157277)
+  passed the build, targeted regressions, Workdays/sync compatibility, backend
+  health, deployment, end-to-end sync and live link-collection checks.
+- Real Chromium Book/Movie flows passed cover/fallback rendering, typed filters,
+  saved views/layout restoration, creation/undo and mobile light/dark fit.
+- A fresh deployed-staging mobile guest flow, using ordinary UI without state
+  seeding, passed both shelves, status/source isolation, search, Author saving,
+  independent tag removal/restoration, hide/show and reload persistence. No
+  runtime errors.
+- The actual StudyDesk component in a synthetic-user app-shell fixture passed
+  voice/reveal/hint/navigation geometry in normal and immersive study, including
+  393×852 and 393×640 viewports. Microphone denial and ordinary reveal passed;
+  no transcription/grading API calls were made. Physical-phone recording and
+  transcription remain unverified by this environment.
+
+The sync backend was not deployed. Its health still reports `syncProtocol:3`,
+`workdaysSchema:2`, `aiAssist:1`, `aiEnabled:true`, `bookmarkReader:1`, and Google
+Tasks configured. Normal v3 persistence and the durable outbox remain in use;
+legacy single-filter configurations stay readable. Android staging remains
+**0.1.45** (`87ce245c501a0d59639e83d8c9e9ecd3da0a595b`). No native binary update,
+main merge or production deployment occurred.
+
 ### NookTraits — web staging, 24 November 2026
 
 Web staging runs `codex/nooktraits`, application commit

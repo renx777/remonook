@@ -103,7 +103,10 @@ Desktop/mobile light and dark, same-line heading eye, and editable collections:
 | --- | --- |
 | ![Reading table](screenshots/nooktraits/table-dark.webp) | ![Reading cards](screenshots/nooktraits/collection-mobile.webp) |
 
-## Validation — 24 November 2026
+## Initial release validation — 24 November 2026
+
+For the shelf follow-up and study-dock fix, see [the review](NOOKTRAITS-REVIEW.md)
+and the latest [environment record](ENVIRONMENTS.md).
 
 Application source `818b55057b71a7d9689e391fcf740382275afd63`:
 - TypeScript/build and **686 automated tests passed** locally; the same application

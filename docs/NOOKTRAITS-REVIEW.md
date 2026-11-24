@@ -92,3 +92,37 @@ No transcription or grading API calls were made during these layout checks.
 | Normal mobile study | Immersive study |
 | --- | --- |
 | ![Voice action above hint and navigation](screenshots/nooktraits-shelves/voice-mobile.webp) | ![Voice action in immersive study](screenshots/nooktraits-shelves/voice-immersive.webp) |
+
+## Verification
+
+Application source `ccf77f80b10ddfae25d65f4c5d2ff61bfc4e167d` passed local
+TypeScript/build and **699 automated tests**, and
+[CI](https://github.com/renx777/remonook/actions/runs/45441065085).
+Browser checks exercised both shelf workflows, relevant fields, image/fallback
+rendering, filters, named views and independent layouts, creation/undo, hide/show,
+reload and mobile light/dark fit, with no runtime errors. The separate real-UI
+flow starts from an empty guest workspace without importing/seeding application
+state and exercises both complete shelves.
+
+Voice geometry passed normal and immersive study at 393×852 and 393×640: the
+secondary action stays below Show answer, above the hint and clear of navigation.
+Permission-denial handling and normal reveal passed without AI calls. Entering
+card editing also closes voice review before the dock becomes inert. Physical
+phone microphone recording/transcription was not exercised by this environment.
+
+Model/UI/app checks cover tag independence, append order and original identity,
+one-undo creation, failed-save draft retention, repeated-click locking, safe
+filter defaults/empty/zero/false semantics, old single-filter configs, relevant
+property menus, per-account view restoration, rapid configuration edits, and
+retention of independently created views after concurrent offline edits.
+
+The [web staging release](https://github.com/renx777/remonook/actions/runs/45441157277)
+passed its build/regressions, backend compatibility/health, end-to-end sync and
+live link-collection checks. A separate deployed mobile guest smoke passed both
+complete shelf flows, explicit tag removal/restoration, saved views/layout after
+reload, hide/show, Author persistence, status/source isolation, search and viewport
+fit, with no runtime errors. HTTPS browser smoke used the managed environment’s
+proxy certificate exception; app TLS settings were not changed.
+
+Live source is recorded in [ENVIRONMENTS.md](ENVIRONMENTS.md). No native release,
+sync Worker deployment, main merge or production deployment was made.
