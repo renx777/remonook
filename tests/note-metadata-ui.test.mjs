@@ -13,6 +13,10 @@ test('property form preserves failed edits, saves only dirty fields, and disable
   d={...d,tables:{...d.tables,bullets:[]}};await render();assert.ok(button('Save properties').disabled);assert.equal(document.querySelector('[aria-label="Author"]').value,'New author');
  }finally{await act(()=>root.unmount());}
 });
+test('note-link property keeps a selected note visible beyond the first hundred results',async()=>{
+ const d=empty();d.tables.bullets=Array.from({length:150},(_,i)=>bullet('n'+i,{text:'Note '+i}));const p=createProperty(d,{name:'Project',type:'note'});const value=setPropertyValues(p.doc,'n0',{[p.id]:'n149'});const root=createRoot(document.querySelector('#root'));
+ try{await act(async()=>root.render(React.createElement(PropertiesDialog,{doc:value,id:'n0',onSave:async()=>{},onClose:()=>{},onUpdate:async()=>{}})));assert.equal(document.querySelector('[aria-label="Project"]').value,'n149');}finally{await act(()=>root.unmount());}
+});
 test('template picker edits variables and prevents duplicate insertion while save is pending',async()=>{
  const d=empty(),root=createRoot(document.querySelector('#root'));let calls=0,resolve;const pending=new Promise(r=>resolve=r),used=[];
  try{await act(async()=>root.render(React.createElement(TemplatesDialog,{doc:d,parent:null,onClose:()=>{},onArchive:async()=>{},onUse:async(id,fields)=>{calls++;used.push([id,fields]);await pending;}})));
