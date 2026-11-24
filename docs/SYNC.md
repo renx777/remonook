@@ -16,6 +16,14 @@ registers. Node location is one atomic parent/position value. Calendar reminders
 study folders and Workdays policies use keyed data; date metadata merges by field.
 Browser-only collapse and calendar-view state stays local.
 
+NookTraits uses additive `web.nookTraits` assignment, field-membership, shared-schema
+and view-configuration revision maps. Values/definitions remain in
+`web.noteProperties`; due dates and completion edit existing bullet fields. Stable
+edit IDs retain concurrent versions. Removing activation tags or hiding traits
+does not delete metadata. The heading eye preference is device-local under an
+account/workspace key; it is not synchronized. No protocol migration or server
+deployment is required. See [NOOKTRAITS.md](NOOKTRAITS.md).
+
 Concurrent rich-text insertions, deletions and formatting converge deterministically.
 A merge can retain both competing words; it cannot infer the writer's intended
 sentence. Node splits currently create/remove text across distinct node records;

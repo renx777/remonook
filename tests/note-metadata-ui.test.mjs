@@ -8,9 +8,9 @@ const button=text=>[...document.querySelectorAll('button')].find(b=>b.textConten
 test('property form preserves failed edits, saves only dirty fields, and disables saving a deleted target',async()=>{
  const base=empty();base.tables.bullets=[bullet('note',{text:'A useful note'})];const p=createProperty(base,{name:'Author',type:'text'}),q=createProperty(p.doc,{name:'Rating',type:'number'});let d=setPropertyValues(q.doc,'note',{[p.id]:'Original',[q.id]:0}),fail=true,values=null,closed=false;
  const root=createRoot(document.querySelector('#root'));const render=async()=>act(async()=>root.render(React.createElement(PropertiesDialog,{doc:d,id:'note',onClose:()=>closed=true,onSave:async v=>{if(fail)throw Error('Storage is full. Draft retained.');values=v;},onUpdate:async()=>{}})));
- try{await render();await input('Author','New author');await click(button('Save properties'));assert.match(document.querySelector('[role="alert"]').textContent,/Draft retained/);assert.equal(document.querySelector('[aria-label="Author"]').value,'New author');
-  fail=false;await click(button('Save properties'));assert.deepEqual(values,{[p.id]:'New author'});assert.ok(closed);
-  d={...d,tables:{...d.tables,bullets:[]}};await render();assert.ok(button('Save properties').disabled);assert.equal(document.querySelector('[aria-label="Author"]').value,'New author');
+ try{await render();await input('Author','New author');await click(button('Save traits'));assert.match(document.querySelector('[role="alert"]').textContent,/Draft retained/);assert.equal(document.querySelector('[aria-label="Author"]').value,'New author');
+  fail=false;await click(button('Save traits'));assert.deepEqual(values,{[p.id]:'New author'});assert.ok(closed);
+  d={...d,tables:{...d.tables,bullets:[]}};await render();assert.ok(button('Save traits').disabled);assert.equal(document.querySelector('[aria-label="Author"]').value,'New author');
  }finally{await act(()=>root.unmount());}
 });
 test('note-link property keeps a selected note visible beyond the first hundred results',async()=>{

@@ -7,12 +7,12 @@ const row=id=>document.querySelector(`[data-node-id="${id}"]`);
 const button=text=>[...document.querySelectorAll('button')].find(b=>b.textContent===text);
 const input=async(label,value)=>act(async()=>{const el=document.querySelector(`[aria-label="${label}"]`);assert.ok(el,label);Object.getOwnPropertyDescriptor(el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));});
 test('note properties persist through the app and a nested template insertion is one undo step',async()=>{
- const initial=withNodes(empty(),[bullet('project',{text:'A project'}),bullet('existing',{parentId:'project',text:'Keep this child'})]);await save(null,initial);let app;
+ const initial=withNodes(empty(),[bullet('project',{text:'A project #nooktraits'}),bullet('existing',{parentId:'project',text:'Keep this child'})]);await save(null,initial);let app;
  try{
   await act(async()=>{app=await import('./.build/app.mjs')});await wait(()=>row('project'));await click(row('project').querySelector('[aria-label="Zoom into bullet"]'));
-  await click(button('Properties'));await wait(()=>document.querySelector('[aria-label="Property name"]'));
-  await input('Property name','Author');await act(async()=>document.querySelector('.pkm-create form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
-  await wait(()=>document.querySelector('[aria-label="Author"]'));await input('Author','Ada');await wait(()=>button('Save properties')&&!button('Save properties').disabled);await click(button('Save properties'));await wait(()=>!document.querySelector('.pkm-dialog'));await wait(async()=>Object.values((await load()).web.noteProperties?.values?.project||{}).length===1);
+  await click(document.querySelector('.nook-manage'));await wait(()=>document.querySelector('[aria-label="Trait name"]'));
+  await input('Trait name','Author');await act(async()=>document.querySelector('.pkm-create form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
+  await wait(()=>document.querySelector('[aria-label="Author"]'));await input('Author','Ada');await wait(()=>button('Save traits')&&!button('Save traits').disabled);await click(button('Save traits'));await wait(()=>!document.querySelector('.pkm-dialog'));await wait(async()=>Object.values((await load()).web.noteProperties?.values?.project||{}).length===1);
   await click(button('Use template…'));await wait(()=>document.querySelector('[aria-label="Template title"]'));await input('Template title','Weekly meeting');await click(button('Use template'));
   await wait(()=>document.querySelector('[aria-label="Zoomed node title"]')?.value.startsWith('Weekly meeting'));
   await wait(async()=>(await load()).tables.bullets.length===8);let saved=await load();assert.equal(saved.tables.bullets.find(n=>n.text.startsWith('Weekly meeting')).parentId,'project');assert.ok(saved.tables.bullets.some(n=>n.id==='existing'));
