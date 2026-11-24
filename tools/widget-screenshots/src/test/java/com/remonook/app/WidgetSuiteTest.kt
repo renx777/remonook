@@ -160,7 +160,7 @@ class WidgetSuiteTest {
                 val v=WidgetSuiteRendering.paint(context,813,"focus","fixture",w,100).apply(context,FrameLayout(context))
                 screenshot(context,"adaptive-focus-min-$w-${scale.toInt()}",v,w,100)
                 val clock=v.findViewById<TextView>(R.id.suite_clock)
-                assertTrue("Small focus timer must fit at enlarged font",clock.layout.height<=clock.height)
+                assertTrue("Focus ${w}x100 at ${scale}: text layout ${clock.layout.height}, view ${clock.height}, text size ${clock.textSize}",clock.layout.height<=clock.height)
             }
             val snap=StudyWidgetStore.Snapshot("suite-test","My notes",1,1,emptyList())
             val card=StudyWidgetStore.Card("q","v1","What makes learning stick?","Spaced practice and active recall.",mapOf("GOOD" to "10m"))

@@ -288,7 +288,17 @@ internal object WidgetSuiteRendering {
                     val running=f.running&&f.endsAt>System.currentTimeMillis()
                     val seconds=if(f.running)maxOf(0,(f.endsAt-System.currentTimeMillis())/1000).toInt() else f.remaining
                     text(R.id.suite_note,String.format(Locale.US,"%02d:%02d",seconds/60,seconds%60))
-                    val timerSize=minOf(if(width>=160)22f else 16f,maxOf(10f,(height-12-48)/(1.35f*scale)))
+                    val timerPaint=android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{typeface=android.graphics.Typeface.DEFAULT_BOLD}
+                    val timerText=String.format(Locale.US,"%02d:%02d",seconds/60,seconds%60)
+                    val timerWidth=maxOf(1,((width-12)*context.resources.displayMetrics.density).toInt())
+                    val timerHeight=maxOf(1f,(height-12-48-(if(height>=180)48 else 0)-6)*context.resources.displayMetrics.density)
+                    var timerSize=if(width>=160)22f else 16f
+                    while(timerSize>8f){
+                        timerPaint.textSize=timerSize*context.resources.displayMetrics.scaledDensity
+                        val measured=android.text.StaticLayout.Builder.obtain(timerText,0,timerText.length,timerPaint,timerWidth).setIncludePad(true).build()
+                        if(measured.lineCount==1&&measured.height<=timerHeight)break
+                        timerSize-=0.5f
+                    }
                     v.setTextViewTextSize(R.id.suite_note,android.util.TypedValue.COMPLEX_UNIT_SP,timerSize)
                     v.setViewVisibility(R.id.suite_note,if(running)View.GONE else View.VISIBLE)
                     v.setViewVisibility(R.id.suite_clock,if(running)View.VISIBLE else View.GONE)
