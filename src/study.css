@@ -521,3 +521,11 @@
 .study-size-menu>summary:hover{background:var(--soft)}
 .study-size-menu>div{position:absolute;right:0;top:calc(100% + 6px);z-index:5;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:0 12px 34px rgba(0,0,0,.25)}
 .study-size-menu .study-card-sizing{display:flex}
+
+/* Voice is a secondary action, never another item in the fixed reveal grid. */
+.study-dock-secondary{display:flex;justify-content:center;align-items:center;margin-top:6px;min-width:0}
+.study-dock-secondary .study-voice-button{width:min(100%,240px);margin:0;min-height:44px;max-width:100%;justify-content:center;white-space:normal}
+.study-action-dock .voice-review{box-sizing:border-box;width:100%;max-width:100%;margin:8px 0 0;max-height:min(36dvh,280px);overflow-y:auto;overflow-wrap:anywhere}
+.study-action-dock .voice-result{min-width:0;max-width:100%}
+.study-action-dock .voice-result-head{flex-wrap:wrap}
+@media(max-width:600px){.study-dock-secondary{padding-inline:36px}.study-dock-secondary .study-voice-button{width:min(100%,240px)}}

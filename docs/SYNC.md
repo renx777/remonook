@@ -22,7 +22,10 @@ and view-configuration revision maps. Values/definitions remain in
 edit IDs retain concurrent versions. Removing activation tags or hiding traits
 does not delete metadata. The heading eye preference is device-local under an
 account/workspace key; it is not synchronized. No protocol migration or server
-deployment is required. See [NOOKTRAITS.md](NOOKTRAITS.md).
+deployment is required. Named shelf views add optional layout/cover/filter-array
+configuration in those same revisions; legacy single-condition views remain
+readable. Removing a named view archives its configuration without deleting
+notes or past revisions. See [NOOKTRAITS.md](NOOKTRAITS.md).
 
 Concurrent rich-text insertions, deletions and formatting converge deterministically.
 A merge can retain both competing words; it cannot infer the writer's intended

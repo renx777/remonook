@@ -132,11 +132,11 @@ export function OutlineView(p: Props) {
       },
       [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds,p.excludedIds],
     );
-  // Collection views are opt-in through #views or #nooktraits. Hiding NookTraits
+  // Collection layouts require #views explicitly. Hiding NookTraits
   // presents a clean outline while retaining the saved collection configuration.
   const traits=useNookTraits(p.scope||'');
   const nookActive=traits.active&&!traits.ctx?.studying;
-  const viewsTagged=!!p.scope&&(nookActive||hasTag(String(idx.byId.get(p.scope)?.text||''),'views'));
+  const viewsTagged=!!p.scope&&hasTag(String(idx.byId.get(p.scope)?.text||''),'views');
   const viewMode=nookActive&&traits.hidden?'outline':viewsTagged&&galleryContext?bulletView(galleryContext.doc,p.scope!):'outline';
   const collectionActive=viewMode!=='outline'&&!p.search&&!p.editing;
   // Publish the complete filtered outline, not just the virtualised viewport.
@@ -641,9 +641,9 @@ export function OutlineView(p: Props) {
   }, [selectedIds, layout, p.onDeleteNodes, p.onCommand, p.disabled, collectionActive]);
 
   if(collectionActive&&scopedNode&&galleryContext)return <section ref={scroller} className="outline-scroll collection-page" aria-label={scopedNode.text+' collection'}>
-    <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/><NookTraitsEye id={scopedNode.id}/></div><NoteMetadataBar id={scopedNode.id}/></div>
-    {viewsTagged&&!(nookActive&&traits.hidden)&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
-    {nookActive?<NookTraitsCollection key={(traits.ctx?.scope||'')+scopedNode.id} id={scopedNode.id} mode={viewMode} onOpen={p.onZoom}/>:<BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>}
+    <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/><NookTraitsEye id={scopedNode.id}/></div></div>
+    {viewsTagged&&!nookActive&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
+    {nookActive?<NookTraitsCollection key={(traits.ctx?.scope||'')+scopedNode.id} id={scopedNode.id} mode={viewMode} assets={p.assets} onOpen={p.onZoom}/>:<BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>}
   </section>;
   return (
     <div

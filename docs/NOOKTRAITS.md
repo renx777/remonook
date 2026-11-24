@@ -4,6 +4,9 @@ A bullet opts in only through `#nooktraits` or a known shortcut such as
 `#nooktraits/book`. Normal topic tags do not activate it. The existing bullet kind,
 study type, outline location and content remain independent of the optional type.
 Book, Project, Meeting, Movie, Person, Research paper and Custom are starters.
+`#nooktraits` enables fields only. Add `#views` explicitly to also enable collection
+layouts; neither activation nor choosing a type appends that tag. Plain `#views`
+continues to provide ordinary child collections without NookTraits.
 
 The eye sits beside the bullet heading, including the zoomed heading. Visibility
 is device-local and scoped to account/workspace/source note; mirrors share it.
@@ -28,7 +31,7 @@ adapters over the existing bullet fields; created/updated times are derived.
 Collection table/cards/list views reference original activated notes. Sources are
 children, descendants or the workspace, optionally filtered by type. Named Book
 views (All, To read, Reading, Finished), typed filtering/sorting, selectable columns,
-inline editing and one-undo bulk edits share the same mutations as a note editor.
+inline editing, creation of original children and one-undo bulk edits share the same mutations as a note editor.
 Sorting never changes outline positions. Account guards prevent cross-workspace writes; failed-save editors retain their
 drafts while open. Unsaved field drafts are not persisted across closing/reload. No snapshot replacement,
 outbox change, conflict-resolution or force-overwrite UI is introduced.
@@ -50,9 +53,13 @@ and additional view layouts are later work.
    a type is an explicit checkbox. Removing a field keeps its value/history.
 3. Use the eye on the heading line for a clean outline while writing or studying.
    Tap it again to restore fields and the selected collection view.
-4. For a reading collection, tag its parent `#nooktraits`, choose **Table** or
-   **Grid**, then **Show → Book notes anywhere**. Book tabs are All, To read,
-   Reading and Finished. **Display** chooses columns, a filter and sort order.
+4. For a reading collection, tag its parent `#nooktraits #views`, choose **Table** or
+   **Grid**, then use **Set up Book Shelf** in the empty state or **Display → Note
+   type → Book**. Scope defaults to children; choose descendants or workspace
+   explicitly in Display. Book tabs are All, To read, Reading and Finished; Movie
+   tabs are All, To watch, Watching and Watched. **New book/movie** appends an
+   original child and adopts the current status. **Save view** creates a named
+   view with its own layout, columns, filters and sort.
 5. Edit cells directly. Select multiple notes to set one trait in a single undo
    step. Open a note title to return to its original outline location.
 
@@ -63,10 +70,25 @@ through Add trait and edit the existing scheduling/task values.
 
 Limits inherited from typed properties: 64 active definitions per workspace,
 128 choices per select, 8,000 characters per text value. Collection pages render
-30 originals at a time. This first version offers one typed filter plus one sort,
-saved independently for each named Book view. It does not introduce formulas,
+30 originals at a time. Shelves support up to eight typed conditions (match all/any), one sort key and
+32 user-named views. Layout, columns, cover selection and filters are saved
+independently; active view selection is remembered locally. It does not introduce formulas,
 rollups or arbitrary user-defined types. Imported tagged Books default to To read
 until explicitly changed or cleared.
+
+## Shelf images and scope
+
+Open an item’s original note and use **More traits → Cover image / Poster image**
+to set an image URL. A local attached image is also supported. Grid cards use a
+quiet title fallback if no image is available or loading fails. **Display → Card
+image** chooses another URL trait or turns images off. Remote images load only
+when displayed; no automatic metadata API or paid provider is used.
+
+The shelf’s scope/type applies to all its views; view filters, columns, image
+selection, layout and sort stay independent. Search is transient. Named views
+can be renamed or removed from Display; removal retains configuration history
+and leaves the original notes untouched. All/any filters are flat groups; nested
+groups, grouping and formulas remain later work. See the [review](NOOKTRAITS-REVIEW.md).
 
 ## Browser captures
 
@@ -81,7 +103,10 @@ Desktop/mobile light and dark, same-line heading eye, and editable collections:
 | --- | --- |
 | ![Reading table](screenshots/nooktraits/table-dark.webp) | ![Reading cards](screenshots/nooktraits/collection-mobile.webp) |
 
-## Validation — 24 November 2026
+## Initial release validation — 24 November 2026
+
+For the shelf follow-up and study-dock fix, see [the review](NOOKTRAITS-REVIEW.md)
+and the latest [environment record](ENVIRONMENTS.md).
 
 Application source `818b55057b71a7d9689e391fcf740382275afd63`:
 - TypeScript/build and **686 automated tests passed** locally; the same application
