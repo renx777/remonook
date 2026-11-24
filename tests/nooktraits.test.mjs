@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {empty} from './.build/data.mjs';import {bullet,encode} from '../src/domain.mjs';
 import {traitsActive,traitType,traitFields,traitValue,applyTraitType,activateTraits,attachTraitField,setTraitValues,setTraitsBulk,traitView,updateTraitView,queryTraits,traitSearchText,allTraitDefinitions} from '../src/nooktraits.mjs';
-import {createProperty,setPropertyValues,propertyHistory} from '../src/note-properties.mjs';
+import {createProperty,setPropertyValues,propertyHistory,renameProperty} from '../src/note-properties.mjs';
 import {searchMatcher} from '../src/search.mjs';
 import {saveNoteTemplate,instantiateNoteTemplate} from '../src/note-templates.mjs';
 import {seed,sharedState,openShared,applyIntent,project,Y} from '../src/sync-crdt.mjs';
@@ -54,3 +54,5 @@ test('changing types retains prior values; URL, timestamp and rating validation 
 test('ordinary and trait searches find values and respect AND/OR and exclusion',()=>{let d=applyTraitType(fixture(),'a','book');d=setTraitValues(d,'a',{'nook-book-author':'James Clear'});const matches=searchMatcher(d.tables.bullets,[],{},Date.now(),n=>traitSearchText(d,n.id)),n=d.tables.bullets.find(n=>n.id==='a');assert.equal(matches(n,'James'),true);assert.equal(matches(n,'trait:Clear'),true);assert.equal(matches(n,'Atomic AND Clear'),true);assert.equal(matches(n,'Atomic -Clear'),false);assert.equal(matches(n,'trait:Unknown OR Clear'),true);});
 
 test('tagged imported books participate in To read before their first editor mount; explicit clear stays empty',()=>{let d=fixture();const config={...traitView(d,'library'),source:'workspace',type:'book'};assert.equal(queryTraits(d,'library',config,'toRead').length,2);d=setTraitValues(d,'a',{'nook-book-status':null});assert.deepEqual(queryTraits(d,'library',config,'toRead').map(n=>n.id),['b']);});
+
+test('archiving a starter field does not break activation of subsequent notes',()=>{let d=applyTraitType(fixture(),'a','book');d=renameProperty(d,'nook-book-status','Reading status',true);d=applyTraitType(d,'b','book');assert.equal(traitFields(d,'b').some(f=>f.id==='nook-book-status'),false);assert.equal(traitValue(d,'b','nook-book-status'),null);assert.equal(propertyHistory(d,'a','nook-book-status').length,1);});
