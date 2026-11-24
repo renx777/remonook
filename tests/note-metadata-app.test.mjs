@@ -12,7 +12,7 @@ test('note properties persist through the app and a nested template insertion is
   await act(async()=>{app=await import('./.build/app.mjs')});await wait(()=>row('project'));await click(row('project').querySelector('[aria-label="Zoom into bullet"]'));
   await click(button('Properties'));await wait(()=>document.querySelector('[aria-label="Property name"]'));
   await input('Property name','Author');await act(async()=>document.querySelector('.pkm-create form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
-  await wait(()=>document.querySelector('[aria-label="Author"]'));await input('Author','Ada');await click(button('Save properties'));await wait(()=>!document.querySelector('.pkm-dialog'));await wait(async()=>Object.values((await load()).web.noteProperties?.values?.project||{}).length===1);
+  await wait(()=>document.querySelector('[aria-label="Author"]'));await input('Author','Ada');await wait(()=>button('Save properties')&&!button('Save properties').disabled);await click(button('Save properties'));await wait(()=>!document.querySelector('.pkm-dialog'));await wait(async()=>Object.values((await load()).web.noteProperties?.values?.project||{}).length===1);
   await click(button('Use template…'));await wait(()=>document.querySelector('[aria-label="Template title"]'));await input('Template title','Weekly meeting');await click(button('Use template'));
   await wait(()=>document.querySelector('[aria-label="Zoomed node title"]')?.value.startsWith('Weekly meeting'));
   await wait(async()=>(await load()).tables.bullets.length===8);let saved=await load();assert.equal(saved.tables.bullets.find(n=>n.text.startsWith('Weekly meeting')).parentId,'project');assert.ok(saved.tables.bullets.some(n=>n.id==='existing'));
