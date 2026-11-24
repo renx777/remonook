@@ -2,6 +2,21 @@
 
 ## Current state
 
+### NookTraits: own note types, study starters and shelf tools, 24 November 2026
+
+Web staging runs branch `feat/nooktraits-upgrade`, commit
+`14c028fd63131e21ce20f3dd338a4f4296bb975d`, release `2026-11-14.1`, built on
+`codex/nooktraits-shelves` (`0ca8f9e`). Adds user-defined note types, Topic and
+Lecture starters, status tabs and New … for every type, group by, a table summary
+row, CSV export and searchable note pickers. See NOOKTRAITS.md. Frontend only;
+the sync Worker is unchanged.
+
+[Staging frontend #196](https://github.com/renx777/remonook/actions/runs/45449257154)
+passed on the first attempt, including the 13 sync checks; the local suite passed
+705 tests. A guest browser flow on deployed staging created a Recipes shelf and a
+Recipe type, added items from status tabs, edited values (footer "Avg 22.5 ·
+Sum 45"), grouped by Stage and exported CSV with no errors.
+
 ### NookTraits shelves and mobile study dock — web staging, 24 November 2026
 
 Web staging runs `codex/nooktraits-shelves`, application commit
