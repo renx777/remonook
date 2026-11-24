@@ -76,6 +76,45 @@ independently; active view selection is remembered locally. It does not introduc
 rollups or arbitrary user-defined types. Imported tagged Books default to To read
 until explicitly changed or cleared.
 
+## Your own note types, study starters and shelf tools — 24 November 2026
+
+A review of the shipped shelves found these gaps, now addressed on branch `feat/nooktraits-upgrade`:
+
+- **Only seven fixed types.** Every other kind of note was "Custom", and Custom notes all shared one
+  field list, so sharing a trait on a recipe also put it on unrelated notes. **New type…** in the
+  type menu now creates a workspace type: a name, chosen traits (reuse or create), and an optional
+  single-choice trait that gives its shelves tabs. Types live in `web.nookTraits.types` as
+  append-only revisions (like views), so offline edits converge and history is kept. Each type gets a
+  `#nooktraits/<slug>` shortcut that never changes, so a rename does not break existing tags.
+  **Edit “…” type** renames it, changes traits or archives it; archived types disappear from menus
+  but notes that use them keep their traits and values. Up to 48 types, 32 traits each.
+- **Nothing for students.** New starters: **Topic** (Subject, Chapter, Revision status, Confidence,
+  Last revised, Next revision, Exam weightage %) and **Lecture** (Course, Teacher, Lecture date,
+  Lecture status, Lecture link, Duration).
+- **Shelf features hard-coded to Book and Movie.** Status tabs, **New …**, default columns, the empty
+  state starters and cover fallbacks now work for every type. Project, Topic and Lecture get tabs from
+  their status; your own types from their chosen tab trait. Book and Movie keep their original tab ids,
+  so saved views and remembered tabs still work.
+- **Creating a type from a shelf** sets what the shelf collects instead of typing the shelf note.
+- **No grouping, totals or export.** Display → **Group by** any single-choice or checkbox trait
+  (option order, Not set last; headings in table, grid and list). Tables show a summary row
+  (average and total for numbers, “x of n” for checkboxes, set counts otherwise). **CSV** exports
+  every matching note in the current view with its visible traits, as displayed (UTF-8 with BOM for
+  spreadsheets; cells that start like a formula are neutralised).
+- **Note pickers.** Linking a note listed every bullet, including empty ones, capped at 50; the note
+  filter showed only the first 200 bullets. Both now search titled notes, NookTraits notes first.
+- **Outline clutter.** A Custom note in the outline showed “add your own traits” with no way to do it
+  there and an empty gap; the compact panel now shows only the type menu until the note is opened.
+
+Scale was checked and is not a problem: on a 4,000-note workspace with 1,000 typed books, a
+workspace shelf query took 14–37 ms and a full shelf render about 38 ms.
+
+Validation: `tests/nooktraits-types.test.mjs` (types, slugs, archive, concurrent edits, tabs for user
+types and Topic, defaults and explicit clears, grouping, summaries, CSV escaping, default columns);
+all 705 tests pass and the build succeeds. A Chromium run created a Recipes shelf, a Recipe type with
+two traits from the shelf, added items from status tabs, edited values in the table (footer
+“Avg 22.5 · Sum 45”), grouped by Stage and exported CSV, at 1280×900 and 390×844, with no errors.
+
 ## Shelf images and scope
 
 Open an item’s original note and use **More traits → Cover image / Poster image**
