@@ -80,3 +80,22 @@ Desktop/mobile light and dark, same-line heading eye, and editable collections:
 | Table | Mobile cards |
 | --- | --- |
 | ![Reading table](screenshots/nooktraits/table-dark.webp) | ![Reading cards](screenshots/nooktraits/collection-mobile.webp) |
+
+## Validation — 24 November 2026
+
+Application source `818b55057b71a7d9689e391fcf740382275afd63`:
+- TypeScript/build and **686 automated tests passed** locally; the same application
+  source also passed [CI](https://github.com/renx777/remonook/actions/runs/45428025618).
+- Chromium tested desktop/mobile, light/dark, same-line eye geometry, visibility
+  across reload, panel-spacing removal, field saves, one-undo bulk updates and
+  retained collection source/layout, without runtime errors.
+- A separate deployed-staging mobile guest flow created a tagged note through
+  ordinary UI, edited Author, hid/reloaded/restored traits and checked alignment
+  and viewport fit. It passed without runtime errors. The managed environment’s
+  browser needed its proxy certificate exception; this does not change app TLS.
+- Cross-account visibility and failed-save drafts are exercised in UI tests;
+  concurrent property revisions, legacy reuse, archived starters, inline code
+  preservation and explicit first-time clears are covered by model tests.
+
+No physical Android/iPhone session was available for this web-only release.
+Native app UI and binaries remain on their previous authorized release.

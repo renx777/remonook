@@ -2,6 +2,42 @@
 
 ## Current state
 
+### NookTraits — web staging, 24 November 2026
+
+Web staging runs `codex/nooktraits`, application commit
+`818b55057b71a7d9689e391fcf740382275afd63` in
+[PR #99](https://github.com/renx777/remonook/pull/99), stacked on
+`codex/pkm-templates-properties` to preserve the existing staging work. The owner
+authorized replacing web staging for this task. The live
+[staging-source.json](https://staging.remonook.com/staging-source.json) confirms
+that branch/SHA; the inherited release marker remains `2026-11-14.1`. Later
+documentation commits do not change the deployed application.
+
+Adds explicit `#nooktraits` activation, optional note types and relevant inline
+fields. The eye is on the heading line in zoomed/read/editing outlines and hides
+traits without clearing metadata or collection configuration. Editable table,
+cards and list views reference original notes, with Book views, columns, one
+filter/sort and bulk edits in one undo step. Existing values and both sides of
+concurrent edits remain retained. [Usage, limits and browser captures](NOOKTRAITS.md).
+
+Validation:
+- Local TypeScript/build and **686 app tests passed**, zero failures.
+- [Application CI](https://github.com/renx777/remonook/actions/runs/45428025618)
+  passed on the exact deployed application source.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45428097916)
+  passed build, targeted regressions (including NookTraits), Workdays/sync
+  compatibility, backend health, deployment, end-to-end sync and live link collections.
+- Chromium desktop/mobile/light/dark flows checked heading geometry, hide/show
+  spacing, reload persistence, field edits, bulk undo, source/layout retention
+  and viewport fit. A separate deployed-staging mobile guest flow passed through
+  ordinary UI with no runtime errors. Physical-phone confirmation is still pending.
+
+The unchanged sync backend health reports `syncProtocol:3`, `workdaysSchema:2`,
+`aiAssist:1`, `aiEnabled:true`, `bookmarkReader:1`, and Google Tasks configured.
+This release used the frontend workflow only; no sync-server deployment, native
+binary update, main merge or production release occurred. Android staging remains
+**0.1.45**, source `87ce245c501a0d59639e83d8c9e9ecd3da0a595b`.
+
 ### Templates, typed properties and adaptive Android widgets — 24 November 2026
 
 Android staging **0.1.45** runs `codex/pkm-templates-properties`, application
@@ -42,9 +78,10 @@ reports `0.1.45`; APK SHA-256 is
 Builds #40–#44 were cancelled before publication during rendering checks; the
 previous published Android version was `0.1.39`.
 
-Web staging was not replaced: it still runs `feat/meaning-voice-photo`, commit
+At that Android release, web staging was not replaced and still ran `feat/meaning-voice-photo`, commit
 `ab72aa94af8bb973a7bcb68fac2df1c2ef9675fa`, release `2026-11-14.1`.
-A branch-replacement approval request is pending, as required by AGENTS.md.
+The owner subsequently authorized its replacement for NookTraits; see the newer
+web staging record above.
 No Worker, macOS/Windows/Linux binary, main merge or production release occurred.
 The unchanged staging Worker health still reports syncProtocol 3,
 workdaysSchema 2, aiAssist 1, aiEnabled true, bookmarkReader 1, and Google Tasks
