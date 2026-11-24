@@ -58,6 +58,7 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/study_widget_info" />
         </receiver>
 
+        <activity android:name=".WidgetSuiteCaptureActivity" android:label="Quick capture" android:exported="false" android:theme="@android:style/Theme.Material.Light.Dialog.NoActionBar" android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".WidgetSuiteConfigureActivity" android:label="RemoNook widget" android:exported="true" android:excludeFromRecents="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/></intent-filter>
         </activity>

@@ -12,6 +12,7 @@ type Snapshot = {
   focus?: any;
   rhythm?: any;
   resurface?: any;
+  resurfaceCards?: any[];
 };
 type Request = {
   resolve: (snapshot: Snapshot) => void;

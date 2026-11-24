@@ -97,26 +97,28 @@ private-home-screen mode; all note text is hidden while the device is locked.
 - Today caches up to eight dated bullets (including daily-note children) and
   reminder occurrences. Tap a row to open its note or Calendar. A check-off is a
   **set-to-done**, not a toggle; its caption says saved on device / pending app.
-  Smaller sizes show fewer rows and an Open Today button. Midnight/timezone
+  Smaller sizes show the next unfinished task with a native Done button. Midnight/timezone
   changes hide stale daily lists until the app refreshes.
-- Capture has a compact and a wide layout. Speak opens existing dictation into
-  Inbox; Type focuses an ordinary editable Inbox bullet; Photo opens Photo to
-  notes. Text works offline. Existing AI voice/photo tools retain their sign-in
-  and availability requirements. No new API or AI allowance is introduced.
+- Capture has a compact and a wide layout. Speak and Type open a small native
+  input dialog, not the main app. Drafts survive closing; Save queues a durable
+  capture for Inbox. Speech uses the installed OS provider with transcript review.
+  Photo opens the existing photo-to-notes processing UI with its availability
+  requirements. No new API or AI allowance is introduced.
 - Focus reads an existing Dashboard focus timer. The launcher host renders the
-  system Chronometer; no timer service runs in the widget. Start/Pause/End open
-  RemoNook and act only on the cached session identity, then show its Dashboard
-  tab. The app still owns completion/history. An overdue countdown can show
+  system Chronometer; no timer service runs in the widget. Start/Pause/End act
+  natively and queue immutable events pinned to the cached session. The app
+  reconciles these events through canonical dashboard mutations and saves history. An overdue countdown can show
   overtime until the app/launcher next refreshes it; no exact alarm is scheduled.
 - Rhythm shows 28 local calendar days of spaced-review counts and the total.
-  Practice and future-dated reviews are excluded. Tap to open Study Desk.
+  Practice and future-dated reviews are excluded. Tap to switch 7/28 days.
 - Resurface is available only when meaning search is enabled. It rotates an
   existing note daily, preferring notes not touched today, plus a connection
-  already in the device’s meaning index. It makes no new AI request.
+  already in the device’s meaning index. Next thought cycles up to eight cached
+  candidates locally. It makes no new AI request.
 
 ### Snapshot and completion protocol
 
-Snapshot schema **3** adds optional bounded Today (8 × 200 UTF-8 bytes), Focus
+Snapshot schema **3** introduced optional bounded Today (8 × 200 UTF-8 bytes), Focus
 (label 80 bytes), Rhythm (28 counts), and Resurface (text 240, path 120, related
 text 160 bytes). Schema 1 and 2 remain readable. Clearing/disabling widgets
 publishes an empty, unscoped snapshot; no pending action files are deleted.
@@ -150,3 +152,35 @@ Phase 2 filesystem tests run on Android API 28 and 33 emulators using actual
 of already queued actions; its host filesystem cannot open directories for fsync,
 so it is not used to claim durable publication. Emulator tests verify publication,
 retries, collision preservation, archive replay and widget removal retaining files.
+
+## Adaptive sizing and native actions (staging follow-up)
+
+Actual launcher `OPTION_APPWIDGET_SIZES` drive responsive RemoteViews on API 31+.
+Legacy portrait uses MIN_WIDTH × MAX_HEIGHT; landscape MAX_WIDTH × MIN_HEIGHT.
+The previous fixed SizeF map could choose a smaller view than the visible slot.
+Valid small widgets now retain a useful action rather than requiring resizing.
+Study text is further paginated by measured font/space within the original lossless
+character budgets. At compact sizes, grades are selected using Grade / Other.
+Resizing and font/orientation changes reset text paging to avoid skipping text.
+
+Study reveal/paging/grading, Today completion, Focus Start/Pause/End, Rhythm range
+switching and Resurface Next thought run natively without opening MainActivity.
+Capture opens a small native input dialog; typed drafts stay private on device,
+speech uses the installed OS provider with editable transcript. Photo still opens
+the existing photo-to-notes UI because it needs selection and processing.
+
+Snapshot **4** adds Focus duration/fingerprint and up to eight opt-in Resurface
+cards; schemas 1–3 remain readable. No new AI request is made. Focus and capture
+publish immutable schema-1 events into the existing private durable inbox using
+fsync + no-replace publication under the existing lock. Review event format,
+private exchange, budgets and processed evidence remain unchanged.
+
+Focus events carry the original timer fingerprint, previous event ID, action,
+cycle and timestamp. The app orders causal chains even after clock rollback,
+checks the current timer against durable receipt fingerprints, applies canonical
+dashboard mutations, and keeps changed/deleted-target actions in Recovered widget
+actions. Capture events retain text/newlines and use a stable ordinary Inbox note
+ID for idempotency. Events are acknowledged only after normal durable app save.
+Native pending presentation is device-local and explicitly says pending app;
+it does not claim cloud synchronization. Account/workspace switching never
+reassigns queued events. Widget deletion never deletes them.

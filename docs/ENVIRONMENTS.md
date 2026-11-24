@@ -2,6 +2,54 @@
 
 ## Current state
 
+### Templates, typed properties and adaptive Android widgets — 24 November 2026
+
+Android staging **0.1.45** runs `codex/pkm-templates-properties`, application
+commit `87ce245c501a0d59639e83d8c9e9ecd3da0a595b` in
+[PR #98](https://github.com/renx777/remonook/pull/98), based on
+`codex/android-widget-suite`. Subsequent documentation/screenshot commits do not
+change the deployed application.
+
+Adds reusable text-outline templates (five starters, saved branch versions,
+variables, formatting/internal links and typed defaults) and seven property types.
+Concurrent property edits retain both revisions. Inserts use ordinary note
+persistence and one undo step. [Usage and browser renders](NOTE-TEMPLATES-PROPERTIES.md).
+
+The existing six Android widgets now use actual launcher sizes and useful compact
+layouts. Study reveal/paging/grading, Today Done, Focus controls, Rhythm range and
+Resurface Next are native actions. Capture opens a small native input dialog;
+Photo/voice review use their existing app interfaces. Snapshot 4 remains backwards
+compatible; the original private review exchange, durable evidence, locking and
+text budgets remain in place. [Native renders and limitations](widgets/adaptive-screenshots/README.md).
+
+Validation for the released application:
+- [CI #417](https://github.com/renx777/remonook/actions/runs/45319543199):
+  TypeScript/build and **669 app tests passed**.
+- [Widget verification #60](https://github.com/renx777/remonook/actions/runs/45319543425):
+  **18 Rust tests**, **8 native renderer tests**, API 28/33 durable filesystem
+  tests passed. Renderer checks include actual SizeF lists, legacy portrait
+  dimensions, minimum-size timer typography, 200% text, lossless study paging,
+  stale daily items, lock/privacy and all four palettes.
+- Real local Chromium flows checked property save, template insertion, mobile
+  layout, persisted dark theme and horizontal overflow with synthetic notes.
+- [Android staging #45](https://github.com/renx777/remonook/actions/runs/45319536202)
+  passed build/signing/resource retention/publication. The downloaded signed APK
+  independently retained **325** required widget resources.
+
+The public [manifest](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/android.json)
+reports `0.1.45`; APK SHA-256 is
+`c6792c67d3ac09ad0c68e659a8c2f665e22853b84c4d48d57f53095f9d1042d1`; [download the staging APK](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/RemoNook-staging_0.1.45_android.apk).
+Builds #40–#44 were cancelled before publication during rendering checks; the
+previous published Android version was `0.1.39`.
+
+Web staging was not replaced: it still runs `feat/meaning-voice-photo`, commit
+`ab72aa94af8bb973a7bcb68fac2df1c2ef9675fa`, release `2026-11-14.1`.
+A branch-replacement approval request is pending, as required by AGENTS.md.
+No Worker, macOS/Windows/Linux binary, main merge or production release occurred.
+The unchanged staging Worker health still reports syncProtocol 3,
+workdaysSchema 2, aiAssist 1, aiEnabled true, bookmarkReader 1, and Google Tasks
+configured. Physical-phone/launcher confirmation of this update remains pending.
+
 ### Android widget suite — Phase 2, 23 November 2026
 
 Android staging **0.1.39** runs `codex/android-widget-suite`, app commit

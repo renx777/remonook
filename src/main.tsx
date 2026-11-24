@@ -1,5 +1,8 @@
+import {NoteMetadataContext} from './NoteMetadataContext';
+import {createProperty,renameProperty,addPropertyOption,setPropertyValues} from './note-properties.mjs';
+import {instantiateNoteTemplate,saveNoteTemplate,archiveNoteTemplate,noteTemplates} from './note-templates.mjs';
 import {localDate} from "./calendar-events.mjs";
-import {resurfacePresentation,widgetFocusAction} from "./widget-suite.mjs";
+import {resurfacePresentations,resurfacePresentation,widgetFocusAction} from "./widget-suite.mjs";
 import {INBOX_ID} from "./quick-capture.mjs";
 import {ImageTextDialog,type ImageTextSource} from './ImageTextDialog';
 import {fetchDroppedImage} from './image-drop';
@@ -207,6 +210,9 @@ const Dashboard = React.lazy(()=>import('./Dashboard').then(module=>({default:mo
 const CanvasStudio = React.lazy(()=>import('./CanvasStudio'));
 // Canvas: on in every build except production (web, desktop and Android alike), until it is released.
 const canvasEnabled = APP_ENV !== 'production';
+const PropertiesDialog=React.lazy(()=>import('./PkmDialogs').then(m=>({default:m.PropertiesDialog})));
+const TemplatesDialog=React.lazy(()=>import('./PkmDialogs').then(m=>({default:m.TemplatesDialog})));
+const SaveTemplateDialog=React.lazy(()=>import('./PkmDialogs').then(m=>({default:m.SaveTemplateDialog})));
 const MindmapView = React.lazy(()=>import('./MindmapView').then(module=>({default:module.MindmapView})));
 let recoveryDraft: () => { doc: Workspace | null; assets: Map<string, Blob> } = () => ({ doc: null, assets: new Map() });
 async function downloadRecovery() {
@@ -313,6 +319,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [settingsList,setSettingsList] = useState(true),
     [mcqEditing, setMcqEditing] = useState<string | null>(null),
     [bulkMcqEditing, setBulkMcqEditing] = useState<string | null>(null),
+    [pkm,setPkm]=useState<{kind:'properties'|'templates'|'save-template';id:string|null;account:string}|null>(null),
     [menu, setMenu] = useState<string | null>(null),
     menuAnchor = useRef<HTMLElement | null>(null),
     menuSelection = useRef<string[]>([]),
@@ -533,7 +540,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
-  const nativeWidget=useStudyWidget({resurface:current=>meaningRef.current?.enabled?resurfacePresentation(current,(id:string)=>meaningRef.current.related(id)):null,ready:!!doc&&!failed.current,revision:doc?.revision,getDoc:()=>docRef.current,canApply:()=>!dirty.current&&!failed.current&&!working&&!cloudApplying.current&&!activeEditor?.view.composing,apply:async next=>{if(failed.current)throw Error('Saving needs attention.');commit(next,undefined,false);await flush();if(failed.current)throw Error('Widget review could not be saved.');},onNotice:setNotice});
+  const nativeWidget=useStudyWidget({resurfaceCards:current=>meaningRef.current?.enabled?resurfacePresentations(current,(id:string)=>meaningRef.current.related(id)):[],resurface:current=>meaningRef.current?.enabled?resurfacePresentation(current,(id:string)=>meaningRef.current.related(id)):null,ready:!!doc&&!failed.current,revision:doc?.revision,getDoc:()=>docRef.current,canApply:()=>!dirty.current&&!failed.current&&!working&&!cloudApplying.current&&!activeEditor?.view.composing,apply:async next=>{if(failed.current)throw Error('Saving needs attention.');commit(next,undefined,false);await flush();if(failed.current)throw Error('Widget review could not be saved.');},onNotice:setNotice});
   useDesktop({ready:!!doc&&!failed.current,getDoc:()=>docRef.current,commit:next=>commit(next),flush,onError:message=>setError(message||null),onNotice:setNotice});
   useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{
     const current=docRef.current;
@@ -732,6 +739,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     };
     return()=>{delete (window as any).remoOpenWidgetLink;};
   },[]);
+  const openPkm=(kind:'properties'|'templates'|'save-template',id:string|null)=>{setMenu(null);setEditing(null);setPkm({kind,id,account:storageAccountKey()});};
+  const pkmSave=async(update:(d:Workspace)=>Workspace)=>{const owner=pkm?.account;await flush();if(failed.current||!owner||owner!==storageAccountKey())throw Error('Save your changes and open the original workspace first. Your form is kept.');const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,true);await flush();if(failed.current||owner!==storageAccountKey())throw Error('Saving needs attention. Your draft stays available.');};
   const openBulletMenu = (id: string, anchor?: HTMLElement, selectedIds?: string[]) => {
     if(viewTimer.current)publishView(true);
     menuAnchor.current = anchor || [...document.querySelectorAll<HTMLElement>("[data-node-id]")].find(el => el.dataset.nodeId === id) || null;
@@ -1896,7 +1905,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       </aside>
   );
   return (
-    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onPreviewDetails:disabled?undefined:async(id,url,details)=>{if(failed.current)throw Error('Saving needs attention. Your details remain in this form.');const next=saveCardDetails(docRef.current!,id,url,details);if(next!==docRef.current)commit(next);await flush();if(failed.current)throw Error('Could not save on this device. Your details remain in this form.');},onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing,ocr:extractImageText}}>
+    <NoteMetadataContext.Provider value={{doc,disabled,properties:id=>openPkm('properties',id),templates:id=>openPkm('templates',id)}}><GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onPreviewDetails:disabled?undefined:async(id,url,details)=>{if(failed.current)throw Error('Saving needs attention. Your details remain in this form.');const next=saveCardDetails(docRef.current!,id,url,details);if(next!==docRef.current)commit(next);await flush();if(failed.current)throw Error('Could not save on this device. Your details remain in this form.');},onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing,ocr:extractImageText}}>
     <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
@@ -2265,6 +2274,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         } catch (error) { showError(error); }
       }} />}
       {photoTarget&&photoTarget.account===storageAccountKey()&&cloudUser&&doc&&<React.Suspense fallback={null}><PhotoNotes user={cloudUser} targetTitle={doc.tables.bullets.find(n=>n.id===photoTarget.id)?.text||''} disabled={disabled||failed.current} onClose={()=>setPhotoTarget(null)} onSave={async result=>{await flush();if(failed.current||photoTarget.account!==storageAccountKey())throw Error('Saving needs attention first.');const current=docRef.current!,next=insertPhotoResult(current,photoTarget.id,result,crypto.randomUUID());commit(next,undefined,true);setNotice(result.cards?`${result.cards.length} flashcard${result.cards.length===1?'':'s'} added. Undo removes them together.`:'Notes added. Undo removes them together.');}}/></React.Suspense>}
+      {pkm&&pkm.account===storageAccountKey()&&doc&&<React.Suspense fallback={null}>
+        {pkm.kind==='properties'&&pkm.id&&<PropertiesDialog doc={doc} id={pkm.id} disabled={disabled} onClose={()=>setPkm(null)} onSave={values=>pkmSave(d=>setPropertyValues(d,pkm.id!,values))} onUpdate={(kind,value)=>pkmSave(d=>kind==='create'?createProperty(d,value).doc:kind==='option'?addPropertyOption(d,value.id,value.label):renameProperty(d,value.id,value.name,value.archived||false))}/>}
+        {pkm.kind==='templates'&&<TemplatesDialog doc={doc} parent={pkm.id} disabled={disabled} onClose={()=>setPkm(null)} onArchive={(id,archived)=>pkmSave(d=>archiveNoteTemplate(d,id,archived))} onUse={async(id,variables)=>{let created='';await pkmSave(d=>{const result=instantiateNoteTemplate(d,id,pkm.id,variables);created=result.id;return result.doc;});setTab('notes');setSearch('');setScope(created);setEditing(null);setNotice('Template added as independent notes. Undo removes this insertion.');}}/>}
+        {pkm.kind==='save-template'&&pkm.id&&<SaveTemplateDialog title={doc.tables.bullets.find(n=>n.id===pkm.id)?.text||'My template'} templates={noteTemplates(doc)} onClose={()=>setPkm(null)} onSave={(name,replace)=>pkmSave(d=>saveNoteTemplate(d,pkm.id!,name,()=>crypto.randomUUID(),replace).doc)}/>}
+      </React.Suspense>}
       {relatedTarget&&doc&&<RelatedNotes meaning={meaning} id={relatedTarget} onOpen={id=>{setRelatedTarget(null);revealBullet(id);}} onClose={()=>setRelatedTarget(null)}/>}
       {duplicatesOpen&&doc&&<DuplicateCards meaning={meaning} questionIds={doc.tables.bullets.filter(n=>n.kind==='QUESTION').map(n=>n.id)} onOpen={id=>{setDuplicatesOpen(false);revealBullet(id);}} onClose={()=>setDuplicatesOpen(false)}/>}
       {dictateTarget&&dictateTarget.account===storageAccountKey()&&<React.Suspense fallback={null}><DictationPill key={dictateTarget.id} user={cloudUser} onText={text=>insertDictation(dictateTarget.id,text)} onClose={()=>setDictateTarget(null)}/></React.Suspense>}
@@ -2280,6 +2294,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
             <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
+            <button disabled={disabled} onClick={()=>openPkm('properties',menuNode.id)}><Icon name="settings" size={16}/><span>Properties…</span></button>
+            <button disabled={disabled} onClick={()=>openPkm('templates',menuNode.id)}><Icon name="notes" size={16}/><span>Use note template…</span></button>
+            <button disabled={disabled} onClick={()=>openPkm('save-template',menuNode.id)}><Icon name="notes" size={16}/><span>Save as note template…</span></button>
             {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:dictate',menuNode.id,0,0);}}><Icon name="mic" size={16}/><span>Dictate</span></button>}
             {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:photo',menuNode.id,0,0);}}><Icon name="camera" size={16}/><span>Photo to notes…</span></button>}
             {cloudUser&&<button onClick={()=>{setMenu(null);setRelatedTarget(sourceId(docRef.current!.tables.bullets,menuNode.id));}}><Icon name="link" size={16}/><span>Related notes</span></button>}
@@ -2483,6 +2500,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
         ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
+        {id:'note-templates',label:'New note from template',icon:'notes',keywords:['template','meeting','project','daily review'],disabled,run:()=>openPkm('templates',null)},
+        {id:'note-properties',label:'Edit note properties',icon:'settings',keywords:['metadata','fields','status'],disabled:disabled||!scope,run:()=>scope&&openPkm('properties',scope)},
         {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
         {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},
         {id:'settings',label:'Open settings & backups',icon:'settings',run:()=>setDialog('settings')},
@@ -2824,7 +2843,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     </div>
     </EmojiProvider>
     </ConnectionContext.Provider></TagSettingsContext.Provider>
-    </VisualToolsContext.Provider></SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></ReadingSources.Provider></GoogleTasksProvider>
+    </VisualToolsContext.Provider></SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></ReadingSources.Provider></GoogleTasksProvider></NoteMetadataContext.Provider>
   );
 }
 export const appRoot = createRoot(document.getElementById("root")!);

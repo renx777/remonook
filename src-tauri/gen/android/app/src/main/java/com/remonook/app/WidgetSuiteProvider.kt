@@ -31,13 +31,24 @@ abstract class WidgetSuiteProvider : AppWidgetProvider() {
         synchronized(StudyWidgetStore.lock){
             val prefs=StudyWidgetStore.preferences(context,id)
             try{
-                if(kind!="today"||prefs.getString("suite-token",null)!=intent.getStringExtra("token"))return
-                if(context.getSystemService(KeyguardManager::class.java).isDeviceLocked||prefs.getBoolean("privacy",false))return
+                if(prefs.getString("suite-token",null)!=intent.getStringExtra("token"))return
+                if(context.getSystemService(KeyguardManager::class.java).isDeviceLocked||(prefs.getBoolean("privacy",false)&&kind !in listOf("rhythm","capture")))return
                 val snapshot=StudyWidgetStore.snapshot(context)
                 if(snapshot.scope==null||snapshot.scope!=prefs.getString("scope",null))return
+                val operation=intent.getStringExtra("operation")
+                if(kind=="focus"&&operation in listOf("start","pause","end")){
+                    WidgetSuiteActions.focus(context,snapshot,operation!!)
+                }else if(kind=="resurface"&&operation=="next"){
+                    val cards=snapshot.resurfaceCards.ifEmpty{listOfNotNull(snapshot.resurface)}
+                    val current=cards.indexOfFirst{it.id==prefs.getString("resurface-id",null)}.coerceAtLeast(0)
+                    if(cards.isNotEmpty())prefs.edit().putString("resurface-id",cards[(current+1)%cards.size].id).commit()
+                }else if(kind=="rhythm"&&operation=="range"){
+                    prefs.edit().putInt("rhythm-days",if(prefs.getInt("rhythm-days",28)==28)7 else 28).commit()
+                }else if(kind=="today"){
                 val item=snapshot.today.find {it.id==intent.getStringExtra("target")&&it.fingerprint==intent.getStringExtra("fingerprint")} ?: return
                 if(item.date!=WidgetSuiteRendering.date(System.currentTimeMillis()))return
                 WidgetSuiteActions.complete(context,snapshot,item,intent.getStringExtra("token")!!)
+                }
                 prefs.edit().remove("suite-error").commit()
             }catch(error:Exception){
                 android.util.Log.e("RemoWidget","Cannot save widget check-off",error)
@@ -73,6 +84,18 @@ internal object WidgetSuiteRendering {
         params.forEach {(key,value)->uri.appendQueryParameter(key,value)}
         return PendingIntent.getActivity(context,id,Intent(context,MainActivity::class.java).setData(uri.build()),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
+    private fun operation(context:Context,id:Int,kind:String,token:String,operation:String,target:StudyWidgetStore.TodayItem?=null):PendingIntent {
+        val provider=providers.first{it.second==kind}.first
+        val intent=Intent(context,provider).setAction(COMPLETE).setData(Uri.parse("remonook-widget://action/$id/$token/$operation"))
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id).putExtra("token",token).putExtra("operation",operation)
+        target?.let{intent.putExtra("target",it.id).putExtra("fingerprint",it.fingerprint)}
+        return PendingIntent.getBroadcast(context,0,intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+    private fun capture(context:Context,id:Int,scope:String,mode:String):PendingIntent {
+        if(mode=="photo")return link(context,id,"capture",mapOf("mode" to "photo"))
+        return PendingIntent.getActivity(context,id,
+        Intent(context,WidgetSuiteCaptureActivity::class.java).setData(Uri.parse("remonook-widget://capture/$id/$mode")).putExtra("scope",scope).putExtra("mode",mode),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
     private fun configure(context:Context,id:Int)=PendingIntent.getActivity(context,id,
         Intent(context,WidgetSuiteConfigureActivity::class.java).setData(Uri.parse("remonook-widget://configure/$id")).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     fun render(context:Context,id:Int,kind:String){
@@ -80,14 +103,7 @@ internal object WidgetSuiteRendering {
             val token=StudyWidgetStore.id()
             require(StudyWidgetStore.preferences(context,id).edit().putString("suite-token",token).commit())
             val opts=AppWidgetManager.getInstance(context).getAppWidgetOptions(id)
-            val sizes=when(kind){
-                "capture"->listOf(110 to 72,160 to 170,260 to 80,260 to 320)
-                "rhythm"->listOf(110 to 100,260 to 100,260 to 180)
-                "focus"->listOf(110 to 110,160 to 170,200 to 260,260 to 320)
-                else->listOf(110 to 110,260 to 180,260 to 320,360 to 480)
-            }
-            val remote=if(Build.VERSION.SDK_INT>=31)RemoteViews(sizes.associate {(w,h)->SizeF(w.toFloat(),h.toFloat()) to paint(context,id,kind,token,w,h)})
-                else paint(context,id,kind,token,opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,260),opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,180))
+            val remote=WidgetSuiteSizes.views(context,opts){w,h->paint(context,id,kind,token,w,h)}
             AppWidgetManager.getInstance(context).updateAppWidget(id,remote)
         }}catch(error:Exception){
             android.util.Log.e("RemoWidget","Cannot paint $kind widget $id",error)
@@ -140,11 +156,14 @@ internal object WidgetSuiteRendering {
         if(snapshot.scope!=prefs.getString("scope",null))return message("Choose this workspace in widget settings.",true)
         if(context.getSystemService(KeyguardManager::class.java).isDeviceLocked)return message("Unlock and open RemoNook to see your notes.")
         if(prefs.getBoolean("privacy",false)&&kind !in listOf("capture","rhythm"))return message("Private widget · open RemoNook to view.")
-        val narrow=kind=="capture"&&scale>1.3f&&width<240 || kind !in listOf("capture","focus")&&width<260
-        if(narrow||width<150||height<if(kind=="capture"&&width>=260)72*scale else if(kind=="rhythm")90*scale else 150*scale)return message("Make this widget larger to see more.")
+        if(kind=="today"&&(date(snapshot.updatedAt)!=date(System.currentTimeMillis())||snapshot.today.any{it.date!=date(System.currentTimeMillis())}))return message("Open RemoNook to refresh today’s list.")
+        // Compact widgets retain their primary action instead of an inert resize card.
+        val compactHeight=when(kind){"rhythm"->80*scale;"capture"->if(width>=280)72f else 160*scale;"resurface"->220*scale;"focus"->180*scale;else->160*scale}
+        if(width<240||height<compactHeight)return compact(context,id,kind,token,width,height,snapshot,paint)
         val layout=when(kind){"today"->R.layout.widget_suite_today;"capture"->if(width>=260&&height<170)R.layout.widget_suite_capture_wide else R.layout.widget_suite_capture;"focus"->R.layout.widget_suite_focus;"rhythm"->R.layout.widget_suite_rhythm;else->R.layout.widget_suite_resurface}
         val v=RemoteViews(context.packageName,layout)
         paint.background(v,R.id.suite_root,if(kind=="capture")"hero" else "surface","28")
+        val inset=(8*context.resources.displayMetrics.density).toInt();v.setViewPadding(R.id.suite_root,inset,inset,inset,inset)
         if(!(kind=="capture"&&layout==R.layout.widget_suite_capture_wide))paint.text(v,R.id.suite_title,if(kind=="capture")"heroAccent" else "eyebrow")
         fun text(view:Int,value:String,role:String="onSurface"){v.setTextViewText(view,value);paint.text(v,view,role)}
         fun control(view:Int,label:String,pending:PendingIntent,primary:Boolean=false){
@@ -154,7 +173,6 @@ internal object WidgetSuiteRendering {
         }
         when(kind){
             "today"->{
-                if(date(snapshot.updatedAt)!=date(System.currentTimeMillis())||snapshot.today.any {it.date!=date(System.currentTimeMillis())})return message("Open RemoNook to refresh today’s list.")
                 prefs.getString("suite-error",null)?.let{return message(it)}
                 val count=maxOf(1,((height-100*scale)/(maxOf(48f,52*scale))).toInt()).coerceAtMost(8)
                 val items=snapshot.today.take(count)
@@ -194,11 +212,11 @@ internal object WidgetSuiteRendering {
                     paint.background(v,view,if(mode=="voice")"accent" else "surfaceAlt","pill")
                     text(view,label,if(mode=="voice")"onAccent" else "onSurface")
                     v.setContentDescription(view,when(mode){"voice"->"Dictate a note into Inbox";"photo"->"Photo to notes in Inbox";else->"Type a note into Inbox"})
-                    v.setOnClickPendingIntent(view,link(context,id,"capture",mapOf("mode" to mode)))
+                    v.setOnClickPendingIntent(view,capture(context,id,snapshot.scope,mode))
                 }
             }
             "focus"->{
-                val f=snapshot.focus ?: return message("Add a Focus timer in Dashboard, then open RemoNook to refresh.")
+                val f=WidgetSuiteActions.effectiveFocus(context,snapshot) ?: return message("Add a Focus timer in Dashboard, then open RemoNook to refresh.")
                 val running=f.running&&f.endsAt>System.currentTimeMillis()
                 text(R.id.suite_title,if(f.mode=="focus")"FOCUS" else "TAKE A BREATH")
                 text(R.id.suite_caption,fit(context,f.label,width-32,2,12f),"muted")
@@ -213,22 +231,24 @@ internal object WidgetSuiteRendering {
                 v.setChronometer(R.id.suite_clock,SystemClock.elapsedRealtime()+maxOf(0,f.endsAt-System.currentTimeMillis()),null,running)
                 v.setBoolean(R.id.suite_clock,"setCountDown",true)
                 val params=mapOf("id" to f.id,"cycle" to f.cycle)
-                control(R.id.suite_primary,if(running)"Pause" else "Start",link(context,id,"focus",params+mapOf("action" to if(running)"pause" else "start")),true)
-                control(R.id.suite_end,"End",link(context,id,"focus",params+mapOf("action" to "end")))
-                text(R.id.suite_status,"Controls open RemoNook","muted")
+                control(R.id.suite_primary,if(running)"Pause" else "Start",operation(context,id,kind,token,if(running)"pause" else "start"),true)
+                control(R.id.suite_end,"End",operation(context,id,kind,token,"end"))
+                text(R.id.suite_status,if(StudyWidgetStore.pending(context,snapshot.scope)>0)"Saved on device · pending app" else "","muted")
             }
             "rhythm"->{
                 val rhythm=snapshot.rhythm ?: return message("Study some cards in RemoNook to build your rhythm.")
-                val active=rhythm.days.count {it>0}
-                text(R.id.suite_title,"$active OF THE LAST 28 DAYS")
-                text(R.id.suite_caption,"${rhythm.total} cards reviewed","muted")
+                val range=prefs.getInt("rhythm-days",28);val counts=rhythm.days.takeLast(range)
+                val active=counts.count {it>0}
+                text(R.id.suite_title,"$active / $range DAYS")
+                text(R.id.suite_caption,"${counts.sum()} cards · tap for ${if(range==28)7 else 28} days","muted")
                 val ids=listOf(R.id.suite_day_0,R.id.suite_day_1,R.id.suite_day_2,R.id.suite_day_3,R.id.suite_day_4,R.id.suite_day_5,R.id.suite_day_6,R.id.suite_day_7,R.id.suite_day_8,R.id.suite_day_9,R.id.suite_day_10,R.id.suite_day_11,R.id.suite_day_12,R.id.suite_day_13,R.id.suite_day_14,R.id.suite_day_15,R.id.suite_day_16,R.id.suite_day_17,R.id.suite_day_18,R.id.suite_day_19,R.id.suite_day_20,R.id.suite_day_21,R.id.suite_day_22,R.id.suite_day_23,R.id.suite_day_24,R.id.suite_day_25,R.id.suite_day_26,R.id.suite_day_27)
-                ids.forEachIndexed {i,view->paint.background(v,view,if(rhythm.days[i]==0)"surfaceAlt" else if(rhythm.days[i]<10)"accent" else "primary","16")}
+                ids.forEachIndexed {i,view->v.setViewVisibility(view,if(i<28-range)View.GONE else View.VISIBLE);paint.background(v,view,if(rhythm.days[i]==0)"surfaceAlt" else if(rhythm.days[i]<10)"accent" else "primary","16")}
                 v.setContentDescription(R.id.suite_root,"Studied on $active of the last 28 days. ${rhythm.total} cards reviewed.")
-                v.setOnClickPendingIntent(R.id.suite_root,link(context,id,"study"))
+                v.setOnClickPendingIntent(R.id.suite_root,operation(context,id,kind,token,"range"))
             }
             "resurface"->{
-                val note=snapshot.resurface ?: return message("Enable meaning search in RemoNook to revisit your notes.")
+                val cards=snapshot.resurfaceCards.ifEmpty{listOfNotNull(snapshot.resurface)}
+                val note=(cards.find{it.id==prefs.getString("resurface-id",null)}?:cards.firstOrNull()) ?: return message("Enable meaning search in RemoNook to revisit your notes.")
                 text(R.id.suite_title,"A THOUGHT TO REVISIT")
                 text(R.id.suite_path,fit(context,note.path,width-32,1,12f),"muted")
                 text(R.id.suite_note,fit(context,note.text,width-32,if(height>=320*scale)5 else 2,16f))
@@ -236,12 +256,66 @@ internal object WidgetSuiteRendering {
                 text(R.id.suite_related,fit(context,"Related · "+note.relatedText,width-48,if(height>=260*scale)2 else 1,13f))
                 paint.background(v,R.id.suite_related,"surfaceAlt","16")
                 v.setViewVisibility(R.id.suite_related,if(note.relatedText.isNotEmpty())View.VISIBLE else View.GONE)
-                control(R.id.suite_open,"Open note",link(context,id,"note",mapOf("id" to note.id)),true)
-                v.setViewVisibility(R.id.suite_open,if(note.relatedText.isNotEmpty()&&height<220*scale)View.GONE else View.VISIBLE)
+                control(R.id.suite_open,if(cards.size>1)"Next thought" else "Open note",if(cards.size>1)operation(context,id,kind,token,"next") else link(context,id,"note",mapOf("id" to note.id)),true)
+                v.setViewVisibility(R.id.suite_open,View.VISIBLE)
                 v.setViewVisibility(R.id.suite_status,View.GONE)
                 v.setOnClickPendingIntent(R.id.suite_root,link(context,id,"note",mapOf("id" to note.id)))
             }
         }
         return v
     }
+    private fun compact(context:Context,id:Int,kind:String,token:String,width:Int,height:Int,snapshot:StudyWidgetStore.Snapshot,paint:WidgetPaint):RemoteViews {
+        val v=RemoteViews(context.packageName,R.layout.widget_suite_action)
+        val scale=context.resources.configuration.fontScale
+        paint.background(v,R.id.suite_root,if(kind=="capture")"hero" else "surface","28")
+        fun text(view:Int,value:String,role:String="onSurface"){v.setTextViewText(view,value);paint.text(v,view,role)}
+        fun primary(label:String,pending:PendingIntent){text(R.id.suite_primary,label,if(kind=="capture")"onAccent" else "onPrimary");paint.background(v,R.id.suite_primary,if(kind=="capture")"accent" else "primary","pill");v.setContentDescription(R.id.suite_primary,label);v.setOnClickPendingIntent(R.id.suite_primary,pending)}
+        v.setViewVisibility(R.id.suite_title,if(height>=180*scale)View.VISIBLE else View.GONE)
+        text(R.id.suite_title,names[kind]?:"RemoNook",if(kind=="capture")"heroAccent" else "eyebrow")
+        v.setViewVisibility(R.id.suite_clock,View.GONE);v.setViewVisibility(R.id.suite_end,View.GONE);v.setViewVisibility(R.id.suite_note,View.VISIBLE)
+        val lines=maxOf(1,((height-12-48)/(16*scale)).toInt())
+        when(kind){
+            "today"->{
+                val next=snapshot.today.firstOrNull{!it.done&&!WidgetSuiteActions.queued(context,snapshot.scope!!,it)}
+                text(R.id.suite_note,fit(context,next?.text?:"All caught up",width-12,lines,12f))
+                if(next!=null)primary("Done",operation(context,id,kind,token,"complete",next))
+                else primary("Today",link(context,id,"today"))
+            }
+            "focus"->{
+                val f=WidgetSuiteActions.effectiveFocus(context,snapshot)
+                if(f==null){text(R.id.suite_note,"No timer yet");primary("Set up",link(context,id,"focus"))}
+                else {
+                    val running=f.running&&f.endsAt>System.currentTimeMillis()
+                    val seconds=if(f.running)maxOf(0,(f.endsAt-System.currentTimeMillis())/1000).toInt() else f.remaining
+                    text(R.id.suite_note,String.format(Locale.US,"%02d:%02d",seconds/60,seconds%60))
+                    val timerPaint=android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{typeface=android.graphics.Typeface.DEFAULT_BOLD}
+                    val timerText=String.format(Locale.US,"%02d:%02d",seconds/60,seconds%60)
+                    val timerWidth=maxOf(1,((width-12)*context.resources.displayMetrics.density).toInt())
+                    val timerHeight=maxOf(1f,(height-12-48-(if(height>=180)48 else 0)-6)*context.resources.displayMetrics.density)
+                    var timerSize=if(width>=160)22f else 16f
+                    while(timerSize>8f){
+                        timerPaint.textSize=timerSize*context.resources.displayMetrics.scaledDensity
+                        val measured=android.text.StaticLayout.Builder.obtain(timerText,0,timerText.length,timerPaint,timerWidth).setIncludePad(true).build()
+                        if(measured.lineCount==1&&measured.height<=timerHeight)break
+                        timerSize-=0.5f
+                    }
+                    v.setTextViewTextSize(R.id.suite_note,android.util.TypedValue.COMPLEX_UNIT_SP,timerSize)
+                    v.setViewVisibility(R.id.suite_note,if(running)View.GONE else View.VISIBLE)
+                    v.setViewVisibility(R.id.suite_clock,if(running)View.VISIBLE else View.GONE)
+                    paint.text(v,R.id.suite_clock,"onSurface")
+                    v.setTextViewTextSize(R.id.suite_clock,android.util.TypedValue.COMPLEX_UNIT_SP,timerSize)
+                    v.setBoolean(R.id.suite_clock,"setCountDown",true);v.setChronometer(R.id.suite_clock,SystemClock.elapsedRealtime()+maxOf(0,f.endsAt-System.currentTimeMillis()),null,running)
+                    primary(if(running)"Pause" else "Start",operation(context,id,kind,token,if(running)"pause" else "start"))
+                    if(height>=180){v.setViewVisibility(R.id.suite_end,View.VISIBLE);text(R.id.suite_end,"End");paint.background(v,R.id.suite_end,"surfaceAlt","pill");v.setOnClickPendingIntent(R.id.suite_end,operation(context,id,kind,token,"end"));v.setContentDescription(R.id.suite_end,"End focus timer")}
+                }
+            }
+            "capture"->{text(R.id.suite_note,fit(context,"Catch a thought",width-12,lines,12f),"onHero");primary("Capture",capture(context,id,snapshot.scope!!,"text"))}
+            "rhythm"->{val range=StudyWidgetStore.preferences(context,id).getInt("rhythm-days",28);val counts=snapshot.rhythm?.days?.takeLast(range)?:emptyList();text(R.id.suite_note,if(width<160||scale>1.3f)"${counts.count{it>0}}/$range" else "${counts.count{it>0}} / $range days");v.setContentDescription(R.id.suite_note,"${counts.count{it>0}} of $range active days");primary(if(range==28)"7 days" else "28 days",operation(context,id,kind,token,"range"))}
+            else->{val cards=snapshot.resurfaceCards.ifEmpty{listOfNotNull(snapshot.resurface)};val selected=cards.find{it.id==StudyWidgetStore.preferences(context,id).getString("resurface-id",null)}?:cards.firstOrNull();text(R.id.suite_note,fit(context,selected?.text?:"Enable meaning search",width-12,lines,12f));primary(if(cards.size>1)"Next" else "Open",if(cards.size>1)operation(context,id,kind,token,"next") else link(context,id,"note",mapOf("id" to (selected?.id?:""))))}
+        }
+        val bodyHeight=height-12-48-(if(kind=="focus"&&height>=180)48 else 0)
+        if(bodyHeight<20*scale)v.setViewVisibility(R.id.suite_mini_content,View.GONE)
+        return v
+    }
+
 }

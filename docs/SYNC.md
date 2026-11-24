@@ -252,3 +252,24 @@ Dedicated-view outlines are projections of the existing bullets. They neither mo
 nor duplicate content. View mode and scope are UI state; all edits use the normal
 editor, persistence, undo and CRDT paths. See
 [ANDROID-SHARING-AND-VIEW-OUTLINES.md](ANDROID-SHARING-AND-VIEW-OUTLINES.md).
+
+
+### Note templates, typed properties and launcher actions
+
+Reusable templates and property data travel in ordinary `web` metadata through
+v3 buckets, backups and the durable outbox. No replacement snapshot is introduced.
+`web.noteTemplates[id].versions[editId]` retains previous template bodies;
+`web.noteProperties` (version 1) stores shared definitions and per-note property
+revision maps. Concurrent revisions keep both values and project a deterministic
+latest value. A property form sends only its dirty fields. Renaming/archiving
+never deletes values, options or earlier revisions. Mirrors resolve to the source
+note's property identity. See [NOTE-TEMPLATES-PROPERTIES.md](NOTE-TEMPLATES-PROPERTIES.md).
+
+Android Focus and text capture use distinct immutable events in the existing
+private widget inbox; reviews retain their original schema and scheduler path.
+Focus actions carry causal previous-event IDs and original session fingerprints;
+changed targets preserve the action as an ordinary recovery note. Captures append
+an idempotent Inbox bullet; colliding content is also retained in recovery notes.
+Neither a local widget action nor a local app save claims cloud acknowledgement.
+The broker archives evidence only after the existing durable save path succeeds.
+See [ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for the exchange details.

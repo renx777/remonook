@@ -43,4 +43,28 @@ class WidgetDurabilityTest {
         WidgetSuiteActions.complete(context,StudyWidgetStore.Snapshot("test-workspace","Notes",1,1,emptyList()),item,id)
         assertEquals("Original immutable evidence",existing.readText())
     }
+    @Test fun focusAndCaptureWorkWithoutMainActivityAndRetainEvents(){
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val scope="native-"+StudyWidgetStore.id()
+        val snapshot=StudyWidgetStore.Snapshot(scope,"Notes",1,System.currentTimeMillis(),emptyList(),focus=StudyWidgetStore.Focus("focus",false,0,1500,"Focus","","focus",1500,"a".repeat(64)))
+        WidgetSuiteActions.focus(context,snapshot,"start")
+        assertTrue(WidgetSuiteActions.effectiveFocus(context,snapshot)!!.running)
+        WidgetSuiteActions.focus(context,snapshot,"pause")
+        assertFalse(WidgetSuiteActions.effectiveFocus(context,snapshot)!!.running)
+        WidgetSuiteActions.focus(context,snapshot,"end")
+        assertEquals(0,WidgetSuiteActions.effectiveFocus(context,snapshot)!!.remaining)
+        val root=StudyWidgetStore.directory(context)
+        val events=File(root,"inbox").listFiles()!!.filter{it.extension=="json"}.mapNotNull{try{JSONObject(it.readText()).takeIf{it.optString("scope")==scope}}catch(_:Exception){null}}
+        assertEquals(3,events.size)
+        val start=events.first{it.getString("action")=="start"}
+        val pause=events.first{it.getString("action")=="pause"}
+        assertEquals(start.getString("id"),pause.getString("previousId"))
+        val id=StudyWidgetStore.id();WidgetSuiteActions.capture(context,scope,"Idea\nNext line",id)
+        val file=File(root,"inbox/$id.json");val original=file.readText()
+        WidgetSuiteActions.capture(context,scope,"Idea\nNext line",id);assertEquals(original,file.readText())
+        WidgetSuiteActions.capture(context,scope,"A second idea",id);assertEquals(original,file.readText())
+        assertTrue(File(root,"inbox").listFiles()!!.any{it.extension=="json"&&it.readText().contains("A second idea")})
+        CaptureWidgetProvider().onDeleted(context,intArrayOf(778));assertEquals(original,file.readText())
+    }
+
 }

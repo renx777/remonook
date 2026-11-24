@@ -1,7 +1,7 @@
 name: Android widget verification
 on:
   pull_request:
-    branches: [docs/widgets-spec, codex/android-widget-palettes]
+    branches: [docs/widgets-spec, codex/android-widget-palettes, codex/android-widget-suite]
     paths:
       - 'src/**'
       - 'src-tauri/**'
@@ -33,6 +33,7 @@ jobs:
           bash gradlew testDebugUnitTest --stacktrace > verification.log 2>&1
           result=$?
           if [ "$result" != 0 ]; then
+            python3 -c 'import glob,xml.etree.ElementTree as E; failures=[(p,t.attrib.get("name",""),f.text or "") for p in glob.glob("build/test-results/testDebugUnitTest/*.xml") for t in E.parse(p).getroot().iter("testcase") for f in list(t) if f.tag in ("failure","error")]; [print("::error title=Native renderer test::"+(p+" "+n+"\n"+v[:4000]).replace("%","%25").replace("\n","%0A")) for p,n,v in failures]'
             python3 -c 'import re; text=open("verification.log").read(); lines=[line for line in text.splitlines() if not line.startswith(("> Task","> Configure")) and re.search(r"What went wrong|^> |^e:|error:|Caused by:|Could not|requires|not found|Exception|FAILURE|failed",line)]; print("::warning::"+"\n".join(lines[:20] or text.splitlines()[-20:]).replace("%","%25").replace("\n","%0A"))'
           fi
           exit "$result"
@@ -41,6 +42,15 @@ jobs:
         run: |
           python3 -m pip install --quiet pillow
           python3 scripts/widget-contact-sheet.py
+      - name: Review adaptive widget sizes
+        run: |
+          for name in adaptive-today-1 adaptive-today-2 adaptive-capture-1 adaptive-capture-2 adaptive-focus-1 adaptive-focus-2 adaptive-rhythm-1 adaptive-rhythm-2 adaptive-resurface-1 adaptive-resurface-2; do
+            python3 scripts/widget-review-image.py "$name"
+          done
+      - name: Review adaptive Study at normal text size
+        run: python3 scripts/widget-review-image.py adaptive-study-1
+      - name: Review adaptive Study at enlarged text size
+        run: python3 scripts/widget-review-image.py adaptive-study-2
       - name: Review suite-marigold-today
         run: python3 scripts/widget-review-image.py suite-marigold-today
       - name: Review suite-marigold-capture

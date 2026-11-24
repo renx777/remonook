@@ -3,7 +3,7 @@ import { desktopInvoke, desktopListen, isApp, isDesktop } from "./desktop";
 import { storageAccountKey, type Workspace } from "./data";
 import { activeLocalWorkspace } from "./workspaces";
 import { widgetDrafts, removeWidgetDraft } from "./study-widget-drafts";
-import {applyWidgetCompletion} from "./widget-suite.mjs";
+import {applyWidgetCompletion,applyWidgetFocus,applyWidgetCapture,orderWidgetActions} from "./widget-suite.mjs";
 import { applyWidgetReview } from "./study-widget.mjs";
 import { buildWidgetSnapshot, disposeWidgetCache } from "./study-widget-cache";
 
@@ -25,7 +25,7 @@ const exclusive = <T>(fn: () => Promise<T>) => {
   return run;
 };
 const emptySnapshot = () => ({
-  schema: 3,
+  schema: 4,
   appearance: widgetAppearance(),
   scope: null,
   workspaceName: "",
@@ -33,6 +33,7 @@ const emptySnapshot = () => ({
   updatedAt: Date.now(),
   decks: [],
   resurface: null as any,
+  resurfaceCards: [] as any[],
 });
 /** Clear presentation before an account/workspace transition, retaining every pending intent. */
 export async function clearNativeStudyWidget() {
@@ -52,6 +53,7 @@ type Options = {
   apply: (doc: Workspace) => Promise<void>;
   onNotice: (message: string) => void;
   resurface?: (doc: Workspace) => any;
+  resurfaceCards?: (doc: Workspace) => any[];
 };
 export function useStudyWidget(options: Options) {
   const scope = storageAccountKey(),
@@ -103,14 +105,10 @@ export function useStudyWidget(options: Options) {
               }),
               drafts = widgetDrafts(scope),
               nativeIds = new Set(native.map((i) => i.id));
-            const intents = [
+            const intents = orderWidgetActions([
               ...drafts.filter((d) => !nativeIds.has(d.id)),
               ...native,
-            ].sort(
-              (a, b) =>
-                (a.reviewedAt ?? a.at) - (b.reviewedAt ?? b.at) ||
-                String(a.id).localeCompare(String(b.id)),
-            );
+            ]);
             for (const intent of intents) {
               if (!valid() || !latest.current.canApply()) break;
               const current = latest.current.getDoc();
@@ -120,7 +118,7 @@ export function useStudyWidget(options: Options) {
                 continue;
               }
               try {
-                const result = (intent.type === "complete" ? applyWidgetCompletion : applyWidgetReview)(
+                const result = (intent.type === "complete" ? applyWidgetCompletion : intent.type === "focus" ? applyWidgetFocus : intent.type === "capture" ? applyWidgetCapture : applyWidgetReview)(
                   current,
                   intent,
                   scope,
@@ -148,7 +146,8 @@ export function useStudyWidget(options: Options) {
                 )
                   break;
                 snapshot.appearance = widgetAppearance();
-                snapshot.resurface = enabled ? latest.current.resurface?.(saved) ?? null : null;
+                snapshot.resurfaceCards = enabled ? latest.current.resurfaceCards?.(saved) ?? [] : [];
+                snapshot.resurface = snapshot.resurfaceCards[0] ?? (enabled ? latest.current.resurface?.(saved) ?? null : null);
                 await desktopInvoke("study_widget_publish", { snapshot });
                 lastSnapshot = JSON.stringify({
                   ...snapshot,
@@ -203,7 +202,8 @@ export function useStudyWidget(options: Options) {
             )
               return;
             snapshot.appearance = widgetAppearance();
-            snapshot.resurface = latest.current.resurface?.(current) ?? null;
+            snapshot.resurfaceCards = latest.current.resurfaceCards?.(current) ?? [];
+            snapshot.resurface = snapshot.resurfaceCards[0] ?? latest.current.resurface?.(current) ?? null;
             const key = JSON.stringify({
               ...snapshot,
               cacheDay: new Date(snapshot.updatedAt).toDateString(),
