@@ -285,11 +285,12 @@ internal object WidgetSuiteRendering {
                     val running=f.running&&f.endsAt>System.currentTimeMillis()
                     val seconds=if(f.running)maxOf(0,(f.endsAt-System.currentTimeMillis())/1000).toInt() else f.remaining
                     text(R.id.suite_note,String.format(Locale.US,"%02d:%02d",seconds/60,seconds%60))
-                    v.setTextViewTextSize(R.id.suite_note,android.util.TypedValue.COMPLEX_UNIT_SP,if(width>=160)22f else 16f)
+                    val timerSize=minOf(if(width>=160)22f else 16f,maxOf(10f,(height-12-48)/(1.35f*scale)))
+                    v.setTextViewTextSize(R.id.suite_note,android.util.TypedValue.COMPLEX_UNIT_SP,timerSize)
                     v.setViewVisibility(R.id.suite_note,if(running)View.GONE else View.VISIBLE)
                     v.setViewVisibility(R.id.suite_clock,if(running)View.VISIBLE else View.GONE)
                     paint.text(v,R.id.suite_clock,"onSurface")
-                    v.setTextViewTextSize(R.id.suite_clock,android.util.TypedValue.COMPLEX_UNIT_SP,if(width>=160)22f else 16f)
+                    v.setTextViewTextSize(R.id.suite_clock,android.util.TypedValue.COMPLEX_UNIT_SP,timerSize)
                     v.setBoolean(R.id.suite_clock,"setCountDown",true);v.setChronometer(R.id.suite_clock,SystemClock.elapsedRealtime()+maxOf(0,f.endsAt-System.currentTimeMillis()),null,running)
                     primary(if(running)"Pause" else "Start",operation(context,id,kind,token,if(running)"pause" else "start"))
                     if(height>=180){v.setViewVisibility(R.id.suite_end,View.VISIBLE);text(R.id.suite_end,"End");paint.background(v,R.id.suite_end,"surfaceAlt","pill");v.setOnClickPendingIntent(R.id.suite_end,operation(context,id,kind,token,"end"));v.setContentDescription(R.id.suite_end,"End focus timer")}
