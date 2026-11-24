@@ -43,9 +43,13 @@ jobs:
           python3 scripts/widget-contact-sheet.py
       - name: Review adaptive widget sizes
         run: |
-          for name in adaptive-today-1 adaptive-today-2 adaptive-capture-1 adaptive-capture-2 adaptive-focus-1 adaptive-focus-2 adaptive-rhythm-1 adaptive-rhythm-2 adaptive-resurface-1 adaptive-resurface-2 adaptive-study-1 adaptive-study-2; do
+          for name in adaptive-today-1 adaptive-today-2 adaptive-capture-1 adaptive-capture-2 adaptive-focus-1 adaptive-focus-2 adaptive-rhythm-1 adaptive-rhythm-2 adaptive-resurface-1 adaptive-resurface-2; do
             python3 scripts/widget-review-image.py "$name"
           done
+      - name: Review adaptive Study at normal text size
+        run: python3 scripts/widget-review-image.py adaptive-study-1
+      - name: Review adaptive Study at enlarged text size
+        run: python3 scripts/widget-review-image.py adaptive-study-2
       - name: Review suite-marigold-today
         run: python3 scripts/widget-review-image.py suite-marigold-today
       - name: Review suite-marigold-capture

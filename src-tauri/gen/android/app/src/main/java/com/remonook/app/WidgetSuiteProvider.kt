@@ -296,7 +296,7 @@ internal object WidgetSuiteRendering {
                 }
             }
             "capture"->{text(R.id.suite_note,fit(context,"Catch a thought",width-12,lines,12f),"onHero");primary("Capture",capture(context,id,snapshot.scope!!,"text"))}
-            "rhythm"->{val range=StudyWidgetStore.preferences(context,id).getInt("rhythm-days",28);val counts=snapshot.rhythm?.days?.takeLast(range)?:emptyList();text(R.id.suite_note,"${counts.count{it>0}} / $range days");primary(if(range==28)"7 days" else "28 days",operation(context,id,kind,token,"range"))}
+            "rhythm"->{val range=StudyWidgetStore.preferences(context,id).getInt("rhythm-days",28);val counts=snapshot.rhythm?.days?.takeLast(range)?:emptyList();text(R.id.suite_note,if(width<160||scale>1.3f)"${counts.count{it>0}}/$range" else "${counts.count{it>0}} / $range days");v.setContentDescription(R.id.suite_note,"${counts.count{it>0}} of $range active days");primary(if(range==28)"7 days" else "28 days",operation(context,id,kind,token,"range"))}
             else->{val cards=snapshot.resurfaceCards.ifEmpty{listOfNotNull(snapshot.resurface)};val selected=cards.find{it.id==StudyWidgetStore.preferences(context,id).getString("resurface-id",null)}?:cards.firstOrNull();text(R.id.suite_note,fit(context,selected?.text?:"Enable meaning search",width-12,lines,12f));primary(if(cards.size>1)"Next" else "Open",if(cards.size>1)operation(context,id,kind,token,"next") else link(context,id,"note",mapOf("id" to (selected?.id?:""))))}
         }
         val bodyHeight=height-12-48-(if(kind=="focus"&&height>=180)48 else 0)

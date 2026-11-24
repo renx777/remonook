@@ -151,6 +151,10 @@ class WidgetSuiteTest {
                 val primary=v.findViewById<TextView>(R.id.suite_primary)
                 assertNotNull("$kind must retain a native action",primary);assertTrue(primary.hasOnClickListeners())
                 assertTrue(primary.height>=48);assertFalse(primary.text.contains("larger"))
+                if(kind=="rhythm"){
+                    val body=v.findViewById<TextView>(R.id.suite_note)
+                    assertTrue("Rhythm count must fit at enlarged font",body.layout.height<=body.height)
+                }
             }
             val snap=StudyWidgetStore.Snapshot("suite-test","My notes",1,1,emptyList())
             val card=StudyWidgetStore.Card("q","v1","What makes learning stick?","Spaced practice and active recall.",mapOf("GOOD" to "10m"))
