@@ -1,7 +1,7 @@
 name: Android widget verification
 on:
   pull_request:
-    branches: [docs/widgets-spec, codex/android-widget-palettes]
+    branches: [docs/widgets-spec, codex/android-widget-palettes, codex/android-widget-suite]
     paths:
       - 'src/**'
       - 'src-tauri/**'

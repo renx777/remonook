@@ -1,3 +1,4 @@
+import {NoteMetadataBar} from './NoteMetadataContext';
 import {droppedImage,mayDropImage} from './image-drop';
 import {BulletCollection,BulletViewSwitch} from './BulletCollection';
 import {bulletView} from './bullet-views.mjs';
@@ -718,6 +719,7 @@ export function OutlineView(p: Props) {
                 }
               }}
             />
+            <NoteMetadataBar id={scopedNode.id}/>
             {viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
             {viewMode!=='outline'&&p.editing&&<div className="collection-editing-hint">Editing in outline<button type="button" onClick={()=>p.onEdit(null)}>Return to {viewMode==='list'?'compact list':viewMode}</button></div>}
           </div>

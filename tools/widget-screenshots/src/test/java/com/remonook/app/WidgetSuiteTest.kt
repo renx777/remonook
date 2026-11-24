@@ -34,9 +34,9 @@ class WidgetSuiteTest {
         val items=JSONArray()
         listOf("Revise Newton’s laws","Mock test · Physics","Send lab report to Priya").forEachIndexed {i,text->items.put(JSONObject().put("id","bullet:note-$i").put("text",text).put("time",if(i==1)"16:00" else "").put("done",i==0).put("date",date).put("fingerprint","a".repeat(64)))}
         val days=JSONArray((0 until 28).map {if(it%7==0)0 else it%16})
-        val root=JSONObject().put("schema",3).put("scope","suite-test").put("workspaceName","My notes").put("updatedAt",System.currentTimeMillis()).put("revision",1).put("decks",JSONArray())
+        val root=JSONObject().put("schema",4).put("scope","suite-test").put("workspaceName","My notes").put("updatedAt",System.currentTimeMillis()).put("revision",1).put("decks",JSONArray())
             .put("appearance",JSONObject().put("palette",palette).put("dynamic",false)).put("today",items)
-            .put("focus",JSONObject().put("id","focus").put("label","Organic chemistry · chapter 4").put("cycle","session").put("mode","focus").put("remaining",1122).put("running",true).put("endsAt",System.currentTimeMillis()+1122000))
+            .put("focus",JSONObject().put("id","focus").put("duration",1500).put("fingerprint","a".repeat(64)).put("label","Organic chemistry · chapter 4").put("cycle","session").put("mode","focus").put("remaining",1122).put("running",true).put("endsAt",System.currentTimeMillis()+1122000))
             .put("rhythm",JSONObject().put("days",days).put("total",(0 until 28).sumOf {days.getInt(it)}))
             .put("resurface",JSONObject().put("id","older").put("text","The best way to learn is to connect a new idea to something you already know.").put("path","Learning / Connections").put("relatedText","Practice recall before returning to the page."))
         File(StudyWidgetStore.directory(context).apply{mkdirs()},"snapshot.json").writeText(root.toString())
@@ -125,4 +125,47 @@ class WidgetSuiteTest {
         TodayWidgetProvider().onDeleted(context,intArrayOf(600))
         assertEquals(saved,file.readText())
     }
+    @Test fun actualLauncherSizesAndCompactWidgetsRemainUseful(){
+        val context=RuntimeEnvironment.getApplication();fixture(context,"marigold")
+        val config=Configuration(context.resources.configuration).apply{orientation=Configuration.ORIENTATION_PORTRAIT}
+        context.resources.updateConfiguration(config,context.resources.displayMetrics)
+        val options=android.os.Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,180);putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,80)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH,320);putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,230)
+        }
+        assertEquals(180 to 230,WidgetSuiteSizes.active(context,options))
+        val supplied=arrayListOf(android.util.SizeF(181f,123f),android.util.SizeF(319f,81f))
+        options.putParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES,supplied)
+        val painted=mutableListOf<Pair<Int,Int>>()
+        WidgetSuiteSizes.views(context,options){w,h->painted.add(w to h);android.widget.RemoteViews(context.packageName,R.layout.widget_suite_action)}
+        assertEquals(listOf(181 to 123,319 to 81),painted)
+        for(scale in listOf(1f,2f)){
+            config.fontScale=scale;context.resources.updateConfiguration(config,context.resources.displayMetrics)
+            for((provider,kind)in WidgetSuiteRendering.providers){
+                val id=811+WidgetSuiteRendering.providers.indexOf(provider to kind)
+                val manager=AppWidgetManager.getInstance(context)
+                shadowOf(manager).addBoundWidget(id,AppWidgetProviderInfo().apply{this.provider=ComponentName(context,provider)})
+                StudyWidgetStore.preferences(context,id).edit().clear().putString("scope","suite-test").commit()
+                val v=WidgetSuiteRendering.paint(context,id,kind,"fixture",110,110).apply(context,FrameLayout(context))
+                screenshot(context,"adaptive-$kind-${scale.toInt()}",v,110,110)
+                val primary=v.findViewById<TextView>(R.id.suite_primary)
+                assertNotNull("$kind must retain a native action",primary);assertTrue(primary.hasOnClickListeners())
+                assertTrue(primary.height>=48);assertFalse(primary.text.contains("larger"))
+            }
+        }
+    }
+    @Test fun measuredStudyPagingRetainsEveryCharacterAtSmallSizes(){
+        val context=RuntimeEnvironment.getApplication()
+        for(scale in listOf(1f,2f)){
+            val config=Configuration(context.resources.configuration).apply{fontScale=scale}
+            context.resources.updateConfiguration(config,context.resources.displayMetrics)
+            val text="Learning with Unicode "+"日本語 🌿 and words\n".repeat(30)
+            for((w,h) in listOf(110 to 110,180 to 160,320 to 220)){
+                val pages=WidgetSuiteStudy.pages(context,text,w,h,"answer")
+                assertEquals(text,pages.joinToString(""));assertTrue(pages.size>1)
+                assertTrue(pages.none{it.isNotEmpty()&&Character.isLowSurrogate(it.first())})
+            }
+        }
+    }
+
 }

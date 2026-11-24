@@ -150,3 +150,35 @@ Phase 2 filesystem tests run on Android API 28 and 33 emulators using actual
 of already queued actions; its host filesystem cannot open directories for fsync,
 so it is not used to claim durable publication. Emulator tests verify publication,
 retries, collision preservation, archive replay and widget removal retaining files.
+
+## Adaptive sizing and native actions (staging follow-up)
+
+Actual launcher `OPTION_APPWIDGET_SIZES` drive responsive RemoteViews on API 31+.
+Legacy portrait uses MIN_WIDTH × MAX_HEIGHT; landscape MAX_WIDTH × MIN_HEIGHT.
+The previous fixed SizeF map could choose a smaller view than the visible slot.
+Valid small widgets now retain a useful action rather than requiring resizing.
+Study text is further paginated by measured font/space within the original lossless
+character budgets. At compact sizes, grades are selected using Grade / Other.
+Resizing and font/orientation changes reset text paging to avoid skipping text.
+
+Study reveal/paging/grading, Today completion, Focus Start/Pause/End, Rhythm range
+switching and Resurface Next thought run natively without opening MainActivity.
+Capture opens a small native input dialog; typed drafts stay private on device,
+speech uses the installed OS provider with editable transcript. Photo still opens
+the existing photo-to-notes UI because it needs selection and processing.
+
+Snapshot **4** adds Focus duration/fingerprint and up to eight opt-in Resurface
+cards; schemas 1–3 remain readable. No new AI request is made. Focus and capture
+publish immutable schema-1 events into the existing private durable inbox using
+fsync + no-replace publication under the existing lock. Review event format,
+private exchange, budgets and processed evidence remain unchanged.
+
+Focus events carry the original timer fingerprint, previous event ID, action,
+cycle and timestamp. The app orders causal chains even after clock rollback,
+checks the current timer against durable receipt fingerprints, applies canonical
+dashboard mutations, and keeps changed/deleted-target actions in Recovered widget
+actions. Capture events retain text/newlines and use a stable ordinary Inbox note
+ID for idempotency. Events are acknowledged only after normal durable app save.
+Native pending presentation is device-local and explicitly says pending app;
+it does not claim cloud synchronization. Account/workspace switching never
+reassigns queued events. Widget deletion never deletes them.

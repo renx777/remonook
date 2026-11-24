@@ -8,9 +8,9 @@ import {defaultDashboard} from '../src/dashboard.mjs';
 const NOW=new Date(2026,10,23,12).getTime(),DATE='2026-11-23',SCOPE='local:workspace';
 function fixture(){const base=empty();return {...base,revision:1,tables:{...base.tables,bullets:[bullet('journal-'+DATE,{journalDate:DATE,text:'Monday'}),bullet('a',{parentId:'journal-'+DATE,text:'Revise Newton’s laws',taskState:'TODO'}),bullet('b',{text:'Send lab report',dueDate:DATE,taskState:'TODO'}),bullet('other',{text:'An older thought about learning from experience'})],decks:[],cards:[],review_logs:[],media:[]},web:{...base.web,dashboard:defaultDashboard(),calendarEvents:[{id:'reminder',title:'Mock test',date:DATE,time:'16:00',kind:'other',repeat:'none',leadDays:1,notes:'',completed:[]}]}};}
 function intent(doc,patch={}){const item=widgetToday(doc,NOW).find(i=>i.id==='bullet:a');return {schema:1,type:'complete',id:'a616af76-a854-43d3-8a15-b4324beb16f0',scope:SCOPE,targetId:item.id,text:item.text,date:item.date,fingerprint:item.fingerprint,at:NOW,...patch};}
-test('schema 3 includes bounded Today items, focus and 28 local study days',()=>{
+test('schema 4 includes bounded Today items, focus and 28 local study days',()=>{
  const doc=fixture(),s=createWidgetSnapshot(doc,SCOPE,'Workspace',NOW);
- assert.equal(s.schema,3);assert.equal(s.today.length,3);assert.equal(s.rhythm.days.length,28);assert.equal(s.focus.label,'Focus timer');
+ assert.equal(s.schema,4);assert.equal(s.today.length,3);assert.equal(s.rhythm.days.length,28);assert.equal(s.focus.label,'Focus timer');
  assert.ok(s.today.some(i=>i.id==='reminder:reminder'&&i.time==='16:00'));
  for(let i=0;i<15;i++)doc.tables.bullets.push(bullet('due'+i,{text:'日'.repeat(100),dueDate:DATE}));
  const all=widgetToday(doc,NOW);assert.equal(all.length,8);assert.ok(all.every(i=>Buffer.byteLength(i.text)<=200));
@@ -70,4 +70,25 @@ test('Today and Resurface never expose a flashcard or MCQ answer through another
  assert.ok(widgetToday(doc,NOW).every(n=>!n.id.includes('private-')));
  const r=resurfacePresentation(doc,()=>[{id:'private-answer'}],NOW);
  assert.ok(!r.id.includes('private-'));assert.equal(r.relatedText,'');
+});
+
+test('offline Focus start/pause/resume/end uses causal receipts, survives clock rollback and never launches a different timer',async()=>{
+ const {applyWidgetFocus,focusFingerprint,orderWidgetActions}=await import('../src/widget-suite.mjs');
+ let d=fixture();const id=widgetFocus(d,NOW).id,base=focusFingerprint(d,id);
+ const a={schema:1,type:'focus',id:crypto.randomUUID(),scope:SCOPE,targetId:id,action:'start',baseFingerprint:base,previousId:null,nextCycle:'native-cycle',at:NOW};
+ const b={...a,id:crypto.randomUUID(),action:'pause',previousId:a.id,at:NOW+60000};
+ const c={...a,id:crypto.randomUUID(),action:'start',previousId:b.id,at:NOW+59000};
+ assert.deepEqual(orderWidgetActions([c,b,a]).map(x=>x.id),[a.id,b.id,c.id]);
+ for(const e of orderWidgetActions([c,b,a])){const r=applyWidgetFocus(d,e,SCOPE,NOW+120000);assert.equal(r.outcome,'applied');d=r.doc;assert.equal(applyWidgetFocus(d,e,SCOPE,NOW+120000).doc,d);}
+ assert.equal(widgetFocus(d,NOW+59000).cycle,'native-cycle');assert.equal(widgetFocus(d,NOW+59000).remaining,24*60);
+ const end={...c,id:crypto.randomUUID(),action:'end',previousId:c.id,at:NOW+120000};d=applyWidgetFocus(d,end,SCOPE,NOW+120000).doc;
+ assert.equal(widgetFocus(d,NOW+120000).running,false);assert.equal(widgetFocus(d,NOW+120000).remaining,0);
+ const conflict=applyWidgetFocus(d,{...a,id:crypto.randomUUID()},SCOPE,NOW+120000);assert.equal(conflict.outcome,'recovered');assert.ok(conflict.doc.tables.bullets.some(n=>n.text.includes('Focus: start')));
+ assert.throws(()=>applyWidgetFocus(d,a,'other',NOW));
+});
+test('native quick capture keeps newlines, appends once, retains unrelated notes and rejects wrong accounts',async()=>{
+ const {applyWidgetCapture}=await import('../src/widget-suite.mjs');const d=fixture(),event={schema:1,type:'capture',id:crypto.randomUUID(),scope:SCOPE,text:'An idea\nwith a second line',at:NOW};
+ const made=applyWidgetCapture(d,event,SCOPE,NOW).doc;assert.ok(made.tables.bullets.some(n=>n.text===event.text&&n.parentId==='quick-capture-inbox'));
+ assert.equal(applyWidgetCapture(made,event,SCOPE,NOW).doc,made);assert.ok(made.tables.bullets.some(n=>n.id==='a'));
+ assert.throws(()=>applyWidgetCapture(d,event,'another',NOW));assert.throws(()=>applyWidgetCapture(d,{...event,text:'日'.repeat(3000)},SCOPE,NOW));
 });

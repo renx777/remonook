@@ -17,9 +17,9 @@ internal object StudyWidgetStore {
     const val SCHEMA = 1
     data class Card(val id: String, val fingerprint: String, val question: String, val answer: String, val intervals:Map<String,String> = emptyMap())
     data class Deck(val id: String, val title: String, val cards: List<Card>, val doneToday:Int=0,val tomorrow:Int=0)
-    data class Snapshot(val scope: String?, val workspace: String, val revision: Long, val updatedAt: Long, val decks: List<Deck>, val palette:String="marigold", val dynamic:Boolean=false, val today:List<TodayItem> = emptyList(),val focus:Focus?=null,val rhythm:Rhythm?=null,val resurface:Resurface?=null)
+    data class Snapshot(val scope: String?, val workspace: String, val revision: Long, val updatedAt: Long, val decks: List<Deck>, val palette:String="marigold", val dynamic:Boolean=false, val today:List<TodayItem> = emptyList(),val focus:Focus?=null,val rhythm:Rhythm?=null,val resurface:Resurface?=null,val resurfaceCards:List<Resurface> = emptyList())
     data class TodayItem(val id:String,val text:String,val time:String,val done:Boolean,val date:String,val fingerprint:String)
-    data class Focus(val id:String,val running:Boolean,val endsAt:Long,val remaining:Int,val label:String,val cycle:String,val mode:String)
+    data class Focus(val id:String,val running:Boolean,val endsAt:Long,val remaining:Int,val label:String,val cycle:String,val mode:String,val duration:Int=1500,val fingerprint:String="")
     data class Rhythm(val days:List<Int>,val total:Int)
     data class Resurface(val id:String,val text:String,val path:String,val relatedText:String)
     data class Receipt(val id: String, val scope: String, val cardId: String, val fingerprint: String)
@@ -36,7 +36,7 @@ internal object StudyWidgetStore {
         if (!file.isFile) return Snapshot(null, "", 0, 0, emptyList())
         require(file.length() <= 4 * 1024 * 1024) { "Widget cache is too large. Open RemoNook to refresh it." }
         val root = JSONObject(file.readText())
-        require(root.getInt("schema") in 1..3)
+        require(root.getInt("schema") in 1..4)
         if (root.isNull("scope")) return Snapshot(null, "", root.optLong("revision"), root.optLong("updatedAt"), emptyList(),WidgetPaint.palette(root.optJSONObject("appearance")?.optString("palette")),root.optJSONObject("appearance")?.optBoolean("dynamic",false) ?: false)
         val scope = text(root, "scope", 200)
         require(scope.isNotBlank())
@@ -56,10 +56,12 @@ internal object StudyWidgetStore {
         val today=(0 until items.length()).map {i->val item=items.getJSONObject(i)
             TodayItem(text(item,"id",210),text(item,"text",200),item.optString("time",""),item.getBoolean("done"),text(item,"date",10),text(item,"fingerprint",64))
         }
-        val focus=root.optJSONObject("focus")?.let {f->Focus(text(f,"id",200),f.getBoolean("running"),f.getLong("endsAt"),f.getInt("remaining").coerceIn(0,7200),f.getString("label").also {require(it.toByteArray().size<=80)},f.getString("cycle").also {require(it.length<=128)},text(f,"mode",10))}
+        val focus=root.optJSONObject("focus")?.let {f->Focus(text(f,"id",200),f.getBoolean("running"),f.getLong("endsAt"),f.getInt("remaining").coerceIn(0,7200),f.getString("label").also {require(it.toByteArray().size<=80)},f.getString("cycle").also {require(it.length<=128)},text(f,"mode",10),f.optInt("duration",maxOf(1500,f.optInt("remaining",1500))).coerceIn(1,7200),f.optString("fingerprint",""))}
         val rhythm=root.optJSONObject("rhythm")?.let {r->val days=r.getJSONArray("days");require(days.length()==28);val counts=(0 until 28).map {days.getInt(it).also {n->require(n in 0..1000000)}};Rhythm(counts,r.getInt("total").also {require(it==counts.sum())})}
         val resurface=root.optJSONObject("resurface")?.let {r->Resurface(text(r,"id",200),text(r,"text",240),r.getString("path").also {require(it.toByteArray().size<=120)},r.getString("relatedText").also {require(it.toByteArray().size<=160)})}
-        return Snapshot(scope, root.optString("workspaceName", "Workspace"),root.getLong("revision"),root.getLong("updatedAt"),decks,WidgetPaint.palette(root.optJSONObject("appearance")?.optString("palette")),root.optJSONObject("appearance")?.optBoolean("dynamic",false) ?: false,today,focus,rhythm,resurface)
+        val alternatives=root.optJSONArray("resurfaceCards")?:JSONArray();require(alternatives.length()<=8)
+        val cards=(0 until alternatives.length()).map {i->val r=alternatives.getJSONObject(i);Resurface(text(r,"id",200),text(r,"text",240),r.getString("path").also {require(it.toByteArray().size<=120)},r.getString("relatedText").also {require(it.toByteArray().size<=160)})}
+        return Snapshot(scope, root.optString("workspaceName", "Workspace"),root.getLong("revision"),root.getLong("updatedAt"),decks,WidgetPaint.palette(root.optJSONObject("appearance")?.optString("palette")),root.optJSONObject("appearance")?.optBoolean("dynamic",false) ?: false,today,focus,rhythm,resurface,cards)
     }
     /** Both pending and archived receipts exclude this exact scheduled-card version. A new
      * canonical fingerprint releases it, without relying on device clocks or update order. */

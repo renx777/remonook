@@ -19,14 +19,16 @@ import java.util.Date
 /** A native launcher widget. Reveal/pagination/review never launches MainActivity. */
 class StudyWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) { ids.forEach { render(context, it) } }
-    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) { render(context,id) }
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) { StudyWidgetStore.preferences(context,id).edit().putInt("part",0).putBoolean("grading",false).commit();render(context,id) }
     override fun onDeleted(context: Context, ids: IntArray) {
         ids.forEach { StudyWidgetStore.preferences(context,it).edit().clear().commit() }
         // Review evidence is independent of the launcher instance and is never deleted here.
     }
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context,intent)
-        if(intent.action in listOf(Intent.ACTION_CONFIGURATION_CHANGED,Intent.ACTION_DATE_CHANGED,Intent.ACTION_TIMEZONE_CHANGED,Intent.ACTION_TIME_CHANGED)) { refreshAll(context);return }
+        if(intent.action in listOf(Intent.ACTION_CONFIGURATION_CHANGED,Intent.ACTION_DATE_CHANGED,Intent.ACTION_TIMEZONE_CHANGED,Intent.ACTION_TIME_CHANGED)) {
+            if(intent.action==Intent.ACTION_CONFIGURATION_CHANGED)AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context,StudyWidgetProvider::class.java)).forEach { StudyWidgetStore.preferences(context,it).edit().putInt("part",0).putBoolean("grading",false).commit() }
+            refreshAll(context);return }
         if(intent.action != ACTION) return
         val id=intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,AppWidgetManager.INVALID_APPWIDGET_ID)
         if(id==AppWidgetManager.INVALID_APPWIDGET_ID) return
@@ -41,22 +43,25 @@ class StudyWidgetProvider : AppWidgetProvider() {
                 val card=cards.find { it.id==prefs.getString("cardId",null)&&it.fingerprint==prefs.getString("fingerprint",null) } ?: run {render(context,id);return}
                 if(context.getSystemService(KeyguardManager::class.java).isDeviceLocked) { render(context,id);return }
                 val phase=prefs.getString("phase","question") ?: "question"
-                val pages=StudyWidgetPages.split(if(phase=="answer")card.answer else card.question,budget(context,id))
+                val dimensions=WidgetSuiteSizes.active(context,AppWidgetManager.getInstance(context).getAppWidgetOptions(id))
+                val pages=WidgetSuiteStudy.pages(context,if(phase=="answer")card.answer else card.question,dimensions.first,dimensions.second,phase)
                 val part=prefs.getInt("part",0).coerceIn(0,pages.lastIndex)
                 when(val action=intent.getStringExtra("operation")) {
+                    "RATE" -> prefs.edit().putBoolean("grading",true).commit()
+                    "OTHER_GRADE" -> prefs.edit().putInt("gradeIndex",(prefs.getInt("gradeIndex",2)+1)%4).commit()
                     "UNHIDE" -> prefs.edit().putBoolean("visible",true).commit()
-                    "REVEAL" -> if(part==pages.lastIndex) prefs.edit().putString("phase",if(phase=="answer")"question" else "answer").putInt("part",0).commit()
-                    "QUESTION" -> prefs.edit().putString("phase","question").putInt("part",0).commit()
+                    "REVEAL" -> if(part==pages.lastIndex) prefs.edit().putString("phase",if(phase=="answer")"question" else "answer").putInt("part",0).putBoolean("grading",false).commit()
+                    "QUESTION" -> prefs.edit().putString("phase","question").putInt("part",0).putBoolean("grading",false).commit()
                     "PREVIOUS" -> prefs.edit().putInt("part",maxOf(0,part-1)).commit()
                     "PART" -> prefs.edit().putInt("part",minOf(pages.lastIndex,part+1)).commit()
                     "NEXT" -> {
                         val next=cards[(cards.indexOf(card)+1)%cards.size]
-                        prefs.edit().putString("cardId",next.id).putString("fingerprint",next.fingerprint).putString("phase","question").putInt("part",0).putBoolean("visible",!prefs.getBoolean("privacy",true)).commit()
+                        prefs.edit().putString("cardId",next.id).putString("fingerprint",next.fingerprint).putString("phase","question").putInt("part",0).putBoolean("grading",false).putBoolean("visible",!prefs.getBoolean("privacy",true)).commit()
                     }
                     "AGAIN","HARD","GOOD","EASY" -> {
                         if(phase!="answer"||part!=pages.lastIndex) { render(context,id);return }
                         StudyWidgetStore.saveReview(context,snapshot,deck,card,action,prefs.getString("token",null)!!,id)
-                        prefs.edit().remove("cardId").remove("fingerprint").putString("phase","question").putInt("part",0).putBoolean("visible",!prefs.getBoolean("privacy",true)).commit()
+                        prefs.edit().remove("cardId").remove("fingerprint").putString("phase","question").putInt("part",0).putBoolean("grading",false).putBoolean("visible",!prefs.getBoolean("privacy",true)).commit()
                     }
                 }
                 prefs.edit().remove("error").commit()
@@ -146,12 +151,7 @@ class StudyWidgetProvider : AppWidgetProvider() {
             prefs.edit().putString("token",token).commit()
             val options=AppWidgetManager.getInstance(context).getAppWidgetOptions(id)
             fun view(width:Int,height:Int):RemoteViews = paintView(context,id,token,width,height)
-            val views=if(Build.VERSION.SDK_INT>=31)RemoteViews(mapOf(
-                SizeF(110f,110f) to view(100,100),
-                SizeF(160f,170f) to view(180,180),
-                SizeF(260f,180f) to view(260,180),
-                SizeF(260f,320f) to view(260,320)
-            ))else view(options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,300),options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,300))
+            val views=WidgetSuiteSizes.views(context,options,::view)
             AppWidgetManager.getInstance(context).updateAppWidget(id,views)
         }
         internal fun paintView(context:Context,id:Int,token:String,width:Int,height:Int):RemoteViews {
@@ -223,110 +223,14 @@ class StudyWidgetProvider : AppWidgetProvider() {
             val cards=StudyWidgetStore.available(deck,snapshot.scope,StudyWidgetStore.receipts(context))
             val locked=context.getSystemService(KeyguardManager::class.java).isDeviceLocked
             if(locked)return message(cards.size.toString()+" cards due · unlock to study",lockedState=true)
-            if(width<260&&context.resources.configuration.fontScale>1.3f&&height<260)return message("Make this widget taller to study")
-            if(width<160||height<170)return message("Make this widget wider to study")
             prefs.getString("error",null)?.let {return message(it)}
             if(cards.isEmpty())return message(if(deck.tomorrow>0)"Next ${deck.tomorrow} cards tomorrow morning" else if(pending>0)"These cached cards are reviewed. Open RemoNook to apply your saved reviews and refresh this deck." else "No supported cards are ready in this cached deck. Open RemoNook to refresh.",pending>0||deck.doneToday>0||deck.tomorrow>0||deck.cards.isNotEmpty())
             val selected=cards.find {it.id==prefs.getString("cardId",null)&&it.fingerprint==prefs.getString("fingerprint",null)}
             val card=selected ?: cards.first().also {
-                prefs.edit().putString("cardId",it.id).putString("fingerprint",it.fingerprint).putString("phase","question").putInt("part",0).putBoolean("visible",!prefs.getBoolean("privacy",true)).commit()
+                prefs.edit().putString("cardId",it.id).putString("fingerprint",it.fingerprint).putString("phase","question").putInt("part",0).putBoolean("grading",false).putBoolean("visible",!prefs.getBoolean("privacy",true)).commit()
             }
-            val layout=if(context.resources.configuration.fontScale>1.3f&&layout(width,height)==R.layout.study_widget_full) R.layout.study_widget_full_accessible else layout(width,height)
-            if(layout==R.layout.study_widget_glance){
-                val v=RemoteViews(context.packageName,layout)
-                paint.background(v,R.id.widget_root,"hero","28")
-                paint.text(v,R.id.widget_title,"heroAccent");paint.text(v,R.id.widget_count,"onHero");paint.text(v,R.id.widget_body,"onHero")
-                v.setTextViewText(R.id.widget_title,deck.title.uppercase())
-                v.setTextViewText(R.id.widget_count,cards.size.toString())
-                v.setTextViewText(R.id.widget_body,"cards due · about "+maxOf(1,cards.size/2)+" min")
-                paint.progress(v,((deck.doneToday+deck.cards.size-cards.size)*100/maxOf(1,deck.doneToday+deck.cards.size)))
-                v.setOnClickPendingIntent(R.id.widget_root,open(context,id,deck.id))
-                return v
-            }
-            val scale=context.resources.configuration.fontScale
-            // Preserve the existing character budget. When controls cannot fit, ask for more room.
-            if(height<160||width-32<scale*144||height<120+scale*48)return message("Make this widget taller to read and review safely.")
-            val v=RemoteViews(context.packageName,layout)
-            v.setViewVisibility(R.id.widget_header,View.VISIBLE)
-            v.setViewVisibility(R.id.widget_section,View.VISIBLE)
-            v.setContentDescription(R.id.widget_content,null)
-            paint.background(v,R.id.widget_root,"surface","28")
-            for(view in listOf(R.id.widget_title,R.id.widget_section))paint.text(v,view,"eyebrow")
-            for(view in listOf(R.id.widget_body,R.id.widget_question))paint.text(v,view,"onSurface")
-            for(view in listOf(R.id.widget_page,R.id.widget_recall,R.id.widget_status))paint.text(v,view,"muted")
-            v.setOnClickPendingIntent(R.id.widget_deck,configure(context,id))
-            v.setViewVisibility(R.id.widget_deck,View.GONE)
-            v.setOnClickPendingIntent(R.id.widget_root,configure(context,id))
-            for(view in listOf(R.id.widget_deck,R.id.widget_skip,R.id.widget_previous,R.id.widget_next_part)){
-                paint.background(v,view,"surfaceAlt","pill");paint.text(v,view,"onSurface")
-            }
-            paint.background(v,R.id.widget_reveal,"primary","pill");paint.text(v,R.id.widget_reveal,"onPrimary")
-            paint.background(v,R.id.widget_voice,"accent","pill");paint.text(v,R.id.widget_voice,"onAccent")
-            v.setContentDescription(R.id.widget_voice,"Answer aloud")
-            v.setOnClickPendingIntent(R.id.widget_voice,open(context,id,deck.id,card.id,true))
-            for(view in listOf(R.id.widget_parts,R.id.widget_review,R.id.widget_recall,R.id.widget_question))v.setViewVisibility(view,View.GONE)
-            v.setTextViewText(R.id.widget_title,deck.title.uppercase()+" · "+cards.size+" DUE")
-            val visible=prefs.getBoolean("visible",!prefs.getBoolean("privacy",true))
-            val phase=prefs.getString("phase","question") ?: "question"
-            val pages=StudyWidgetPages.split(if(phase=="answer")card.answer else card.question,budget(context,id))
-            val padding=if(visible&&phase=="answer")(8*context.resources.displayMetrics.density).toInt() else 0
-            v.setViewPadding(R.id.widget_body,padding,padding,padding,padding)
-            if(visible&&pages.size>1){
-                v.setViewVisibility(R.id.widget_header,View.GONE)
-                if(height<160+scale*20)return message("Make this widget taller to read every text part.")
-            }
-            if(visible&&phase=="answer"&&height<190*scale)return message("Make this widget taller to review safely.")
-            val part=prefs.getInt("part",0).coerceIn(0,pages.lastIndex)
-            v.setTextViewText(R.id.widget_section,if(!visible)"Private" else if(pages.size>1)deck.title.uppercase()+" · "+cards.size+" DUE" else if(phase=="answer")"Answer" else (cards.indexOf(card)+1).toString()+" / "+cards.size)
-            val bodyText=if(!visible)"Tap Show question when you are ready." else pages[part].trim()
-            val styled=android.text.SpannableString(bodyText)
-            if(phase!="answer")styled.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0,styled.length,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            v.setTextViewText(R.id.widget_body,styled)
-            v.setTextViewTextSize(R.id.widget_body,android.util.TypedValue.COMPLEX_UNIT_SP,if(phase=="answer")14f else 16f)
-            paint.background(v,R.id.widget_body,if(visible&&phase=="answer")"surfaceAlt" else "surface")
-            v.setViewVisibility(R.id.widget_status,if(pending>0)View.VISIBLE else View.GONE)
-            v.setTextViewText(R.id.widget_status,if(pending>0)"$pending saved on device · pending app" else "")
-            val rating=visible&&phase=="answer"&&part==pages.lastIndex
-            if(rating&&height<240+scale*70)return message("Make this widget taller to review safely.")
-            if(visible&&!rating&&pages.size>1&&layout==R.layout.study_widget_prompt){
-                val controls=maxOf(48f,12*scale*1.5f+12)
-                val available=height-32-18*scale-2*controls-(if(pending>0)18*scale else 0f)
-                val measured=textLayout(context,bodyText,width-32,if(phase=="answer")14f else 16f,phase!="answer")
-                if(measured.height>available*context.resources.displayMetrics.density)
-                    return message("Make this widget taller to read every text part.")
-            }
-            v.setViewVisibility(R.id.widget_primary,if(rating)View.GONE else View.VISIBLE)
-            v.setTextViewText(R.id.widget_reveal,if(!visible||phase=="answer")"Show question" else "Reveal answer")
-            v.setOnClickPendingIntent(R.id.widget_reveal,action(context,id,token,if(!visible)"UNHIDE" else "REVEAL"))
-            v.setBoolean(R.id.widget_reveal,"setEnabled",!visible||part==pages.lastIndex)
-            v.setOnClickPendingIntent(R.id.widget_skip,action(context,id,token,"NEXT"))
-            v.setOnClickPendingIntent(R.id.widget_content,if(visible&&phase=="answer")action(context,id,token,"QUESTION") else null)
-            if(visible&&pages.size>1&&!rating){
-                v.setViewVisibility(R.id.widget_parts,View.VISIBLE)
-                v.setTextViewText(R.id.widget_page,"${part+1} / ${pages.size}")
-                v.setOnClickPendingIntent(R.id.widget_previous,action(context,id,token,"PREVIOUS"))
-                v.setOnClickPendingIntent(R.id.widget_next_part,action(context,id,token,"PART"))
-                v.setBoolean(R.id.widget_previous,"setEnabled",part>0)
-                v.setBoolean(R.id.widget_next_part,"setEnabled",part<pages.lastIndex)
-            }
-            if(visible&&phase=="answer"&&height>400&&scale<=1.3f&&textLayout(context,card.question,width-32,16f,true).lineCount<=3){
-                v.setViewVisibility(R.id.widget_section,View.GONE)
-                v.setViewVisibility(R.id.widget_question,View.VISIBLE)
-                v.setTextViewText(R.id.widget_question,card.question)
-            }
-            if(rating){
-                v.setViewVisibility(R.id.widget_review,View.VISIBLE)
-                v.setViewVisibility(R.id.widget_recall,View.VISIBLE)
-                for((view,grade)in listOf(R.id.widget_again to "AGAIN",R.id.widget_hard to "HARD",R.id.widget_good to "GOOD",R.id.widget_easy to "EASY")){
-                    v.setTextViewText(view,grade.lowercase().replaceFirstChar {it.uppercase()}+"\n"+(card.intervals[grade] ?: ""))
-                    val role=grade.lowercase()
-                    paint.background(v,view,if(grade=="EASY")"primary" else role+"Bg")
-                    paint.text(v,view,if(grade=="EASY")"onPrimary" else role+"Fg")
-                    v.setOnClickPendingIntent(view,action(context,id,token,grade))
-                }
-                v.setContentDescription(R.id.widget_content,"${pages[part].trim()}. Tap to read the question again.")
-            }
-            return v
+            return WidgetSuiteStudy.paint(context,id,snapshot,deck,card,token,width,height,
+                {operation->action(context,id,token,operation)},open(context,id,deck.id,card.id,true))
         }
     }
 }

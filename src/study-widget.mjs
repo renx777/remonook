@@ -188,7 +188,7 @@ export function createWidgetSnapshot(
     return { ...deck, cards, doneToday, tomorrow };
   });
   return {
-    schema: 3,
+    schema: 4,
     ...widgetExtras(doc,now),
     appearance: {palette: "marigold", dynamic: false},
     scope,
