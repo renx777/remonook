@@ -174,6 +174,15 @@ class WidgetSuiteTest {
             assertTrue("Compact Study action must not clip",next.layout.height<=next.height)
         }
     }
+    @Test fun compactTodayHidesStaleDatedItemsInsteadOfOfferingAnInertCheckOff(){
+        val context=RuntimeEnvironment.getApplication();val root=fixture(context,"marigold")
+        root.put("updatedAt",System.currentTimeMillis()-2*86400000L)
+        File(StudyWidgetStore.directory(context),"snapshot.json").writeText(root.toString())
+        StudyWidgetStore.preferences(context,901).edit().clear().putString("scope","suite-test").commit()
+        val view=WidgetSuiteRendering.paint(context,901,"today","fixture",110,110).apply(context,FrameLayout(context))
+        assertNotNull(view.findViewById<TextView>(R.id.widget_body));assertNull(view.findViewById<View>(R.id.suite_primary))
+        assertTrue(view.findViewById<TextView>(R.id.widget_body).contentDescription.toString().contains("refresh today"))
+    }
     @Test fun measuredStudyPagingRetainsEveryCharacterAtSmallSizes(){
         val context=RuntimeEnvironment.getApplication()
         for(scale in listOf(1f,2f)){

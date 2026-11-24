@@ -156,6 +156,7 @@ internal object WidgetSuiteRendering {
         if(snapshot.scope!=prefs.getString("scope",null))return message("Choose this workspace in widget settings.",true)
         if(context.getSystemService(KeyguardManager::class.java).isDeviceLocked)return message("Unlock and open RemoNook to see your notes.")
         if(prefs.getBoolean("privacy",false)&&kind !in listOf("capture","rhythm"))return message("Private widget · open RemoNook to view.")
+        if(kind=="today"&&(date(snapshot.updatedAt)!=date(System.currentTimeMillis())||snapshot.today.any{it.date!=date(System.currentTimeMillis())}))return message("Open RemoNook to refresh today’s list.")
         // Compact widgets retain their primary action instead of an inert resize card.
         val compactHeight=when(kind){"rhythm"->80*scale;"capture"->if(width>=280)72f else 160*scale;"resurface"->220*scale;"focus"->180*scale;else->160*scale}
         if(width<240||height<compactHeight)return compact(context,id,kind,token,width,height,snapshot,paint)
@@ -172,7 +173,6 @@ internal object WidgetSuiteRendering {
         }
         when(kind){
             "today"->{
-                if(date(snapshot.updatedAt)!=date(System.currentTimeMillis())||snapshot.today.any {it.date!=date(System.currentTimeMillis())})return message("Open RemoNook to refresh today’s list.")
                 prefs.getString("suite-error",null)?.let{return message(it)}
                 val count=maxOf(1,((height-100*scale)/(maxOf(48f,52*scale))).toInt()).coerceAtMost(8)
                 val items=snapshot.today.take(count)
