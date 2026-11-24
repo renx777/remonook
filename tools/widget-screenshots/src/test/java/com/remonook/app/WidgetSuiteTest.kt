@@ -169,7 +169,9 @@ class WidgetSuiteTest {
             val pending=android.app.PendingIntent.getBroadcast(context,1,Intent("test"),android.app.PendingIntent.FLAG_IMMUTABLE)
             val study=WidgetSuiteStudy.paint(context,900,snap,deck,card,"fixture",110,110,{pending},pending).apply(context,FrameLayout(context))
             screenshot(context,"adaptive-study-${scale.toInt()}",study,110,110)
-            assertTrue(study.findViewById<TextView>(R.id.widget_reveal).hasOnClickListeners())
+            val next=study.findViewById<TextView>(R.id.widget_reveal)
+            assertTrue(next.hasOnClickListeners());assertEquals("Compact Study action stays on one line",1,next.layout.lineCount)
+            assertTrue("Compact Study action must not clip",next.layout.height<=next.height)
         }
     }
     @Test fun measuredStudyPagingRetainsEveryCharacterAtSmallSizes(){

@@ -61,7 +61,8 @@ internal object WidgetSuiteStudy {
         v.setViewVisibility(R.id.widget_review,if(rating&&!tinyGrade)View.VISIBLE else View.GONE)
         v.setViewVisibility(R.id.widget_grade_small,if(tinyGrade)View.VISIBLE else View.GONE)
         val operation=if(!visible)"UNHIDE" else if(part<pages.lastIndex)"PART" else if(phase=="question")"REVEAL" else "RATE"
-        button(R.id.widget_reveal,when(operation){"UNHIDE"->"Show";"PART"->"Next ${part+1}/${pages.size}";"REVEAL"->"Reveal";else->"Grade"},operation)
+        button(R.id.widget_reveal,when(operation){"UNHIDE"->"Show";"PART"->"Next";"REVEAL"->"Reveal";else->"Grade"},operation)
+        if(operation=="PART")v.setContentDescription(R.id.widget_reveal,"Read next part · ${part+1} of ${pages.size}")
         v.setViewVisibility(R.id.widget_skip,if(width>=230)View.VISIBLE else View.GONE)
         button(R.id.widget_skip,"Next card","NEXT","surfaceAlt","onSurface")
         v.setViewVisibility(R.id.widget_voice,if(width>=300)View.VISIBLE else View.GONE)
