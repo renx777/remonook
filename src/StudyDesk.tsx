@@ -99,7 +99,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   const [voiceOpen, setVoiceOpen] = useState(false), [voiceResult, setVoiceResult] = useState<VoiceResult | null>(null);
   const voicePoints = isFlashcard && source?.answerRows ? source.answerRows.map(row => displayText(row.node.text || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 20) : [];
   const canVoice = !!user && voicePoints.length > 0;
-  useEffect(() => { setVoiceOpen(false); setVoiceResult(null); }, [currentId, session?.tag, screen]);
+  useEffect(() => { setVoiceOpen(false); setVoiceResult(null); }, [currentId, session?.tag, screen, editingCard]);
   const studyContext = useMemo(() => createStudyContext(doc, clock), [doc, clock]);
   const folders=studyFolders(doc),currentFolder=folders.find(f=>f.id===activeFolder);
   useEffect(()=>{if(activeFolder&&!currentFolder)setActiveFolder(null);},[activeFolder,!!currentFolder]);
@@ -534,18 +534,18 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         </div>
       </>}
       </div></div>
-      {voiceOpen&&user&&card&&<VoiceReview key={currentId||""} user={user} question={displayText(source?.node?.text||card.question||"")} points={voicePoints} onResult={r=>{setVoiceResult(r);reveal(true);}} onClose={()=>{setVoiceOpen(false);setVoiceResult(null);}}/>}
       <footer inert={editingCard} className="study-action-dock" aria-label="Flashcard controls">
         <div className="study-dock-inner">
           <nav className="study-card-navigation" aria-label="Card navigation">
             <button className="study-nav-arrow" aria-label="Previous card" title="Previous card" disabled={disabled||session.cursor===0} onClick={()=>navigate('previous')}><Icon name="back" size={18}/></button>
             <div className={`study-dock-main ${!done&&valid?(!session.revealed?"reveal-actions":session.mode==="NORMAL"?"cram-actions":""):""}`}>
               {done?readyAgain?<button className="study-primary dock-primary" disabled={disabled} onClick={()=>start(session.scope,session.topicId||null)}>Continue {readyAgain} due {readyAgain===1?'card':'cards'}</button>:<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history&&isAllBulletsRevealed?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}${voiceResult?.suggested===value?' is-suggested':''}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value,clock,doc)}</small></button>)}</div>:<button className={`study-primary dock-primary ${session.revealed&&hasStepBullets&&revealedBullets<totalBullets?'study-step-actions':''}`} disabled={disabled} onClick={event=>{if(event.detail>1)return;if(!session.revealed)reveal();else if(hasStepBullets&&revealedBullets<totalBullets)nextBullet();else grade('GOOD');}}>{!session.revealed?'Show answer':hasStepBullets&&revealedBullets<totalBullets?'Next bullet':'Next card'}</button>}
-              {canVoice&&!done&&valid&&!currentMcq&&!session.revealed&&!voiceOpen&&<button className="study-voice-button" disabled={disabled} onClick={()=>setVoiceOpen(true)}><Icon name="mic" size={16}/>Answer aloud</button>}
             </div>
             <button className="study-nav-arrow" aria-label="Next card" title="Next card" disabled={disabled||done||!valid||!session.revealed||!!currentMcq&&!attempt} onClick={tapNext}><Icon name="forward" size={18}/></button>
 
           </nav>
+          {canVoice&&!done&&valid&&!currentMcq&&!session.revealed&&!voiceOpen&&<div className="study-dock-secondary"><button className="study-voice-button" disabled={disabled} onClick={()=>setVoiceOpen(true)}><Icon name="mic" size={16}/>Answer aloud</button></div>}
+          {voiceOpen&&user&&card&&<VoiceReview key={currentId||""} user={user} question={displayText(source?.node?.text||card.question||"")} points={voicePoints} onResult={r=>{setVoiceResult(r);reveal(true);}} onClose={()=>{setVoiceOpen(false);setVoiceResult(null);}}/>}
           <p className="study-dock-hint" aria-live="polite">{done?'Session complete':!valid?'Continue to the next available card':currentMcq?!attempt?'Choose an answer to continue':<><span className="study-keyboard-hint">Use ← / → to navigate</span><span className="study-touch-hint">Tap left for previous · right for next</span></>:!session.revealed?showRevealHint?<><span className="study-keyboard-hint">Press Space to reveal the answer · or click the card</span><span className="study-touch-hint">Tap the card to reveal the answer</span></>:null:hasStepBullets&&revealedBullets<totalBullets?null:session.mode==='SPACED'&&!history?'Rate to schedule':<><span className="study-keyboard-hint">Use ← / → to navigate</span><span className="study-touch-hint">Tap left for previous · right for next</span></>}</p>
         </div>
       </footer>
