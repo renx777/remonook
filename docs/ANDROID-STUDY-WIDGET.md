@@ -97,26 +97,28 @@ private-home-screen mode; all note text is hidden while the device is locked.
 - Today caches up to eight dated bullets (including daily-note children) and
   reminder occurrences. Tap a row to open its note or Calendar. A check-off is a
   **set-to-done**, not a toggle; its caption says saved on device / pending app.
-  Smaller sizes show fewer rows and an Open Today button. Midnight/timezone
+  Smaller sizes show the next unfinished task with a native Done button. Midnight/timezone
   changes hide stale daily lists until the app refreshes.
-- Capture has a compact and a wide layout. Speak opens existing dictation into
-  Inbox; Type focuses an ordinary editable Inbox bullet; Photo opens Photo to
-  notes. Text works offline. Existing AI voice/photo tools retain their sign-in
-  and availability requirements. No new API or AI allowance is introduced.
+- Capture has a compact and a wide layout. Speak and Type open a small native
+  input dialog, not the main app. Drafts survive closing; Save queues a durable
+  capture for Inbox. Speech uses the installed OS provider with transcript review.
+  Photo opens the existing photo-to-notes processing UI with its availability
+  requirements. No new API or AI allowance is introduced.
 - Focus reads an existing Dashboard focus timer. The launcher host renders the
-  system Chronometer; no timer service runs in the widget. Start/Pause/End open
-  RemoNook and act only on the cached session identity, then show its Dashboard
-  tab. The app still owns completion/history. An overdue countdown can show
+  system Chronometer; no timer service runs in the widget. Start/Pause/End act
+  natively and queue immutable events pinned to the cached session. The app
+  reconciles these events through canonical dashboard mutations and saves history. An overdue countdown can show
   overtime until the app/launcher next refreshes it; no exact alarm is scheduled.
 - Rhythm shows 28 local calendar days of spaced-review counts and the total.
-  Practice and future-dated reviews are excluded. Tap to open Study Desk.
+  Practice and future-dated reviews are excluded. Tap to switch 7/28 days.
 - Resurface is available only when meaning search is enabled. It rotates an
   existing note daily, preferring notes not touched today, plus a connection
-  already in the device’s meaning index. It makes no new AI request.
+  already in the device’s meaning index. Next thought cycles up to eight cached
+  candidates locally. It makes no new AI request.
 
 ### Snapshot and completion protocol
 
-Snapshot schema **3** adds optional bounded Today (8 × 200 UTF-8 bytes), Focus
+Snapshot schema **3** introduced optional bounded Today (8 × 200 UTF-8 bytes), Focus
 (label 80 bytes), Rhythm (28 counts), and Resurface (text 240, path 120, related
 text 160 bytes). Schema 1 and 2 remain readable. Clearing/disabling widgets
 publishes an empty, unscoped snapshot; no pending action files are deleted.

@@ -32,3 +32,18 @@ edit IDs. Concurrent revisions converge deterministically without removing eithe
 value. No new snapshot replacement, manual merge UI or outbox mechanism is used.
 Limits: 64 active properties, 128 choices per select, 128 active saved templates,
 300 bullets per template, 8,000 characters per text property.
+
+
+## Browser review images
+
+These are real local browser renders with synthetic notes, not product mockups.
+The flow creates a typed selection field, saves it, inserts a template as children,
+and checks desktop/mobile dialogs and the persisted dark theme.
+
+| Desktop templates | Mobile templates |
+| --- | --- |
+| ![Desktop template picker](screenshots/note-metadata/templates-desktop.webp) | ![Mobile template picker](screenshots/note-metadata/templates-mobile.webp) |
+
+| Desktop properties | Mobile properties in dark mode |
+| --- | --- |
+| ![Desktop property editor](screenshots/note-metadata/properties-desktop.webp) | ![Mobile dark property editor](screenshots/note-metadata/properties-mobile-dark.webp) |

@@ -241,18 +241,20 @@ Read colours from `docs/widgets/palettes.json` (import it; Vite supports JSON im
 
 ### 5.7 Phase 2 widgets (Android)
 New `AppWidgetProvider`s, each with its own `appwidget-provider` XML, sharing `WidgetPaint` and the
-appearance model. Extend the snapshot (schema 3) with bounded, optional sections, each capped:
+appearance model. Schema 3 introduced the bounded sections below; the owner-requested
+adaptive/actions follow-up uses schema 4 (schemas 1–3 remain readable):
 - `today`: up to 8 items `{id, text ≤ 200, time?, done}` for bullets dated today + reminders. Ticking
   writes an immutable intent `{type:"complete", id, at}` in the same review-intent directory; the app
   applies it like a grade (reuse the durability rules).
-- `focus`: `{running, endsAt, label ≤ 80}`. Pause/End are deep links to the app (no background timers in the widget).
-- `rhythm`: last 28 days as integers (cards reviewed per day) + total.
-- `resurface`: `{id, text ≤ 240, path ≤ 120, relatedText ≤ 160}`; only when meaning search is on.
-- Capture: no data; three buttons deep-link to the app: `remonook://capture?mode=voice|text|photo`
-  (voice opens dictation into Inbox, photo opens Photo to notes into Inbox).
+- `focus`: `{running, endsAt, label ≤ 80, duration, fingerprint}`. Start/Pause/End are native, durable actions; the launcher owns the Chronometer and the app reconciles history.
+- `rhythm`: last 28 days as integers (cards reviewed per day) + total; native 7/28-day toggle.
+- `resurface`: `{id, text ≤ 240, path ≤ 120, relatedText ≤ 160}`; only when meaning search is on. Schema 4 adds up to eight `resurfaceCards` for native Next thought.
+- Capture: Type and Speak open a small native input dialog with local drafts and
+  durable text capture. Photo opens the existing photo-to-notes processing UI.
+  No new paid API is introduced. Details: [private action exchange](ANDROID-STUDY-WIDGET.md#adaptive-sizing-and-native-actions-staging-follow-up).
 
 ### 5.8 Android testing
-- Unit tests (JVM) for palette resolution, layout choice by size, snapshot parsing (schema 1/2/3).
+- Unit tests (JVM) for palette resolution, layout choice by size, snapshot parsing (schema 1/2/3/4).
 - `scripts/` emulator check or Robolectric screenshots of each layout × 4 palettes × light/dark
   if feasible; otherwise manual screenshots attached to the PR for: 2×2, 4×2, 4×4, revealed, caught up,
   locked, too small, configure activity, in Marigold light and Iris dark at minimum.
@@ -359,3 +361,24 @@ Phase 2 shipped to Android staging **0.1.39** from
 656 app tests, 17 Rust tests, native rendering and real filesystem tests on
 Android API 28/33 passed. The downloaded signed APK retained all 323 required
 widget resources. [Screenshots and device-check limitations](widgets/phase2-screenshots/README.md).
+
+### Adaptive layout and native-action follow-up
+
+Owner feedback: normal-sized home-screen widgets showed only a resize message;
+several primary controls opened the app. This follow-up on
+`codex/pkm-templates-properties` replaces fixed SizeF breakpoints with launcher
+sizes, keeps useful small layouts and implements native actions. It preserves the
+private review exchange, immutable evidence, original text budgets and locking.
+
+- [x] Actual API 31+ launcher SizeF list and legacy portrait/landscape dimensions.
+- [x] Useful compact Study/Today/Capture/Focus/Rhythm/Resurface layouts.
+- [x] Measured text paging and timer typography; compact actions fit at 200% text.
+- [x] Native study, task completion, Focus controls, range toggle and cached Next.
+- [x] Native capture sheet with device-local drafts and durable Inbox insertion.
+- [x] Snapshot schema 4; previous schemas readable and review schema unchanged.
+- [x] Regression tests retain source edits, receipts and pending evidence.
+- [x] [Actual renderer screenshots](widgets/adaptive-screenshots/README.md) reviewed.
+- [x] Signed staging APK 0.1.45 published and independently checked; all 325 resources retained.
+- [ ] Owner checks the updated widgets on their phone.
+
+[Android staging release record](ENVIRONMENTS.md#templates-typed-properties-and-adaptive-android-widgets--24-november-2026): source `87ce245c501a0d59639e83d8c9e9ecd3da0a595b`, Android #45.
