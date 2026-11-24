@@ -36,5 +36,6 @@ tasks.named("preBuild") {dependsOn(widgetSources)}
 
 
 tasks.withType<Test>().configureEach {
+ systemProperty("robolectric.dependency.repo.url","https://maven-central.storage-download.googleapis.com/maven2")
  testLogging { events("failed"); exceptionFormat=org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
 }
