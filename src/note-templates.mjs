@@ -1,7 +1,8 @@
+import {traitsActive,traitType,traitFields,applyTraitType,attachTraitField} from './nooktraits.mjs';
 import {bullet,index,marks,encode} from './domain.mjs';
 import {sourceId,noteLinks,displayText} from './relations.mjs';
 import {withNodes} from './workspace-nodes.mjs';
-import {propertyDefinitions,propertyValue,setPropertyValues} from './note-properties.mjs';
+import {propertyDefinitions,propertyValue,propertyHistory,setPropertyValues} from './note-properties.mjs';
 const item=(key,parent,text,extra={})=>({key,parent,text,formatting:'',...extra});
 export const BUILTIN_NOTE_TEMPLATES=[
  {id:'builtin-meeting',name:'Meeting',description:'Agenda, decisions and clear next actions.',nodes:[item('root',null,'{{title}} · {{date}}'),item('agenda','root','Agenda'),item('notes','root','Discussion'),item('decisions','root','Decisions'),item('actions','root','Next actions'),item('task','actions','Follow up',{taskState:'TODO'})]},
@@ -25,8 +26,8 @@ export function saveNoteTemplate(doc,id,name,uuid=()=>crypto.randomUUID(),replac
   const renamed=rebase(n.text,n.formatting,noteLinks(n.text).filter(link=>ids.has(link.id)).map(link=>({start:link.start,end:link.end,value:`[[${link.label}|@template/${ids.get(link.id)}]]`})));
   const text=renamed.text;
   const fields={};for(const key of ['kind','listType','codeLanguage','blockStyle','bulletColor','dividerStyle','dividerColor','autoHighlight','collapsed'])if(n[key]!==undefined)fields[key]=n[key];
-  const values=Object.fromEntries(defs.flatMap(d=>{const v=propertyValue(doc,n.id,d.id);return v===null?[]:[[d.id,d.type==='note'&&ids.has(v)?'@template/'+ids.get(v):v]];}));
-  return {...fields,key:ids.get(n.id),parent:n.id===root?null:ids.get(n.parentId),text,formatting:renamed.formatting,taskState:n.taskState==='NONE'?'NONE':'TODO',properties:values};
+  const values=Object.fromEntries(defs.flatMap(d=>{const v=propertyValue(doc,n.id,d.id);return v===null&&!propertyHistory(doc,n.id,d.id).length?[]:[[d.id,d.type==='note'&&ids.has(v)?'@template/'+ids.get(v):v]];}));
+  return {...fields,key:ids.get(n.id),parent:n.id===root?null:ids.get(n.parentId),text,formatting:renamed.formatting,taskState:n.taskState==='NONE'?'NONE':'TODO',properties:values,...(traitsActive(doc,n.id)?{traits:{type:traitType(doc,n.id),fields:traitFields(doc,n.id).filter(d=>!d.builtin).map(d=>d.id)}}:{})};
  });
  const templateId=replaceId||uuid(),prior=doc.web.noteTemplates?.[templateId];
  if(replaceId&&!prior)throw Error('This saved template was removed. Save it as a new template instead.');
@@ -68,6 +69,7 @@ export function instantiateNoteTemplate(doc,templateId,parentId=null,variables={
   added.push(bullet(id,{...fields,parentId:parent,position,text,formatting:mapped.formatting}));
  }
  let next=withNodes(doc,[...doc.tables.bullets.map(n=>n.id===parentId?{...n,collapsed:false}:n),...added]);
+ for(const n of t.nodes)if(n.traits&&traitsActive(next,ids.get(n.key))){next=applyTraitType(next,ids.get(n.key),n.traits.type,uuid,now,{defaults:false,rewriteTag:false});for(const field of n.traits.fields||[])next=attachTraitField(next,ids.get(n.key),field,true,false,uuid,now);}
  for(const n of t.nodes){const defaults={};for(const [key,val]of Object.entries(n.properties||{})){if(!propertyDefinitions(next,true).some(d=>d.id===key))continue;defaults[key]=typeof val==='string'&&val.startsWith('@template/')?ids.get(val.slice(10)):val;}if(Object.keys(defaults).length)next=setPropertyValues(next,ids.get(n.key),defaults,uuid,now);}
  return {doc:next,id:root,count:added.length};
 }

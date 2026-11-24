@@ -1,15 +1,16 @@
-import {sourceId} from './relations.mjs';
-export const PROPERTY_TYPES=['text','number','date','checkbox','select','multiselect','note'];
+import {snapshotIndex} from './outline-snapshot.mjs';
+export const PROPERTY_TYPES=['text','number','date','checkbox','select','multiselect','note','url','datetime'];
 const safe=id=>typeof id==='string'&&id.length>0&&id.length<=200&&!['__proto__','constructor','prototype'].includes(id);
 const object=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
 const latest=events=>Object.entries(events||{}).filter(([,v])=>object(v)&&Number.isSafeInteger(v.at)).sort(([a,x],[b,y])=>y.at-x.at||b.localeCompare(a))[0]?.[1];
 export const propertyStore=doc=>doc.web?.noteProperties||{version:1,definitions:{},values:{}};
 export function propertyDefinitions(doc,includeArchived=false){return Object.values(propertyStore(doc).definitions||{}).filter(d=>object(d)&&safe(d.id)&&PROPERTY_TYPES.includes(d.type)).map(d=>({...d,...latest(d.revisions),options:d.options||{}})).filter(d=>typeof d.name==='string'&&(includeArchived||!d.archived)).sort((a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id));}
-export const propertyOwner=(doc,id)=>sourceId(doc.tables.bullets,id);
+export const propertyOwner=(doc,id)=>snapshotIndex(doc.tables.bullets).byId.get(id)?.mirrorSourceId||id;
 export const propertyHistory=(doc,id,property)=>Object.entries(propertyStore(doc).values?.[propertyOwner(doc,id)]?.[property]||{}).map(([eventId,v])=>({...v,eventId})).filter(v=>object(v)&&Number.isSafeInteger(v.at)).sort((a,b)=>b.at-a.at||b.eventId.localeCompare(a.eventId));
 export const propertyValue=(doc,id,property)=>propertyHistory(doc,id,property)[0]?.value??null;
 function change(doc,fn){const current=propertyStore(doc);if(current.version!==1)throw Error("Update RemoNook before changing these properties. Existing data is kept.");const next=fn(current);if(next===current)return doc;return {...doc,web:{...doc.web,noteProperties:next}};}
 function event(events,value,uuid,now){if(!Number.isSafeInteger(now)||now<0)throw Error('Check the device date and time.');const id=uuid();if(!safe(id)||events?.[id])throw Error('Could not create a unique property edit.');return {...events,[id]:{...value,at:Math.max(now,(latest(events)?.at||0)+1)}};}
+/** @param {any} doc @param {{name:string,type:string,choices?:string[]}} config */
 export function createProperty(doc,{name,type,choices=[]},uuid=()=>crypto.randomUUID(),now=Date.now()){
  name=String(name||'').trim();if(!name||name.length>80||!PROPERTY_TYPES.includes(type))throw Error('Choose a name (up to 80 characters) and a property type.');
  if(propertyDefinitions(doc).length>=64)throw Error('Use up to 64 active properties per workspace. Archive one to add another.');
@@ -38,6 +39,8 @@ export function validPropertyValue(def,value){
   case 'select':return typeof value==='string'&&Object.hasOwn(def.options||{},value);
   case 'multiselect':return Array.isArray(value)&&value.length<=128&&new Set(value).size===value.length&&value.every(v=>typeof v==='string'&&Object.hasOwn(def.options||{},v));
   case 'note':return safe(value);
+  case 'url':try{return typeof value==='string'&&value.length<=2000&&['https:','http:'].includes(new URL(value).protocol);}catch{return false;}
+  case 'datetime':try{return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(value)&&new Date(value).toISOString()===value;}catch{return false;}
   default:return false;
  }
 }
@@ -46,7 +49,7 @@ export function setPropertyValues(doc,id,values,uuid=()=>crypto.randomUUID(),now
  const s=propertyStore(doc),defs=new Map(propertyDefinitions(doc,true).map(d=>[d.id,d]));let cells={...s.values?.[owner]},changed=false;
  for(const [key,value]of Object.entries(values)){
   const def=defs.get(key);if(!def||!validPropertyValue(def,value))throw Error('Enter a valid '+(def?.name||'property')+' value.');
-  if(JSON.stringify(propertyValue(doc,owner,key))===JSON.stringify(value))continue;
+  if(propertyHistory(doc,owner,key).length&&JSON.stringify(propertyValue(doc,owner,key))===JSON.stringify(value))continue;
   cells[key]=event(cells[key],{value},uuid,now);changed=true;
  }
  if(!changed)return doc;

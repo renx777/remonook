@@ -1,8 +1,12 @@
 # Reusable note templates and typed properties
 
-Open a bullet’s menu → **Properties**, **Use template**, or **Save as note template**.
-The command palette also offers **New note from template**. A zoomed note shows
-Properties and Use template beside its title.
+In web staging, typed properties are now **[NookTraits](NOOKTRAITS.md)**. Add
+`#nooktraits` (or `#nooktraits/book`) to activate a bullet. Its heading eye hides
+traits without losing data. The bullet menu offers **Add NookTraits** or
+**Manage NookTraits**, plus **Use note template** and **Save as note template**.
+The command palette also offers **New note from template**. Templates stay
+available on ordinary notes through the menu. Native apps retain the previous UI
+until their next authorized release.
 
 Templates start with Meeting, Project, Book notes, Daily review and Learning note.
 Save a text branch to create your own; edit an ordinary branch and choose an
@@ -18,7 +22,7 @@ with an explanation. It does not silently omit those contents. Template payloads
 have immutable version IDs; archiving retains their full contents.
 
 Properties support text, number, date, checkbox, single select, multi-select and
-note links. Definitions belong to the workspace; values belong to the original
+note links; web NookTraits also supports URL and date/time. Definitions belong to the workspace; values belong to the original
 note (mirrors use its identity). Only modified fields are saved. Previous values
 are available under Manage, including both sides of concurrent edits. Restoring
 a previous value adds an edit rather than deleting history. Type changes and
