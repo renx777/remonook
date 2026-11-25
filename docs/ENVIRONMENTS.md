@@ -2,6 +2,20 @@
 
 ## Current state
 
+### Native staging apps: Android 0.1.46, Windows/macOS 0.1.34, iPad 0.1.2 (new) — 25 November 2026
+
+All native apps were built from branch `feat/native-ipad`. That branch is `main` at `a13eb0c` plus the iPad workflow, iOS config and iPad detection; it has no other app changes. Web staging runs `main`.
+
+- **Android 0.1.46:** [Android app #46](https://github.com/renx777/remonook/actions/runs/45695187136), commit `eaf08fa`. The [manifest](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/android.json) reports 0.1.46. The APK is 150,908,010 bytes, SHA-256 `9933cebfc0af2963c4f7eed779f42a349cf4391727ae0951f496578fa5e1fb62`, and includes the arm64, armv7 and x86_64 libraries.
+- **Windows and macOS 0.1.34:**
+  - Desktop app #34 published [latest.json](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/latest.json) with `windows-x86_64`, `darwin-aarch64` and `darwin-x86_64`. **No Linux entry:** Linux builds are paused, and installed Linux copies stay on 0.1.32 without an update offer.
+  - Run #33 built 0.1.33 and uploaded the installers, but its publish step failed on a shell quoting bug, which is fixed in `b6d36e7`. So 0.1.33 was never offered.
+- **iPad 0.1.2 (first iPad releases):** [iPad app #1](https://github.com/renx777/remonook/actions/runs/45695173492) published 0.1.1, and run #2 published 0.1.2. The [manifest](https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/ipad.json) is live. The 0.1.1 `.ipa` was inspected: an arm64 app, `com.remonook.ipad.staging`, MinimumOSVersion 16.0, UIDeviceFamily [1, 2], camera/microphone/photos/local-network usage descriptions present. The `.ipa` is unsigned and is installed with Sideloadly; see docs/IPAD.md.
+
+**Device checks are pending.** The owner reported that pairing the iPad and a Windows laptop by address fails with "did not answer" on both sides. The likely causes are the Windows firewall or a Public network profile, the iPadOS Local Network permission, a VPN, or Wi-Fi client isolation. Also pending on a real iPad: launch, Google sign-in (which uses a Safari callback), camera, dictation and widgets.
+
+No Worker, production or web change.
+
 ### main merged and on web staging — 25 November 2026
 
 PR #101 merged the web staging work into `main` as merge commit `8b10643b6701cdaf5706ed48810a2567e85e4634`, after CI run 45691258784 passed. Board and Calendar are hidden; their code stays on `feat/nooktraits-upgrade`.
