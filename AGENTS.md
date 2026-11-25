@@ -33,6 +33,7 @@ never means copying production user data into staging. See docs/ENVIRONMENTS.md.
 
 Several AI tools (Claude Code, Codex and others) work on this repository. These rules apply to all of them.
 
+- **Native apps:** every native release covers **Android, Windows, macOS and iPad** (Actions: Android app, Desktop app, iPad app; same commit, staging first). Linux desktop builds are paused until someone tests them. See docs/ANDROID.md, docs/DESKTOP.md and docs/IPAD.md.
 - **Flow:** local → staging → production. Develop on a feature branch, test locally, then push the branch to staging to test on a phone or other device. Production is released only from code merged into `main`.
 - **Branches:** never commit directly to `main`. Start each task from the latest `origin/main`. Use one branch per task, named for its tool or topic (e.g. `codex/…`, `ccr-…`, `feature/…`).
 - **Ownership:** before editing, check `git log origin/main..<branch>` and any open PRs for work already in progress in the same area. Do not rewrite or force-push another agent's branch.

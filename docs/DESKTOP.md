@@ -1,5 +1,7 @@
 # RemoNook desktop app
 
+> **Linux paused (25 November 2026):** the Desktop app workflow builds Windows and macOS only. `latest.json` has no Linux entry, so installed Linux copies are not offered updates. To resume, restore the Linux matrix entry noted in `.github/workflows/desktop.yml`.
+
 A Tauri 2 shell (`src-tauri/`) around the same app as remonook.com. The built web app (`dist/`)
 is bundled, so the desktop app works offline and needs no service worker.
 
