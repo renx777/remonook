@@ -2,6 +2,17 @@
 
 ## Current state
 
+### #views poster grid and Configure view, 25 November 2026
+
+Web staging runs branch `feat/nooktraits-upgrade`, commit
+`84d48275e459aaeafe7d6dbf482e547179d8f0bc`, release `2026-11-14.1`.
+- **Poster grid:** an Obsidian-style poster grid for `#views` collections whose items have traits.
+- **Toolbar:** a slim Sort / Filter / Properties / Configure / New bar.
+- **Configure view:** card size, image property, image fit and aspect ratio.
+- **Collections:** `#traits` on a `#views` bullet only removes the tag, and blank bullets are not items.
+
+Web only; no Worker, migration or production change. Checked on staging in dark mode as a guest with an 8-movie collection. Configure, sort, filter, properties and reload all worked, with no page errors. 711 tests pass.
+
 ### Traits fix: #traits in a zoomed page title, 25 November 2026
 
 Web staging runs branch `feat/nooktraits-upgrade`, commit
