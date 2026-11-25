@@ -2,6 +2,18 @@
 
 ## Current state
 
+### main merged and on web staging — 25 November 2026
+
+PR #101 merged the web staging work into `main` as merge commit `8b10643b6701cdaf5706ed48810a2567e85e4634`, after CI run 45691258784 passed. Board and Calendar are hidden; their code stays on `feat/nooktraits-upgrade`.
+
+Web staging now runs `main` at that commit (release `2026-11-14.1`). Checked on staging as a guest in dark mode at 1440 px:
+- The view switch shows Outline, Grid, Compact list and Table.
+- A `#views` collection with `#traits` items shows poster cards with stars.
+- The table Summary min works.
+- No page errors.
+
+Production is unchanged. The production frontend, production Worker and D1 migrations (`cloud/ai.sql`, `cloud/ai-testing-quota.sql`) each need separate owner authorization.
+
 ### NookTraits removed; Board and Calendar layouts; table totals — 25 November 2026
 
 Web staging runs branch `feat/nooktraits-upgrade`, commit `17cf8311d85c66d0f01758369af6edd89a336976`, release `2026-11-14.1`.
