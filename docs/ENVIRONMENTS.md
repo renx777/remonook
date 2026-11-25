@@ -2,6 +2,19 @@
 
 ## Current state
 
+### Traits fix: #traits in a zoomed page title, 25 November 2026
+
+Web staging runs branch `feat/nooktraits-upgrade`, commit
+`a2052c36c557768283a43939caf6e00791541949`, release `2026-11-14.1`. Typing `#traits` in a zoomed page's
+title did nothing, because the title hides tags. Leaving the title now adds the Traits bullet. Web
+only; no Worker, migration or production change. Checked on staging as a guest:
+- Enter after the tag, at typing speed, on desktop and on a Pixel 7 emulation.
+- Clicking away, and the phone's Done button.
+- A zoomed title.
+- The Books `#views` sort, filter and cover flow.
+
+All work, with no page errors. 710 tests pass.
+
 ### Traits as plain bullets, #views sort/filter/cover, 25 November 2026
 
 Web staging runs branch `feat/nooktraits-upgrade`, commit
