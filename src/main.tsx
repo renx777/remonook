@@ -170,7 +170,7 @@ import { OutlineView } from "./OutlineView";
 import { OutlinePopover, OutlineSidebar } from "./OutlineChrome";
 import { StudyDesk } from "./StudyDesk";
 import { imageType, mediaLink, mediaLinks } from "./media.mjs";
-import { EmojiProvider } from './AnimatedEmoji';
+import { EmojiProvider , EmojiText} from './AnimatedEmoji';
 import {BulletMenuBody} from './BulletMenuBody';
 import {BulletColorPicker} from './BulletColors';
 import {useEmojiAssetRepair} from './useEmojiAssetRepair';
@@ -1959,7 +1959,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               const plain=(t:string)=>String(t||'').replace(/<[^>]*>/g,'').replace(/\[\[([^\]|]*)\|[^\]]+\]\]/g,'$1').trim()||'Untitled';
               return <>
                 <button onClick={()=>{setOutlineScopes(value=>({...value,[tab]:null}));setEditing(null);}}><Icon name="notes" size={14}/><span>{label} outline</span></button>
-                {path.map((n,i)=><React.Fragment key={n.id}><Icon name="chevron" size={12}/><button aria-current={i===path.length-1?'page':undefined} onClick={()=>{setOutlineScopes(value=>({...value,[tab]:n.id}));setEditing(null);}}>{plain(n.text).slice(0,40)}</button></React.Fragment>)}
+                {path.map((n,i)=><React.Fragment key={n.id}><Icon name="chevron" size={12}/><button aria-current={i===path.length-1?'page':undefined} onClick={()=>{setOutlineScopes(value=>({...value,[tab]:n.id}));setEditing(null);}}><EmojiText text={plain(n.text).slice(0,40)}/></button></React.Fragment>)}
               </>;
             })() : tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
               <>
@@ -1999,7 +1999,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                         setEditing(null);
                       }}
                     >
-                      {n.text || "Untitled"}
+                      <EmojiText text={n.text || "Untitled"} />
                     </button>
                   </React.Fragment>
                 ))}

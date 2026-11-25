@@ -1,0 +1,5 @@
+/* Zoomed titles: rendered emoji over the field while it isn't being edited. */
+.live-title-wrap{display:grid;flex:1 1 auto;min-width:0;width:100%}
+.live-title-wrap>*{grid-area:1/1}
+.live-title-display{pointer-events:none;display:flex!important;align-items:center;gap:0;white-space:pre;overflow:hidden;text-overflow:ellipsis;background:transparent!important;border-color:transparent!important;box-shadow:none!important}
+.live-title-display .animated-emoji,.live-title-display img,.live-title-display svg{height:1em;width:auto;vertical-align:-0.12em}

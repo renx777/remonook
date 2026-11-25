@@ -66,22 +66,53 @@ export function addTraitsBlock(doc,id,make=uuid){
 // ---- Collections (#views): which traits to show, sort, filter, cover ----
 /** Trait names used by a collection's items, most common first. */
 export function collectionTraitKeys(doc,ids,idx=snapshotIndex(doc.tables.bullets)){const counts=new Map(),names=new Map();for(const id of ids)for(const t of noteTraits(doc,id,idx)){if(t.duplicate)continue;const k=t.key.toLocaleLowerCase();if(!names.has(k))names.set(k,t.key);counts.set(k,(counts.get(k)||0)+1);}return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([k])=>names.get(k));}
-const DEFAULTS={fields:null,sort:'',dir:'asc',filterKey:'',filter:'',group:'',groupDir:'asc',cover:'auto',cardSize:220,fit:'cover',ratio:1.5};
+const DEFAULTS={fields:null,sort:'',dir:'asc',filterKey:'',filter:'',conditions:[],match:'all',group:'',groupDir:'asc',cover:'auto',cardSize:220,fit:'cover',ratio:1.5};
+export const FILTER_OPS=[['contains','contains'],['not','does not contain'],['is','is'],['empty','is empty'],['notempty','is not empty'],['gt','is greater than'],['lt','is less than']];
+const OPS=new Set(FILTER_OPS.map(([k])=>k));
 const clamp=(v,lo,hi,d)=>{v=Number(v);return Number.isFinite(v)?Math.min(hi,Math.max(lo,v)):d;};
-/** The view choices for one collection (defaults when never set). */
-export function traitView(doc,id){const owner=ownerOf(doc,id),v=latest(doc.web?.traitViews?.[owner]);return {...DEFAULTS,...(v?{fields:Array.isArray(v.fields)?v.fields.filter(f=>typeof f==='string').slice(0,12):null,sort:String(v.sort||''),dir:v.dir==='desc'?'desc':'asc',filterKey:String(v.filterKey||''),filter:String(v.filter||''),group:String(v.group||''),groupDir:v.groupDir==='desc'?'desc':'asc',cover:String(v.cover||'auto'),cardSize:Math.round(clamp(v.cardSize,140,420,220)),fit:v.fit==='contain'?'contain':'cover',ratio:Math.round(clamp(v.ratio,0.5,2,1.5)*100)/100}:{})};}
+/** Cleans one view's settings (anything stored, possibly by an older or newer app). */
+function settingsOf(v){v=v&&typeof v==='object'?v:{};return {
+ fields:Array.isArray(v.fields)?v.fields.filter(f=>typeof f==='string').slice(0,12):null,sort:String(v.sort||''),dir:v.dir==='desc'?'desc':'asc',
+ filterKey:String(v.filterKey||''),filter:String(v.filter||'').slice(0,200),
+ conditions:Array.isArray(v.conditions)?v.conditions.filter(c=>c&&OPS.has(c.op)).slice(0,8).map(c=>({key:String(c.key||''),op:c.op,value:String(c.value??'').slice(0,200)})):[],match:v.match==='any'?'any':'all',
+ group:String(v.group||''),groupDir:v.groupDir==='desc'?'desc':'asc',cover:String(v.cover||'auto'),
+ cardSize:Math.round(clamp(v.cardSize,140,420,220)),fit:v.fit==='contain'?'contain':'cover',ratio:Math.round(clamp(v.ratio,0.5,2,1.5)*100)/100};}
+const SETTING_KEYS=Object.keys(DEFAULTS);
+const pick=v=>Object.fromEntries(SETTING_KEYS.map(k=>[k,v[k]]));
+/**
+ * The view choices for one collection: the active saved view's settings at the top level,
+ * plus `tabs` (saved views: {id, name, settings}) and `active`. Defaults when never set.
+ */
+export function traitView(doc,id){const owner=ownerOf(doc,id),v=latest(doc.web?.traitViews?.[owner]);
+ const tabs=Array.isArray(v?.tabs)&&v.tabs.length?v.tabs.filter(t=>t&&typeof t.id==='string'&&typeof t.name==='string').slice(0,12).map(t=>({id:t.id,name:t.name.slice(0,40),settings:settingsOf(t.settings)})):[{id:'all',name:'All',settings:settingsOf({})}];
+ const active=tabs.some(t=>t.id===v?.active)?v.active:tabs[0].id;
+ return {...DEFAULTS,...settingsOf(v||{}),tabs,active};}
 export function setTraitView(doc,id,patch,make=uuid,now=Date.now()){
  const owner=ownerOf(doc,id);if(!doc.tables.bullets.some(n=>n.id===owner))throw Error('This collection was removed.');
  const current=traitView(doc,owner),next={...current,...patch};if(JSON.stringify(next)===JSON.stringify(current))return doc;
  if(next.fields&&next.fields.length>12)throw Error('Show up to 12 traits.');if(String(next.filter).length>200)throw Error('Use up to 200 characters to filter.');
+ // Keep the active saved view's stored settings in step with what is shown.
+ next.tabs=next.tabs.map(t=>t.id===next.active?{...t,settings:pick(next)}:t);
  const events=doc.web?.traitViews?.[owner]||{};
  return {...doc,web:{...doc.web,traitViews:{...doc.web?.traitViews,[owner]:{...events,[make()]:{...next,at:Math.max(now,(latest(events)?.at||0)+1)}}}}};
 }
+/** Saved views: switch, add (copying the current one), rename, delete (never the last). */
+export function switchTraitTab(doc,id,tab,make=uuid,now=Date.now()){const v=traitView(doc,id),t=v.tabs.find(x=>x.id===tab);if(!t)throw Error('This view was removed.');if(tab===v.active)return doc;return setTraitView(doc,id,{...t.settings,active:tab},make,now);}
+export function addTraitTab(doc,id,name,make=uuid,now=Date.now()){const v=traitView(doc,id);name=String(name||'').trim().slice(0,40);if(!name)throw Error('Name the view.');if(v.tabs.length>=12)throw Error('Use up to 12 views.');const tab=make();
+ return {doc:setTraitView(doc,id,{tabs:[...v.tabs,{id:tab,name,settings:pick(v)}],active:tab},make,now),tab};}
+export function renameTraitTab(doc,id,tab,name,make=uuid,now=Date.now()){const v=traitView(doc,id);name=String(name||'').trim().slice(0,40);if(!name)throw Error('Name the view.');return setTraitView(doc,id,{tabs:v.tabs.map(t=>t.id===tab?{...t,name}:t)},make,now);}
+export function deleteTraitTab(doc,id,tab,make=uuid,now=Date.now()){const v=traitView(doc,id);if(v.tabs.length<2)throw Error('Keep at least one view.');const tabs=v.tabs.filter(t=>t.id!==tab);
+ if(tab!==v.active)return setTraitView(doc,id,{tabs},make,now);return setTraitView(doc,id,{...tabs[0].settings,tabs,active:tabs[0].id},make,now);}
 const plainTitle=n=>String(n.text||'').split('\n')[0].replace(/\[([^\]]*)\]\([^)]*\)/g,'$1').trim();
 /** Applies a collection's filter and sort to its items. Items without the sort trait go last. */
 export function arrangeCollection(doc,nodes,view,idx=snapshotIndex(doc.tables.bullets)){
  const id=n=>n.mirrorSourceId||n.id,q=view.filter.trim().toLocaleLowerCase();
  let out=nodes;
+ const conds=(view.conditions||[]).filter(c=>c.key&&(c.op==='empty'||c.op==='notempty'||c.value.trim()));
+ if(conds.length){const test=(n,c)=>{const raw=c.key==='title'?plainTitle(n):noteTrait(doc,id(n),c.key,idx),v=(raw??'').trim(),lv=v.toLocaleLowerCase(),q2=c.value.trim().toLocaleLowerCase();
+   switch(c.op){case 'contains':return lv.includes(q2);case 'not':return !lv.includes(q2);case 'is':return lv===q2;case 'empty':return !v;case 'notempty':return !!v;
+    case 'gt':case 'lt':{if(!v)return false;const cmp=isNumber(v)&&isNumber(c.value)?Number(v)-Number(c.value):v.localeCompare(c.value.trim(),undefined,{numeric:true});return c.op==='gt'?cmp>0:cmp<0;}}return true;};
+  out=out.filter(n=>view.match==='any'?conds.some(c=>test(n,c)):conds.every(c=>test(n,c)));}
  if(q)out=out.filter(n=>{const values=view.filterKey?[noteTrait(doc,id(n),view.filterKey,idx)]:[plainTitle(n),...noteTraits(doc,id(n),idx).map(t=>t.value)];return values.some(v=>v!=null&&String(v).toLocaleLowerCase().includes(q));});
  if(view.sort){const val=n=>view.sort==='title'?plainTitle(n):noteTrait(doc,id(n),view.sort,idx),sign=view.dir==='desc'?-1:1;
   out=out.map((n,i)=>({n,i,v:val(n)})).sort((a,b)=>{const ae=a.v==null||a.v==='',be=b.v==null||b.v==='';if(ae||be)return ae===be?a.i-b.i:ae?1:-1;
@@ -163,4 +194,50 @@ export function imageTraitNames(doc,ids,idx=snapshotIndex(doc.tables.bullets)){
  const media=new Set((doc.tables.media||[]).filter(m=>String(m.mimeType||'').startsWith('image/')).map(m=>m.bulletId)),out=new Map();
  for(const id of ids)for(const block of traitsBlocks(doc,id,idx))for(const n of idx.children.get(block.id)||[]){if(!media.has(n.id))continue;const k=(parseTraitRow(n.text)?.key||String(n.text||'').trim().replace(/:+$/,'')).trim();if(k&&k.length<=64&&!out.has(k.toLocaleLowerCase()))out.set(k.toLocaleLowerCase(),k);}
  return [...out.values()];
+}
+
+// ---- Setting any trait, new items from the collection's traits ----
+/** Sets a note's trait, adding the Traits bullet and/or the trait bullet when missing. */
+export function setNoteTrait(doc,noteId,key,value,make=uuid){
+ key=String(key||'').trim().replace(/:+/g,'');if(!key||key.length>64)throw Error('Name the trait using up to 64 characters.');
+ const row=noteTraits(doc,noteId).find(t=>!t.duplicate&&t.key.toLocaleLowerCase()===key.toLocaleLowerCase());
+ if(row)return setTraitValue(doc,row.id,String(value??'').replace(/\r?\n/g,' '));
+ let next=doc,block=traitsBlocks(doc,noteId)[0]?.id;
+ if(!block){const r=addTraitsBlock(doc,noteId,make);if(!r.block)throw Error('Traits can be added to ordinary notes.');next=r.doc;block=r.block;
+  // addTraitsBlock leaves one empty bullet to type into: use it.
+  return withNodes(next,next.tables.bullets.map(n=>n.id===r.row?{...n,text:traitRowText(key,value)}:n));}
+ const kids=next.tables.bullets.filter(n=>n.parentId===block),blank=kids.find(n=>!String(n.text||'').trim()&&!next.tables.bullets.some(c=>c.parentId===n.id));
+ if(blank)return withNodes(next,next.tables.bullets.map(n=>n.id===blank.id?{...n,text:traitRowText(key,value)}:n));
+ return withNodes(next,[...next.tables.bullets,bullet(make(),{parentId:block,position:Math.max(-1,...kids.map(n=>n.position))+1,text:traitRowText(key,value)})]);
+}
+/** A new collection item: an empty title with a Traits bullet listing the collection's trait names. */
+export function newCollectionItem(doc,parentId,names,make=uuid){
+ const parent=doc.tables.bullets.find(n=>n.id===parentId);if(!parent)throw Error('This collection was removed.');
+ const id=make(),block=make(),pos=Math.max(-1,...doc.tables.bullets.filter(n=>n.parentId===parentId).map(n=>n.position))+1;
+ const rows=(names.length?names:['']).slice(0,24).map((k,i)=>bullet(make(),{parentId:block,position:i,text:k?String(k).trim()+':':''}));
+ return {doc:withNodes(doc,[...doc.tables.bullets.map(n=>n.id===parentId?{...n,collapsed:false}:n),bullet(id,{parentId,position:pos,text:''}),{...bullet(block,{parentId:id,position:0,text:'Traits'}),traitsBlock:true},...rows]),id};
+}
+
+// ---- Details from a link (IMDb, Letterboxd, Goodreads, shops…) ----
+const LINK_KEY=/^(link|url|website|source|imdb|letterboxd|goodreads|tmdb|amazon|page)$/i;
+/** The web link an item is about: in its title, or a Link/URL/IMDb… trait. */
+export function itemLink(doc,id,text,idx){const m=/https?:\/\/[^\s<>"')\]]+/.exec(String(text||''));if(m)return m[0];return noteTraits(doc,id,idx).find(t=>!t.duplicate&&LINK_KEY.test(t.key)&&isUrl(t.value))?.value||null;}
+/** Traits found in a page preview: Cover, Year, Director, Author, Site — plus a clean title. */
+export function traitsFromPreview(p){
+ const title=String(p?.title||'').trim(),desc=String(p?.description||'').trim(),site=String(p?.site||'').replace(/^www\./,''),out={};
+ if(p?.image&&isUrl(p.image))out.Cover=p.image;
+ const year=/\((?:[^()]*?\s)?((?:18|19|20)\d{2})(?:[–-]\d{0,4})?\)/.exec(title)||/\b((?:19|20)\d{2})\b/.exec(/imdb|letterboxd|tmdb|film|movie/i.test(site)?title+' '+desc:'');if(year)out.Year=year[1];
+ const dir=/directed by ([^.,|·•\n]+?)\s*(?:\.|,|\||·|•|$| with | starring )/i.exec(title+' . '+desc);if(dir)out.Director=dir[1].trim();
+ const author=/goodreads|book|amazon|openlibrary/i.test(site)&&/\bby ([^|·(–\n]+?)(?:\s*[|·(–-]|$)/i.exec(title);if(author)out.Author=author[1].trim();
+ if(site)out.Site=site;
+ const clean=title.replace(/\s*[-|–·]\s*(IMDb|Letterboxd|Goodreads|Amazon\.[a-z.]+|Wikipedia|TMDB|The Movie Database.*)$/i,'').replace(/\s*\((?:[^()]*?\s)?(?:18|19|20)\d{2}(?:[–-]\d{0,4})?\)\s*/,' ').replace(/\s+directed by .*$/i,'').replace(/\s+by [^|·]+$/i,m=>out.Author?'':m).trim();
+ return {title:clean,traits:out};
+}
+/** Adds the preview's traits a note doesn't have yet; a bare-link title becomes the page title. */
+export function applyPreviewTraits(doc,id,preview,make=uuid){
+ const {title,traits}=traitsFromPreview(preview);let next=doc;
+ for(const [k,v] of Object.entries(traits)){const has=noteTrait(next,id,k);if(has===null||has==='')next=setNoteTrait(next,id,k,v,make);}
+ const n=next.tables.bullets.find(x=>x.id===id);
+ if(n&&title&&/^\s*https?:\/\/\S+\s*$/.test(n.text)){const url=n.text.trim();next=withNodes(next,next.tables.bullets.map(x=>x.id===id?{...x,text:title,formatting:encode([])}:x));if(noteTrait(next,id,'Link')===null)next=setNoteTrait(next,id,'Link',url,make);}
+ return next;
 }
