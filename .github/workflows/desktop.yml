@@ -173,7 +173,7 @@ jobs:
             const entry={signature:readFileSync(`update/${d}/${m.file}.sig`,"utf8").trim(),url:`${process.env.API}/desktop/${process.env.CHANNEL}/${m.file}`};
             for(const p of m.platforms)platforms[p]=entry;}
           for(const p of ["windows-x86_64","darwin-aarch64","darwin-x86_64"])if(!platforms[p])throw Error("Missing "+p+"; got "+Object.keys(platforms).join(", "));
-          // Linux is paused: no Linux entry, so installed Linux copies simply aren't offered an update.
+          // Linux is paused: no Linux entry, so installed Linux copies are not offered an update.
           writeFileSync("latest.json",JSON.stringify({version:process.env.VERSION,notes:"RemoNook "+process.env.VERSION,pub_date:new Date().toISOString(),platforms},null,2));'
           cat latest.json
           npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/latest.json" --file latest.json --remote --content-type application/json
