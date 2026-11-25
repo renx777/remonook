@@ -2,6 +2,18 @@
 
 ## Current state
 
+### Traits as plain bullets, #views sort/filter/cover, 25 November 2026
+
+Web staging runs branch `feat/nooktraits-upgrade`, commit
+`b43394dc22140fdf799d6b64851d810da20d996c`, release `2026-11-14.1`, Staging frontend run
+45579020894. This replaces the custom property rows from `f931b89` (run 45550811998, which passed).
+Properties are now plain `Name: value` bullets under the Traits bullet. `#views` collections add
+Sort, Filter, Cover and Traits shown controls, saved in `web.traitViews`. The change is web-only:
+no Worker, migration or production change. Checked on staging as a guest by typing a Books
+`#views` shelf with three books and their traits, then using the table columns, sorting by Year
+in descending order, filtering by Author, choosing the Cover trait in the grid and reloading.
+There were no page errors, and 710 tests pass.
+
 ### Traits blocks (`#traits`), 25 November 2026
 
 Web staging runs branch `feat/nooktraits-upgrade`, commit
