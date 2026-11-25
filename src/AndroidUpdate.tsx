@@ -34,10 +34,21 @@ export function AndroidUpdate() {
     return () => { alive = false; clearTimeout(first); clearInterval(every); };
   }, []);
   if (!latest || hidden) return null;
+  if (isIosApp()) {
+    // An iPad cannot install a downloaded .ipa itself. SideStore or AltStore can: they install
+    // the update over this app (notes are kept) and SideStore also renews the 7-day signing.
+    const ipa = encodeURIComponent(latest.url);
+    return <div className="desktop-update" role="status">
+      <div><strong>Update available</strong><small>RemoNook {latest.version} for iPad is ready. Install it with SideStore or AltStore on this iPad; your notes are kept.</small></div>
+      <div className="desktop-update-actions">
+        <button onClick={() => setHidden(true)}>Later</button>
+        <button onClick={() => { void openExternal(`altstore://install?url=${ipa}`); setHidden(true); }}>AltStore</button>
+        <button className="primary" onClick={() => { void openExternal(`sidestore://install?url=${ipa}`); setHidden(true); }}>SideStore</button>
+      </div>
+    </div>;
+  }
   return <div className="desktop-update" role="status">
-    <div><strong>Update available</strong><small>{isIosApp()
-      ? <>RemoNook {latest.version} for iPad is ready. Download the .ipa on your computer and install it with Sideloadly over this app; notes on the iPad are kept.</>
-      : <>RemoNook {latest.version} is ready to download. Open the file when it finishes and choose Update.</>}</small></div>
+    <div><strong>Update available</strong><small>RemoNook {latest.version} is ready to download. Open the file when it finishes and choose Update.</small></div>
     <div className="desktop-update-actions">
       <button onClick={() => setHidden(true)}>Later</button>
       <button className="primary" onClick={() => { void openExternal(latest.url); setHidden(true); }}>Download</button>

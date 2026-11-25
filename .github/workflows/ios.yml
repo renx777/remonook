@@ -95,3 +95,18 @@ jobs:
           cat ipad.json
           npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/ipad.json" --file ipad.json --remote --content-type application/json
           echo "Download: $API/desktop/$CHANNEL/$name"
+          # A SideStore / AltStore source, so the iPad can install and update the app by itself
+          # (Settings in RemoNook links to it). Add <API>/desktop/<channel>/ipad-source.json once in SideStore.
+          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/ipad-icon.png" --file src-tauri/icons/128x128@2x.png --remote --content-type image/png
+          SIZE=$(stat -f%z "out/$name") API="$API" NAME="$name" IOS_NAME="$IOS_NAME" node --input-type=module -e '
+          import {writeFileSync} from "node:fs";
+          const {API,CHANNEL,VERSION,NAME,SIZE,IOS_NAME}=process.env,base=`${API}/desktop/${CHANNEL}`,staging=CHANNEL!=="production";
+          const bundle=staging?"com.remonook.ipad.staging":"com.remonook.ipad",date=new Date().toISOString();
+          const version={version:VERSION,buildVersion:VERSION,date,downloadURL:`${base}/${NAME}`,size:Number(SIZE),minOSVersion:"16.0",localizedDescription:"RemoNook "+VERSION};
+          const privacy={NSCameraUsageDescription:"Take a photo to turn into notes or flashcards.",NSMicrophoneUsageDescription:"Dictation and voice review of flashcards.",NSPhotoLibraryUsageDescription:"Add photos to notes.",NSLocalNetworkUsageDescription:"Sync with your other devices on this network."};
+          const app={name:IOS_NAME,bundleIdentifier:bundle,developerName:"RemoNook",subtitle:"Notes, outlines and flashcards",localizedDescription:"RemoNook for iPad"+(staging?" (staging build for testing).":"."),iconURL:`${base}/ipad-icon.png`,tintColor:"3784a8",category:"productivity",
+            versions:[version],version:VERSION,versionDate:date,downloadURL:version.downloadURL,size:version.size,appPermissions:{entitlements:[],privacy}};
+          writeFileSync("ipad-source.json",JSON.stringify({name:IOS_NAME,identifier:staging?"com.remonook.source.staging":"com.remonook.source",sourceURL:`${base}/ipad-source.json`,iconURL:`${base}/ipad-icon.png`,tintColor:"3784a8",apps:[app],news:[]},null,2));'
+          cat ipad-source.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/ipad-source.json" --file ipad-source.json --remote --content-type application/json
+          echo "SideStore / AltStore source: $API/desktop/$CHANNEL/ipad-source.json"

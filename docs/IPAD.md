@@ -15,13 +15,33 @@ Apple ID on your computer, so no Apple developer account is needed to build it.
    turn on **Developer Mode** if iPadOS asks (Settings → Privacy & Security). iPadOS restarts.
 4. Open **RemoNook Staging** (bundle `com.remonook.ipad.staging`).
 
-**Updates:** the app notices a newer build and says so. Install the new `.ipa` with Sideloadly
-over the old one, using the same Apple ID. Notes stored on the iPad are kept.
+**Updates on the iPad itself (recommended): SideStore or AltStore.** An iPad cannot install a
+downloaded `.ipa` on its own the way Android installs an APK. SideStore (free) and AltStore can.
+1. Install SideStore once (sidestore.io; it is installed with a computer the first time).
+2. In SideStore → Sources, add `https://remo-sync-staging.remo-978fb.workers.dev/desktop/staging/ipad-source.json`.
+3. Install **RemoNook Staging** from that source. Using the same Apple ID as before keeps the notes
+   on the iPad.
+
+From then on, RemoNook's **Update available** notice has **SideStore** and **AltStore** buttons
+that hand the new build to that app. SideStore also renews the 7-day signing on the iPad itself.
+AltStore does the same while AltServer runs on a computer on the same Wi-Fi.
+Sideloadly keeps working too: install the new `.ipa` over the old one with the same Apple ID.
 
 **The 7-day limit:** with a free Apple ID, sideloaded apps stop opening after 7 days until they are
-reinstalled or refreshed. Sideloadly's auto-refresh can do this while the iPad is on the same
-Wi-Fi. A paid Apple developer account extends this to a year. Synced notes are safe either way,
-because they are on the sync server. Back up anything kept only on the iPad.
+refreshed. SideStore does this on the iPad, and Sideloadly or AltServer do it from a computer. Synced
+notes are safe either way. Back up anything kept only on the iPad.
+
+## Local sync on the iPad
+
+- **Pair by address.** Other devices may not list the iPad under Nearby. iPadOS lets apps use
+  network discovery (multicast) only with a special Apple entitlement that sideloaded apps can't get.
+  Pairing by address works: enter the other device's address on the iPad, or the iPad's address on
+  the other device.
+- **Local Network permission.** Turning on local sync now makes iPadOS ask for it straight away.
+  If it was refused, turn it on in Settings → Privacy & Security → Local Network → RemoNook.
+- **Keep the app on screen while pairing.** iPadOS pauses apps in the background.
+- **Clearer errors.** A failed pairing now says why: refused (local sync off over there), no answer
+  (network, VPN or firewall), or this iPad not allowed on the local network.
 
 ## What works differently from desktop
 
