@@ -1,3 +1,5 @@
+import {TraitsHeader,TraitRow} from './TraitsBlock';
+import {isTraitsBlock,parseTraitRow} from './traits-block.mjs';
 import {traitSearchText,traitsActive} from './nooktraits.mjs';
 import {NoteMetadataBar,NookTraitsEye,NookTraitsCollection,useNookTraits} from './NoteMetadataContext';
 import {droppedImage,mayDropImage} from './image-drop';
@@ -791,7 +793,7 @@ export function OutlineView(p: Props) {
                 event.preventDefault();
                 if (!p.disabled) openMenu(n.id, event.currentTarget);
               }}
-              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${/^(?:\s*#[\p{L}\p{N}_\/-]+)+\s*$/u.test(n.text) ? "tags-only" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
+              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${/^(?:\s*#[\p{L}\p{N}_\/-]+)+\s*$/u.test(n.text) ? "tags-only" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""} ${isTraitsBlock(n) ? "is-traits-block" : isTraitsBlock(idx.byId.get(n.parentId as unknown as string)) && parseTraitRow(n.text) ? "is-trait-row" : ""}`}
               style={{
                 top: r.top,
                 paddingLeft: depthIndent(r.depth, view.width),
@@ -941,7 +943,11 @@ export function OutlineView(p: Props) {
                 }
               >
                 {selected&&galleryContext&&traitsActive(galleryContext.doc,n.id)&&<span className="nook-edit-eye"><NookTraitsEye id={n.id}/></span>}
-                {selected ? (
+                {isTraitsBlock(n) ? (
+                  <TraitsHeader node={n} count={childCount} disabled={p.disabled}/>
+                ) : !selected && isTraitsBlock(idx.byId.get(n.parentId as unknown as string)) && parseTraitRow(n.text) ? (
+                  <TraitRow node={n} disabled={p.disabled}/>
+                ) : selected ? (
                   <BulletEditor
                     node={n}
                     caret={p.caret}

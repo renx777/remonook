@@ -7,6 +7,8 @@ import {snapshotIndex} from './outline-snapshot.mjs';
 import {useImageUrl} from './ImageTools';
 import {PreviewImage,useLinkPreview} from './LinkPreview';
 import {previewPrice} from './link-preview-client';
+import './traits-block.css';
+import {collectionTraitKeys,noteTrait,traitCover,isTraitsBlock,traitList,traitKind} from './traits-block.mjs';
 import type {Node,Workspace} from './data';
 import './bullet-collection.css';
 const VIEWS=[['outline','Outline',ListTree],['grid','Grid',LayoutGrid],['list','Compact list',List],['table','Table',Table2]] as const;
@@ -20,33 +22,39 @@ function useItem(doc:Workspace,node:Node,assets:Map<string,Blob>){
  const label=node.text.replace(/\[([^\]]*)\]\(https?:\/\/[^\s)]+\)/g,'$1').replace(/https?:\/\/[^\s<>"']+/g,'').trim();
  const details=url?cardDetails(doc,node.id,url):null;
  const title=details?.title||(label?label.split('\n')[0]:'')||preview.data?.title||(url?new URL(url).hostname.replace(/^www\./,''):'Untitled');
- const image=details?.image||local||(link?.kind==='image'?url:preview.data?.image)||null;
+ const image=details?.image||local||(link?.kind==='image'?url:preview.data?.image)||traitCover(doc,node.mirrorSourceId||node.id)||null;
  return {...preview,url,title,image,site:preview.data?.site||(url?new URL(url).hostname.replace(/^www\./,''):''),details,price:previewPrice(details?.amount?{amount:details.amount,currency:details.currency,from:false}:preview.data?.price||null),description:details?.description||preview.data?.description||(!url?node.text.split('\n').slice(1).join('\n'):'')};
 }
-type ItemProps={doc:Workspace;node:Node;assets:Map<string,Blob>;onOpen:(id:string)=>void;childCount:number};
-function CollectionCard({doc,node,assets,onOpen,childCount}:ItemProps){
+type ItemProps={doc:Workspace;node:Node;assets:Map<string,Blob>;onOpen:(id:string)=>void;childCount:number;traitKeys:string[];links:boolean};
+function TraitCell({doc,node,k}:{doc:Workspace;node:Node;k:string}){const v=noteTrait(doc,node.mirrorSourceId||node.id,k);if(!v)return <>—</>;const t=traitKind(doc,k,v);if(t==='checkbox')return <>{v==='true'?'✓':'—'}</>;if(t==='list')return <span className="trait-chips">{traitList(v).map(x=><span key={x} className="trait-chip">{x}</span>)}</span>;return <>{v}</>;}
+function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys}:ItemProps){
  const item=useItem(doc,node,assets),[imageFailed,setImageFailed]=useState(false);useEffect(()=>setImageFailed(false),[item.image]);
  return <article ref={item.root} className={'collection-card'+(item.url||item.image?' has-cover':'')}>
   {((item.image&&!imageFailed)||item.loading)&&<button className="collection-cover" type="button" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><PreviewImage src={item.image} title={item.title} onUnavailable={()=>setImageFailed(true)}/></button>}
   <div className="collection-card-copy"><span className="collection-site">{item.site||'Note'}</span><button type="button" className="collection-title" onClick={()=>onOpen(node.id)}>{item.title}</button>{item.description&&<p>{item.description}</p>}
+   {traitKeys.length>0&&<dl className="collection-traits">{traitKeys.slice(0,3).filter(k=>noteTrait(doc,node.mirrorSourceId||node.id,k)).map(k=><div key={k}><dt>{k}</dt><dd><TraitCell doc={doc} node={node} k={k}/></dd></div>)}</dl>}
    {item.price&&<><strong className="collection-price" title={item.details?.amount?'Your entered price':'Page preview · prices may change'}>{item.price}</strong><small className="collection-price-source">{item.details?.amount?'Your price':'Website preview'}</small></>}
    <footer>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">Open website <ExternalLink size={12}/></a>:<span>{childCount?childCount+' nested '+(childCount===1?'note':'notes'):'Text note'}</span>}<span className="collection-card-actions">{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={14}/></button></span></footer>
    {item.details&&<small className="collection-status">Your details{item.details.amount?' · entered price':''}</small>}{item.error&&!item.details&&<small className="collection-status">Preview unavailable · link kept</small>}{item.loading&&item.url&&<small className="collection-status" role="status">Loading preview…</small>}
   </div>
  </article>;
 }
-function CollectionTableRow({doc,node,assets,onOpen}:ItemProps){
+function CollectionTableRow({doc,node,assets,onOpen,traitKeys,links}:ItemProps){
  const item=useItem(doc,node,assets);
- return <tr><td><div ref={item.root} className="collection-table-item"><div className="collection-table-thumbnail"><PreviewImage src={item.image} title={item.title}/></div><div><button className="collection-title" type="button" onClick={()=>onOpen(node.id)}>{item.title}</button>{item.error&&<small>Preview unavailable · link kept</small>}{item.loading&&item.url&&<small role="status">Loading…</small>}</div></div></td><td>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">{item.site}<ExternalLink size={11}/></a>:'Note'}</td><td>{item.price||'—'}{item.details?.amount&&<small className="collection-status">Your price</small>}</td><td>{item.data?.availability||'—'}</td><td>{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="collection-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={15}/></button></td></tr>;
+ return <tr><td><div ref={item.root} className="collection-table-item"><div className="collection-table-thumbnail"><PreviewImage src={item.image} title={item.title}/></div><div><button className="collection-title" type="button" onClick={()=>onOpen(node.id)}>{item.title}</button>{item.error&&<small>Preview unavailable · link kept</small>}{item.loading&&item.url&&<small role="status">Loading…</small>}</div></div></td>{traitKeys.map(k=><td key={k}><TraitCell doc={doc} node={node} k={k}/></td>)}{links&&<><td>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">{item.site}<ExternalLink size={11}/></a>:'Note'}</td><td>{item.price||'—'}{item.details?.amount&&<small className="collection-status">Your price</small>}</td><td>{item.data?.availability||'—'}</td></>}<td>{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="collection-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={15}/></button></td></tr>;
 }
-export function BulletCollection({doc,nodes,mode,assets,onOpen,onAdd}:{doc:Workspace;nodes:Node[];mode:string;assets:Map<string,Blob>;onOpen:(id:string)=>void;onAdd?:()=>void}){
+export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd}:{doc:Workspace;nodes:Node[];mode:string;assets:Map<string,Blob>;onOpen:(id:string)=>void;onAdd?:()=>void}){
  const [limit,setLimit]=useState(24),idx=useMemo(()=>snapshotIndex(doc.tables.bullets),[doc.tables.bullets]);
+ // A Traits block describes the collection itself, so it is not one of its items.
+ const nodes=useMemo(()=>all.filter(n=>!isTraitsBlock(n)),[all]);
+ const traitKeys=useMemo(()=>collectionTraitKeys(doc,nodes.map(n=>n.mirrorSourceId||n.id)),[doc,nodes]);
+ const links=useMemo(()=>!traitKeys.length||nodes.some(n=>mediaLinks(n.text).length>0),[nodes,traitKeys]);
  useEffect(()=>setLimit(24),[nodes[0]?.parentId,mode]);
- const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).length});
+ const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links});
  return <div className={'bullet-collection collection-'+mode}>
   <div className="collection-toolbar"><span>{nodes.length} {nodes.length===1?'item':'items'}</span>{onAdd&&<button type="button" onClick={onAdd}><Plus size={14}/>Add note or link</button>}</div>
   {!nodes.length&&<div className="collection-empty"><LayoutGrid size={25}/><p>A little room for a collection.</p><small>Add child notes or paste website links, then choose how to see them.</small>{onAdd&&<button type="button" onClick={onAdd}>Add your first item</button>}</div>}
-  {mode==='table'&&nodes.length>0?<div className="collection-table-scroll" role="region" aria-label="Comparison table" tabIndex={0}><table><caption>Child notes and page previews. Prices are captured page data and may change.</caption><thead><tr><th scope="col">Item</th><th scope="col">Website</th><th scope="col">Price</th><th scope="col">Availability</th><th scope="col"><span className="sr-only">Open note</span></th></tr></thead><tbody>{items.map(node=><CollectionTableRow key={node.id} {...props(node)}/>)}</tbody></table></div>:<div className="collection-items">{items.map(node=><CollectionCard key={node.id} {...props(node)}/>)}</div>}
+  {mode==='table'&&nodes.length>0?<div className="collection-table-scroll" role="region" aria-label="Comparison table" tabIndex={0}><table><caption>Child notes and page previews. Prices are captured page data and may change.</caption><thead><tr><th scope="col">Item</th>{traitKeys.map(k=><th scope="col" key={k}>{k}</th>)}{links&&<><th scope="col">Website</th><th scope="col">Price</th><th scope="col">Availability</th></>}<th scope="col"><span className="sr-only">Open note</span></th></tr></thead><tbody>{items.map(node=><CollectionTableRow key={node.id} {...props(node)}/>)}</tbody></table></div>:<div className="collection-items">{items.map(node=><CollectionCard key={node.id} {...props(node)}/>)}</div>}
   {nodes.length>limit&&<button className="collection-more" type="button" onClick={()=>setLimit(value=>value+24)}>Show {Math.min(24,nodes.length-limit)} more · {nodes.length-limit} remaining</button>}
   {nodes.length>0&&<p className="collection-footnote">Your original notes, in a different view. Website details may be unavailable or change.</p>}
  </div>;

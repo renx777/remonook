@@ -163,3 +163,16 @@ Application source `818b55057b71a7d9689e391fcf740382275afd63`:
 
 No physical Android/iPhone session was available for this web-only release.
 Native app UI and binaries remain on their previous authorized release.
+
+## Traits blocks (`#traits`)
+
+Properties can also live in the outline itself, like Obsidian's Properties panel.
+
+- Type `#traits` (any case) on a bullet. When the cursor leaves that bullet, the tag is removed and a child bullet **Traits** is added as its first child. The bullet menu also has **Add traits**. It shows **Show traits** when the note already has a block, and that action expands the block.
+- The Traits bullet is an ordinary bullet marked `traitsBlock: true`, so it collapses, moves, syncs, undoes and copies like any other. Each of its children is one property, stored as the text `key:: value`. Older apps and exports show that text as-is.
+- Rows show a type icon, the name, and the value, and are edited in place. Click the name to rename the property, change its type or delete it. Click the value to edit it. Keyboard navigation into a row still shows the raw `key:: value` text.
+- Types are Text, List, Number, Checkbox, Date and Date & time. A type belongs to the property *name* across the workspace (as in Obsidian), stored as append-only revisions in `web.traitKeys[name]`. When no type has been chosen, it is inferred from the value.
+- `#views` collections leave Traits blocks out of their items. They add a column for each property name their items use (the 6 most common), and use a `cover`/`poster`/`image`/`thumbnail` URL property as the card image. Cards show up to three properties. The Website, Price and Availability columns appear only when an item has a link, or when no item has properties.
+- Flashcards never use a Traits block as part of an answer.
+
+Code: `src/traits-block.mjs` (model, pure edits), `src/TraitsBlock.tsx` (outline rows), `src/traits-block.css`, tests in `tests/traits-block.test.mjs`.
