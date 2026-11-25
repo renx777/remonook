@@ -509,7 +509,7 @@ export function flashcardSources(nodes, decks, media = [], onlyIds = null) {
   for (const { bullet: q } of indexedRows(idx, null, true)) {
     if ((onlyIds && !onlyIds.has(q.id)) || q.mirrorSourceId || q.blockStyle === 'divider' || (!q.text.trim() && !mediaIds.has(q.id)) || !excluded.has(q.id)) continue;
     // A Traits block (properties) is metadata about the note, not part of its answer.
-    const answers = (idx.children.get(q.id) || []).filter(a => !excluded.has(a.id) && a.blockStyle !== 'divider' && !a.traitsBlock);
+    const answers = (idx.children.get(q.id) || []).filter(a => !excluded.has(a.id) && a.blockStyle !== 'divider' && !a.traitsBlock && !/^\s*traits\s*:?\s*$/i.test(String(a.text || '')));
     const lines = [], answerRows = [],
       stack = answers
         .slice()

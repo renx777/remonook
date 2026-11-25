@@ -18,7 +18,9 @@ const latest=events=>Object.entries(events||{}).filter(([,v])=>v&&typeof v==='ob
 /** `Name: value` → {key, value}; null for any other text. */
 export function parseTraitRow(text){const m=ROW.exec(String(text??''));if(!m)return null;const key=m[1].trim();return key&&!/^https?$/i.test(key)?{key,value:(m[2]||'').trim()}:null;}
 export const traitRowText=(key,value)=>`${String(key).trim()}: ${value??''}`.replace(/\s+$/,'');
-export const isTraitsBlock=n=>!!n&&n.traitsBlock===true;
+// A Traits bullet is one marked by #traits, or any bullet named exactly "Traits" (typed by hand,
+// made by an older app, or imported): properties are just bullets.
+export const isTraitsBlock=n=>!!n&&(n.traitsBlock===true||(!n.codeLanguage&&n.blockStyle!=='divider'&&/^\s*traits\s*:?\s*$/i.test(String(n.text||''))));
 
 /** The Traits bullets directly under a note (normally one; two can appear after offline edits). */
 export function traitsBlocks(doc,id,idx=snapshotIndex(doc.tables.bullets)){return (idx.children.get(id)||[]).filter(isTraitsBlock);}

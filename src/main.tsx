@@ -1,4 +1,4 @@
-import {addTraitsBlock,hasTraitsTag,traitsBlocks} from './traits-block.mjs';
+import {addTraitsBlock,hasTraitsTag,traitsBlocks,isTraitsBlock} from './traits-block.mjs';
 import {NoteMetadataContext} from './NoteMetadataContext';
 import {createProperty,renameProperty,addPropertyOption,setPropertyValues} from './note-properties.mjs';
 import {instantiateNoteTemplate,saveNoteTemplate,archiveNoteTemplate,noteTemplates} from './note-templates.mjs';
@@ -2308,7 +2308,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
             <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
-            {menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&!menuNode.traitsBlock&&!hasTag(String(menuNode.text||''),'views')&&<button disabled={disabled} onClick={()=>{setMenu(null);let row='';void saveTraits(d=>{const r=addTraitsBlock(d,menuNode.id);row=r.row;return r.doc;}).then(()=>{if(row)focus(row);}).catch(showError);}}><Icon name="sliders" size={16}/><span>{traitsBlocks(doc,menuNode.id).length?'Show traits':'Add traits'}</span></button>}
+            {menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&!isTraitsBlock(menuNode)&&!hasTag(String(menuNode.text||''),'views')&&<button disabled={disabled} onClick={()=>{setMenu(null);let row='';void saveTraits(d=>{const r=addTraitsBlock(d,menuNode.id);row=r.row;return r.doc;}).then(()=>{if(row)focus(row);}).catch(showError);}}><Icon name="sliders" size={16}/><span>{traitsBlocks(doc,menuNode.id).length?'Show traits':'Add traits'}</span></button>}
             <button disabled={disabled} onClick={()=>openPkm('templates',menuNode.id)}><Icon name="notes" size={16}/><span>Use note template…</span></button>
             <button disabled={disabled} onClick={()=>openPkm('save-template',menuNode.id)}><Icon name="notes" size={16}/><span>Save as note template…</span></button>
             {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:dictate',menuNode.id,0,0);}}><Icon name="mic" size={16}/><span>Dictate</span></button>}
