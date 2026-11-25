@@ -2,6 +2,28 @@
 
 ## Current state
 
+### Traits: kept out of other views, image covers, stars, name suggestions, group — 25 November 2026
+
+Web staging runs branch `feat/nooktraits-upgrade`, commit `929cf9e33735c36efb42719e8470dae0c295ea22`, release `2026-11-14.1`.
+- Traits bullets are left out of mindmaps, canvas sources, search by meaning and the resurfacing widget.
+- Outline search matches a note by its trait values.
+- Pasted images in trait bullets can be covers.
+- Rating traits show as tappable stars.
+- Trait names are suggested while typing (Tab).
+- Collections group by a trait.
+
+Web only; no Worker, migration or production change.
+
+Checked on staging as a guest (dark, 1440 px):
+- 4 movies typed with suggestions.
+- Searching "spielberg" returns the two movies.
+- Stars show 3/5 → tap → 5/5, and an empty rating shows 0/5.
+- Group by Director shows 3 groups, and they collapse.
+- The grouped table shows stars.
+- A pasted PNG becomes the card cover.
+
+No page errors. On one of three runs the test's 4 ms typing lost a keystroke after Enter; the app was fine when retried. 715 tests pass.
+
 ### #views poster grid and Configure view, 25 November 2026
 
 Web staging runs branch `feat/nooktraits-upgrade`, commit
