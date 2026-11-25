@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {empty} from './.build/data.mjs';
 import {bullet,encode,marks} from '../src/domain.mjs';
 import {seed,project} from '../src/sync-crdt.mjs';
-import {setNoteTrait,newCollectionItem,traitsFromPreview,applyPreviewTraits,itemLink,addTraitTab,switchTraitTab,renameTraitTab,deleteTraitTab,traitBulletIds,withoutTraits,traitTextByNote,knownTraitNames,ratingOf,ratingText,setTraitValue,groupCollection,traitImageRow,imageTraitNames,parseTraitRow,addTraitsBlock,noteTraits,noteTrait,hasTraitsTag,traitsBlocks,collectionTraitKeys,traitCover,insideTraits,traitView,setTraitView,arrangeCollection,shownTraits} from '../src/traits-block.mjs';
+import {dateOf,dateTraitKeys,calendarMonth,monthGrid,shiftMonth,boardColumns,traitTotal,setNoteTrait,newCollectionItem,traitsFromPreview,applyPreviewTraits,itemLink,addTraitTab,switchTraitTab,renameTraitTab,deleteTraitTab,traitBulletIds,withoutTraits,traitTextByNote,knownTraitNames,ratingOf,ratingText,setTraitValue,groupCollection,traitImageRow,imageTraitNames,parseTraitRow,addTraitsBlock,noteTraits,noteTrait,hasTraitsTag,traitsBlocks,collectionTraitKeys,traitCover,insideTraits,traitView,setTraitView,arrangeCollection,shownTraits} from '../src/traits-block.mjs';
 
 let n=0;const make=()=>'id'+(++n);
 const doc=(bullets)=>{const d=empty();return {...d,tables:{...d.tables,bullets}};};
@@ -148,4 +148,26 @@ test('details from a link fill missing traits and tidy a bare-link title', ()=>{
   d=applyPreviewTraits(d,'n',{title:'Jaws (1975) - IMDb',description:'Directed by Steven Spielberg.',image:'https://img.test/j.jpg',site:'imdb.com'},make);
   assert.equal(d.tables.bullets.find(x=>x.id==='n').text,'Jaws');assert.equal(noteTrait(d,'n','Year'),'1976','never overwrites');
   assert.equal(noteTrait(d,'n','Director'),'Steven Spielberg');assert.equal(noteTrait(d,'n','Link'),'https://www.imdb.com/title/tt0073195/');
+});
+
+test('calendar: dates from traits, month grid', ()=>{
+  assert.equal(dateOf('2026-11-20'),'2026-11-20');assert.equal(dateOf('20 Nov 2026'),'2026-11-20');assert.equal(dateOf('Nov 20, 2026'),'2026-11-20');
+  assert.equal(dateOf('2026-11-20T18:30'),'2026-11-20');assert.equal(dateOf('2026-02-30'),null);assert.equal(dateOf('soon'),null);
+  let d=shelf();d=setNoteTrait(d,'t','Watched','2026-11-03',make);d=setNoteTrait(d,'h','Watched','3 Nov 2026',make);d=setNoteTrait(d,'s','Watched','2026-12-01',make);
+  assert.deepEqual(dateTraitKeys(d,['t','h','s']),['Watched']);
+  const {days,undated}=calendarMonth(d,items(d),'Watched','2026-11');assert.deepEqual([...days.keys()],['2026-11-03']);assert.equal(days.get('2026-11-03').length,2);assert.equal(undated,0);
+  const g=monthGrid('2026-11');assert.equal(g.length%7,0);assert.equal(g[0],'2026-10-26','weeks start on Monday');assert.ok(g.includes('2026-11-30'));
+  assert.equal(shiftMonth('2026-12',1),'2027-01');assert.equal(shiftMonth('2026-01',-1),'2025-12');
+});
+
+test('board columns: values in use, extra empty columns, then no value', ()=>{
+  let d=shelf();d=setNoteTrait(d,'t','Status','Read',make);d=setNoteTrait(d,'h','Status','Reading',make);
+  assert.deepEqual(boardColumns(d,items(d),'Status',['To read']).map(c=>[c.label,c.items.map(n=>n.text)]),[['Read',['Time']],['Reading',['Habits']],['To read',[]],['',['Sapiens']]]);
+});
+
+test('table totals', ()=>{
+  let d=shelf();d=setNoteTrait(d,'t','Rating','4/5',make);d=setNoteTrait(d,'h','Rating','2',make);
+  const list=items(d);
+  assert.equal(traitTotal(d,list,'Year','count'),'2');assert.equal(traitTotal(d,list,'Year','empty'),'1');assert.equal(traitTotal(d,list,'Year','min'),'1988');
+  assert.equal(traitTotal(d,list,'Rating','avg'),'3');assert.equal(traitTotal(d,list,'Author','unique'),'3');assert.equal(traitTotal(d,list,'Author','sum'),'—');
 });

@@ -1,7 +1,6 @@
 import {addTraitsBlock,hasTraitsTag,traitsBlocks} from './traits-block.mjs';
-import {activateTraits,traitsActive,attachTraitField,setTraitValues} from './nooktraits.mjs';
 import {NoteMetadataContext} from './NoteMetadataContext';
-import {createProperty,renameProperty,addPropertyOption} from './note-properties.mjs';
+import {createProperty,renameProperty,addPropertyOption,setPropertyValues} from './note-properties.mjs';
 import {instantiateNoteTemplate,saveNoteTemplate,archiveNoteTemplate,noteTemplates} from './note-templates.mjs';
 import {localDate} from "./calendar-events.mjs";
 import {resurfacePresentations,resurfacePresentation,widgetFocusAction} from "./widget-suite.mjs";
@@ -2290,7 +2289,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }} />}
       {photoTarget&&photoTarget.account===storageAccountKey()&&cloudUser&&doc&&<React.Suspense fallback={null}><PhotoNotes user={cloudUser} targetTitle={doc.tables.bullets.find(n=>n.id===photoTarget.id)?.text||''} disabled={disabled||failed.current} onClose={()=>setPhotoTarget(null)} onSave={async result=>{await flush();if(failed.current||photoTarget.account!==storageAccountKey())throw Error('Saving needs attention first.');const current=docRef.current!,next=insertPhotoResult(current,photoTarget.id,result,crypto.randomUUID());commit(next,undefined,true);setNotice(result.cards?`${result.cards.length} flashcard${result.cards.length===1?'':'s'} added. Undo removes them together.`:'Notes added. Undo removes them together.');}}/></React.Suspense>}
       {pkm&&pkm.account===storageAccountKey()&&doc&&<React.Suspense fallback={null}>
-        {pkm.kind==='properties'&&pkm.id&&<PropertiesDialog doc={doc} id={pkm.id} disabled={disabled} onClose={()=>setPkm(null)} onSave={values=>pkmSave(d=>setTraitValues(d,pkm.id!,values))} onUpdate={(kind,value)=>pkmSave(d=>kind==='create'?(()=>{const created=createProperty(d,value);return attachTraitField(created.doc,pkm.id!,created.id);})():kind==='option'?addPropertyOption(d,value.id,value.label):renameProperty(d,value.id,value.name,value.archived||false))}/>}
+        {pkm.kind==='properties'&&pkm.id&&<PropertiesDialog doc={doc} id={pkm.id} disabled={disabled} onClose={()=>setPkm(null)} onSave={values=>pkmSave(d=>setPropertyValues(d,pkm.id!,values))} onUpdate={(kind,value)=>pkmSave(d=>kind==='create'?(()=>{return createProperty(d,value).doc;})():kind==='option'?addPropertyOption(d,value.id,value.label):renameProperty(d,value.id,value.name,value.archived||false))}/>}
         {pkm.kind==='templates'&&<TemplatesDialog doc={doc} parent={pkm.id} disabled={disabled} onClose={()=>setPkm(null)} onArchive={(id,archived)=>pkmSave(d=>archiveNoteTemplate(d,id,archived))} onUse={async(id,variables)=>{let created='';await pkmSave(d=>{const result=instantiateNoteTemplate(d,id,pkm.id,variables);created=result.id;return result.doc;});setTab('notes');setSearch('');setScope(created);setEditing(null);setNotice('Template added as independent notes. Undo removes this insertion.');}}/>}
         {pkm.kind==='save-template'&&pkm.id&&<SaveTemplateDialog title={doc.tables.bullets.find(n=>n.id===pkm.id)?.text||'My template'} templates={noteTemplates(doc)} onClose={()=>setPkm(null)} onSave={(name,replace)=>pkmSave(d=>saveNoteTemplate(d,pkm.id!,name,()=>crypto.randomUUID(),replace).doc)}/>}
       </React.Suspense>}
@@ -2309,7 +2308,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
             <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
-            <button disabled={disabled} onClick={()=>{if(traitsActive(doc,menuNode.id))openPkm('properties',menuNode.id);else{setMenu(null);void saveTraits(d=>activateTraits(d,menuNode.id)).catch(showError);}}}><Icon name="settings" size={16}/><span>{traitsActive(doc,menuNode.id)?'Manage NookTraits…':'Add NookTraits'}</span></button>
             {menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&!menuNode.traitsBlock&&!hasTag(String(menuNode.text||''),'views')&&<button disabled={disabled} onClick={()=>{setMenu(null);let row='';void saveTraits(d=>{const r=addTraitsBlock(d,menuNode.id);row=r.row;return r.doc;}).then(()=>{if(row)focus(row);}).catch(showError);}}><Icon name="sliders" size={16}/><span>{traitsBlocks(doc,menuNode.id).length?'Show traits':'Add traits'}</span></button>}
             <button disabled={disabled} onClick={()=>openPkm('templates',menuNode.id)}><Icon name="notes" size={16}/><span>Use note template…</span></button>
             <button disabled={disabled} onClick={()=>openPkm('save-template',menuNode.id)}><Icon name="notes" size={16}/><span>Save as note template…</span></button>
@@ -2517,7 +2515,6 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
         ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
         {id:'note-templates',label:'New note from template',icon:'notes',keywords:['template','meeting','project','daily review'],disabled,run:()=>openPkm('templates',null)},
-        {id:'note-properties',label:'Manage NookTraits',icon:'settings',keywords:['metadata','fields','status','traits'],disabled:disabled||!scope||!traitsActive(doc,scope),run:()=>scope&&openPkm('properties',scope)},
         {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
         {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},
         {id:'settings',label:'Open settings & backups',icon:'settings',run:()=>setDialog('settings')},

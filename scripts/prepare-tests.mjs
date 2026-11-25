@@ -35,4 +35,3 @@ await build({
 
 await build({entryPoints:["tests/fixtures/android-share-harness.ts"],bundle:true,packages:"external",outfile:"tests/.build/android-share-harness.mjs",format:"esm",platform:"node",jsx:"automatic",loader:{".css":"empty"}});
 
-await build({entryPoints:["tests/fixtures/nooktraits-harness.tsx"],bundle:true,packages:"external",outfile:"tests/.build/nooktraits-harness.mjs",format:"esm",platform:"node",jsx:"automatic",loader:{".css":"empty"}});

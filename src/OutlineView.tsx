@@ -1,7 +1,5 @@
 // Property bullets ("Cover: https://…" under a Traits bullet) stay one plain line: no link cards.
 import {isTraitsBlock,parseTraitRow,traitBulletIds,traitTextByNote} from './traits-block.mjs';
-import {traitSearchText,traitsActive} from './nooktraits.mjs';
-import {NoteMetadataBar,NookTraitsEye,NookTraitsCollection,useNookTraits} from './NoteMetadataContext';
 import {droppedImage,mayDropImage} from './image-drop';
 import {BulletCollection,BulletViewSwitch} from './BulletCollection';
 import {bulletView} from './bullet-views.mjs';
@@ -96,7 +94,7 @@ export function OutlineView(p: Props) {
     }
     return result;
   },[p.nodes]);
-  const matches=useMemo(()=>{if(!p.search.trim())return ()=>true;const hidden=traitBulletIds(p.nodes),words=traitTextByNote(p.nodes);const m=searchMatcher(p.nodes,p.media,times,Date.now(),n=>(galleryContext?traitSearchText(galleryContext.doc,n.id):'')+(words.get(n.mirrorSourceId||n.id)||''));return (n:Node,q:string)=>!hidden.has(n.id)&&m(n,q);},[p.nodes,p.media,times,p.search,galleryContext?.doc.web.noteProperties,galleryContext?.doc.web.nookTraits]);
+  const matches=useMemo(()=>{if(!p.search.trim())return ()=>true;const hidden=traitBulletIds(p.nodes),words=traitTextByNote(p.nodes);const m=searchMatcher(p.nodes,p.media,times,Date.now(),n=>words.get(n.mirrorSourceId||n.id)||'');return (n:Node,q:string)=>!hidden.has(n.id)&&m(n,q);},[p.nodes,p.media,times,p.search,galleryContext?.doc.web.noteProperties,galleryContext?.doc.web.nookTraits]);
   const readingSize = p.readingSize || 16,
     rowHeight = readingSize * 1.5 + 4;
   const idx = useMemo(() => snapshotIndex(p.nodes), [p.nodes]),
@@ -134,12 +132,9 @@ export function OutlineView(p: Props) {
       },
       [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds,p.excludedIds],
     );
-  // Collection layouts require #views explicitly. Hiding NookTraits
-  // presents a clean outline while retaining the saved collection configuration.
-  const traits=useNookTraits(p.scope||'');
-  const nookActive=traits.active&&!traits.ctx?.studying;
+  // Collection layouts require #views explicitly.
   const viewsTagged=!!p.scope&&hasTag(String(idx.byId.get(p.scope)?.text||''),'views');
-  const viewMode=nookActive&&traits.hidden?'outline':viewsTagged&&galleryContext?bulletView(galleryContext.doc,p.scope!):'outline';
+  const viewMode=viewsTagged&&galleryContext?bulletView(galleryContext.doc,p.scope!):'outline';
   const collectionActive=viewMode!=='outline'&&!p.search&&!p.editing;
   // Publish the complete filtered outline, not just the virtualised viewport.
   const visibleRowIds=useMemo(()=>collectionActive?[]:rs.map(row=>row.bullet.id),[rs,collectionActive]);
@@ -643,9 +638,9 @@ export function OutlineView(p: Props) {
   }, [selectedIds, layout, p.onDeleteNodes, p.onCommand, p.disabled, collectionActive]);
 
   if(collectionActive&&scopedNode&&galleryContext)return <section ref={scroller} className="outline-scroll collection-page" aria-label={scopedNode.text+' collection'}>
-    <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} onBlur={()=>p.onCommand('action:traits-tag',scopedNode.id,0,0)} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/><NookTraitsEye id={scopedNode.id}/></div></div>
-    {viewsTagged&&!nookActive&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
-    {nookActive?<NookTraitsCollection key={(traits.ctx?.scope||'')+scopedNode.id} id={scopedNode.id} mode={viewMode} assets={p.assets} onOpen={p.onZoom}/>:<BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>}
+    <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} onBlur={()=>p.onCommand('action:traits-tag',scopedNode.id,0,0)} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/></div></div>
+    {viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
+    <BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>
   </section>;
   return (
     <div
@@ -726,8 +721,8 @@ export function OutlineView(p: Props) {
                 }
               }}
             />
-            <NookTraitsEye id={scopedNode.id}/></div><NoteMetadataBar id={scopedNode.id}/>
-            {viewsTagged&&!(nookActive&&traits.hidden)&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
+            </div>
+            {viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
             {viewMode!=='outline'&&p.editing&&<div className="collection-editing-hint">Editing in outline<button type="button" onClick={()=>p.onEdit(null)}>Return to {viewMode==='list'?'compact list':viewMode}</button></div>}
           </div>
         ) : <h1 className="page-title-hidden">My notes</h1>)}
@@ -939,10 +934,10 @@ export function OutlineView(p: Props) {
                 className={
                   "row-content " +
                   (n.codeLanguage ? "code-row" : "") +
-                  (n.taskState === "DONE" ? " task-done" : "")+(selected&&galleryContext&&traitsActive(galleryContext.doc,n.id)?" nook-editing-traits":"")
+                  (n.taskState === "DONE" ? " task-done" : "")
                 }
               >
-                {selected&&galleryContext&&traitsActive(galleryContext.doc,n.id)&&<span className="nook-edit-eye"><NookTraitsEye id={n.id}/></span>}
+                
                 {selected ? (
                   <BulletEditor
                     node={n}
@@ -1006,7 +1001,7 @@ export function OutlineView(p: Props) {
                   >
                     {n.text || n.blockStyle === 'divider' ? (
                       <>
-                        <span className="bullet-read-source"><RichRead node={n} search={p.search} /></span><span className="bullet-inline-media" onKeyDown={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}><NookTraitsEye id={n.id}/>                {badges.get(n.id)?.has('image')&&<span className="bullet-media-indicator" title="Images in this branch" aria-label="Images in this branch"><Icon name="image" size={14}/></span>}
+                        <span className="bullet-read-source"><RichRead node={n} search={p.search} /></span><span className="bullet-inline-media" onKeyDown={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>                {badges.get(n.id)?.has('image')&&<span className="bullet-media-indicator" title="Images in this branch" aria-label="Images in this branch"><Icon name="image" size={14}/></span>}
                 {badges.get(n.id)?.has('youtube')&&<span className="bullet-media-indicator youtube-indicator" title="YouTube in this branch" aria-label="YouTube in this branch"><Icon name="youtube" size={15}/></span>}
                 {badges.get(n.id)?.has('video')&&<span className="bullet-media-indicator" title="Videos in this branch" aria-label="Videos in this branch"><Icon name="play" size={14}/></span>}
                 {mindmapBadges.get(n.id)&&<button className="bullet-mindmap-open" aria-label="Open mindmap" title="Open mindmap" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();p.onMindmap?.(mindmapBadges.get(n.id)![0]);}}><Icon name="mindmap" size={14}/></button>}
@@ -1024,7 +1019,7 @@ export function OutlineView(p: Props) {
                     )}
                   </div>
                 )}
-                <NoteMetadataBar id={n.id} compact/>
+                
                 <ReadingCitation id={n.mirrorSourceId||n.id}/>
                 {!n.collapsed&&<MediaContent onEdit={p.disabled?undefined:()=>p.onEdit(n.id)} nodeId={n.mirrorSourceId||n.id} text={isTraitsBlock(idx.byId.get(n.parentId as unknown as string))&&parseTraitRow(n.text)?'':n.text} media={mediaByNode.get(n.mirrorSourceId||n.id) || []} assets={p.assets} onResize={p.disabled ? undefined : p.onResizeMedia} onOcclude={p.disabled ? undefined : p.onOccludeMedia} onRemove={p.disabled ? undefined : p.onRemoveMedia} />}
                 {n.codeLanguage && (

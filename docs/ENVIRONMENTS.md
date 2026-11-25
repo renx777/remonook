@@ -101,7 +101,7 @@ Web staging runs branch `feat/nooktraits-upgrade`, commit
 `14c028fd63131e21ce20f3dd338a4f4296bb975d`, release `2026-11-14.1`, built on
 `codex/nooktraits-shelves` (`0ca8f9e`). Adds user-defined note types, Topic and
 Lecture starters, status tabs and New … for every type, group by, a table summary
-row, CSV export and searchable note pickers. See NOOKTRAITS.md. Frontend only;
+row, CSV export and searchable note pickers. See TRAITS.md (NookTraits since removed). Frontend only;
 the sync Worker is unchanged.
 
 [Staging frontend #196](https://github.com/renx777/remonook/actions/runs/45449257154)
@@ -176,7 +176,7 @@ fields. The eye is on the heading line in zoomed/read/editing outlines and hides
 traits without clearing metadata or collection configuration. Editable table,
 cards and list views reference original notes, with Book views, columns, one
 filter/sort and bulk edits in one undo step. Existing values and both sides of
-concurrent edits remain retained. [Usage, limits and browser captures](NOOKTRAITS.md).
+concurrent edits remain retained. (NookTraits since removed; see [TRAITS.md](TRAITS.md)).
 
 Validation:
 - Local TypeScript/build and **686 app tests passed**, zero failures.

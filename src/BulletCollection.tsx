@@ -2,7 +2,7 @@ import {CardDetailsButton} from './CardDetailsDialog';
 import {cardDetails} from './card-details.mjs';
 import {useContext,useEffect,useMemo,useRef,useState} from 'react';
 import {NoteMetadataContext} from './NoteMetadataContext';
-import {LayoutGrid,List,ListTree,Table2,ExternalLink,ArrowUpRight,Plus,ArrowUpDown,Filter,ListChecks,Settings2,Rows3,ChevronDown,Pencil,Trash2,X,Link2} from 'lucide-react';
+import {LayoutGrid,List,ListTree,Table2,ExternalLink,ArrowUpRight,Plus,ArrowUpDown,Filter,ListChecks,Settings2,Rows3,ChevronDown,Pencil,Trash2,X,Link2,Columns3,CalendarDays,ChevronLeft,ChevronRight} from 'lucide-react';
 import {mediaLinks} from './media.mjs';
 import {snapshotIndex} from './outline-snapshot.mjs';
 import {useImageUrl} from './ImageTools';
@@ -10,10 +10,11 @@ import {PreviewImage,useLinkPreview} from './LinkPreview';
 import {previewPrice} from './link-preview-client';
 import './traits-block.css';
 import {loadLinkPreview} from './link-preview-client';
+import {dateTraitKeys,dateOf,calendarMonth,monthGrid,shiftMonth,boardColumns,TOTALS,traitTotal} from './traits-block.mjs';
 import {traitImageRow,FILTER_OPS,newCollectionItem,setNoteTrait,itemLink,applyPreviewTraits,switchTraitTab,addTraitTab,renameTraitTab,deleteTraitTab,imageTraitNames,noteTraits,ratingOf,ratingText,setTraitValue,groupCollection,collectionTraitKeys,noteTrait,traitCover,isTraitsBlock,isUrl,traitView,setTraitView,arrangeCollection,shownTraits} from './traits-block.mjs';
 import type {Node,Workspace} from './data';
 import './bullet-collection.css';
-const VIEWS=[['outline','Outline',ListTree],['grid','Grid',LayoutGrid],['list','Compact list',List],['table','Table',Table2]] as const;
+const VIEWS=[['outline','Outline',ListTree],['grid','Grid',LayoutGrid],['list','Compact list',List],['table','Table',Table2],['board','Board',Columns3],['calendar','Calendar',CalendarDays]] as const;
 export function BulletViewSwitch({value,onChange,disabled=false}:{value:string;onChange:(view:string)=>void;disabled?:boolean}){
  return <div className="bullet-view-switch" role="group" aria-label="Child bullet view">{VIEWS.map(([key,label,Icon])=><button type="button" key={key} aria-pressed={value===key} aria-label={label+' view'} title={label} disabled={disabled} onClick={()=>onChange(key)}><Icon size={14}/><span>{label}</span></button>)}</div>;
 }
@@ -80,14 +81,17 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd}:{doc:W
  const links=useMemo(()=>!available.length||members.some(n=>mediaLinks(n.text).length>0),[members,available]);
  useEffect(()=>setLimit(24),[nodes[0]?.parentId,mode]);
  const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links,cover:view.cover});
- const renderItems=(list:Node[])=>mode==='table'?<div className="collection-table-scroll" role="region" aria-label="Comparison table" tabIndex={0}><table><caption className={links?undefined:'sr-only'}>{links?'Child notes and page previews. Prices are captured page data and may change.':'Items and their traits'}</caption><thead><tr><th scope="col">Item</th>{traitKeys.map(k=><th scope="col" key={k}>{k}</th>)}{links&&<><th scope="col">Website</th><th scope="col">Price</th><th scope="col">Availability</th></>}<th scope="col"><span className="sr-only">Open note</span></th></tr></thead><tbody>{list.map(node=><CollectionTableRow key={node.id} {...props(node)}/>)}</tbody></table></div>
+ const dateKeys:string[]=useMemo(()=>dateTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
+ const renderItems=(list:Node[])=>mode==='board'?<Board doc={doc} parent={parent} view={view} available={available} items={list} assets={assets} onOpen={onOpen}/>
+  :mode==='calendar'?<TraitCalendar doc={doc} view={view} dateKeys={dateKeys} items={list} onOpen={onOpen}/>
+  :mode==='table'?<div className="collection-table-scroll" role="region" aria-label="Comparison table" tabIndex={0}><table><caption className={links?undefined:'sr-only'}>{links?'Child notes and page previews. Prices are captured page data and may change.':'Items and their traits'}</caption><thead><tr><th scope="col">Item</th>{traitKeys.map(k=><th scope="col" key={k}>{k}</th>)}{links&&<><th scope="col">Website</th><th scope="col">Price</th><th scope="col">Availability</th></>}<th scope="col"><span className="sr-only">Open note</span></th></tr></thead><tbody>{list.map(node=><CollectionTableRow key={node.id} {...props(node)}/>)}</tbody>{available.length>0&&<Totals doc={doc} parent={parent} view={view} keys={traitKeys} items={list} links={links}/>}</table></div>
   :mode==='grid'&&available.length>0?<div className="poster-grid" style={{'--card':view.cardSize+'px','--ratio':String(view.ratio),'--fit':view.fit} as React.CSSProperties}>{list.map(node=><PosterCard key={node.id} {...props(node)}/>)}</div>
   :<div className="collection-items">{list.map(node=><CollectionCard key={node.id} {...props(node)}/>)}</div>;
  return <div className={'bullet-collection collection-'+mode}>
-  {parent&&available.length>0?<CollectionBar parent={parent} view={view} available={available} imageNames={imageNames} mode={mode} count={nodes.length} total={members.length} onAdd={onAdd} onOpen={onOpen} items={members}/>
+  {parent&&available.length>0?<CollectionBar parent={parent} view={view} available={available} imageNames={imageNames} dateKeys={dateKeys} mode={mode} count={nodes.length} total={members.length} onAdd={onAdd} onOpen={onOpen} items={members}/>
   :<div className="collection-toolbar"><span>{members.length} {members.length===1?'item':'items'}</span>{onAdd&&<button type="button" onClick={onAdd}><Plus size={14}/>Add note or link</button>}</div>}
   {!members.length&&<div className="collection-empty"><LayoutGrid size={25}/><p>A little room for a collection.</p><small>Add child notes or paste website links, then choose how to see them.</small>{onAdd&&<button type="button" onClick={onAdd}>Add your first item</button>}</div>}
-  {nodes.length>0&&(view.group?groupCollection(doc,items,view.group,view.groupDir,idx).map((g:{label:string;items:Node[]})=>{const key=g.label.toLocaleLowerCase()||'\u0000';const isClosed=closed.has(key);
+  {nodes.length>0&&(view.group&&mode!=='board'&&mode!=='calendar'?groupCollection(doc,items,view.group,view.groupDir,idx).map((g:{label:string;items:Node[]})=>{const key=g.label.toLocaleLowerCase()||'\u0000';const isClosed=closed.has(key);
     return <section key={key} className="collection-group"><button type="button" className="collection-group-head" aria-expanded={!isClosed} onClick={()=>setClosed(c=>{const n=new Set(c);if(n.has(key))n.delete(key);else n.add(key);return n;})}><ChevronDown size={14} className={isClosed?'is-closed':''}/><span>{g.label||'No '+view.group}</span><small>{g.items.length}</small></button>{!isClosed&&renderItems(g.items)}</section>;})
    :renderItems(items))}
   {nodes.length>limit&&<button className="collection-more" type="button" onClick={()=>setLimit(value=>value+24)}>Show {Math.min(24,nodes.length-limit)} more · {nodes.length-limit} remaining</button>}
@@ -98,7 +102,7 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd}:{doc:W
 type Tab={id:string;name:string;settings:any};type Cond={key:string;op:string;value:string};
 type View=Omit<ReturnType<typeof traitView>,"tabs"|"conditions"|"match">&{tabs:Tab[];conditions:Cond[];match:"all"|"any";active:string};
 /** Obsidian-style bar: result count, then Sort, Filter, Properties, Configure and New, each a small panel. */
-function CollectionBar({parent,view,available,imageNames,mode,count,total,onAdd,onOpen,items}:{parent:string;view:View;available:string[];imageNames:string[];mode:string;count:number;total:number;onAdd?:()=>void;onOpen:(id:string)=>void;items:Node[]}){
+function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,total,onAdd,onOpen,items}:{parent:string;view:View;available:string[];imageNames:string[];dateKeys:string[];mode:string;count:number;total:number;onAdd?:()=>void;onOpen:(id:string)=>void;items:Node[]}){
  const ctx=useContext(NoteMetadataContext),[open,setOpen]=useState(''),[error,setError]=useState(''),[filter,setFilter]=useState(view.filter),root=useRef<HTMLDivElement>(null);
  useEffect(()=>setFilter(view.filter),[view.filter]);
  useEffect(()=>{if(!open)return;const close=(e:PointerEvent)=>{if(!root.current?.contains(e.target as globalThis.Node))setOpen('');};const esc=(e:KeyboardEvent)=>{if(e.key==='Escape')setOpen('');};document.addEventListener('pointerdown',close);document.addEventListener('keydown',esc);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',esc);};},[open]);
@@ -152,6 +156,8 @@ function CollectionBar({parent,view,available,imageNames,mode,count,total,onAdd,
    {open==='props'&&<><div className="collection-props">{available.map(k=><label key={k}><input type="checkbox" disabled={off} checked={shown.some(x=>same(x,k))} onChange={()=>toggle(k)}/>{k}</label>)}</div>
     <div className="collection-fill"><button type="button" disabled={off||/^Reading/.test(filling)} onClick={()=>void fill()}><Link2 size={13}/>Fill traits from links</button><small>{filling||'Reads each item\'s link (IMDb, Letterboxd, Goodreads, shops…) and adds Cover, Year, Director, Author or Site where missing.'}</small></div></>}
    {open==='config'&&<>
+    {mode==='board'&&<label>Columns from<select aria-label="Board columns from" value={view.boardKey||view.group||available[0]||''} disabled={off} onChange={e=>set({boardKey:e.target.value})}>{options}</select></label>}
+    {mode==='calendar'&&<label>Date trait<select aria-label="Calendar date trait" value={view.dateKey||dateKeys[0]||''} disabled={off} onChange={e=>set({dateKey:e.target.value})}>{dateKeys.length?dateKeys.map(k=><option key={k} value={k}>{k}</option>):<option value="">No trait holds a date yet</option>}</select></label>}
     {mode==='grid'&&<label>Card size <output>{draft.cardSize??view.cardSize}</output><input type="range" aria-label="Card size" min={140} max={420} step={10} value={draft.cardSize??view.cardSize} disabled={off} onChange={e=>setDraft({...draft,cardSize:+e.target.value})} onPointerUp={()=>draft.cardSize&&set({cardSize:draft.cardSize})} onKeyUp={()=>draft.cardSize&&set({cardSize:draft.cardSize})}/></label>}
     <label>Image property<select aria-label="Image property" value={view.cover} disabled={off} onChange={e=>set({cover:e.target.value})}><option value="auto">Automatic</option><option value="none">No image</option>{options}{imageNames.map(k=><option key={k} value={k}>{k}</option>)}</select></label>
     {mode==='grid'&&<><label>Image fit<select aria-label="Image fit" value={view.fit} disabled={off} onChange={e=>set({fit:e.target.value as 'cover'|'contain'})}><option value="cover">Cover (fill and crop)</option><option value="contain">Contain (whole image)</option></select></label>
@@ -177,4 +183,66 @@ function EditableCell({doc,node,k}:{doc:Workspace;node:Node;k:string}){
  if(editing)return <input className="trait-cell-input" autoFocus aria-label={k} value={draft} onChange={e=>setDraft(e.target.value)} onBlur={commit} onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();commit();}if(e.key==='Escape'){setDraft(value||'');setEditing(false);}}}/>;
  return <span className="trait-cell">{value&&isUrl(value)?<a className="trait-url" href={value} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}>{value.replace(/^https?:\/\/(www\.)?/,'')}</a>:null}
   <button type="button" className={'trait-cell-edit'+(value&&isUrl(value)?' is-icon':'')} disabled={off} aria-label={`Edit ${k}`} title={`Edit ${k}`} onClick={()=>{setDraft(value||'');setEditing(true);}}>{value&&isUrl(value)?<Pencil size={12}/>:(value||<span className="trait-cell-empty">—</span>)}</button>{error&&<small role="alert">{error}</small>}</span>;
+}
+
+/** Board: a column per value of a trait. Drag a card to another column (or use Move to) to change it. */
+function Board({doc,parent,view,available,items,assets,onOpen}:{doc:Workspace;parent:string;view:View;available:string[];items:Node[];assets:Map<string,Blob>;onOpen:(id:string)=>void}){
+ const ctx=useContext(NoteMetadataContext),off=!ctx?.save||ctx.disabled,key=view.boardKey||view.group||available[0]||'';
+ const [over,setOver]=useState<string|null>(null),[adding,setAdding]=useState(''),[error,setError]=useState('');
+ if(!key)return <p className="collection-hint">Add a trait to the items (for example <code>Status: Watching</code>) to sort them into columns.</p>;
+ const cols:{label:string;items:Node[]}[]=boardColumns(doc,items,key,view.boardExtra);
+ // Moving the last card out of a column keeps the column (it becomes an empty, removable one).
+ const move=(id:string,label:string)=>{setError('');if(off)return;const from=cols.find(c=>c.items.some(n=>(n.mirrorSourceId||n.id)===id));
+  const keep=from&&from.label&&from.items.length===1&&from.label.toLocaleLowerCase()!==label.toLocaleLowerCase()&&!view.boardExtra.some(x=>x.toLocaleLowerCase()===from.label.toLocaleLowerCase());
+  void ctx!.save!(d=>{const next=setNoteTrait(d,id,key,label);return keep?setTraitView(next,parent,{boardExtra:[...view.boardExtra,from!.label]}):next;}).catch((e:Error)=>setError(e.message));};
+ const addColumn=()=>{const n=adding.trim();if(!n||off)return;void ctx!.save!(d=>setTraitView(d,parent,{boardExtra:[...view.boardExtra,n]})).then(()=>setAdding('')).catch((e:Error)=>setError(e.message));};
+ return <div className="trait-board" role="list" aria-label={'Board by '+key}>
+  {cols.map(c=>{const k=c.label.toLocaleLowerCase()||'\u0000';const extra=!c.items.length&&view.boardExtra.some(x=>x.toLocaleLowerCase()===c.label.toLocaleLowerCase());
+   return <section key={k} role="listitem" className={'board-column'+(over===k?' is-over':'')} aria-label={(c.label||'No '+key)+', '+c.items.length}
+    onDragOver={e=>{if(off)return;e.preventDefault();setOver(k);}} onDragLeave={()=>setOver(o=>o===k?null:o)} onDrop={e=>{e.preventDefault();setOver(null);const id=e.dataTransfer.getData('text/remonook-item');if(id)move(id,c.label);}}>
+    <header><span>{c.label||'No '+key}</span><small>{c.items.length}</small>{extra&&<button type="button" className="collection-tab-icon" aria-label={'Remove column '+c.label} disabled={off} onClick={()=>void ctx!.save!(d=>setTraitView(d,parent,{boardExtra:view.boardExtra.filter(x=>x.toLocaleLowerCase()!==c.label.toLocaleLowerCase())}))}><X size={12}/></button>}</header>
+    <div className="board-cards">{c.items.map(n=><BoardCard key={n.id} doc={doc} node={n} assets={assets} cover={view.cover} keys={shownTraits(view,available).filter((x:string)=>x.toLocaleLowerCase()!==key.toLocaleLowerCase()).slice(0,3)} columns={cols.map(x=>x.label)} current={c.label} traitKey={key} disabled={off} onOpen={onOpen} onMove={label=>move(n.mirrorSourceId||n.id,label)}/>)}
+     {!c.items.length&&<p className="board-empty">Drop cards here</p>}</div>
+   </section>;})}
+  <section className="board-column board-add"><form onSubmit={e=>{e.preventDefault();addColumn();}}><input aria-label="New column" placeholder={'New '+key+'…'} maxLength={60} value={adding} disabled={off} onChange={e=>setAdding(e.target.value)}/><button type="submit" disabled={off||!adding.trim()} aria-label="Add column"><Plus size={14}/></button></form></section>
+  {error&&<span role="alert" className="trait-error">{error}</span>}
+ </div>;
+}
+function BoardCard({doc,node,assets,cover,keys,columns,current,traitKey,disabled,onOpen,onMove}:{doc:Workspace;node:Node;assets:Map<string,Blob>;cover:string;keys:string[];columns:string[];current:string;traitKey:string;disabled:boolean;onOpen:(id:string)=>void;onMove:(label:string)=>void}){
+ const item=useItem(doc,node,assets,cover),id=node.mirrorSourceId||node.id;
+ return <article ref={item.root} className="board-card" draggable={!disabled} onDragStart={e=>{e.dataTransfer.setData('text/remonook-item',id);e.dataTransfer.effectAllowed='move';}}>
+  {item.image&&cover!=='none'&&<button type="button" className="board-card-image" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><PreviewImage src={item.image} title={item.title}/></button>}
+  <button type="button" className="poster-title" onClick={()=>onOpen(node.id)}>{item.title}</button>
+  {keys.map(k=>{const v=noteTrait(doc,id,k);if(v===null||(!v&&!isRating(doc,node,k)))return null;return <div key={k} className="poster-trait"><span>{k}</span>{isRating(doc,node,k)?<Stars doc={doc} node={node} k={k}/>:<strong>{isUrl(v)?v.replace(/^https?:\/\/(www\.)?/,''):v}</strong>}</div>;})}
+  <label className="board-move"><span className="sr-only">Move {item.title} to</span><select aria-label={'Move '+item.title+' to'} value={current} disabled={disabled} onChange={e=>onMove(e.target.value)}>{columns.map(c=><option key={c||'none'} value={c}>{c||'No '+traitKey}</option>)}</select></label>
+ </article>;
+}
+/** Calendar: items on the date in a date trait, one month at a time. */
+function TraitCalendar({doc,view,dateKeys,items,onOpen}:{doc:Workspace;view:View;dateKeys:string[];items:Node[];onOpen:(id:string)=>void}){
+ const key=dateKeys.find(k=>k.toLocaleLowerCase()===view.dateKey.toLocaleLowerCase())||dateKeys[0]||'';
+ const today=new Date(),todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+ const [month,setMonth]=useState(todayStr.slice(0,7));
+ if(!key)return <p className="collection-hint">Add a date trait to the items (for example <code>Watched: 2026-11-20</code>) to see them on a calendar.</p>;
+ const {days,undated}=calendarMonth(doc,items,key,month);const grid:string[]=monthGrid(month);
+ const label=new Date(month+'-01T00:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'});
+ const agenda=[...days.entries()].sort(([a],[b])=>a.localeCompare(b)) as [string,Node[]][];
+ const title=(n:Node)=>String(n.text||'').split('\n')[0].replace(/\[([^\]]*)\]\([^)]*\)/g,'$1').trim()||'Untitled';
+ return <div className="trait-calendar">
+  <header><button type="button" aria-label="Previous month" onClick={()=>setMonth(shiftMonth(month,-1))}><ChevronLeft size={16}/></button><h3>{label}</h3><button type="button" aria-label="Next month" onClick={()=>setMonth(shiftMonth(month,1))}><ChevronRight size={16}/></button>
+   {month!==todayStr.slice(0,7)&&<button type="button" className="calendar-today" onClick={()=>setMonth(todayStr.slice(0,7))}>Today</button>}<small>By {key}{undated?` · ${undated} without a date`:''}</small></header>
+  <div className="calendar-grid" role="grid" aria-label={label}>
+   {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=><div key={d} className="calendar-weekday" role="columnheader">{d}</div>)}
+   {grid.map(d=>{const list:Node[]=days.get(d)||[];return <div key={d} role="gridcell" className={'calendar-cell'+(d.slice(0,7)!==month?' is-outside':'')+(d===todayStr?' is-today':'')} aria-label={d+(list.length?', '+list.length+' items':'')}>
+    <span className="calendar-day">{Number(d.slice(8))}</span>
+    {list.slice(0,3).map((n:Node)=><button type="button" key={n.id} className="calendar-chip" title={title(n)} onClick={()=>onOpen(n.id)}>{title(n)}</button>)}
+    {list.length>3&&<small className="calendar-more">+{list.length-3} more</small>}</div>;})}
+  </div>
+  <ol className="calendar-agenda" aria-label={'Items in '+label}>{agenda.length?agenda.map(([d,list])=><li key={d}><span>{new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}</span>{list.map(n=><button type="button" key={n.id} onClick={()=>onOpen(n.id)}>{title(n)}</button>)}</li>):<li className="calendar-none">Nothing this month.</li>}</ol>
+ </div>;
+}
+/** A summary row under the table: choose Filled, Sum, Average… per trait column. */
+function Totals({doc,parent,view,keys,items,links}:{doc:Workspace;parent:string;view:View;keys:string[];items:Node[];links:boolean}){
+ const ctx=useContext(NoteMetadataContext),off=!ctx?.save||ctx.disabled,totals=(view.totals||{}) as Record<string,string>;
+ const set=(k:string,op:string)=>{if(off)return;const next={...totals};if(op)next[k]=op;else delete next[k];void ctx!.save!(d=>setTraitView(d,parent,{totals:next})).catch(()=>{});};
+ return <tfoot><tr><th scope="row" className="totals-label">Summary</th>{keys.map(k=>{const op=totals[k]||'';return <td key={k}><label className="trait-total"><select aria-label={'Summary for '+k} value={op} disabled={off} onChange={e=>set(k,e.target.value)}>{TOTALS.map(([o,l])=><option key={o} value={o}>{l}</option>)}</select>{op&&<strong>{traitTotal(doc,items,k,op)}</strong>}</label></td>;})}{links&&<><td/><td/><td/></>}<td/></tr></tfoot>;
 }

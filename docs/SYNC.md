@@ -16,16 +16,11 @@ registers. Node location is one atomic parent/position value. Calendar reminders
 study folders and Workdays policies use keyed data; date metadata merges by field.
 Browser-only collapse and calendar-view state stays local.
 
-NookTraits uses additive `web.nookTraits` assignment, field-membership, shared-schema
-and view-configuration revision maps. Values/definitions remain in
-`web.noteProperties`; due dates and completion edit existing bullet fields. Stable
-edit IDs retain concurrent versions. Removing activation tags or hiding traits
-does not delete metadata. The heading eye preference is device-local under an
-account/workspace key; it is not synchronized. No protocol migration or server
-deployment is required. Named shelf views add optional layout/cover/filter-array
-configuration in those same revisions; legacy single-condition views remain
-readable. Removing a named view archives its configuration without deleting
-notes or past revisions. See [NOOKTRAITS.md](NOOKTRAITS.md).
+Traits are ordinary bullets (a `traitsBlock: true` bullet whose children read `Name: value`),
+so they merge like any bullet. Collection view choices (`web.traitViews`) are append-only
+revision maps; the latest revision wins. NookTraits was removed from the app on 25 November 2026,
+but its stored data (`web.nookTraits`, `web.noteProperties`) is kept and keeps syncing unchanged.
+No protocol migration or server deployment is required. See [TRAITS.md](TRAITS.md).
 
 Concurrent rich-text insertions, deletions and formatting converge deterministically.
 A merge can retain both competing words; it cannot infer the writer's intended

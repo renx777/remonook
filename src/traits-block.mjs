@@ -66,7 +66,8 @@ export function addTraitsBlock(doc,id,make=uuid){
 // ---- Collections (#views): which traits to show, sort, filter, cover ----
 /** Trait names used by a collection's items, most common first. */
 export function collectionTraitKeys(doc,ids,idx=snapshotIndex(doc.tables.bullets)){const counts=new Map(),names=new Map();for(const id of ids)for(const t of noteTraits(doc,id,idx)){if(t.duplicate)continue;const k=t.key.toLocaleLowerCase();if(!names.has(k))names.set(k,t.key);counts.set(k,(counts.get(k)||0)+1);}return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([k])=>names.get(k));}
-const DEFAULTS={fields:null,sort:'',dir:'asc',filterKey:'',filter:'',conditions:[],match:'all',group:'',groupDir:'asc',cover:'auto',cardSize:220,fit:'cover',ratio:1.5};
+const DEFAULTS={fields:null,sort:'',dir:'asc',filterKey:'',filter:'',conditions:[],match:'all',group:'',groupDir:'asc',cover:'auto',cardSize:220,fit:'cover',ratio:1.5,dateKey:'',boardKey:'',boardExtra:[],totals:{}};
+const TOTAL_OPS=new Set(['count','empty','sum','avg','min','max','unique']);
 export const FILTER_OPS=[['contains','contains'],['not','does not contain'],['is','is'],['empty','is empty'],['notempty','is not empty'],['gt','is greater than'],['lt','is less than']];
 const OPS=new Set(FILTER_OPS.map(([k])=>k));
 const clamp=(v,lo,hi,d)=>{v=Number(v);return Number.isFinite(v)?Math.min(hi,Math.max(lo,v)):d;};
@@ -76,7 +77,9 @@ function settingsOf(v){v=v&&typeof v==='object'?v:{};return {
  filterKey:String(v.filterKey||''),filter:String(v.filter||'').slice(0,200),
  conditions:Array.isArray(v.conditions)?v.conditions.filter(c=>c&&OPS.has(c.op)).slice(0,8).map(c=>({key:String(c.key||''),op:c.op,value:String(c.value??'').slice(0,200)})):[],match:v.match==='any'?'any':'all',
  group:String(v.group||''),groupDir:v.groupDir==='desc'?'desc':'asc',cover:String(v.cover||'auto'),
- cardSize:Math.round(clamp(v.cardSize,140,420,220)),fit:v.fit==='contain'?'contain':'cover',ratio:Math.round(clamp(v.ratio,0.5,2,1.5)*100)/100};}
+ cardSize:Math.round(clamp(v.cardSize,140,420,220)),fit:v.fit==='contain'?'contain':'cover',ratio:Math.round(clamp(v.ratio,0.5,2,1.5)*100)/100,
+ dateKey:String(v.dateKey||''),boardKey:String(v.boardKey||''),boardExtra:Array.isArray(v.boardExtra)?[...new Set(v.boardExtra.filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim().slice(0,60)))].slice(0,20):[],
+ totals:v.totals&&typeof v.totals==='object'&&!Array.isArray(v.totals)?Object.fromEntries(Object.entries(v.totals).filter(([k,o])=>typeof k==='string'&&k.length<=64&&TOTAL_OPS.has(o)).slice(0,24)):{}};}
 const SETTING_KEYS=Object.keys(DEFAULTS);
 const pick=v=>Object.fromEntries(SETTING_KEYS.map(k=>[k,v[k]]));
 /**
@@ -240,4 +243,53 @@ export function applyPreviewTraits(doc,id,preview,make=uuid){
  const n=next.tables.bullets.find(x=>x.id===id);
  if(n&&title&&/^\s*https?:\/\/\S+\s*$/.test(n.text)){const url=n.text.trim();next=withNodes(next,next.tables.bullets.map(x=>x.id===id?{...x,text:title,formatting:encode([])}:x));if(noteTrait(next,id,'Link')===null)next=setNoteTrait(next,id,'Link',url,make);}
  return next;
+}
+
+
+// ---- Calendar layout: items on the date in one of their traits ----
+const MONTHS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+/** 'YYYY-MM-DD' from "2026-11-20", "2026-11-20T18:30", "20 Nov 2026" or "Nov 20, 2026"; else null. */
+export function dateOf(value){
+ const v=String(value??'').trim();let m=/^(\d{4})-(\d{2})-(\d{2})(?:[T ]\d{2}:\d{2}.*)?$/.exec(v);
+ if(m){const d=new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return d.getUTCMonth()===+m[2]-1?`${m[1]}-${m[2]}-${m[3]}`:null;}
+ m=/^(\d{1,2})\s+([a-z]{3})[a-z]*\.?,?\s+(\d{4})$/i.exec(v)||null;let day,mon,year;
+ if(m){day=+m[1];mon=MONTHS.indexOf(m[2].toLowerCase());year=+m[3];}
+ else{m=/^([a-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})$/i.exec(v);if(!m)return null;day=+m[2];mon=MONTHS.indexOf(m[1].toLowerCase());year=+m[3];}
+ if(mon<0)return null;const d=new Date(Date.UTC(year,mon,day));if(d.getUTCDate()!==day)return null;return d.toISOString().slice(0,10);
+}
+/** Trait names that hold a date on at least one item. */
+export function dateTraitKeys(doc,ids,idx=snapshotIndex(doc.tables.bullets)){const out=new Map();for(const id of ids)for(const t of noteTraits(doc,id,idx))if(!t.duplicate&&dateOf(t.value)&&!out.has(t.key.toLocaleLowerCase()))out.set(t.key.toLocaleLowerCase(),t.key);return [...out.values()];}
+/** Items by date for one month ('YYYY-MM'), plus how many items have no date. */
+export function calendarMonth(doc,nodes,key,month,idx=snapshotIndex(doc.tables.bullets)){
+ const days=new Map();let undated=0;
+ for(const n of nodes){const d=dateOf(noteTrait(doc,n.mirrorSourceId||n.id,key,idx));if(!d){undated++;continue;}if(d.slice(0,7)!==month)continue;if(!days.has(d))days.set(d,[]);days.get(d).push(n);}
+ return {days,undated};
+}
+/** The 6×7 (or 5×7) Monday-first grid of 'YYYY-MM-DD' strings covering a month. */
+export function monthGrid(month){const [y,m]=month.split('-').map(Number),first=new Date(Date.UTC(y,m-1,1)),lead=(first.getUTCDay()+6)%7,days=new Date(Date.UTC(y,m,0)).getUTCDate(),cells=Math.ceil((lead+days)/7)*7;
+ return Array.from({length:cells},(_,i)=>new Date(Date.UTC(y,m-1,1-lead+i)).toISOString().slice(0,10));}
+export const shiftMonth=(month,by)=>{const [y,m]=month.split('-').map(Number),d=new Date(Date.UTC(y,m-1+by,1));return d.toISOString().slice(0,7);};
+
+// ---- Board layout: a column per value of a trait ----
+/** Columns for a board: each value in use (outline order of first use), extra empty columns, then "No value". */
+export function boardColumns(doc,nodes,key,extra=[],idx=snapshotIndex(doc.tables.bullets)){
+ const cols=new Map();const add=label=>{const k=label.toLocaleLowerCase();if(!cols.has(k))cols.set(k,{label,items:[]});return cols.get(k);};
+ for(const n of nodes){const v=(noteTrait(doc,n.mirrorSourceId||n.id,key,idx)||'').trim();if(v)add(v).items.push(n);}
+ for(const e of extra)add(e);
+ const none={label:'',items:nodes.filter(n=>!(noteTrait(doc,n.mirrorSourceId||n.id,key,idx)||'').trim())};
+ return [...cols.values(),none];
+}
+
+// ---- Totals under a table column ----
+export const TOTALS=[['','None'],['count','Filled'],['empty','Empty'],['unique','Unique'],['sum','Sum'],['avg','Average'],['min','Min'],['max','Max']];
+const numberOf=(key,v)=>{const r=ratingOf(key,v);if(r&&v)return r.value;const m=/^-?\d+(?:[.,]\d+)?/.exec(String(v??'').trim().replace(/[$€£₹,](?=\d)/g,''));return m?Number(m[0].replace(',','.')):null;};
+/** A column's summary (e.g. "Average 4.2"); numbers ignore items without a number. */
+export function traitTotal(doc,nodes,key,op,idx=snapshotIndex(doc.tables.bullets)){
+ if(!op)return '';const values=nodes.map(n=>noteTrait(doc,n.mirrorSourceId||n.id,key,idx)).map(v=>(v??'').trim());
+ if(op==='count')return String(values.filter(Boolean).length);if(op==='empty')return String(values.filter(v=>!v).length);
+ if(op==='unique')return String(new Set(values.filter(Boolean).map(v=>v.toLocaleLowerCase())).size);
+ const nums=values.map(v=>numberOf(key,v)).filter(n=>n!==null&&Number.isFinite(n));if(!nums.length)return '—';
+ const fmt=n=>n.toLocaleString(undefined,{maximumFractionDigits:2,useGrouping:Math.abs(n)>=10000});// no "1,988" for years
+ if(op==='sum')return fmt(nums.reduce((a,b)=>a+b,0));if(op==='avg')return fmt(nums.reduce((a,b)=>a+b,0)/nums.length);
+ if(op==='min')return fmt(Math.min(...nums));if(op==='max')return fmt(Math.max(...nums));return '';
 }

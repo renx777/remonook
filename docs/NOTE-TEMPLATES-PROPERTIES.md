@@ -1,9 +1,8 @@
 # Reusable note templates and typed properties
 
-In web staging, typed properties are now **[NookTraits](NOOKTRAITS.md)**. Add
-`#nooktraits` (or `#nooktraits/book`) to activate a bullet. Its heading eye hides
-traits without losing data. The bullet menu offers **Add NookTraits** or
-**Manage NookTraits**, plus **Use note template** and **Save as note template**.
+In web staging, properties are **[Traits](TRAITS.md)**: plain `Name: value` bullets under a
+**Traits** bullet (type `#traits`). They travel with templates like any other bullet. The bullet
+menu offers **Add traits**, **Use note template** and **Save as note template**.
 The command palette also offers **New note from template**. Templates stay
 available on ordinary notes through the menu. Native apps retain the previous UI
 until their next authorized release.
