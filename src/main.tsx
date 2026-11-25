@@ -1263,6 +1263,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     const renderedIds=outlineRows.current.get(tab+':'+paneId);
     const displayId=id;
     const targets = bulletTargets(id, selectedIds);
+    // Leaving a zoomed page title that now holds #traits: same as leaving a bullet with it.
+    if(action==='action:traits-tag'){const n=docRef.current?.tables.bullets.find(x=>x.id===id);if(hasTraitsTag(n))void saveTraits(d=>hasTraitsTag(d.tables.bullets.find(x=>x.id===id))?addTraitsBlock(d,id).doc:d).catch(showError);return;}
     if(action.startsWith('view:')){commit(setBulletView(docRef.current!,id,action.slice(5)));setMenu(null);setEditing(null);navigateTo(id);return;}
     if (action.startsWith('list:')) {
       const listType = action.slice(5);

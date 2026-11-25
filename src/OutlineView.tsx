@@ -643,7 +643,7 @@ export function OutlineView(p: Props) {
   }, [selectedIds, layout, p.onDeleteNodes, p.onCommand, p.disabled, collectionActive]);
 
   if(collectionActive&&scopedNode&&galleryContext)return <section ref={scroller} className="outline-scroll collection-page" aria-label={scopedNode.text+' collection'}>
-    <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/><NookTraitsEye id={scopedNode.id}/></div></div>
+    <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} onBlur={()=>p.onCommand('action:traits-tag',scopedNode.id,0,0)} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/><NookTraitsEye id={scopedNode.id}/></div></div>
     {viewsTagged&&!nookActive&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
     {nookActive?<NookTraitsCollection key={(traits.ctx?.scope||'')+scopedNode.id} id={scopedNode.id} mode={viewMode} assets={p.assets} onOpen={p.onZoom}/>:<BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>}
   </section>;
@@ -700,7 +700,7 @@ export function OutlineView(p: Props) {
         {!p.hideTitle && (scopedNode ? (
           <div className="zoomed-header" ref={headingElement}>
             <div className="nook-heading"><LiveTitleInput key={scopedNode.id}
-              readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text}
+              readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} onBlur={()=>p.onCommand('action:traits-tag',scopedNode.id,0,0)}
               className="zoomed-title zoomed-title-input"
               hideTags
               value={scopedNode.text}
