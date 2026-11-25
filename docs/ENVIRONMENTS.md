@@ -2,6 +2,27 @@
 
 ## Current state
 
+### NookTraits removed; Board and Calendar layouts; table totals — 25 November 2026
+
+Web staging runs branch `feat/nooktraits-upgrade`, commit `17cf8311d85c66d0f01758369af6edd89a336976`, release `2026-11-14.1`.
+
+What changed:
+- NookTraits (staging only, never on main) is removed. Its `web.nookTraits`/`web.noteProperties` data is kept and keeps syncing.
+- `#views` gains Board and Calendar layouts.
+- Tables gain a Summary row.
+
+Web only: no Worker, migration or production change.
+
+Checked on staging as a guest (dark, 1440 px):
+- The bullet menu has no NookTraits entry, and it has Add traits.
+- Board by Status: moving a card by menu and by drag works, emptied columns stay, and a new column can be added.
+- Calendar by Watched shows the 4 items in November, the next month is empty, and tapping an item opens it.
+- Totals: Average rating 4, Runtime sum 449, Unique status 1.
+
+There were no page errors, and 688 tests pass. The count is lower because the NookTraits tests were removed with it.
+
+Known and unrelated: at machine typing speed (10 ms per key), about 1 in 12–24 new bullets loses the first key after Enter. This also happens in plain bullets. At 80 ms per key nothing was lost. It has been suggested as a separate fix.
+
 ### Collections: new item, table editing, saved views, conditions, fill from links; emoji titles — 25 November 2026
 
 Web staging runs branch `feat/nooktraits-upgrade`, commit `caf937ac0f582de46d358656c0aa15ac94a02be5`, release `2026-11-14.1`.
