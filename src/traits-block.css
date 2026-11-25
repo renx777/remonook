@@ -1,14 +1,33 @@
-/* Traits in #views collections: view controls, card traits. Traits in the outline are plain bullets. */
-.trait-view-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 12px;font-size:13px;color:var(--muted)}
-.trait-view-bar label{display:inline-flex;align-items:center;gap:6px}
-.trait-view-bar select,.trait-view-bar input{font:inherit;font-size:13px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 8px;min-height:32px;max-width:180px}
-.trait-view-bar input{width:150px}
-.trait-view-bar button{font:inherit;font-size:13px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 10px;min-height:32px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-.trait-view-bar button[aria-pressed=true]{background:var(--soft);border-color:var(--accent)}
-.trait-fields{display:flex;flex-wrap:wrap;gap:6px;width:100%;padding:8px 0 2px}
-.trait-fields button{border-radius:999px;font-size:12.5px;min-height:30px}
-.trait-error{color:#b3392f;font-size:12px;width:100%}
+/* #views collections driven by traits: Obsidian-style bar and panels, poster grid. */
+.collection-bar{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:6px 0 10px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.collection-count{font-size:12px;color:var(--muted)}
+.collection-bar-actions{display:flex;flex-wrap:wrap;gap:2px}
+.collection-bar-actions button{display:inline-flex;align-items:center;gap:5px;border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;padding:6px 9px;border-radius:7px;cursor:pointer;min-height:32px}
+.collection-bar-actions button:hover,.collection-bar-actions button[aria-expanded=true]{background:var(--soft,color-mix(in srgb,var(--muted) 12%,transparent));color:var(--text)}
+.collection-bar-actions button.is-active{color:var(--accent)}
+.collection-panel{position:absolute;right:0;top:calc(100% - 4px);z-index:40;width:min(300px,calc(100vw - 32px));display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--bg));box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.collection-panel label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
+.collection-panel label output{color:var(--text);font-variant-numeric:tabular-nums;margin-left:4px}
+.collection-panel select,.collection-panel input[type=search]{font:inherit;font-size:13px;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-height:34px}
+.collection-panel input[type=range]{width:100%;accent-color:var(--accent)}
+.collection-props{display:flex;flex-direction:column;gap:2px;max-height:280px;overflow:auto}
+.collection-props label{flex-direction:row;align-items:center;gap:8px;color:var(--text);font-size:13px;padding:6px 4px;border-radius:6px;cursor:pointer}
+.collection-props label:hover{background:color-mix(in srgb,var(--muted) 10%,transparent)}
+.collection-props input{accent-color:var(--accent);width:16px;height:16px}
+.trait-error{color:#c2453a;font-size:12px;width:100%}
+/* Poster grid */
+.poster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(var(--card,220px),calc(50% - 6px)),1fr));gap:12px}
+.poster-card{min-width:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:color-mix(in srgb,var(--text) 3%,var(--bg));transition:border-color .15s}
+.poster-card:hover{border-color:color-mix(in srgb,var(--text) 30%,var(--line))}
+.poster-image{display:block;width:100%;aspect-ratio:1/var(--ratio,1.5);padding:0;border:0;background:color-mix(in srgb,var(--muted) 10%,var(--bg));cursor:pointer;overflow:hidden}
+.poster-image img{display:block;width:100%;height:100%;object-fit:var(--fit,cover)}
+.poster-image .link-preview-placeholder{display:flex;width:100%;height:100%;align-items:center;justify-content:center;color:var(--muted)}
+.poster-copy{padding:10px 10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.poster-title{display:block;width:100%;justify-content:flex-start;border:0;background:none;padding:0;color:var(--text);font:inherit;font-size:13.5px;font-weight:600;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.poster-trait{display:flex;flex-direction:column;min-width:0}
+.poster-trait span{font-size:11px;color:var(--muted)}
+.poster-trait strong{font-size:12.5px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .collection-traits{display:grid;gap:3px;margin:6px 0 2px;font-size:12.5px}.collection-traits div{display:flex;gap:8px;min-width:0}
 .collection-traits dt{color:var(--muted);flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.collection-traits dd{margin:0;min-width:0;overflow-wrap:anywhere}
-.collection-traits a,.collection-table-scroll td a.trait-url{color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:220px;vertical-align:bottom}
-@media (max-width:640px){.trait-view-bar select,.trait-view-bar input{max-width:140px}}
+.collection-table-scroll td a.trait-url{color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:220px;vertical-align:bottom}
+@media (max-width:600px){.collection-bar-actions button span{display:none}.collection-bar-actions button{min-width:40px;min-height:40px;justify-content:center}.poster-grid{gap:8px}.poster-copy{padding:8px}}

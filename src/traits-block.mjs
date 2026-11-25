@@ -51,6 +51,8 @@ export const hasTraitsTag=n=>!!n&&!n.codeLanguage&&tagsInText(n.text||'').some(t
  */
 export function addTraitsBlock(doc,id,make=uuid){
  const owner=ownerOf(doc,id),n=doc.tables.bullets.find(x=>x.id===owner);if(!n)throw Error('This note was removed.');
+ // A #views bullet is the collection; its items carry the traits. Just drop the tag there.
+ if(tagsInText(n.text||'').some(t=>t.key==='views'))return {doc:withNodes(doc,doc.tables.bullets.map(x=>x.id===owner?withoutTraitsTag(x):x)),block:null,row:null};
  if(n.codeLanguage||n.blockStyle==='divider'||n.traitsBlock)throw Error('Traits can be added to ordinary notes.');
  let nodes=doc.tables.bullets.map(x=>x.id===owner?{...withoutTraitsTag(x),collapsed:false}:x);
  const idx=snapshotIndex(nodes);let block=traitsBlocks(doc,owner,idx)[0],row;
@@ -64,9 +66,10 @@ export function addTraitsBlock(doc,id,make=uuid){
 // ---- Collections (#views): which traits to show, sort, filter, cover ----
 /** Trait names used by a collection's items, most common first. */
 export function collectionTraitKeys(doc,ids,idx=snapshotIndex(doc.tables.bullets)){const counts=new Map(),names=new Map();for(const id of ids)for(const t of noteTraits(doc,id,idx)){if(t.duplicate)continue;const k=t.key.toLocaleLowerCase();if(!names.has(k))names.set(k,t.key);counts.set(k,(counts.get(k)||0)+1);}return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([k])=>names.get(k));}
-const DEFAULTS={fields:null,sort:'',dir:'asc',filterKey:'',filter:'',cover:'auto'};
+const DEFAULTS={fields:null,sort:'',dir:'asc',filterKey:'',filter:'',cover:'auto',cardSize:220,fit:'cover',ratio:1.5};
+const clamp=(v,lo,hi,d)=>{v=Number(v);return Number.isFinite(v)?Math.min(hi,Math.max(lo,v)):d;};
 /** The view choices for one collection (defaults when never set). */
-export function traitView(doc,id){const owner=ownerOf(doc,id),v=latest(doc.web?.traitViews?.[owner]);return {...DEFAULTS,...(v?{fields:Array.isArray(v.fields)?v.fields.filter(f=>typeof f==='string').slice(0,12):null,sort:String(v.sort||''),dir:v.dir==='desc'?'desc':'asc',filterKey:String(v.filterKey||''),filter:String(v.filter||''),cover:String(v.cover||'auto')}:{})};}
+export function traitView(doc,id){const owner=ownerOf(doc,id),v=latest(doc.web?.traitViews?.[owner]);return {...DEFAULTS,...(v?{fields:Array.isArray(v.fields)?v.fields.filter(f=>typeof f==='string').slice(0,12):null,sort:String(v.sort||''),dir:v.dir==='desc'?'desc':'asc',filterKey:String(v.filterKey||''),filter:String(v.filter||''),cover:String(v.cover||'auto'),cardSize:Math.round(clamp(v.cardSize,140,420,220)),fit:v.fit==='contain'?'contain':'cover',ratio:Math.round(clamp(v.ratio,0.5,2,1.5)*100)/100}:{})};}
 export function setTraitView(doc,id,patch,make=uuid,now=Date.now()){
  const owner=ownerOf(doc,id);if(!doc.tables.bullets.some(n=>n.id===owner))throw Error('This collection was removed.');
  const current=traitView(doc,owner),next={...current,...patch};if(JSON.stringify(next)===JSON.stringify(current))return doc;

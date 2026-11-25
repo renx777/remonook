@@ -29,6 +29,11 @@ test('the tag is removed with formatting kept aligned; code and other tags are l
   assert.equal(hasTraitsTag(bullet('z',{text:'x #traits',codeLanguage:'js'})),false);
 });
 
+test('#traits on a #views collection only removes the tag; items carry the traits', ()=>{
+  const d0=doc([bullet('m',{parentId:null,position:0,text:'Movies #views #traits'})]);const r=addTraitsBlock(d0,'m',make);
+  assert.equal(r.block,null);assert.equal(r.doc.tables.bullets.length,1);assert.equal(r.doc.tables.bullets[0].text,'Movies #views');
+});
+
 test('properties are plain "Name: value" bullets', ()=>{
   assert.deepEqual(parseTraitRow('Author: Stephen Hawking'),{key:'Author',value:'Stephen Hawking'});
   assert.deepEqual(parseTraitRow('Year:: 1988'),{key:'Year',value:'1988'});
@@ -58,9 +63,10 @@ test('#views collections sort, filter and pick covers from their items\' traits'
   assert.equal(traitCover(d,'t'),'https://img.test/time.jpg');assert.equal(traitCover(d,'h'),'https://img.test/habits.png','image links count automatically');
   assert.equal(traitCover(d,'t','Art'),null);assert.equal(traitCover(d,'h','art'),'https://img.test/habits.png');assert.equal(traitCover(d,'t','none'),null);
   d=setTraitView(d,'p',{sort:'Year',fields:['Author']},make,1000);d=setTraitView(d,'p',{dir:'desc'},make,900);
-  assert.deepEqual(traitView(d,'p'),{fields:['Author'],sort:'Year',dir:'desc',filterKey:'',filter:'',cover:'auto'},'later edits win even with an older clock');
+  assert.deepEqual(traitView(d,'p'),{fields:['Author'],sort:'Year',dir:'desc',filterKey:'',filter:'',cover:'auto',cardSize:220,fit:'cover',ratio:1.5},'later edits win even with an older clock');
   assert.deepEqual(shownTraits(traitView(d,'p'),keys),['Author']);assert.deepEqual(shownTraits(traitView(d,'zz'),keys),keys);
   assert.equal(setTraitView(d,'p',{dir:'desc'},make,2000),d,'no change, no revision');
+  d=setTraitView(d,'p',{cardSize:9999,fit:'contain',ratio:1.553},make,3000);const v=traitView(d,'p');assert.deepEqual([v.cardSize,v.fit,v.ratio],[420,'contain',1.55]);
 });
 
 test('Traits bullets and view choices survive a sync round trip', ()=>{

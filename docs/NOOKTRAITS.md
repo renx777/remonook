@@ -169,7 +169,10 @@ Native app UI and binaries remain on their previous authorized release.
 - Type `#traits` (any case) on a bullet. When the cursor leaves it, the tag is removed and a child bullet **Traits** (marked `traitsBlock: true`) is added first, with one empty bullet under it. If you left by pressing Enter, the cursor goes straight into that empty bullet instead of the new sibling. The bullet menu's **Add traits** does the same.
 - Each child of Traits written as `Name: value` (or `Name:: value`) is a property, e.g. `Author: Stephen Hawking`. There is no special editor: properties are typed, edited, moved, collapsed, synced and undone like any bullet. Names are whatever you choose. A name has no colon, and the value starts after a space, so a bare URL is never a property. Other text under Traits is ignored.
 - Property bullets show as one plain line: links in them get no preview card.
-- **`#views` collections** read their items' traits. Above the items:
+- `#traits` on a `#views` bullet only removes the tag: the collection's items carry traits, not the collection.
+- Blank items (empty bullets with no children or images) are left out of collections.
+- **Grid with traits** shows poster cards like Obsidian's Cards layout: image on top, then title and the shown traits. **Configure** sets card size (140–420 px), image property, image fit (cover or contain) and image aspect ratio (height ÷ width, 0.5–2). Sliders save when released.
+- **`#views` collections** read their items' traits. A bar shows the result count and Sort, Filter, Properties, Configure and New, each opening a small panel:
   - **Sort**: outline order, title or any trait; ascending/descending. Numbers sort as numbers. Items without the trait go last.
   - **Filter**: text contained in one trait, or in any trait or the title.
   - **Cover**: Automatic (link previews and attached images first, then a trait named like cover/poster/image/thumbnail/art/photo, or any trait whose value is an image link), No covers, or a specific trait.
