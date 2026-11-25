@@ -14,7 +14,7 @@ import {dateTraitKeys,dateOf,calendarMonth,monthGrid,shiftMonth,boardColumns,TOT
 import {traitImageRow,FILTER_OPS,newCollectionItem,setNoteTrait,itemLink,applyPreviewTraits,switchTraitTab,addTraitTab,renameTraitTab,deleteTraitTab,imageTraitNames,noteTraits,ratingOf,ratingText,setTraitValue,groupCollection,collectionTraitKeys,noteTrait,traitCover,isTraitsBlock,isUrl,traitView,setTraitView,arrangeCollection,shownTraits} from './traits-block.mjs';
 import type {Node,Workspace} from './data';
 import './bullet-collection.css';
-const VIEWS=[['outline','Outline',ListTree],['grid','Grid',LayoutGrid],['list','Compact list',List],['table','Table',Table2],['board','Board',Columns3],['calendar','Calendar',CalendarDays]] as const;
+const VIEWS=[['outline','Outline',ListTree],['grid','Grid',LayoutGrid],['list','Compact list',List],['table','Table',Table2]] as const;// Board and Calendar layouts are held back from this release.
 export function BulletViewSwitch({value,onChange,disabled=false}:{value:string;onChange:(view:string)=>void;disabled?:boolean}){
  return <div className="bullet-view-switch" role="group" aria-label="Child bullet view">{VIEWS.map(([key,label,Icon])=><button type="button" key={key} aria-pressed={value===key} aria-label={label+' view'} title={label} disabled={disabled} onClick={()=>onChange(key)}><Icon size={14}/><span>{label}</span></button>)}</div>;
 }
