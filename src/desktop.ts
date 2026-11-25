@@ -6,7 +6,9 @@ const internals = (): TauriInternals | undefined => (typeof window === 'undefine
 /** Any RemoNook app (desktop or Android), as opposed to the website. */
 export const isApp = () => !!internals();
 /** The Android (later iPad) app: no tray, folders, quick capture, AI-app server or updater. */
-export const isMobileApp = () => isApp() && typeof navigator !== 'undefined' && /Android|iPhone|iPad/i.test(navigator.userAgent);
+export const isMobileApp = () => isApp() && (isIosApp() || (typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)));
+/** The iPad/iPhone app. iPadOS web views report themselves as a Mac, so a touch screen marks a "Mac" as an iPad. */
+export const isIosApp = () => isApp() && typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/i.test(navigator.userAgent) && (navigator.maxTouchPoints || 0) > 1));
 /** The desktop app (Windows, macOS, Linux). */
 export const isDesktop = () => isApp() && !isMobileApp();
 
