@@ -6,8 +6,6 @@ name: iPad app
 #   <sync server>/desktop/<channel>/ipad.json   ({version, url}; the app says when a newer build exists)
 # Notes stay on the iPad when you install a newer build over the old one with the same Apple ID.
 on:
-  push:
-    branches: [feat/native-ipad]  # TEMPORARY while the first iPad build is brought up; removed before merging
   workflow_dispatch:
     inputs:
       environment:
