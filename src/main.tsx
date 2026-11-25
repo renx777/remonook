@@ -359,7 +359,11 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);
     // Leaving a bullet that now contains #traits turns the tag into a Traits block under it.
     // Doing it on leave (not while typing) keeps the cursor still and avoids acting on synced text.
-    const prev=editingRef.current;if(prev&&prev!==value)setTimeout(()=>{if(!traitsTagSeen.current.has(prev)&&!hasTraitsTag(docRef.current?.tables.bullets.find(x=>x.id===prev)))return;traitsTagSeen.current.delete(prev);void saveTraits(d=>{const cur=d.tables.bullets.find(x=>x.id===prev);return hasTraitsTag(cur)?addTraitsBlock(d,prev).doc:d;}).catch(()=>{});},0);
+    const prev=editingRef.current;if(prev&&prev!==value)setTimeout(()=>{if(!traitsTagSeen.current.has(prev)&&!hasTraitsTag(docRef.current?.tables.bullets.find(x=>x.id===prev)))return;traitsTagSeen.current.delete(prev);let row='',blank='';void saveTraits(d=>{const cur=d.tables.bullets.find(x=>x.id===prev);if(!hasTraitsTag(cur))return d;const r=addTraitsBlock(d,prev);row=r.row;
+      // Pressing Enter after "#traits" made an empty bullet below; type the first property instead.
+      const next=editingRef.current?r.doc.tables.bullets.find((x:any)=>x.id===editingRef.current):null;
+      if(next&&!next.text&&next.parentId===cur!.parentId&&next.position>cur!.position&&!r.doc.tables.bullets.some((x:any)=>x.parentId===next.id)){blank=next.id;return withNodes(r.doc,r.doc.tables.bullets.filter((x:any)=>x.id!==blank) as Node[]);}
+      return r.doc;}).then(()=>{if(blank&&row&&editingRef.current===blank)focus(row);}).catch(()=>{});},0);
     setEditingState(value);};
   // Phones: the back button finishes editing (and so brings back the bottom navigation).
   useBackClose(!!editing, () => setEditing(null));
@@ -2304,7 +2308,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 <BulletMenuBody><div className="popover-quick-actions">
             <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
             <button disabled={disabled} onClick={()=>{if(traitsActive(doc,menuNode.id))openPkm('properties',menuNode.id);else{setMenu(null);void saveTraits(d=>activateTraits(d,menuNode.id)).catch(showError);}}}><Icon name="settings" size={16}/><span>{traitsActive(doc,menuNode.id)?'Manage NookTraits…':'Add NookTraits'}</span></button>
-            {menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&!menuNode.traitsBlock&&<button disabled={disabled} onClick={()=>{setMenu(null);void saveTraits(d=>addTraitsBlock(d,menuNode.id).doc).catch(showError);}}><Icon name="sliders" size={16}/><span>{traitsBlocks(doc,menuNode.id).length?'Show traits':'Add traits'}</span></button>}
+            {menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&!menuNode.traitsBlock&&<button disabled={disabled} onClick={()=>{setMenu(null);let row='';void saveTraits(d=>{const r=addTraitsBlock(d,menuNode.id);row=r.row;return r.doc;}).then(()=>{if(row)focus(row);}).catch(showError);}}><Icon name="sliders" size={16}/><span>{traitsBlocks(doc,menuNode.id).length?'Show traits':'Add traits'}</span></button>}
             <button disabled={disabled} onClick={()=>openPkm('templates',menuNode.id)}><Icon name="notes" size={16}/><span>Use note template…</span></button>
             <button disabled={disabled} onClick={()=>openPkm('save-template',menuNode.id)}><Icon name="notes" size={16}/><span>Save as note template…</span></button>
             {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:dictate',menuNode.id,0,0);}}><Icon name="mic" size={16}/><span>Dictate</span></button>}

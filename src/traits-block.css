@@ -1,36 +1,14 @@
-/* Traits block: properties panel inside the outline (Obsidian-style rows). */
-.outline-row.is-traits-block .row-content{padding:2px 0}
-.traits-header{display:flex;align-items:center;gap:8px;min-height:30px}
-.traits-title{font-size:13px;font-weight:600;letter-spacing:.01em;color:var(--text)}
-.traits-count{font-size:11px;color:var(--muted);background:var(--soft);border-radius:999px;padding:1px 7px}
-.traits-add{margin-left:auto;display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;padding:4px 8px;border-radius:8px;cursor:pointer;min-height:32px}
-.traits-add:hover,.traits-add:focus-visible{background:var(--soft);color:var(--text)}
-.outline-row.is-trait-row .bullet-dot-btn svg{opacity:0}
-.trait-key{width:100%}.trait-display{width:100%}
-.outline-row.is-trait-row .row-content{padding:0}
-.trait-row{display:grid;grid-template-columns:minmax(96px,38%) minmax(0,1fr);align-items:start;column-gap:12px;min-height:34px;width:100%;position:relative}
-.trait-key{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-width:0;border:0;background:transparent;color:var(--muted);font:inherit;font-size:14px;text-align:left;padding:6px 6px;border-radius:8px;cursor:pointer;min-height:34px}
-.trait-key span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.trait-key svg{flex:none;opacity:.85}
-.trait-key:hover,.trait-key:focus-visible,.trait-key[aria-expanded=true]{background:var(--soft);color:var(--text)}
-.trait-value{display:flex;align-items:center;gap:6px;min-width:0}
-.trait-display{flex:1;min-width:0;display:block;justify-content:flex-start;border:0;background:transparent;color:var(--text);font:inherit;font-size:14px;text-align:left;padding:6px 6px;border-radius:8px;cursor:text;min-height:34px;overflow-wrap:anywhere;line-height:1.45}
-.trait-display:hover,.trait-display:focus-visible{background:var(--soft)}
-.trait-display.is-empty{color:var(--muted)}
-.trait-link{color:var(--accent);text-decoration:underline;text-underline-offset:2px;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
-.trait-open{flex:none;color:var(--muted);text-decoration:none;padding:4px 6px;border-radius:6px}.trait-open:hover{background:var(--soft);color:var(--text)}
-.trait-input{flex:1;min-width:0;font:inherit;font-size:14px;color:var(--text);background:var(--panel);border:1px solid var(--accent);border-radius:8px;padding:5px 8px;min-height:34px;box-sizing:border-box}
-.trait-value input[type=checkbox]{width:18px;height:18px;margin:8px 6px;accent-color:var(--accent)}
-.trait-chips,.trait-list-edit{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
-.trait-chip{display:inline-flex;align-items:center;gap:3px;font-size:12.5px;background:var(--soft);color:var(--text);border-radius:999px;padding:2px 9px}
-.trait-chip button{border:0;background:transparent;color:var(--muted);padding:0;display:inline-flex;cursor:pointer}
-.trait-list-edit{flex:1;border:1px solid var(--accent);border-radius:8px;padding:4px 6px}.trait-list-edit input{flex:1;min-width:90px;border:0;outline:0;background:transparent;font:inherit;font-size:14px;color:var(--text)}
-.trait-menu{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;margin:4px 0 8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:0 8px 24px rgba(0,0,0,.08);max-width:420px}
-.trait-menu form{display:flex;gap:6px}.trait-menu input,.trait-menu select{flex:1;font:inherit;font-size:14px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-height:36px}
-.trait-menu label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}.trait-menu small{color:var(--muted);font-size:12px}
-.trait-menu button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;min-height:36px}
-.trait-menu-actions{display:flex;justify-content:space-between;gap:8px}.trait-delete{display:inline-flex;align-items:center;gap:6px;color:#b3392f !important}
-.traits-error{grid-column:1/-1;color:#b3392f;font-size:12px}
-@media (max-width:640px){.trait-row{grid-template-columns:minmax(88px,40%) minmax(0,1fr)}}
+/* Traits in #views collections: view controls, card traits. Traits in the outline are plain bullets. */
+.trait-view-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 12px;font-size:13px;color:var(--muted)}
+.trait-view-bar label{display:inline-flex;align-items:center;gap:6px}
+.trait-view-bar select,.trait-view-bar input{font:inherit;font-size:13px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 8px;min-height:32px;max-width:180px}
+.trait-view-bar input{width:150px}
+.trait-view-bar button{font:inherit;font-size:13px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 10px;min-height:32px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.trait-view-bar button[aria-pressed=true]{background:var(--soft);border-color:var(--accent)}
+.trait-fields{display:flex;flex-wrap:wrap;gap:6px;width:100%;padding:8px 0 2px}
+.trait-fields button{border-radius:999px;font-size:12.5px;min-height:30px}
+.trait-error{color:#b3392f;font-size:12px;width:100%}
 .collection-traits{display:grid;gap:3px;margin:6px 0 2px;font-size:12.5px}.collection-traits div{display:flex;gap:8px;min-width:0}
 .collection-traits dt{color:var(--muted);flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.collection-traits dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.collection-traits a,.collection-table-scroll td a.trait-url{color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:220px;vertical-align:bottom}
+@media (max-width:640px){.trait-view-bar select,.trait-view-bar input{max-width:140px}}

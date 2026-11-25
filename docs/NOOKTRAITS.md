@@ -164,15 +164,17 @@ Application source `818b55057b71a7d9689e391fcf740382275afd63`:
 No physical Android/iPhone session was available for this web-only release.
 Native app UI and binaries remain on their previous authorized release.
 
-## Traits blocks (`#traits`)
+## Traits (`#traits`): properties are just bullets
 
-Properties can also live in the outline itself, like Obsidian's Properties panel.
+- Type `#traits` (any case) on a bullet. When the cursor leaves it, the tag is removed and a child bullet **Traits** (marked `traitsBlock: true`) is added first, with one empty bullet under it. If you left by pressing Enter, the cursor goes straight into that empty bullet instead of the new sibling. The bullet menu's **Add traits** does the same.
+- Each child of Traits written as `Name: value` (or `Name:: value`) is a property, e.g. `Author: Stephen Hawking`. There is no special editor: properties are typed, edited, moved, collapsed, synced and undone like any bullet. Names are whatever you choose. A name has no colon, and the value starts after a space, so a bare URL is never a property. Other text under Traits is ignored.
+- Property bullets show as one plain line: links in them get no preview card.
+- **`#views` collections** read their items' traits. Above the items:
+  - **Sort**: outline order, title or any trait; ascending/descending. Numbers sort as numbers. Items without the trait go last.
+  - **Filter**: text contained in one trait, or in any trait or the title.
+  - **Cover**: Automatic (link previews and attached images first, then a trait named like cover/poster/image/thumbnail/art/photo, or any trait whose value is an image link), No covers, or a specific trait.
+  - **Traits shown**: which traits appear as table columns and on cards (defaults to the six most used). Cards show up to four text traits; link-valued traits appear in the table.
+  - These choices are saved per collection in `web.traitViews[id]` as append-only revisions (latest wins), so they sync and merge safely.
+- The Traits bullet is never an item of a collection or part of a flashcard answer.
 
-- Type `#traits` (any case) on a bullet. When the cursor leaves that bullet, the tag is removed and a child bullet **Traits** is added as its first child. The bullet menu also has **Add traits**. It shows **Show traits** when the note already has a block, and that action expands the block.
-- The Traits bullet is an ordinary bullet marked `traitsBlock: true`, so it collapses, moves, syncs, undoes and copies like any other. Each of its children is one property, stored as the text `key:: value`. Older apps and exports show that text as-is.
-- Rows show a type icon, the name, and the value, and are edited in place. Click the name to rename the property, change its type or delete it. Click the value to edit it. Keyboard navigation into a row still shows the raw `key:: value` text.
-- Types are Text, List, Number, Checkbox, Date and Date & time. A type belongs to the property *name* across the workspace (as in Obsidian), stored as append-only revisions in `web.traitKeys[name]`. When no type has been chosen, it is inferred from the value.
-- `#views` collections leave Traits blocks out of their items. They add a column for each property name their items use (the 6 most common), and use a `cover`/`poster`/`image`/`thumbnail` URL property as the card image. Cards show up to three properties. The Website, Price and Availability columns appear only when an item has a link, or when no item has properties.
-- Flashcards never use a Traits block as part of an answer.
-
-Code: `src/traits-block.mjs` (model, pure edits), `src/TraitsBlock.tsx` (outline rows), `src/traits-block.css`, tests in `tests/traits-block.test.mjs`.
+Code: `src/traits-block.mjs` (parsing, adding the Traits bullet, sort/filter/cover), `src/BulletCollection.tsx` (`TraitViewBar`), `src/traits-block.css`, tests in `tests/traits-block.test.mjs`.

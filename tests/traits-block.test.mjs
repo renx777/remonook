@@ -3,19 +3,22 @@ import assert from 'node:assert/strict';
 import {empty} from './.build/data.mjs';
 import {bullet,encode,marks} from '../src/domain.mjs';
 import {seed,project} from '../src/sync-crdt.mjs';
-import {parseTraitRow,addTraitsBlock,addTraitRow,setTraitRow,noteTraits,noteTrait,traitKind,setTraitKind,inferTraitKind,normaliseTraitValue,hasTraitsTag,traitsBlocks,freshTraitKey,knownTraitKeys,collectionTraitKeys,traitCover,insideTraits} from '../src/traits-block.mjs';
+import {parseTraitRow,addTraitsBlock,noteTraits,noteTrait,hasTraitsTag,traitsBlocks,collectionTraitKeys,traitCover,insideTraits,traitView,setTraitView,arrangeCollection,shownTraits} from '../src/traits-block.mjs';
 
 let n=0;const make=()=>'id'+(++n);
 const doc=(bullets)=>{const d=empty();return {...d,tables:{...d.tables,bullets}};};
-const book=()=>doc([bullet('b',{parentId:null,position:0,text:'Atomic Habits - James Clear #Traits'}),bullet('c',{parentId:'b',position:0,text:'Existing child'})]);
+const book=()=>doc([bullet('b',{parentId:null,position:0,text:'A Brief History of Time #Traits'}),bullet('c',{parentId:'b',position:0,text:'Existing child'})]);
+/** Types properties into a note's Traits bullet as plain bullets. */
+function withTraits(d,id,rows){const r=addTraitsBlock(d,id,make);let nodes=r.doc.tables.bullets.map(x=>x.id===r.row?{...x,text:rows[0]}:x);rows.slice(1).forEach((t,i)=>nodes.push(bullet(make(),{parentId:r.block,position:i+1,text:t})));return {...r.doc,tables:{...r.doc.tables,bullets:nodes}};}
 
-test('#traits (any case) adds a collapsible Traits child first and removes the tag', ()=>{
+test('#traits (any case) adds a Traits bullet first, with an empty bullet to type into', ()=>{
   const d0=book();assert.ok(hasTraitsTag(d0.tables.bullets[0]));
-  const {doc:d,block}=addTraitsBlock(d0,'b',make);
+  const {doc:d,block,row}=addTraitsBlock(d0,'b',make);
   const kids=d.tables.bullets.filter(x=>x.parentId==='b').sort((a,b)=>a.position-b.position);
   assert.deepEqual(kids.map(x=>x.text),['Traits','Existing child']);assert.equal(kids[0].id,block);assert.equal(kids[0].traitsBlock,true);
-  assert.equal(d.tables.bullets.find(x=>x.id==='b').text,'Atomic Habits - James Clear');
-  const again=addTraitsBlock(d,'b',make);assert.equal(again.block,block,'a second #traits reuses the block');assert.equal(traitsBlocks(again.doc,'b').length,1);
+  assert.equal(d.tables.bullets.find(x=>x.id===row).parentId,block);assert.equal(d.tables.bullets.find(x=>x.id===row).text,'');
+  assert.equal(d.tables.bullets.find(x=>x.id==='b').text,'A Brief History of Time');
+  const again=addTraitsBlock(d,'b',make);assert.equal(again.block,block,'a second #traits reuses the block');assert.equal(again.row,row,'and its empty bullet');assert.equal(traitsBlocks(again.doc,'b').length,1);
 });
 
 test('the tag is removed with formatting kept aligned; code and other tags are left alone', ()=>{
@@ -23,47 +26,46 @@ test('the tag is removed with formatting kept aligned; code and other tags are l
   const {doc:d}=addTraitsBlock(doc([n0]),'x',make);const x=d.tables.bullets.find(b=>b.id==='x');
   assert.equal(x.text,'Bold after');assert.deepEqual(marks(x.formatting,x.text.length).map(m=>[m.style,x.text.slice(m.start,m.end)]),[['BOLD','Bold'],['ITALIC','after']]);
   assert.equal(hasTraitsTag(bullet('y',{text:'#traitsy #trait'})),false);
+  assert.equal(hasTraitsTag(bullet('z',{text:'x #traits',codeLanguage:'js'})),false);
 });
 
-test('properties are key:: value bullets with remembered, inferred types', ()=>{
-  let {doc:d,block}=addTraitsBlock(book(),'b',make);
-  let r=addTraitRow(d,block,'author','text','James Clear',make,1000);d=r.doc;
-  r=addTraitRow(d,block,'publishDate','number','2018',make,1100);d=r.doc;const yearRow=r.id;
-  r=addTraitRow(d,block,'genres','list',['Self-help','Habits','Self-help'],make,1200);d=r.doc;
-  r=addTraitRow(d,block,'finished','checkbox','yes',make,1300);d=r.doc;
-  assert.deepEqual(noteTraits(d,'b').map(t=>[t.key,t.value,t.type]),[['author','James Clear','text'],['publishDate','2018','number'],['genres','Self-help, Habits','list'],['finished','true','checkbox']]);
-  assert.equal(noteTrait(d,'b','AUTHOR'),'James Clear','keys match case-insensitively');
-  assert.throws(()=>setTraitRow(d,yearRow,'publishDate','soon'),/number/);
-  d=setTraitRow(d,yearRow,'year','2019');assert.equal(d.tables.bullets.find(x=>x.id===yearRow).text,'year:: 2019');
-  assert.equal(traitKind(d,'Genres'),'list','types are per name, case-insensitive, workspace-wide');
-  d=setTraitKind(d,'author','list',make,2000);assert.equal(traitKind(d,'author'),'list');
-  assert.deepEqual([inferTraitKind('3.5'),inferTraitKind('2024-02-01'),inferTraitKind('2024-02-01T09:30'),inferTraitKind('TRUE'),inferTraitKind('hello')],['number','date','datetime','checkbox','text']);
-  assert.equal(normaliseTraitValue('text','a\nb'),'a b');assert.throws(()=>normaliseTraitValue('date','tomorrow'),/date/);
-  assert.equal(freshTraitKey(d,'b'),'property');
+test('properties are plain "Name: value" bullets', ()=>{
+  assert.deepEqual(parseTraitRow('Author: Stephen Hawking'),{key:'Author',value:'Stephen Hawking'});
+  assert.deepEqual(parseTraitRow('Year:: 1988'),{key:'Year',value:'1988'});
+  assert.deepEqual(parseTraitRow('Cover: https://img.test/a.jpg'),{key:'Cover',value:'https://img.test/a.jpg'});
+  assert.deepEqual(parseTraitRow('Rating:'),{key:'Rating',value:''});
+  assert.equal(parseTraitRow('https://example.com'),null);assert.equal(parseTraitRow('no colon here'),null);assert.equal(parseTraitRow('Time:12'),null);
+  const d=withTraits(book(),'b',['Author: Stephen Hawking','just a thought','author: someone else','Pages: 256']);
+  assert.deepEqual(noteTraits(d,'b').map(t=>[t.key,t.value,t.duplicate]),[['Author','Stephen Hawking',false],['author','someone else',true],['Pages','256',false]]);
+  assert.equal(noteTrait(d,'b','AUTHOR'),'Stephen Hawking');
+  const traitBullet=noteTraits(d,'b')[0].id;assert.ok(insideTraits(d,traitBullet));assert.ok(!insideTraits(d,'c'));
 });
 
-test('hand-typed rows, duplicates and ordinary bullets inside the block', ()=>{
-  let {doc:d,block}=addTraitsBlock(book(),'b',make);
-  d={...d,tables:{...d.tables,bullets:[...d.tables.bullets,bullet('r1',{parentId:block,position:0,text:'Rating:: 4.5'}),bullet('r2',{parentId:block,position:1,text:'just a note'}),bullet('r3',{parentId:block,position:2,text:'rating:: 3'})]}};
-  assert.deepEqual(parseTraitRow('cover url::https://x.test/a.jpg'),{key:'cover url',value:'https://x.test/a.jpg'});
-  assert.equal(parseTraitRow('no separator'),null);
-  const t=noteTraits(d,'b');assert.deepEqual(t.map(x=>[x.key,x.duplicate]),[['Rating',false],['rating',true]]);
-  assert.equal(noteTrait(d,'b','rating'),'4.5','the first value wins');
-  assert.ok(insideTraits(d,'r2'));assert.ok(!insideTraits(d,'c'));
+const shelf=()=>{let d=doc([bullet('p',{parentId:null,position:0,text:'Books #views'}),bullet('t',{parentId:'p',position:0,text:'Time'}),bullet('h',{parentId:'p',position:1,text:'Habits'}),bullet('s',{parentId:'p',position:2,text:'Sapiens'})]);
+  d=withTraits(d,'t',['Author: Stephen Hawking','Year: 1988','Poster: https://img.test/time.jpg']);
+  d=withTraits(d,'h',['Author: James Clear','Year: 2018','Art: https://img.test/habits.png']);
+  return withTraits(d,'s',['Author: Yuval Noah Harari']);};
+const items=d=>d.tables.bullets.filter(x=>x.parentId==='p');
+
+test('#views collections sort, filter and pick covers from their items\' traits', ()=>{
+  let d=shelf();const keys=collectionTraitKeys(d,['t','h','s']);assert.deepEqual(keys,['Author','Year','Art','Poster']);
+  const names=v=>arrangeCollection(d,items(d),{...traitView(d,'p'),...v}).map(x=>x.text);
+  assert.deepEqual(names({}),['Time','Habits','Sapiens']);
+  assert.deepEqual(names({sort:'Year',dir:'desc'}),['Habits','Time','Sapiens'],'missing values go last');
+  assert.deepEqual(names({sort:'title'}),['Habits','Sapiens','Time']);
+  assert.deepEqual(names({filterKey:'author',filter:'clear'}),['Habits']);
+  assert.deepEqual(names({filter:'harari'}),['Sapiens']);
+  assert.equal(traitCover(d,'t'),'https://img.test/time.jpg');assert.equal(traitCover(d,'h'),'https://img.test/habits.png','image links count automatically');
+  assert.equal(traitCover(d,'t','Art'),null);assert.equal(traitCover(d,'h','art'),'https://img.test/habits.png');assert.equal(traitCover(d,'t','none'),null);
+  d=setTraitView(d,'p',{sort:'Year',fields:['Author']},make,1000);d=setTraitView(d,'p',{dir:'desc'},make,900);
+  assert.deepEqual(traitView(d,'p'),{fields:['Author'],sort:'Year',dir:'desc',filterKey:'',filter:'',cover:'auto'},'later edits win even with an older clock');
+  assert.deepEqual(shownTraits(traitView(d,'p'),keys),['Author']);assert.deepEqual(shownTraits(traitView(d,'zz'),keys),keys);
+  assert.equal(setTraitView(d,'p',{dir:'desc'},make,2000),d,'no change, no revision');
 });
 
-test('collections: columns from items, covers, known keys', ()=>{
-  let d=doc([bullet('shelf',{parentId:null,position:0,text:'Books #views'}),bullet('a',{parentId:'shelf',position:0,text:'A'}),bullet('b2',{parentId:'shelf',position:1,text:'B'})]);
-  for(const [id,author,cover] of [['a','X','https://img.test/a.jpg'],['b2','Y',null]]){const r=addTraitsBlock(d,id,make);d=r.doc;d=addTraitRow(d,r.block,'author','text',author,make).doc;if(cover)d=addTraitRow(d,r.block,'coverUrl','text',cover,make).doc;}
-  assert.deepEqual(collectionTraitKeys(d,['a','b2']),['author','coverUrl']);
-  assert.equal(traitCover(d,'a'),'https://img.test/a.jpg');assert.equal(traitCover(d,'b2'),null);
-  assert.deepEqual(knownTraitKeys(d),['author','coverUrl']);
-});
-
-test('Traits blocks and property types survive a sync round trip', ()=>{
-  let {doc:d,block}=addTraitsBlock(book(),'b',make);d=addTraitRow(d,block,'finished','checkbox','true',make,1000).doc;
+test('Traits bullets and view choices survive a sync round trip', ()=>{
+  let d=setTraitView(shelf(),'p',{cover:'Poster'},make,1000);
   const root=seed(d),back=project(root).doc;root.destroy();
-  assert.equal(back.tables.bullets.find(x=>x.id===block)?.traitsBlock,true);
-  assert.equal(traitKind(back,'finished'),'checkbox');
-  assert.deepEqual(noteTraits(back,'b').map(t=>[t.key,t.value]),[['finished','true']]);
+  assert.equal(back.tables.bullets.filter(x=>x.traitsBlock).length,3);
+  assert.equal(noteTrait(back,'t','author'),'Stephen Hawking');assert.equal(traitView(back,'p').cover,'Poster');
 });

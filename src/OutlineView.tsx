@@ -1,4 +1,4 @@
-import {TraitsHeader,TraitRow} from './TraitsBlock';
+// Property bullets ("Cover: https://…" under a Traits bullet) stay one plain line: no link cards.
 import {isTraitsBlock,parseTraitRow} from './traits-block.mjs';
 import {traitSearchText,traitsActive} from './nooktraits.mjs';
 import {NoteMetadataBar,NookTraitsEye,NookTraitsCollection,useNookTraits} from './NoteMetadataContext';
@@ -793,7 +793,7 @@ export function OutlineView(p: Props) {
                 event.preventDefault();
                 if (!p.disabled) openMenu(n.id, event.currentTarget);
               }}
-              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${/^(?:\s*#[\p{L}\p{N}_\/-]+)+\s*$/u.test(n.text) ? "tags-only" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""} ${isTraitsBlock(n) ? "is-traits-block" : isTraitsBlock(idx.byId.get(n.parentId as unknown as string)) && parseTraitRow(n.text) ? "is-trait-row" : ""}`}
+              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${/^(?:\s*#[\p{L}\p{N}_\/-]+)+\s*$/u.test(n.text) ? "tags-only" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
               style={{
                 top: r.top,
                 paddingLeft: depthIndent(r.depth, view.width),
@@ -943,11 +943,7 @@ export function OutlineView(p: Props) {
                 }
               >
                 {selected&&galleryContext&&traitsActive(galleryContext.doc,n.id)&&<span className="nook-edit-eye"><NookTraitsEye id={n.id}/></span>}
-                {isTraitsBlock(n) ? (
-                  <TraitsHeader node={n} count={childCount} disabled={p.disabled}/>
-                ) : !selected && isTraitsBlock(idx.byId.get(n.parentId as unknown as string)) && parseTraitRow(n.text) ? (
-                  <TraitRow node={n} disabled={p.disabled}/>
-                ) : selected ? (
+                {selected ? (
                   <BulletEditor
                     node={n}
                     caret={p.caret}
@@ -1030,7 +1026,7 @@ export function OutlineView(p: Props) {
                 )}
                 <NoteMetadataBar id={n.id} compact/>
                 <ReadingCitation id={n.mirrorSourceId||n.id}/>
-                {!n.collapsed&&<MediaContent onEdit={p.disabled?undefined:()=>p.onEdit(n.id)} nodeId={n.mirrorSourceId||n.id} text={n.text} media={mediaByNode.get(n.mirrorSourceId||n.id) || []} assets={p.assets} onResize={p.disabled ? undefined : p.onResizeMedia} onOcclude={p.disabled ? undefined : p.onOccludeMedia} onRemove={p.disabled ? undefined : p.onRemoveMedia} />}
+                {!n.collapsed&&<MediaContent onEdit={p.disabled?undefined:()=>p.onEdit(n.id)} nodeId={n.mirrorSourceId||n.id} text={isTraitsBlock(idx.byId.get(n.parentId as unknown as string))&&parseTraitRow(n.text)?'':n.text} media={mediaByNode.get(n.mirrorSourceId||n.id) || []} assets={p.assets} onResize={p.disabled ? undefined : p.onResizeMedia} onOcclude={p.disabled ? undefined : p.onOccludeMedia} onRemove={p.disabled ? undefined : p.onRemoveMedia} />}
                 {n.codeLanguage && (
                   <span className="code-label">{n.codeLanguage}</span>
                 )}
