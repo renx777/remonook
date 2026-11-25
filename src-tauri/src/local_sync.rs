@@ -481,6 +481,15 @@ fn start(app: &tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
     let s = identity(app)?;
+    // iPadOS asks "Allow RemoNook to find devices on your local network?" only when the app first
+    // reaches the network, and blocks everything local until then. Reach the router once (a
+    // short TCP attempt, nothing is sent) so the question appears as soon as local sync is on.
+    #[cfg(target_os = "ios")]
+    std::thread::spawn(|| {
+        let Some(std::net::IpAddr::V4(me)) = std::net::UdpSocket::bind("0.0.0.0:0").ok().and_then(|u| u.connect("192.0.2.1:9").ok().and(u.local_addr().ok())).map(|a| a.ip()) else { return };
+        let o = me.octets();
+        let _ = TcpStream::connect_timeout(&SocketAddr::from((Ipv4Addr::new(o[0], o[1], o[2], 1), PREFERRED_PORT)), Duration::from_millis(800));
+    });
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, PREFERRED_PORT)))
         .or_else(|_| TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0))))
         .map_err(|e| format!("Could not start local sync: {e}"))?;
@@ -666,6 +675,21 @@ pub struct PairStarted {
     name: String,
 }
 
+/// Explains a failed connection: the reason decides what the person should check.
+fn why_unreachable(e: Option<&std::io::Error>) -> String {
+    use std::io::ErrorKind::*;
+    let Some(e) = e else { return "That device did not answer. Is RemoNook open there with local sync on?".into() };
+    let blocked_here = cfg!(target_os = "ios") && (matches!(e.kind(), PermissionDenied | NetworkUnreachable | HostUnreachable) || e.raw_os_error() == Some(65) || e.raw_os_error() == Some(1));
+    if blocked_here {
+        return "This iPad is not allowed to reach your local network. Open Settings → Privacy & Security → Local Network and turn on RemoNook, then try again.".into();
+    }
+    match e.kind() {
+        ConnectionRefused => "That device refused the connection: RemoNook is not listening there. Open RemoNook on it and turn on local sync.".into(),
+        TimedOut | WouldBlock => "That device did not answer within 4 seconds. Check that both are on the same Wi-Fi (not a guest network), that no VPN is on, and that the other device allows RemoNook through its firewall and has the app open on screen.".into(),
+        _ => format!("Could not reach that device ({e}). Check the address and that both are on the same network."),
+    }
+}
+
 /// Asks a nearby device (by id) or an address ("192.168.1.20:47914") to pair. The other device
 /// then shows a code.
 #[tauri::command]
@@ -677,7 +701,15 @@ pub async fn local_sync_pair_start(app: tauri::AppHandle, target: String) -> Res
             t.to_socket_addrs().map_err(|_| "Enter an address such as 192.168.1.20".to_string())?.collect()
         }
     };
-    let (mut stream, reached) = addrs.iter().find_map(|a| TcpStream::connect_timeout(a, Duration::from_secs(4)).ok().map(|s| (s, *a))).ok_or("That device did not answer. Is RemoNook open there with local sync on?")?;
+    let mut failure: Option<std::io::Error> = None;
+    let mut found = None;
+    for a in &addrs {
+        match TcpStream::connect_timeout(a, Duration::from_secs(4)) {
+            Ok(s) => { found = Some((s, *a)); break; }
+            Err(e) => failure = Some(e),
+        }
+    }
+    let (mut stream, reached) = found.ok_or_else(|| why_unreachable(failure.as_ref()))?;
     let _ = stream.set_read_timeout(Some(Duration::from_secs(15)));
     let me = pair_hello(&app)?;
     stream.write_all(b"P").map_err(err)?;

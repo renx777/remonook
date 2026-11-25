@@ -2290,3 +2290,7 @@ html {
   color: var(--muted);
   line-height: 1.5;
 }
+/* iPad/iPhone app (and home-screen web apps): the page runs under the status bar
+   (viewport-fit=cover), so keep the app's own bars below it. The inset is 0 elsewhere. */
+.app{padding-top:env(safe-area-inset-top,0px);box-sizing:border-box}
+.app>.sidebar{top:env(safe-area-inset-top,0px)}
