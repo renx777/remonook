@@ -2,6 +2,30 @@
 
 ## Current state
 
+### Collections: new item, table editing, saved views, conditions, fill from links; emoji titles — 25 November 2026
+
+Web staging runs branch `feat/nooktraits-upgrade`, commit `caf937ac0f582de46d358656c0aa15ac94a02be5`, release `2026-11-14.1`.
+
+What changed:
+- **New:** creates an item that already has the collection's trait names.
+- **Table:** cells can be edited in place.
+- **Saved views:** each collection can have several named views.
+- **Filter:** up to 8 conditions, matched as all or any.
+- **Fill traits from links:** reads each item's link and adds the traits it is missing.
+- **Emoji:** animated emoji now render in the zoomed title, the breadcrumbs and flashcard deck titles.
+
+Web only; no Worker, migration or production change.
+
+Checked on staging as a guest, in dark mode at 1440 px:
+- An emoji picked in a title renders in both the title and the breadcrumb.
+- New → "Dune" opens with Director, My Rating and Year.
+- A "Top rated" view (My Rating > 3) shows 2 of 4 and switches back to All.
+- Editing a table cell set Year 2021.
+- Filling from a Letterboxd link set the title to Chinatown and added Cover, Year 1974, Site and Link. Director is not filled: the preview has no "directed by" text.
+- The IMDb link could not be read by the preview service (IMDb blocks it). The app says so: "Filled 1 of 2 · 1 could not be read".
+
+No page errors. 720 tests pass.
+
 ### Traits: kept out of other views, image covers, stars, name suggestions, group — 25 November 2026
 
 Web staging runs branch `feat/nooktraits-upgrade`, commit `929cf9e33735c36efb42719e8470dae0c295ea22`, release `2026-11-14.1`.
