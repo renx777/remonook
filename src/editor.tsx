@@ -1,3 +1,4 @@
+import { TraitNameSuggest } from './TraitNameSuggest';
 import {Icon} from './icons';
 import {useVisualTools} from './VisualTools';
 import {NoteTable} from './NoteTable';
@@ -419,6 +420,7 @@ function MountedBulletEditor({
   useEffect(()=>()=>clearTimeout(splitRepair.current),[]);
   const content=(current:Editor)=>{if(serialized.current?.doc===current.state.doc)return serialized.current.value;const value=fromEditor(current.getJSON());serialized.current={doc:current.state.doc,value};return value;};
   const connectionKeys = useRef<((event:KeyboardEvent)=>boolean)|null>(null);
+  const traitKeys = useRef<((event:KeyboardEvent)=>boolean)|null>(null);
   const [emojiEditor, setEmojiEditor] = useState<Editor | null>(null), slashKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null), emojiKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null);
   useEffect(() => {
     if (!host.current) return;
@@ -478,6 +480,7 @@ function MountedBulletEditor({
           if (connectionKeys.current?.(event)) { event.preventDefault();event.stopPropagation();return true; }
           if (slashKeys.current?.(event)) { event.preventDefault(); event.stopPropagation(); return true; }
           if (emojiKeys.current?.(event)) { event.preventDefault(); event.stopPropagation(); return true; }
+          if (traitKeys.current?.(event)) { event.preventDefault(); event.stopPropagation(); return true; }
           const { from, to } = e.state.selection,
             start = from - 1,
             end = to - 1;
@@ -666,6 +669,7 @@ function MountedBulletEditor({
       )}
       {emojiEditor && !study && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':id.startsWith('ai-')?'action:':['pane','date','image','complete','countdown','table','gallery','music','divider','diagram','drawing','mindmap','dictate','photo'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
       {emojiEditor && !study && <InlineConnections editor={emojiEditor} nodeId={node.id} enabled={!disabled&&!node.codeLanguage&&!unsupportedFormatting(node)} keyHandler={connectionKeys}/>}
+      {emojiEditor && !study && !node.codeLanguage && <TraitNameSuggest editor={emojiEditor} nodeId={node.id} keyHandler={traitKeys}/>}
       {emojiEditor && <InlineEmojiPicker editor={emojiEditor} nodeId={node.id} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node) && !/^(?:```|\$\$|\\\[)/.test(node.text)} keyHandler={emojiKeys} />}
       {!node.codeLanguage && notationParts(node.text).length > 0 && <div className="notation-preview"><small>Preview · edit source above</small><RichRead node={node} /></div>}
       {unsupportedFormatting(node) && (

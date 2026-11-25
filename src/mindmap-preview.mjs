@@ -11,6 +11,7 @@ export function mindmapPreview(root,idx,styles={}){
   // Always reveal the main branches, even when the note is folded in Notes.
   if(item.depth>=depthLimit||item.depth>0&&item.node.collapsed)continue;
   for(const child of idx.children.get(item.node.id)||[]){
+   if(child.traitsBlock)continue;// Traits stay in the outline
    if(items.length>=limit)break;
    if(seen.has(child.id))continue;
    seen.add(child.id);const next={node:child,depth:item.depth+1,children:[]};item.children.push(next);items.push(next);

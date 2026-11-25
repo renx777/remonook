@@ -66,10 +66,10 @@ export function addTraitsBlock(doc,id,make=uuid){
 // ---- Collections (#views): which traits to show, sort, filter, cover ----
 /** Trait names used by a collection's items, most common first. */
 export function collectionTraitKeys(doc,ids,idx=snapshotIndex(doc.tables.bullets)){const counts=new Map(),names=new Map();for(const id of ids)for(const t of noteTraits(doc,id,idx)){if(t.duplicate)continue;const k=t.key.toLocaleLowerCase();if(!names.has(k))names.set(k,t.key);counts.set(k,(counts.get(k)||0)+1);}return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([k])=>names.get(k));}
-const DEFAULTS={fields:null,sort:'',dir:'asc',filterKey:'',filter:'',cover:'auto',cardSize:220,fit:'cover',ratio:1.5};
+const DEFAULTS={fields:null,sort:'',dir:'asc',filterKey:'',filter:'',group:'',groupDir:'asc',cover:'auto',cardSize:220,fit:'cover',ratio:1.5};
 const clamp=(v,lo,hi,d)=>{v=Number(v);return Number.isFinite(v)?Math.min(hi,Math.max(lo,v)):d;};
 /** The view choices for one collection (defaults when never set). */
-export function traitView(doc,id){const owner=ownerOf(doc,id),v=latest(doc.web?.traitViews?.[owner]);return {...DEFAULTS,...(v?{fields:Array.isArray(v.fields)?v.fields.filter(f=>typeof f==='string').slice(0,12):null,sort:String(v.sort||''),dir:v.dir==='desc'?'desc':'asc',filterKey:String(v.filterKey||''),filter:String(v.filter||''),cover:String(v.cover||'auto'),cardSize:Math.round(clamp(v.cardSize,140,420,220)),fit:v.fit==='contain'?'contain':'cover',ratio:Math.round(clamp(v.ratio,0.5,2,1.5)*100)/100}:{})};}
+export function traitView(doc,id){const owner=ownerOf(doc,id),v=latest(doc.web?.traitViews?.[owner]);return {...DEFAULTS,...(v?{fields:Array.isArray(v.fields)?v.fields.filter(f=>typeof f==='string').slice(0,12):null,sort:String(v.sort||''),dir:v.dir==='desc'?'desc':'asc',filterKey:String(v.filterKey||''),filter:String(v.filter||''),group:String(v.group||''),groupDir:v.groupDir==='desc'?'desc':'asc',cover:String(v.cover||'auto'),cardSize:Math.round(clamp(v.cardSize,140,420,220)),fit:v.fit==='contain'?'contain':'cover',ratio:Math.round(clamp(v.ratio,0.5,2,1.5)*100)/100}:{})};}
 export function setTraitView(doc,id,patch,make=uuid,now=Date.now()){
  const owner=ownerOf(doc,id);if(!doc.tables.bullets.some(n=>n.id===owner))throw Error('This collection was removed.');
  const current=traitView(doc,owner),next={...current,...patch};if(JSON.stringify(next)===JSON.stringify(current))return doc;
@@ -96,3 +96,71 @@ export function traitCover(doc,id,choice='auto',idx){if(choice==='none')return n
  return (all.find(t=>/cover|poster|image|thumbnail|artwork|photo|picture/i.test(t.key))||all.find(t=>/\.(png|jpe?g|gif|webp|avif|svg)(\?|#|$)/i.test(t.value)))?.value||null;}
 /** True for bullets inside a Traits bullet. */
 export function insideTraits(doc,id){const idx=snapshotIndex(doc.tables.bullets);let n=idx.byId.get(id),guard=0;while(n&&guard++<200){if(isTraitsBlock(n))return true;n=idx.byId.get(n.parentId);}return false;}
+
+// ---- Keeping Traits out of other views ----
+/** Ids of every Traits bullet and everything under it. Search, mindmaps, canvas sources,
+ *  search by meaning and widgets leave these out; the note itself carries them instead. */
+export function traitBulletIds(nodes){
+ const kids=new Map();for(const n of nodes){const a=kids.get(n.parentId);if(a)a.push(n.id);else kids.set(n.parentId,[n.id]);}
+ const out=new Set(),stack=nodes.filter(isTraitsBlock).map(n=>n.id);
+ while(stack.length){const id=stack.pop();if(out.has(id))continue;out.add(id);for(const c of kids.get(id)||[])stack.push(c);}
+ return out;
+}
+export const withoutTraits=nodes=>{const ids=traitBulletIds(nodes);return ids.size?nodes.filter(n=>!ids.has(n.id)):nodes;};
+/** "Director Steven Spielberg Year 1975" per note, so searching a trait value finds the note. */
+export function traitTextByNote(nodes){
+ const byId=new Map(nodes.map(n=>[n.id,n])),out=new Map();
+ for(const n of nodes){const block=byId.get(n.parentId);if(!isTraitsBlock(block))continue;const r=parseTraitRow(n.text);if(!r)continue;out.set(block.parentId,(out.get(block.parentId)||'')+' '+r.key+' '+r.value);}
+ return out;
+}
+
+const COVERISH=/cover|poster|image|thumbnail|art|photo|picture/i;
+/**
+ * The trait bullet whose pasted/uploaded image is a note's cover. `choice` is a trait name,
+ * 'auto' or 'none'. A bullet counts by its name alone ("Poster" with an image, no colon needed).
+ */
+export function traitImageRow(doc,id,choice='auto',idx=snapshotIndex(doc.tables.bullets)){
+ if(choice==='none')return null;const media=doc.tables.media||[];
+ const hasImage=rid=>media.some(m=>m.bulletId===rid&&String(m.mimeType||'').startsWith('image/'));
+ const rows=[];for(const block of traitsBlocks(doc,id,idx))for(const n of idx.children.get(block.id)||[]){const key=(parseTraitRow(n.text)?.key||String(n.text||'').trim().replace(/:+$/,'')).trim();if(key&&key.length<=64&&hasImage(n.id))rows.push({key,id:n.id});}
+ if(choice!=='auto')return rows.find(r=>r.key.toLocaleLowerCase()===String(choice).toLocaleLowerCase())?.id||null;
+ return (rows.find(r=>COVERISH.test(r.key))||rows[0])?.id||null;
+}
+/** Trait names used anywhere, most used first (one spelling per name, ignoring case). */
+export function knownTraitNames(nodes){
+ const byId=new Map(nodes.map(n=>[n.id,n])),counts=new Map(),names=new Map();
+ for(const n of nodes){if(!isTraitsBlock(byId.get(n.parentId)))continue;const r=parseTraitRow(n.text);if(!r)continue;const k=r.key.toLocaleLowerCase();if(!names.has(k))names.set(k,r.key);counts.set(k,(counts.get(k)||0)+1);}
+ return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([k])=>names.get(k));
+}
+
+// ---- Ratings: a trait named like Rating/Stars/Score shows as stars ----
+const RATING=/rating|stars?\b|score/i;
+/** {value, max} for a rating trait ("4", "4/5", "8/10", "★★★☆☆", or empty), else null. */
+export function ratingOf(key,value){
+ if(!RATING.test(String(key)))return null;const v=String(value??'').trim();
+ if(!v)return {value:0,max:5};if(/^[★☆]+$/.test(v))return {value:[...v].filter(c=>c==='★').length,max:[...v].length};
+ const m=/^(\d+(?:\.\d+)?)\s*(?:\/\s*(\d+))?$/.exec(v);if(!m)return null;
+ const n=Number(m[1]),max=m[2]?Number(m[2]):n>5?10:5;return max>=1&&max<=10&&n<=max?{value:n,max}:null;
+}
+/** Text for a new rating, keeping the "/10" style when the old value used it. */
+export const ratingText=(n,old)=>{const m=/\/\s*(\d+)\s*$/.exec(String(old??''));return n?String(n)+(m?'/'+m[1]:''):'';};
+/** Rewrites a trait bullet's value, keeping its name and ":"/"::" style. */
+export function setTraitValue(doc,rowId,value){
+ const n=doc.tables.bullets.find(x=>x.id===rowId),row=n&&parseTraitRow(n.text);if(!row)throw Error('This trait was changed or removed.');
+ const sep=/::/.test(n.text.split(row.key)[1]||'')?':: ':': ',text=(row.key+sep+String(value??'')).replace(/\s+$/,'');if(text===n.text)return doc;
+ return withNodes(doc,doc.tables.bullets.map(x=>x.id===rowId?{...x,text,formatting:encode([])}:x));
+}
+
+// ---- Group by a trait ----
+/** Splits arranged items into groups by a trait's value (list values "a, b" are one value). Empty last. */
+export function groupCollection(doc,nodes,key,dir='asc',idx=snapshotIndex(doc.tables.bullets)){
+ const groups=new Map();for(const n of nodes){const v=(noteTrait(doc,n.mirrorSourceId||n.id,key,idx)||'').trim();const k=v.toLocaleLowerCase();if(!groups.has(k))groups.set(k,{label:v,items:[]});groups.get(k).items.push(n);}
+ const sign=dir==='desc'?-1:1;
+ return [...groups.values()].sort((a,b)=>{if(!a.label||!b.label)return a.label?-1:b.label?1:0;const c=isNumber(a.label)&&isNumber(b.label)?Number(a.label)-Number(b.label):a.label.localeCompare(b.label,undefined,{numeric:true,sensitivity:'base'});return c*sign;});
+}
+/** Names of trait bullets that hold a pasted image (e.g. "Poster"), for the Image property list. */
+export function imageTraitNames(doc,ids,idx=snapshotIndex(doc.tables.bullets)){
+ const media=new Set((doc.tables.media||[]).filter(m=>String(m.mimeType||'').startsWith('image/')).map(m=>m.bulletId)),out=new Map();
+ for(const id of ids)for(const block of traitsBlocks(doc,id,idx))for(const n of idx.children.get(block.id)||[]){if(!media.has(n.id))continue;const k=(parseTraitRow(n.text)?.key||String(n.text||'').trim().replace(/:+$/,'')).trim();if(k&&k.length<=64&&!out.has(k.toLocaleLowerCase()))out.set(k.toLocaleLowerCase(),k);}
+ return [...out.values()];
+}

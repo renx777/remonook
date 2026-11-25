@@ -1,3 +1,4 @@
+import {withoutTraits} from './traits-block.mjs';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {ReactFlow,Background,BackgroundVariant,Controls,MiniMap,Handle,Position,useNodesState,useReactFlow,type Node as FlowNode,type Edge} from '@xyflow/react';
 import '../node_modules/@xyflow/react/dist/style.css';
@@ -78,7 +79,7 @@ export function MindmapView({nodes,scope,onOpen,onConvert,onNotes,onToggleCollap
  const [confirmId,setConfirmId]=useState<string|null>(null);
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const rf=useRef<{fitView:(options:object)=>void}|null>(null);
- const mapIndex=useMemo(()=>index(nodes),[nodes]);
+ const mapIndex=useMemo(()=>index(withoutTraits(nodes)),[nodes]);// Traits stay in the outline
  const {byId,children}=mapIndex;
  const scopePath=useMemo(()=>{const path=new Set<string>();let cur=scope?byId.get(scope):undefined;while(cur&&cur.id!==root?.id){path.add(cur.id);cur=cur.parentId?byId.get(cur.parentId):undefined;}return path;},[byId,scope,root]);
  const startEdit=(id:string)=>{ if(disabled)return; setConfirmId(null); setEditingId(id); };

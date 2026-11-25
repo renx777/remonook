@@ -1,3 +1,4 @@
+import {traitBulletIds} from './traits-block.mjs';
 // Canvas side panel: notes, highlights (books and web articles), flashcards and bookmarks to put on
 // the board. Drag a row onto the board (desktop), or click / tap it, or pick it with the arrow keys
 // and Enter. Notes show where they live and recent ones come first; a note with children can be laid
@@ -50,7 +51,7 @@ export function CanvasSources({
   const idx = useMemo(() => index(bullets), [bullets]);
   // Bullets that belong to boards (under "Canvases") are already on a canvas: leave them out.
   const onBoards = useMemo(() => {
-    const ids = new Set<string>();
+    const ids = new Set<string>(traitBulletIds(bullets as any));// Traits stay in the outline
     if (!homeId) return ids;
     const stack = [homeId];
     while (stack.length) {

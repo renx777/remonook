@@ -1,3 +1,4 @@
+import {traitBulletIds} from './traits-block.mjs';
 // Bounded, offline launcher presentation. No network calls or workspace writes here.
 import {bullet,index} from './domain.mjs';
 import {displayText,notePath} from './relations.mjs';
@@ -45,7 +46,8 @@ export function widgetRhythm(doc,now=Date.now()){
 /** A deterministic daily candidate. Related text comes only from the existing opt-in index. */
 function resurfacePool(doc,now){
  const byId=new Map(doc.tables.bullets.map(n=>[n.id,n]));
- const nodes=doc.tables.bullets.filter(n=>!isStudyContent(doc,n,byId)&&n.kind==='NOTE'&&!n.mirrorSourceId&&!n.journalDate&&displayText(n.text).trim().length>15&&n.id!=='quick-capture-inbox'&&!n.id.startsWith('widget-'));
+ const traitIds=traitBulletIds(doc.tables.bullets);
+ const nodes=doc.tables.bullets.filter(n=>!traitIds.has(n.id)&&!isStudyContent(doc,n,byId)&&n.kind==='NOTE'&&!n.mirrorSourceId&&!n.journalDate&&displayText(n.text).trim().length>15&&n.id!=='quick-capture-inbox'&&!n.id.startsWith('widget-'));
  const touched=n=>doc.web?.noteTimes?.[n.id]?.updatedAt||0;
  const older=nodes.filter(n=>touched(n)<now-86400000);
  const pool=(older.length?older:nodes).sort((a,b)=>touched(a)-touched(b)||a.id.localeCompare(b.id)).slice(0,60);

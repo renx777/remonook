@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {empty} from './.build/data.mjs';
 import {bullet,encode,marks} from '../src/domain.mjs';
 import {seed,project} from '../src/sync-crdt.mjs';
-import {parseTraitRow,addTraitsBlock,noteTraits,noteTrait,hasTraitsTag,traitsBlocks,collectionTraitKeys,traitCover,insideTraits,traitView,setTraitView,arrangeCollection,shownTraits} from '../src/traits-block.mjs';
+import {traitBulletIds,withoutTraits,traitTextByNote,knownTraitNames,ratingOf,ratingText,setTraitValue,groupCollection,traitImageRow,imageTraitNames,parseTraitRow,addTraitsBlock,noteTraits,noteTrait,hasTraitsTag,traitsBlocks,collectionTraitKeys,traitCover,insideTraits,traitView,setTraitView,arrangeCollection,shownTraits} from '../src/traits-block.mjs';
 
 let n=0;const make=()=>'id'+(++n);
 const doc=(bullets)=>{const d=empty();return {...d,tables:{...d.tables,bullets}};};
@@ -63,7 +63,7 @@ test('#views collections sort, filter and pick covers from their items\' traits'
   assert.equal(traitCover(d,'t'),'https://img.test/time.jpg');assert.equal(traitCover(d,'h'),'https://img.test/habits.png','image links count automatically');
   assert.equal(traitCover(d,'t','Art'),null);assert.equal(traitCover(d,'h','art'),'https://img.test/habits.png');assert.equal(traitCover(d,'t','none'),null);
   d=setTraitView(d,'p',{sort:'Year',fields:['Author']},make,1000);d=setTraitView(d,'p',{dir:'desc'},make,900);
-  assert.deepEqual(traitView(d,'p'),{fields:['Author'],sort:'Year',dir:'desc',filterKey:'',filter:'',cover:'auto',cardSize:220,fit:'cover',ratio:1.5},'later edits win even with an older clock');
+  assert.deepEqual(traitView(d,'p'),{fields:['Author'],sort:'Year',dir:'desc',filterKey:'',filter:'',group:'',groupDir:'asc',cover:'auto',cardSize:220,fit:'cover',ratio:1.5},'later edits win even with an older clock');
   assert.deepEqual(shownTraits(traitView(d,'p'),keys),['Author']);assert.deepEqual(shownTraits(traitView(d,'zz'),keys),keys);
   assert.equal(setTraitView(d,'p',{dir:'desc'},make,2000),d,'no change, no revision');
   d=setTraitView(d,'p',{cardSize:9999,fit:'contain',ratio:1.553},make,3000);const v=traitView(d,'p');assert.deepEqual([v.cardSize,v.fit,v.ratio],[420,'contain',1.55]);
@@ -74,4 +74,35 @@ test('Traits bullets and view choices survive a sync round trip', ()=>{
   const root=seed(d),back=project(root).doc;root.destroy();
   assert.equal(back.tables.bullets.filter(x=>x.traitsBlock).length,3);
   assert.equal(noteTrait(back,'t','author'),'Stephen Hawking');assert.equal(traitView(back,'p').cover,'Poster');
+});
+
+test('Traits stay out of other views; their values describe the note for search', ()=>{
+  const d=shelf(),ids=traitBulletIds(d.tables.bullets);
+  assert.equal(ids.size,3+7,'3 Traits bullets and their 7 properties');assert.ok(!ids.has('t'));
+  assert.equal(withoutTraits(d.tables.bullets).length,4);
+  assert.match(traitTextByNote(d.tables.bullets).get('h'),/James Clear/);
+  assert.deepEqual(knownTraitNames(d.tables.bullets).slice(0,2),['Author','Year']);
+});
+
+test('ratings show as stars and can be set; other traits are not ratings', ()=>{
+  assert.deepEqual(ratingOf('My Rating','4'),{value:4,max:5});assert.deepEqual(ratingOf('Rating','8/10'),{value:8,max:10});
+  assert.deepEqual(ratingOf('Stars','★★★☆☆'),{value:3,max:5});assert.deepEqual(ratingOf('Rating',''),{value:0,max:5});
+  assert.equal(ratingOf('Year','4'),null);assert.equal(ratingOf('Rating','great'),null);
+  assert.equal(ratingText(7,'8/10'),'7/10');assert.equal(ratingText(0,'3'),'');
+  let d=withTraits(book(),'b',['Rating:: 3','Author: X']);const row=noteTraits(d,'b')[0].id;
+  d=setTraitValue(d,row,'5');assert.equal(d.tables.bullets.find(x=>x.id===row).text,'Rating:: 5','keeps the :: style');
+});
+
+test('collections group by a trait, empty last', ()=>{
+  const d=shelf();
+  const groups=groupCollection(d,items(d),'Author','desc');
+  assert.deepEqual(groups.map(g=>[g.label,g.items.map(n=>n.text)]),[['Yuval Noah Harari',['Sapiens']],['Stephen Hawking',['Time']],['James Clear',['Habits']]]);
+  assert.deepEqual(groupCollection(d,items(d),'Year').map(g=>g.label),['1988','2018','']);
+});
+
+test('an image pasted into a trait bullet can be the cover, by name or automatically', ()=>{
+  let d=shelf();const block=traitsBlocks(d,'s')[0].id,img=bullet('img',{parentId:block,position:9,text:'Poster'});
+  d={...d,tables:{...d.tables,bullets:[...d.tables.bullets,img],media:[...(d.tables.media||[]),{id:'m1',bulletId:'img',mimeType:'image/png',fileName:'a.png'}]}};
+  assert.equal(traitImageRow(d,'s','auto'),'img');assert.equal(traitImageRow(d,'s','poster'),'img');assert.equal(traitImageRow(d,'s','Author'),null);assert.equal(traitImageRow(d,'s','none'),null);
+  assert.deepEqual(imageTraitNames(d,['t','h','s']),['Poster']);
 });

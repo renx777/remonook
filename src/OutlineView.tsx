@@ -1,5 +1,5 @@
 // Property bullets ("Cover: https://…" under a Traits bullet) stay one plain line: no link cards.
-import {isTraitsBlock,parseTraitRow} from './traits-block.mjs';
+import {isTraitsBlock,parseTraitRow,traitBulletIds,traitTextByNote} from './traits-block.mjs';
 import {traitSearchText,traitsActive} from './nooktraits.mjs';
 import {NoteMetadataBar,NookTraitsEye,NookTraitsCollection,useNookTraits} from './NoteMetadataContext';
 import {droppedImage,mayDropImage} from './image-drop';
@@ -96,7 +96,7 @@ export function OutlineView(p: Props) {
     }
     return result;
   },[p.nodes]);
-  const matches=useMemo(()=>p.search.trim()?searchMatcher(p.nodes,p.media,times,Date.now(),n=>galleryContext?traitSearchText(galleryContext.doc,n.id):''):()=>true,[p.nodes,p.media,times,p.search,galleryContext?.doc.web.noteProperties,galleryContext?.doc.web.nookTraits]);
+  const matches=useMemo(()=>{if(!p.search.trim())return ()=>true;const hidden=traitBulletIds(p.nodes),words=traitTextByNote(p.nodes);const m=searchMatcher(p.nodes,p.media,times,Date.now(),n=>(galleryContext?traitSearchText(galleryContext.doc,n.id):'')+(words.get(n.mirrorSourceId||n.id)||''));return (n:Node,q:string)=>!hidden.has(n.id)&&m(n,q);},[p.nodes,p.media,times,p.search,galleryContext?.doc.web.noteProperties,galleryContext?.doc.web.nookTraits]);
   const readingSize = p.readingSize || 16,
     rowHeight = readingSize * 1.5 + 4;
   const idx = useMemo(() => snapshotIndex(p.nodes), [p.nodes]),

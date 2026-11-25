@@ -1,3 +1,4 @@
+import {traitBulletIds} from './traits-block.mjs';
 // On-device meaning index. Note texts are sent in batches to /ai/embed (bge-m3 on Workers AI, not
 // stored there); the vectors are kept only on this device in IndexedDB, per account, and searched
 // locally. Only notes whose text changed are sent again. Opt-in: nothing is sent until enabled.
@@ -57,7 +58,8 @@ export class MeaningIndex {
     this.running = true;
     try {
       const want = new Map<string, string>();
-      for (const n of nodes) { const t = meaningText(n, displayText); if (t) want.set(n.id, t); }
+      const traitIds = traitBulletIds(nodes as any);// properties are not ideas to compare
+      for (const n of nodes) { if (traitIds.has(n.id)) continue; const t = meaningText(n, displayText); if (t) want.set(n.id, t); }
       const stale = [...this.entries.keys()].filter(id => !want.has(id));
       if (stale.length) { const db = await this.db, t = db.transaction(STORE, 'readwrite'); for (const id of stale) { t.objectStore(STORE).delete(id); this.entries.delete(id); } await done(t); }
       const todo = [...want].filter(([id, text]) => this.entries.get(id)?.h !== textHash(text)).map(([id, text]) => ({id, text}));
