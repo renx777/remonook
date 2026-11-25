@@ -1,3 +1,4 @@
+import { EmojiText } from './AnimatedEmoji';
 import {DeckRetention} from './FsrsPreferences';
 import {fsrsSettings,memoryInfo} from './fsrs-scheduler.mjs';
 import {ActionMenu,ActionMenuItem} from './ActionMenu';
@@ -28,6 +29,9 @@ import { MCQCard } from "./MCQCard";
 import { QuizFeedback, QuizReactionSettings, type ReactionSettings } from "./QuizReactions";
 import {LibraryDialog,FolderArtwork,FolderEditor,DeckManager,type FolderDraft} from './StudyFolders';
 import {studyFolders,deckFolder,moveStudyDeck} from './study-library.mjs';
+import type {User} from 'firebase/auth';
+import {VoiceReview,type VoiceResult} from './VoiceReview';
+import {displayText} from './relations.mjs';
 
 type Props = {
   doc: Workspace;
@@ -39,8 +43,10 @@ type Props = {
   onSource: (id: string) => void;
   onSaveDesign: (id: string, design: DeckDesign, file?: File) => Promise<void>;
   onSaveReactions: (settings: ReactionSettings, files: { correct: File[]; wrong: File[] }) => Promise<void>;
+  onDuplicates?: () => void;
+  user?: User | null;
 };
-export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, onSaveFolder, onSource, onSaveDesign, onSaveReactions }: Props) {
+export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, onSaveFolder, onSource, onSaveDesign, onSaveReactions, onDuplicates, user }: Props) {
   const [screen, setScreen] = useState<"library" | "topics" | "session">("library"),
     [topicDeck, setTopicDeck] = useState<string | null>(null),
     [editingCard, setEditingCard] = useState(false),
@@ -90,6 +96,11 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   const totalBullets = isFlashcard ? (source?.answerRows?.length ?? (card?.answer ? card.answer.split('\n').filter(Boolean).length : 0)) : 0;
   const hasStepBullets = isFlashcard && totalBullets > 1 && bulletRevealMode === 'step';
   const isAllBulletsRevealed = !hasStepBullets || revealedBullets >= totalBullets;
+  // Voice review: answer a text flashcard aloud and get a suggested grade.
+  const [voiceOpen, setVoiceOpen] = useState(false), [voiceResult, setVoiceResult] = useState<VoiceResult | null>(null);
+  const voicePoints = isFlashcard && source?.answerRows ? source.answerRows.map(row => displayText(row.node.text || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 20) : [];
+  const canVoice = !!user && voicePoints.length > 0;
+  useEffect(() => { setVoiceOpen(false); setVoiceResult(null); }, [currentId, session?.tag, screen, editingCard]);
   const studyContext = useMemo(() => createStudyContext(doc, clock), [doc, clock]);
   const folders=studyFolders(doc),currentFolder=folders.find(f=>f.id===activeFolder);
   useEffect(()=>{if(activeFolder&&!currentFolder)setActiveFolder(null);},[activeFolder,!!currentFolder]);
@@ -137,6 +148,31 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
     setScreen("session");
     if (preferImmersive) enterImmersive();
   };
+  useEffect(()=>{
+    const open=()=>{
+      const target=(window as any).remoWidgetStudy;
+      if(!target||disabled)return;
+      delete (window as any).remoWidgetStudy;
+      const scope=target.deck==='__all_flashcards__'?null:target.deck;
+      const next=newStudySession(doc,scope,mode,Date.now(),Math.random,null);
+      const ids=JSON.parse(next.queueJson);
+      if(target.card&&ids.includes(target.card)){
+        next.queueJson=JSON.stringify([target.card,...ids.filter((id:string)=>id!==target.card)]);
+        next.cursor=0;
+      }
+      updateSession({...next,tag:crypto.randomUUID()});
+      setScreen('session');
+      if(target.voice)(window as any).remoWidgetVoiceCard=target.card;
+    };
+    open();window.addEventListener('remo-widget-study',open);
+    return ()=>window.removeEventListener('remo-widget-study',open);
+  },[disabled,doc]);
+  useEffect(()=>{
+    if(currentId&&(window as any).remoWidgetVoiceCard===currentId&&canVoice){
+      delete (window as any).remoWidgetVoiceCard;
+      setVoiceOpen(true);
+    }
+  },[currentId,screen,canVoice]);
   const openDeck = (scope: string | null) => {
     if (scope && deckTopics(doc, scope, Date.now()).length) { setTopicDeck(scope); setScreen('topics'); }
     else start(scope);
@@ -282,11 +318,12 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         }
         if (session.mode === "NORMAL") { event.preventDefault(); grade("GOOD"); return; }
       }
+      if (session?.revealed && voiceResult && event.key === "Enter" && !(event.target as HTMLElement)?.closest?.("input,textarea,button,[contenteditable=true]")) { event.preventDefault(); grade(session.mode === "SPACED" ? voiceResult.suggested : "GOOD"); return; }
       if (session?.revealed && ["1", "2", "3", "4"].includes(event.key)) { event.preventDefault(); grade(["AGAIN", "HARD", "GOOD", "EASY"][Number(event.key) - 1]); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [screen, session, card, doc, disabled, immersive, attempt, editingCard, cardMenuOpen, scheduleInfo, isFlashcard, hasStepBullets, revealedBullets, totalBullets]);
+  }, [screen, session, card, doc, disabled, immersive, attempt, editingCard, cardMenuOpen, scheduleInfo, isFlashcard, hasStepBullets, revealedBullets, totalBullets, voiceResult]);
 
   const all = [...scopedCards(doc, null, clock, studyContext), ...scopedCards(doc, ALL_MCQS, clock, studyContext)], due = [...dueCards(doc, null, clock, studyContext), ...dueCards(doc, ALL_MCQS, clock, studyContext)],
     today = new Date(clock).toDateString(),
@@ -449,12 +486,12 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         const bounds=event.currentTarget.getBoundingClientRect(),width=bounds.width||window.innerWidth;
         if(event.clientX<bounds.left+width/2)navigate('previous');else tapNext();
       }}>
-      <div inert={editingCard} className="session-topline session-controls"><button className="study-text-button" aria-label={done ? "Study Desk" : "Pause and return"} onClick={showLibrary}><Icon name="back" size={16} /><span className="study-btn-label">{done ? "Study Desk" : "Pause & return"}</span></button>{immersive&&<span className="session-inline-title" title={title}><span>{title}</span><small>{Math.min(session.cursor + (done ? 0 : 1), queue.length)} / {queue.length}</small></span>}<div className="session-view-controls">{immersive?<details className="study-size-menu"><summary aria-label="Card size and options" title="Card size"><Icon name="more" size={18}/></summary><div>{zoomControls}</div></details>:zoomControls}<span className="study-mode-chip">{session.mode === "NORMAL" ? (immersive ? "Cram" : "Cram · outline order") : (immersive ? "Spaced" : "Spaced repetition")}</span><button className="study-text-button immersive-toggle" aria-label={immersive ? "Exit immersive mode" : "Enter immersive mode"} aria-pressed={immersive} title={immersive ? "Exit immersive mode · Esc" : "Immersive fullscreen · F"} onClick={() => immersive ? exitImmersive() : enterImmersive()}><Icon name={immersive ? "fullscreenExit" : "fullscreen"} size={16} /><span>{immersive ? "Exit immersive" : "Immersive"}</span></button></div></div>
+      <div inert={editingCard} className="session-topline session-controls"><button className="study-text-button" aria-label={done ? "Study Desk" : "Pause and return"} onClick={showLibrary}><Icon name="back" size={16} /><span className="study-btn-label">{done ? "Study Desk" : "Pause & return"}</span></button>{immersive&&<span className="session-inline-title" title={title}><span><EmojiText text={title}/></span><small>{Math.min(session.cursor + (done ? 0 : 1), queue.length)} / {queue.length}</small></span>}<div className="session-view-controls">{immersive?<details className="study-size-menu"><summary aria-label="Card size and options" title="Card size"><Icon name="more" size={18}/></summary><div>{zoomControls}</div></details>:zoomControls}<span className="study-mode-chip">{session.mode === "NORMAL" ? (immersive ? "Cram" : "Cram · outline order") : (immersive ? "Spaced" : "Spaced repetition")}</span><button className="study-text-button immersive-toggle" aria-label={immersive ? "Exit immersive mode" : "Enter immersive mode"} aria-pressed={immersive} title={immersive ? "Exit immersive mode · Esc" : "Immersive fullscreen · F"} onClick={() => immersive ? exitImmersive() : enterImmersive()}><Icon name={immersive ? "fullscreenExit" : "fullscreen"} size={16} /><span>{immersive ? "Exit immersive" : "Immersive"}</span></button></div></div>
       {studyError&&<p className="fullscreen-notice" role="alert">{studyError}</p>}
       {fullscreenNotice && <p className="fullscreen-notice" role="status">{fullscreenNotice}</p>}
       {disabled && <p className="fullscreen-notice" role="status">Study controls are paused. Return to Study Desk to check the save status.</p>}
       <div className="session-scroll" ref={cardScroll}><div className="session-content">
-      <h1>{title}</h1>
+      <h1><EmojiText text={title}/></h1>
       {scheduleInfo&&card&&<LibraryDialog title="Review schedule" onClose={()=>setScheduleInfo(false)}><p>{card.question}</p><dl className="study-memory-details"><dt>Next review</dt><dd>{new Date(card.dueAtEpochMillis).toLocaleString()}</dd><dt>Scheduler</dt><dd>{memory?'FSRS-6':'Moves to FSRS on its next spaced review'}</dd>{memory&&<><dt>State</dt><dd>{memory.state}</dd><dt>Estimated recall now</dt><dd>{Math.round(memory.retrievability*100)}%</dd><dt>Stability</dt><dd>{memory.stability.toFixed(1)} days</dd><dt>Difficulty</dt><dd>{memory.difficulty.toFixed(1)} / 10</dd><dt>Reviews / lapses</dt><dd>{memory.reps} / {memory.lapses}</dd></>}</dl><p>Recall is an estimate. Cram practice leaves this schedule unchanged.</p></LibraryDialog>}
       <div className="study-progress-label"><NumberGroup key={session.tag || 'legacy'}><span><FlowNumber value={session.reviewed} /> reviewed</span><span><FlowNumber value={Math.min(session.cursor + (done ? 0 : 1), queue.length)} /> / <FlowNumber value={queue.length} /></span></NumberGroup></div>
       <progress className="study-progress" value={session.cursor} max={Math.max(1, queue.length)} />
@@ -503,11 +540,13 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
           <nav className="study-card-navigation" aria-label="Card navigation">
             <button className="study-nav-arrow" aria-label="Previous card" title="Previous card" disabled={disabled||session.cursor===0} onClick={()=>navigate('previous')}><Icon name="back" size={18}/></button>
             <div className={`study-dock-main ${!done&&valid?(!session.revealed?"reveal-actions":session.mode==="NORMAL"?"cram-actions":""):""}`}>
-              {done?readyAgain?<button className="study-primary dock-primary" disabled={disabled} onClick={()=>start(session.scope,session.topicId||null)}>Continue {readyAgain} due {readyAgain===1?'card':'cards'}</button>:<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history&&isAllBulletsRevealed?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value,clock,doc)}</small></button>)}</div>:<button className={`study-primary dock-primary ${session.revealed&&hasStepBullets&&revealedBullets<totalBullets?'study-step-actions':''}`} disabled={disabled} onClick={event=>{if(event.detail>1)return;if(!session.revealed)reveal();else if(hasStepBullets&&revealedBullets<totalBullets)nextBullet();else grade('GOOD');}}>{!session.revealed?'Show answer':hasStepBullets&&revealedBullets<totalBullets?'Next bullet':'Next card'}</button>}
+              {done?readyAgain?<button className="study-primary dock-primary" disabled={disabled} onClick={()=>start(session.scope,session.topicId||null)}>Continue {readyAgain} due {readyAgain===1?'card':'cards'}</button>:<button className="study-primary dock-primary" onClick={showLibrary}>Back to Study Desk</button>:!valid?<button className="study-primary dock-primary" disabled={disabled} onClick={skip}>Continue</button>:currentMcq?<button className="study-primary dock-primary" data-mcq-continue disabled={disabled||!attempt} onClick={continueMcq}>{attempt?'Continue':'Choose an answer above'}</button>:session.revealed&&session.mode==='SPACED'&&!history&&isAllBulletsRevealed?<div className="study-grades">{['AGAIN','HARD','GOOD','EASY'].map((value,i)=><button key={value} className={`grade-${value.toLowerCase()}${voiceResult?.suggested===value?' is-suggested':''}`} aria-keyshortcuts={String(i+1)} disabled={disabled} onClick={()=>grade(value)}><span>{value[0]+value.slice(1).toLowerCase()}</span><small>{intervalLabel(card,value,clock,doc)}</small></button>)}</div>:<button className={`study-primary dock-primary ${session.revealed&&hasStepBullets&&revealedBullets<totalBullets?'study-step-actions':''}`} disabled={disabled} onClick={event=>{if(event.detail>1)return;if(!session.revealed)reveal();else if(hasStepBullets&&revealedBullets<totalBullets)nextBullet();else grade('GOOD');}}>{!session.revealed?'Show answer':hasStepBullets&&revealedBullets<totalBullets?'Next bullet':'Next card'}</button>}
             </div>
             <button className="study-nav-arrow" aria-label="Next card" title="Next card" disabled={disabled||done||!valid||!session.revealed||!!currentMcq&&!attempt} onClick={tapNext}><Icon name="forward" size={18}/></button>
 
           </nav>
+          {canVoice&&!done&&valid&&!currentMcq&&!session.revealed&&!voiceOpen&&<div className="study-dock-secondary"><button className="study-voice-button" disabled={disabled} onClick={()=>setVoiceOpen(true)}><Icon name="mic" size={16}/>Answer aloud</button></div>}
+          {voiceOpen&&user&&card&&<VoiceReview key={currentId||""} user={user} question={displayText(source?.node?.text||card.question||"")} points={voicePoints} onResult={r=>{setVoiceResult(r);reveal(true);}} onClose={()=>{setVoiceOpen(false);setVoiceResult(null);}}/>}
           <p className="study-dock-hint" aria-live="polite">{done?'Session complete':!valid?'Continue to the next available card':currentMcq?!attempt?'Choose an answer to continue':<><span className="study-keyboard-hint">Use ← / → to navigate</span><span className="study-touch-hint">Tap left for previous · right for next</span></>:!session.revealed?showRevealHint?<><span className="study-keyboard-hint">Press Space to reveal the answer · or click the card</span><span className="study-touch-hint">Tap the card to reveal the answer</span></>:null:hasStepBullets&&revealedBullets<totalBullets?null:session.mode==='SPACED'&&!history?'Rate to schedule':<><span className="study-keyboard-hint">Use ← / → to navigate</span><span className="study-touch-hint">Tap left for previous · right for next</span></>}</p>
         </div>
       </footer>
@@ -519,12 +558,12 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
   if (screen === 'topics' && topicDeck) {
     const topics = deckTopics(doc, topicDeck, clock, studyContext), title = idx.byId.get(topicDeck)?.text || 'Study deck';
     const cards = scopedCards(doc, topicDeck, clock, studyContext), due = dueCards(doc, topicDeck, clock, studyContext);
-    return <section className="study-desk study-topic-picker"><button className="study-text-button" onClick={showLibrary}><Icon name="back" size={16} />Study Desk</button><div className="study-heading"><div><span className="eyebrow">CHOOSE A TOPIC</span><h1>{title}</h1><p>Study one topic, or review the whole deck.</p></div></div><div className="study-mode-switch" aria-label="Topic study mode">{[['SPACED','Spaced repetition'],['NORMAL','Cram']].map(([value,label])=><button key={value} className={mode === value ? 'is-active' : ''} aria-pressed={mode === value} onClick={()=>setMode(value)}>{label}</button>)}</div><div className="study-topic-list"><button className="study-topic" disabled={disabled || !(mode === 'SPACED' ? due.length : cards.length)} onClick={()=>start(topicDeck)}><span><strong>All topics</strong><small>{cards.length} cards · {due.length} due</small></span><Icon name="forward" size={18} /></button>{topics.map((topic: {id:string; title:string; cards:number; due:number})=><button key={topic.id} className="study-topic" aria-label={`Study topic ${topic.title}`} disabled={disabled || !(mode === 'SPACED' ? topic.due : topic.cards)} onClick={()=>start(topicDeck,topic.id)}><span><strong>{topic.title}</strong><small>{topic.cards} cards · {topic.due} due</small></span><Icon name="forward" size={18} /></button>)}</div></section>;
+    return <section className="study-desk study-topic-picker"><button className="study-text-button" onClick={showLibrary}><Icon name="back" size={16} />Study Desk</button><div className="study-heading"><div><span className="eyebrow">CHOOSE A TOPIC</span><h1><EmojiText text={title}/></h1><p>Study one topic, or review the whole deck.</p></div></div><div className="study-mode-switch" aria-label="Topic study mode">{[['SPACED','Spaced repetition'],['NORMAL','Cram']].map(([value,label])=><button key={value} className={mode === value ? 'is-active' : ''} aria-pressed={mode === value} onClick={()=>setMode(value)}>{label}</button>)}</div><div className="study-topic-list"><button className="study-topic" disabled={disabled || !(mode === 'SPACED' ? due.length : cards.length)} onClick={()=>start(topicDeck)}><span><strong>All topics</strong><small>{cards.length} cards · {due.length} due</small></span><Icon name="forward" size={18} /></button>{topics.map((topic: {id:string; title:string; cards:number; due:number})=><button key={topic.id} className="study-topic" aria-label={`Study topic ${topic.title}`} disabled={disabled || !(mode === 'SPACED' ? topic.due : topic.cards)} onClick={()=>start(topicDeck,topic.id)}><span><strong><EmojiText text={topic.title}/></strong><small>{topic.cards} cards · {topic.due} due</small></span><Icon name="forward" size={18} /></button>)}</div></section>;
   }
   const decks = [{ rootId: null, title: "All flashcards", description: "Every flashcard across your outline" }, { rootId: ALL_MCQS, title: "All MCQs", description: "Every MCQ, including questions outside a notebook" }, ...doc.tables.decks.map(deck => ({ rootId: deck.rootId, title: idx.byId.get(deck.rootId)?.text || "Untitled deck", description: "Linked to your notes · updates automatically" }))];
   return <section ref={rootRef} className={`study-desk ${deskDesign.backdrop ? "has-study-background" : ""}`} style={backdropStyle(deskDesign, deskImage)}>
     <div className="study-heading"><div><h1 className="page-title-hidden">Study Desk</h1><p>Your outline, turned into something you remember.</p><a className="study-guide-link" href="/guides/study" target="_blank" rel="noopener noreferrer">Flashcard guide</a><span className="study-guide-divider">·</span><a className="study-guide-link" href="/guides/mcqs" target="_blank" rel="noopener noreferrer">MCQ guide</a></div><Icon name="study" size={34} /></div>
-    <div className="study-shelf-tools"><span>Your notebook shelf</span><div className="study-shelf-buttons"><button className="study-text-button" disabled={disabled} onClick={()=>setFolderEditor({})}><Icon name="folder" size={15}/>New folder</button><button className="study-text-button" disabled={disabled} onClick={() => setReactionEditor(true)}>Quiz reactions</button><button className="study-text-button" disabled={disabled} onClick={() => setCoverEditor({ id: "__desk__", title: "Study Desk" })}><Icon name="image" size={15} />Personalize space</button></div></div>
+    <div className="study-shelf-tools"><span>Your notebook shelf</span><div className="study-shelf-buttons"><button className="study-text-button" disabled={disabled} onClick={()=>setFolderEditor({})}><Icon name="folder" size={15}/>New folder</button><button className="study-text-button" disabled={disabled} onClick={() => setReactionEditor(true)}>Quiz reactions</button>{onDuplicates&&<button className="study-text-button" onClick={onDuplicates}>Find duplicates</button>}<button className="study-text-button" disabled={disabled} onClick={() => setCoverEditor({ id: "__desk__", title: "Study Desk" })}><Icon name="image" size={15} />Personalize space</button></div></div>
     <div className="study-stats"><div><strong><FlowNumber value={all.length} /></strong><span>available cards</span></div><div><strong><FlowNumber value={due.length} /></strong><span>ready to review</span></div><div><strong><FlowNumber value={todayCount} /></strong><span>reviews today</span></div></div>
     {session && session.cursor < queue.length && <div className="study-resume"><div><strong>Pick up where you left off</strong><p>{session.mode === "NORMAL" ? "Cram" : "Spaced repetition"} · <NumberGroup><FlowNumber value={session.reviewed} /> reviewed · <FlowNumber value={queue.length - session.cursor} /> remaining</NumberGroup></p></div><button className="study-primary" disabled={disabled} onClick={resume}>Resume</button></div>}
     <div className="study-controls"><div className="study-mode-switch" aria-label="Study mode">{[["SPACED", "Spaced repetition"], ["NORMAL", "Cram"]].map(([value, label]) => <button key={value} aria-pressed={mode === value} className={mode === value ? "is-active" : ""} onClick={() => setMode(value)}>{label}</button>)}</div><div className="study-filter"><Icon name="search" size={15} /><input aria-label="Find a deck" placeholder="Find a deck" value={filter} onChange={event => setFilter(event.target.value)} /></div></div>
@@ -548,7 +587,7 @@ export function StudyDesk({ doc, assets, disabled, onChange, onLibraryChange, on
         {folder&&filter&&<span className="deck-folder-label"><Icon name="folder" size={12}/>{folder.name}</span>}
         {movable&&Object.values(doc.web.occlusions||{}).some((config:any)=>config.groupId===designId)&&<span className="mcq-deck-badge">IMAGE OCCLUSION</span>}
         {(designId === ALL_MCQS || doc.web.deckTypes?.[designId] === "MCQ") && <span className="mcq-deck-badge">MULTIPLE CHOICE</span>}
-        <div className="study-deck-title"><div className="deck-glyph"><Icon name="study" size={22} /></div><div><h2>{deck.title}</h2><p>{deck.description}</p></div>{deck.rootId && deck.rootId !== ALL_MCQS && <button className="icon-button" title="Open deck source" aria-label={`Open ${deck.title} source`} onClick={() => onSource(deck.rootId!)}><Icon name="link" size={16} /></button>}</div>
+        <div className="study-deck-title"><div className="deck-glyph"><Icon name="study" size={22} /></div><div><h2><EmojiText text={deck.title}/></h2><p>{deck.description}</p></div>{deck.rootId && deck.rootId !== ALL_MCQS && <button className="icon-button" title="Open deck source" aria-label={`Open ${deck.title} source`} onClick={() => onSource(deck.rootId!)}><Icon name="link" size={16} /></button>}</div>
         <div className="study-deck-counts"><NumberGroup><span><FlowNumber value={cards.length} /> cards</span><span className="due-badge"><FlowNumber value={ready.length} /> due</span></NumberGroup></div>
         {(designId === ALL_MCQS || doc.web.deckTypes?.[designId] === "MCQ") && !cards.length && <p className="mcq-notebook-empty">Add a question with four child options, then choose “Turn into MCQ…” or bulk-convert a branch with @Answer markers.</p>}
         <div className="study-deck-actions"><button className="study-primary" disabled={disabled || !count} onClick={() => openDeck(deck.rootId)}>{mode === "NORMAL" ? "Start cram" : "Review due"}<span><FlowNumber value={count} /></span></button><button className="study-text-button" onClick={() => setSettings(settings === designId ? null : designId)}><Icon name="settings" size={14} />Review settings</button></div>

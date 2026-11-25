@@ -1,7 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {build} from 'esbuild';import {JSDOM} from 'jsdom';import {act,createElement,useState} from 'react';import 'fake-indexeddb/auto';
-await build({entryPoints:['src/AiAssist.tsx'],bundle:true,packages:'external',platform:'node',format:'esm',outfile:'tests/.build/ai-panel.mjs',jsx:'automatic',loader:{'.css':'empty'},plugins:[{name:'identity',setup(b){b.onResolve({filter:/^\.\/(CloudAccount|cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?"export const authenticatedUid=()=> 'alice';":"export const CLOUD_API='https://ai.test';"}));}}]});
+await build({entryPoints:{'ai-panel':'src/AiAssist.tsx','ai-bullet-panel':'src/AiBulletDialog.tsx'},bundle:true,packages:'external',platform:'node',format:'esm',outdir:'tests/.build',outExtension:{'.js':'.mjs'},jsx:'automatic',loader:{'.css':'empty'},plugins:[{name:'identity',setup(b){b.onResolve({filter:/^\.\/(CloudAccount|cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./CloudAccount'?"export const authenticatedUid=()=> 'alice';":"export const CLOUD_API='https://ai.test';"}));}}]});
 const dom=new JSDOM('<main class="app"><div id="root"></div></main>',{url:'https://app.test'});for(const k of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','Node','Element','getComputedStyle'])Object.defineProperty(globalThis,k,{value:k==='getComputedStyle'?dom.window[k].bind(dom.window):dom.window[k],configurable:true});globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 const {createRoot}=await import('react-dom/client'),{default:Panel}=await import('./.build/ai-panel.mjs');
+test.after(()=>dom.window.close());
 const user={uid:'alice',getIdToken:async()=> 'token'},doc={tables:{bullets:[{id:'q',text:'Question',parentId:null,position:0}]},web:{}};const draft={id:'q',query:'Question',answer:'',updatedAt:1,ai:{operation:'answer',mode:'general',context:'Question',sourceIds:['q'],sourceTexts:['Question'],complete:false}};
 test('panel waits for Generate, validates previews, supports reviewed MCQs and retains incomplete drafts',async()=>{const root=createRoot(document.getElementById('root')),original=globalThis.fetch;let saved=draft,inserted,requests=0;
  const until=async fn=>{for(let i=0;i<100;i++){if(fn())return;await act(()=>new Promise(r=>setTimeout(r,10)));}assert.fail('Panel did not settle');};
@@ -12,4 +13,33 @@ test('panel waits for Generate, validates previews, supports reviewed MCQs and r
  await act(async()=>{const select=document.querySelector('[aria-label="AI action"]');select.value='mcqs';select.dispatchEvent(new window.Event('change',{bubbles:true}));});await click('Generate');await until(()=>saved.ai.complete&&saved.ai.operation==='mcqs');assert.equal(document.querySelectorAll('input[type=radio]').length,4);await click('Add selected cards');assert.equal(inserted.ai.candidates[0].correct,1);assert.equal(inserted.ai.selected.length,1);
  await act(async()=>{const select=document.querySelector('[aria-label="AI action"]');select.value='answer';select.dispatchEvent(new window.Event('change',{bubbles:true}));});globalThis.fetch=async url=>url.endsWith('/status')?Response.json({enabled:true,remaining:7,appAvailable:true}):new Response('{"type":"text","text":"An interrupted thought"}\n',{headers:{'Content-Type':'application/x-ndjson'}});await click('Generate');await until(()=>saved.answer==='An interrupted thought');assert.equal(saved.ai.complete,false);assert.equal([...document.querySelectorAll('button')].find(b=>b.textContent==='Add answer').disabled,true);
 
- }finally{globalThis.fetch=original;await act(async()=>root.unmount());dom.window.close();}});
+ }finally{globalThis.fetch=original;await act(async()=>root.unmount());}});
+
+test('bulk answer panel keeps completed rows when the shared allowance ends',async()=>{
+ const {default:BulkPanel}=await import('./.build/ai-bullet-panel.mjs');
+ const root=createRoot(document.getElementById('root')),original=globalThis.fetch;
+ const questions=['First?','Second?','Third?'];
+ const requests=[];
+ let saved=[];
+ globalThis.fetch=async(_url,init)=>{
+  const body=JSON.parse(init.body);
+  requests.push(body.question);
+  if(requests.length===2)return Response.json({code:'shared_allowance',error:'Shared allowance used.'},{status:429});
+  return new Response(JSON.stringify({type:'done',result:{text:'First answer.'}})+'\n',{headers:{'Content-Type':'application/x-ndjson'}});
+ };
+ const click=async text=>act(async()=>{const button=[...document.querySelectorAll('button')].find(b=>b.textContent===text);assert.ok(button,text);button.click();});
+ try{
+  await act(async()=>root.render(createElement(BulkPanel,{mode:'answers',user,disabled:false,targets:questions.map((question,i)=>({id:String(i),question})),isCurrent:()=>true,onClose:()=>{},onSave:async rows=>{saved=rows;}})));
+  assert.equal(requests.length,0);
+  await click('Generate answers');
+  for(let i=0;i<100&&!document.body.textContent.includes('Shared allowance used.');i++)await act(()=>new Promise(resolve=>setTimeout(resolve,10)));
+  assert.deepEqual(requests,questions.slice(0,2));
+  assert.equal(document.querySelector('[aria-label="Answer 1"]').value,'First answer.');
+  await click('Add 1 answer');
+  assert.equal(saved.length,1);
+  assert.equal(saved[0].id,'0');
+ }finally{
+  globalThis.fetch=original;
+  await act(async()=>root.unmount());
+ }
+});

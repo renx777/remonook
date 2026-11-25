@@ -59,6 +59,8 @@ jobs:
           else
             cp .env.staging.example .env.staging.local && npm run build:staging
           fi
+      - name: Test native study widget pagination
+        run: bash scripts/test-android-study-widget.sh
       - name: Build and sign the APK
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
@@ -79,6 +81,8 @@ jobs:
           apk=$(ls src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk | head -1)
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | head -3
           mkdir out && cp "$apk" "out/RemoNook-${CHANNEL}_${VERSION}_android.apk"
+      - name: Verify widget resources in the signed APK
+        run: python3 scripts/check-widget-apk.py "out/RemoNook-${CHANNEL}_${VERSION}_android.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: RemoNook-${{ inputs.environment || 'staging' }}-android

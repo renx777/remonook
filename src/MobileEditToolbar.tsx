@@ -20,19 +20,23 @@ export function MobileEditToolbar({editor,disabled,formattingDisabled,blockStyle
  },[mobile]);
  if(!mobile||!editor||editor.isDestroyed)return null;
  const formatDisabled=disabled||formattingDisabled;
+ // A command (indent, outdent, a block style) can re-create this bullet's editor; only refocus the
+ // editor if it is still the live one.
+ const refocus=()=>{if(!editor.isDestroyed)editor.commands.focus();};
  return <div className="mobile-edit-dock" data-keyboard={inset>80} style={{bottom:inset}}>
   <div className="mobile-edit-scroll" role="toolbar" aria-label="Mobile editing tools" onMouseDown={e=>{if(!(e.target instanceof HTMLElement&&e.target.closest('select,input,option')))e.preventDefault();}}>
-   <button type="button" aria-label="Outdent bullet" title="Outdent" disabled={disabled} onClick={()=>{onCommand('outdent');editor.commands.focus();}}><Icon name="outdent" size={20}/></button>
-   <button type="button" aria-label="Indent bullet" title="Indent" disabled={disabled} onClick={()=>{onCommand('indent');editor.commands.focus();}}><Icon name="indent" size={20}/></button>
+   <button type="button" aria-label="Outdent bullet" title="Outdent" disabled={disabled} onClick={()=>{onCommand('outdent');refocus();}}><Icon name="outdent" size={20}/></button>
+   <button type="button" aria-label="Indent bullet" title="Indent" disabled={disabled} onClick={()=>{onCommand('indent');refocus();}}><Icon name="indent" size={20}/></button>
    {onImages&&<label className="mobile-tool-image" aria-label="Add image" title="Add image"><Icon name="image" size={20}/><input type="file" accept="image/*" multiple hidden disabled={disabled} onChange={e=>{const files=[...(e.target.files||[])];e.target.value='';if(files.length)onImages(files);}}/></label>}
+   <button type="button" aria-label="Dictate" title="Dictate" disabled={disabled} onClick={()=>onCommand('action:dictate')}><Icon name="mic" size={20}/></button>
    <span className="mobile-tool-divider"/>
    {(['bold','italic','underline','strike'] as const).map((mark,i)=><button key={mark} type="button" aria-label={['Bold','Italic','Underline','Strikethrough'][i]} aria-pressed={editor.isActive(mark)} disabled={formatDisabled} onClick={()=>editor.chain().focus().toggleMark(mark).run()}><Icon name={mark} size={20}/></button>)}
    <FormattingPalette allowCaret editor={editor} disabled={formatDisabled}/><FormattingPalette allowCaret editor={editor} disabled={formatDisabled} mode="highlight"/><RoughAnnotationPicker editor={editor} disabled={formatDisabled}/>
    <span className="mobile-tool-divider"/>
-   <select aria-label="Mobile text style" value={['h1','h2','h3','quote','divider'].includes(blockStyle)?blockStyle:'paragraph'} disabled={formatDisabled} onChange={e=>{onCommand('block:'+e.target.value);editor.commands.focus();}}><option value="paragraph">Text</option><option value="h1">H1</option><option value="h2">H2</option><option value="h3">H3</option><option value="quote">Quote</option><option value="divider">Divider</option></select>
-   {blockStyle==='divider'&&<><select aria-label="Mobile divider style" value={dividerStyle||'straight'} onChange={e=>{onCommand('dividerStyle:'+e.target.value);editor.commands.focus();}}><option value="straight">Straight</option><option value="squiggly">Squiggly</option><option value="dotted">Dotted</option></select><select aria-label="Mobile divider color" value={dividerColor||''} onChange={e=>{onCommand('dividerColor:'+e.target.value);editor.commands.focus();}}><option value="">Default color</option>{textColors.map(([name,hex])=><option key={hex} value={'#'+hex}>{name}</option>)}</select></>}
-   <button type="button" aria-label="Numbered list" disabled={formatDisabled} onClick={()=>{onCommand('block:numbered');editor.commands.focus();}}><Icon name="numbered" size={19}/></button>
-   <button type="button" aria-label="Task bullet" disabled={disabled} onClick={()=>{onCommand('block:task');editor.commands.focus();}}><Icon name="check" size={19}/></button>
+   <select aria-label="Mobile text style" value={['h1','h2','h3','quote','divider'].includes(blockStyle)?blockStyle:'paragraph'} disabled={formatDisabled} onChange={e=>{onCommand('block:'+e.target.value);refocus();}}><option value="paragraph">Text</option><option value="h1">H1</option><option value="h2">H2</option><option value="h3">H3</option><option value="quote">Quote</option><option value="divider">Divider</option></select>
+   {blockStyle==='divider'&&<><select aria-label="Mobile divider style" value={dividerStyle||'straight'} onChange={e=>{onCommand('dividerStyle:'+e.target.value);refocus();}}><option value="straight">Straight</option><option value="squiggly">Squiggly</option><option value="dotted">Dotted</option></select><select aria-label="Mobile divider color" value={dividerColor||''} onChange={e=>{onCommand('dividerColor:'+e.target.value);refocus();}}><option value="">Default color</option>{textColors.map(([name,hex])=><option key={hex} value={'#'+hex}>{name}</option>)}</select></>}
+   <button type="button" aria-label="Numbered list" disabled={formatDisabled} onClick={()=>{onCommand('block:numbered');refocus();}}><Icon name="numbered" size={19}/></button>
+   <button type="button" aria-label="Task bullet" disabled={disabled} onClick={()=>{onCommand('block:task');refocus();}}><Icon name="check" size={19}/></button>
    <button type="button" aria-label="Mask text" aria-pressed={editor.isActive('remoMask')} disabled={formatDisabled} onClick={()=>editor.chain().focus().toggleMark('remoMask').run()}><Icon name="mask" size={19}/></button>
    <button type="button" aria-label="Inline code" aria-pressed={editor.isActive('code')} disabled={formatDisabled} onClick={()=>editor.chain().focus().toggleMark('code').run()}><Icon name="code" size={19}/></button>
    <button type="button" aria-label="Undo edit" disabled={disabled} onClick={()=>onCommand('undo')}><Icon name="undo" size={19}/></button>

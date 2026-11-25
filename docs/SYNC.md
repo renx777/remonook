@@ -16,6 +16,12 @@ registers. Node location is one atomic parent/position value. Calendar reminders
 study folders and Workdays policies use keyed data; date metadata merges by field.
 Browser-only collapse and calendar-view state stays local.
 
+Traits are ordinary bullets (a `traitsBlock: true` bullet whose children read `Name: value`),
+so they merge like any bullet. Collection view choices (`web.traitViews`) are append-only
+revision maps; the latest revision wins. NookTraits was removed from the app on 25 November 2026,
+but its stored data (`web.nookTraits`, `web.noteProperties`) is kept and keeps syncing unchanged.
+No protocol migration or server deployment is required. See [TRAITS.md](TRAITS.md).
+
 Concurrent rich-text insertions, deletions and formatting converge deterministically.
 A merge can retain both competing words; it cannot infer the writer's intended
 sentence. Node splits currently create/remove text across distinct node records;
@@ -191,3 +197,85 @@ placement tombstones its metadata and connections, leaving note content intact.
 Full web backups retain this domain; Android-compatible export explicitly refuses
 to omit it. The durable outbox, acknowledgement and pending-status rules are
 unchanged. See [JSON-CANVAS.md](JSON-CANVAS.md) for the preview's limits.
+
+## Native study widget reviews
+
+Android home-screen widgets and the desktop study window use an opt-in, private
+presentation cache. They do not open another workspace writer or implement their
+own FSRS scheduler. Each grade first becomes an immutable account/workspace-scoped
+intent with a stable UUID, source fingerprint, question, answer and grade. Native
+inbox files and failed desktop drafts survive process restarts and account changes.
+
+The main app reconciles those intents through the existing study engine and normal
+save/outbox path, after the active editor and pending save are idle. A successful
+review adds `widgetEventId` to its ordinary review log; replay sees that durable
+receipt and cannot grade again. Changed/deleted/incompatible cards preserve the
+original question, answer and grade in ordinary **Recovered widget reviews** notes
+and a receipt in `web.widgetReviewRecoveries`. This metadata and content are kept
+by full backups; legacy Android-compatible export reports that a full backup is
+required when widget receipts exist.
+
+Only after the canonical save succeeds does the bridge publish the updated cache
+and archive the native event. Publishing precedes archive so removal from the
+pending queue cannot reveal an already-graded old cached card. A failed save or
+cache refresh leaves the event pending for retry. Malformed records remain on the
+device and report a neutral issue without blocking later valid records. Archived
+evidence remains in private native storage; changing accounts or disabling widgets
+clears presentation, never the pending inbox.
+
+“Saved on this device · pending app” describes an enqueued widget action, not a
+server acknowledgement. After application, the normal durable cloud outbox and
+server acknowledgement still determine synchronization status. See
+[NATIVE-STUDY-WIDGETS.md](NATIVE-STUDY-WIDGETS.md) and
+[ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for platform boundaries and setup.
+
+Widget presentation generation runs in a dedicated worker. Results are published
+only if the account generation, original document identity and editor readiness
+still match. A concurrent edit, worker failure or timeout leaves native review
+acknowledgements pending; the canonical receipt makes the next retry idempotent.
+
+## Android incoming shares
+
+Android shares and selected-text actions first retain the original payload under
+private native `remonook-shares/inbox`. They do not modify the workspace until the
+user confirms the preview's destination. Before insertion, an immutable native
+claim binds the capture UUID to that account/workspace storage scope. Native
+inbox reads filter claimed captures before returning their text to JavaScript;
+archive acknowledgement verifies that same scope.
+
+The normal note/bookmark mutation stores an `androidShareReceipts` entry alongside
+the inserted data in the canonical save. Its content fingerprint prevents repeat
+insertion after a crash between saving and native acknowledgement; receipts contain
+a hash and note identity, not another full copy of the passage. Failed persistence
+leaves the native payload pending. The UI can retry the same capture and normal
+undo remains available. Full backups preserve the receipt; legacy Android-format
+export requires a full backup when these receipts exist. Native acknowledgement
+archives the original payload after successful canonical persistence. It does not
+acknowledge cloud sync; the normal durable outbox and server acknowledgement remain
+authoritative. No sync conflict controls or shared-state replacement are added.
+
+Dedicated-view outlines are projections of the existing bullets. They neither move
+nor duplicate content. View mode and scope are UI state; all edits use the normal
+editor, persistence, undo and CRDT paths. See
+[ANDROID-SHARING-AND-VIEW-OUTLINES.md](ANDROID-SHARING-AND-VIEW-OUTLINES.md).
+
+
+### Note templates, typed properties and launcher actions
+
+Reusable templates and property data travel in ordinary `web` metadata through
+v3 buckets, backups and the durable outbox. No replacement snapshot is introduced.
+`web.noteTemplates[id].versions[editId]` retains previous template bodies;
+`web.noteProperties` (version 1) stores shared definitions and per-note property
+revision maps. Concurrent revisions keep both values and project a deterministic
+latest value. A property form sends only its dirty fields. Renaming/archiving
+never deletes values, options or earlier revisions. Mirrors resolve to the source
+note's property identity. See [NOTE-TEMPLATES-PROPERTIES.md](NOTE-TEMPLATES-PROPERTIES.md).
+
+Android Focus and text capture use distinct immutable events in the existing
+private widget inbox; reviews retain their original schema and scheduler path.
+Focus actions carry causal previous-event IDs and original session fingerprints;
+changed targets preserve the action as an ordinary recovery note. Captures append
+an idempotent Inbox bullet; colliding content is also retained in recovery notes.
+Neither a local widget action nor a local app save claims cloud acknowledgement.
+The broker archives evidence only after the existing durable save path succeeds.
+See [ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for the exchange details.

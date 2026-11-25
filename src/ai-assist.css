@@ -2,3 +2,13 @@
 .ai-options{border-top:1px solid var(--line);padding-top:8px;font-size:13px}
 .ai-options>summary{cursor:pointer;color:var(--muted);padding:4px 0}
 .ai-options>.field-label{margin-top:8px}
+
+.ai-diagram-preview{margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:auto;max-height:340px}.ai-diagram-preview svg{max-width:100%;height:auto}
+
+/* Hand the request to the person's own connected AI app. */
+.ai-handoff{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:4px 0}
+.ai-handoff>summary{cursor:pointer;font-size:13px;font-weight:600}
+.ai-handoff>p{margin:6px 0;font-size:12px;color:var(--muted);line-height:1.45}
+.ai-handoff-actions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.ai-handoff-actions>button,.ai-handoff-actions>a{font-size:12px;padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--text);text-decoration:none;cursor:pointer}
+.ai-handoff-actions>button:hover,.ai-handoff-actions>a:hover{background:var(--soft)}

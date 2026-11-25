@@ -1,3 +1,4 @@
+import { TraitNameSuggest } from './TraitNameSuggest';
 import {Icon} from './icons';
 import {useVisualTools} from './VisualTools';
 import {NoteTable} from './NoteTable';
@@ -11,6 +12,22 @@ import { SlashMenu } from "./SlashMenu";
 import { CodeRead, codeHighlight, codeLanguages } from "./CodeBlock";
 import { InlineEmojiPicker } from './InlineEmojiPicker';
 import { Editor, Mark, type JSONContent } from "@tiptap/core";
+// A destroyed editor clears its command manager, so `editor.commands` on a stale reference (a
+// toolbar button whose bullet moved or finished editing a moment earlier) threw "Cannot read
+// properties of null (reading 'commands')" and took the app to its recovery screen. chain() and
+// can() already degrade to no-ops in that state; make commands do the same.
+{
+  const described = Object.getOwnPropertyDescriptor(Editor.prototype, "commands");
+  if (described?.get && !(described.get as any).remoSafe) {
+    const original = described.get;
+    const inert: any = new Proxy({}, { get: () => () => false });
+    const safe = function (this: any) {
+      return this.commandManager ? original.call(this) : inert;
+    };
+    (safe as any).remoSafe = true;
+    Object.defineProperty(Editor.prototype, "commands", { ...described, get: safe });
+  }
+}
 import { Fragment, Slice } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
@@ -164,7 +181,7 @@ export function toEditor(node: Node): JSONContent {
   }
   return { type: "doc", content: [{ type: "paragraph", content }] };
 }
-export function fromEditor(json: JSONContent) {
+export function fromEditor(json: JSONContent, paragraphSeparator = "\n") {
   let text = "";
   const spans: any[] = [];
   function walk(n: JSONContent) {
@@ -193,7 +210,7 @@ export function fromEditor(json: JSONContent) {
     } else (n.content || []).forEach(walk);
   }
   (json.content || []).forEach((n, i) => {
-    if (i) text += "\n";
+    if (i) text += paragraphSeparator;
     walk(n);
   });
   const grouped = new Map<string, any[]>();
@@ -206,8 +223,18 @@ export function fromEditor(json: JSONContent) {
   }
   return { text, formatting: encode([...grouped.values()].flat()) };
 }
+function usesLiteralLines(node: Node) {
+  return !!node.codeLanguage || /^(?:```mermaid|\$\$|\\\[)/.test(node.text.trimStart());
+}
+
 export const RichRead = memo(function RichReadContent({ node, search = "", literal = false, connected = true }: { node: Node; search?: string; literal?: boolean; connected?:boolean }) {
   const visual=useVisualTools();
+  // Omit legacy padding in the outline without rewriting saved text or its marks.
+  if (!literal && !usesLiteralLines(node) && /\n/.test(node.text)) {
+    const leading = /^[ \t]*(?:\r?\n[ \t]*)+/.exec(node.text)?.[0].length ?? 0;
+    const trailing = /(?:[ \t]*\r?\n)+[ \t]*$/.exec(node.text)?.index ?? node.text.length;
+    if (leading || trailing < node.text.length) node = sliceNode(node, leading, Math.max(leading, trailing));
+  }
   if(!literal && /^!\[[^\]]*\]\(https?:\/\/[^\s]+\)$/.test(node.text.trim()))return null;
   if(readTable(node.text))return <NoteTable id={node.id} text={node.text}/>;
   if (node.blockStyle === 'divider') {
@@ -366,8 +393,34 @@ function MountedBulletEditor({
     callbacks = useRef({ onChange, onCommand, onOutlinePaste, onImages, onReady, node });
   callbacks.current = { onChange, onCommand, onOutlinePaste, onImages, onReady, node };
   const serialized=useRef<{doc:Editor['state']['doc'];value:ReturnType<typeof fromEditor>}|null>(null);
+  // A bullet is one paragraph (line breaks inside it are hard breaks). Android keyboards often send
+  // Enter as a paragraph split the key handler never sees (while a word is still composing, or as
+  // key code 229); left alone it became a blank line inside the bullet, shown as a gap between
+  // bullets. Turn such a split into what Enter means here: join it back and start a new bullet there.
+  const splitRepair=useRef(0);
+  const queueSplitRepair=(current:Editor)=>{
+    const n=callbacks.current.node;
+    if(study || usesLiteralLines(n)) return;
+    clearTimeout(splitRepair.current);
+    const repair=()=>{
+      if(current.isDestroyed||current.state.doc.childCount<2)return;
+      if(current.view.composing){splitRepair.current=window.setTimeout(repair,50);return;}
+      const doc=current.state.doc,{$from}=current.state.selection;
+      const at=Math.max(1,Math.min(doc.childCount-1,$from.index(0)));
+      let offset=0;for(let i=0;i<at;i++)offset+=doc.child(i).content.size;
+      // Join every paragraph back into one (the text keeps no stray line break).
+      let tr=current.state.tr;
+      for(let i=doc.childCount-1;i>0;i--){let pos=0;for(let j=0;j<i;j++)pos+=tr.doc.child(j).nodeSize;tr=tr.join(pos);}
+      current.view.dispatch(tr);
+      callbacks.current.onChange(node.id,content(current));
+      callbacks.current.onCommand('enter',node.id,offset,offset);
+    };
+    splitRepair.current=window.setTimeout(repair,0);
+  };
+  useEffect(()=>()=>clearTimeout(splitRepair.current),[]);
   const content=(current:Editor)=>{if(serialized.current?.doc===current.state.doc)return serialized.current.value;const value=fromEditor(current.getJSON());serialized.current={doc:current.state.doc,value};return value;};
   const connectionKeys = useRef<((event:KeyboardEvent)=>boolean)|null>(null);
+  const traitKeys = useRef<((event:KeyboardEvent)=>boolean)|null>(null);
   const [emojiEditor, setEmojiEditor] = useState<Editor | null>(null), slashKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null), emojiKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null);
   useEffect(() => {
     if (!host.current) return;
@@ -404,11 +457,30 @@ function MountedBulletEditor({
           role: "textbox",
           "aria-multiline": "true",
         },
-        handleKeyDown: (_view, event) => {
-          if (event.isComposing) return false;
+        handleDOMEvents: {
+          beforeinput: (view, rawEvent) => {
+            const event = rawEvent as InputEvent;
+            if (study || !event.cancelable || event.isComposing || view.composing) return false;
+            const { from, to } = view.state.selection;
+            // Android IMEs can send these edit intents without a usable keydown.
+            const current = callbacks.current.node;
+            const command = event.inputType === 'insertParagraph' && !usesLiteralLines(current)
+              ? 'enter'
+              : event.inputType === 'deleteContentBackward' && from === 1 && from === to
+                ? current.blockStyle === 'divider' ? 'deleteDivider' : 'merge'
+                : null;
+            if (!command) return false;
+            event.preventDefault();
+            callbacks.current.onCommand(command, current.id, from - 1, to - 1);
+            return true;
+          },
+        },
+        handleKeyDown: (view, event) => {
+          if (event.isComposing || view.composing) return false;
           if (connectionKeys.current?.(event)) { event.preventDefault();event.stopPropagation();return true; }
           if (slashKeys.current?.(event)) { event.preventDefault(); event.stopPropagation(); return true; }
           if (emojiKeys.current?.(event)) { event.preventDefault(); event.stopPropagation(); return true; }
+          if (traitKeys.current?.(event)) { event.preventDefault(); event.stopPropagation(); return true; }
           const { from, to } = e.state.selection,
             start = from - 1,
             end = to - 1;
@@ -434,14 +506,13 @@ function MountedBulletEditor({
             command = "moveDown";
           else if (event.altKey && event.key === "ArrowRight") command = "zoomIn";
           else if (event.altKey && event.key === "ArrowLeft") command = "zoomOut";
-          else if (event.key === "ArrowUp" && from === 1 && from === to)
-            command = "previous";
-          else if (
-            event.key === "ArrowDown" &&
-            start === callbacks.current.node.text.length &&
-            from === to
-          )
-            command = "next";
+          else if (!study && !modifier && !event.shiftKey && !event.altKey && from === to &&
+              (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+            const up = event.key === "ArrowUp";
+            if ((up ? from === 1 : to === view.state.doc.content.size - 1) ||
+                (typeof view.dom.getClientRects === "function" && view.endOfTextblock(up ? "up" : "down")))
+              command = up ? "previous" : "next";
+          }
           else if (
             event.key === "Enter" &&
             !event.shiftKey &&
@@ -522,8 +593,16 @@ function MountedBulletEditor({
           return new Slice(Fragment.fromArray(parts), 0, 0);
         },
       },
-      onUpdate: ({ editor }) =>
-        callbacks.current.onChange(node.id, content(editor)),
+      onUpdate: ({ editor }) => {
+        if (!study && !usesLiteralLines(callbacks.current.node) && editor.state.doc.childCount > 1) {
+          // Preserve text if the editor closes before repair, without publishing the
+          // IME's temporary paragraph boundary as a saved blank line.
+          callbacks.current.onChange(node.id, fromEditor(editor.getJSON(), ''));
+          queueSplitRepair(editor);
+          return;
+        }
+        callbacks.current.onChange(node.id, content(editor));
+      },
       onSelectionUpdate: ({ editor: current }) => callbacks.current.onReady(current),
     });
     editor.current = e;
@@ -588,8 +667,9 @@ function MountedBulletEditor({
       ) : (
         <div key="text-editor" ref={host} className="bullet-editor" />
       )}
-      {emojiEditor && !study && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':['pane','date','image','complete','countdown','table','gallery','music','divider','diagram','drawing','mindmap'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
+      {emojiEditor && !study && <SlashMenu editor={emojiEditor} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node)} keyHandler={slashKeys} onChoose={id => onCommand((['link','mirror','backlinks'].includes(id)?'relation:':id.startsWith('ai-')?'action:':['pane','date','image','complete','countdown','table','gallery','music','divider','diagram','drawing','mindmap','dictate','photo'].includes(id)?'action:':'block:') + id, node.id, emojiEditor.state.selection.from-1, emojiEditor.state.selection.to-1)} />}
       {emojiEditor && !study && <InlineConnections editor={emojiEditor} nodeId={node.id} enabled={!disabled&&!node.codeLanguage&&!unsupportedFormatting(node)} keyHandler={connectionKeys}/>}
+      {emojiEditor && !study && !node.codeLanguage && <TraitNameSuggest editor={emojiEditor} nodeId={node.id} keyHandler={traitKeys}/>}
       {emojiEditor && <InlineEmojiPicker editor={emojiEditor} nodeId={node.id} enabled={!disabled && !node.codeLanguage && !unsupportedFormatting(node) && !/^(?:```|\$\$|\\\[)/.test(node.text)} keyHandler={emojiKeys} />}
       {!node.codeLanguage && notationParts(node.text).length > 0 && <div className="notation-preview"><small>Preview · edit source above</small><RichRead node={node} /></div>}
       {unsupportedFormatting(node) && (

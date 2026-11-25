@@ -5,6 +5,31 @@
   "preview_urls": false,
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
-  }
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/reddit-preview",
+      "/api/link-preview"
+    ]
+  },
+  "main": "web/staging.mjs",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1,
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.1
+    },
+    "redact_query_string": true
+  },
+  "ratelimits": [
+    {
+      "name": "LINK_PREVIEW_LIMITER",
+      "namespace_id": "32701",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    }
+  ]
 }

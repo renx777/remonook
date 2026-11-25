@@ -1,0 +1,31 @@
+/* Tana-style coloured bullets: a solid dot with a soft halo in the same hue.
+   Mid-tone hues read on every light and dark theme; the halo is mixed with transparency. */
+[data-bullet-color="red"]    { --bullet-color:#e5484d; }
+[data-bullet-color="orange"] { --bullet-color:#f0762f; }
+[data-bullet-color="yellow"] { --bullet-color:#d4a000; }
+[data-bullet-color="green"]  { --bullet-color:#30a46c; }
+[data-bullet-color="teal"]   { --bullet-color:#12a594; }
+[data-bullet-color="blue"]   { --bullet-color:#3e7bfa; }
+[data-bullet-color="purple"] { --bullet-color:#8e4ec6; }
+[data-bullet-color="pink"]   { --bullet-color:#d6409f; }
+[data-bullet-color="gray"]   { --bullet-color:#8b8d98; }
+
+.outline-row .bullet-dot-btn[data-bullet-color] .bullet-inner-dot,
+.outline-row .bullet-dot-btn[data-bullet-color]:hover .bullet-inner-dot { fill:var(--bullet-color)!important; }
+.outline-row .bullet-dot-btn[data-bullet-color] .bullet-outer-circle { fill:color-mix(in srgb,var(--bullet-color) 26%,transparent)!important; stroke:none!important; opacity:1!important; }
+.outline-row .bullet-dot-btn[data-bullet-color].has-children.is-collapsed .bullet-outer-circle { fill:color-mix(in srgb,var(--bullet-color) 45%,transparent)!important; }
+.outline-row .bullet-dot-btn[data-bullet-color]:hover .bullet-outer-circle { fill:color-mix(in srgb,var(--bullet-color) 40%,transparent)!important; }
+.outline-row .bullet-dot-btn[data-bullet-color] .list-marker,
+.outline-row .bullet-dot-btn[data-bullet-color] .tag-glyph { color:var(--bullet-color); }
+
+.bullet-color-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 10px 10px; }
+.bullet-color-swatch { position:relative; width:22px; height:22px; min-width:22px; padding:0; border-radius:50%; border:0; cursor:pointer;
+  background:radial-gradient(circle,var(--bullet-color) 0 32%,color-mix(in srgb,var(--bullet-color) 28%,transparent) 34% 100%); transition:transform .12s ease; }
+.bullet-color-swatch:hover:not(:disabled) { transform:scale(1.15); }
+.bullet-color-swatch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.bullet-color-swatch[aria-pressed="true"] { box-shadow:0 0 0 2px var(--panel,var(--bg)),0 0 0 4px var(--bullet-color); }
+.bullet-color-swatch.is-clear { display:inline-flex; align-items:center; justify-content:center; background:transparent; color:var(--muted); border:1px dashed var(--line); }
+.bullet-color-swatch:disabled { opacity:.45; cursor:default; }
+.bullet-color-name { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+/* In action search results the swatches sit in a list of full-width buttons. */
+.bullet-search-results .bullet-color-swatch { display:inline-block; margin:4px 6px 4px 0; }

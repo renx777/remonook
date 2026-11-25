@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
 import {aiRoute,aiPrompt,reserveAi,aiStatus} from '../cloud/ai.mjs';import {route,readLimited} from '../cloud/worker.mjs';
-import {validateAiResult} from '../src/ai-contract.mjs';import {aiContext,insertAi,aiSourceChanged} from '../src/ai-assist.mjs';
+import {validateAiResult} from '../src/ai-contract.mjs';import {aiContext,aiBulletTargets,insertBulkAnswers,insertAi,aiSourceChanged} from '../src/ai-assist.mjs';
 import {empty,withNodes} from './.build/data.mjs';import {bullet} from '../src/domain.mjs';import {createMirror} from '../src/relations.mjs';import {studyQueue} from '../src/study.mjs';
 import {registerBooks} from '../src/book-storage.mjs';
 import {outlineUndoState} from '../src/outline-history.mjs';
@@ -9,19 +9,74 @@ const input={operation:'answer',mode:'general',question:'What is learning?',cont
 const req=(body=input)=>new Request('https://sync.test/ai/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:crypto.randomUUID(),...body})});
 test('AI endpoints authenticate, pause closed and stream only completed answers',async()=>{const f=fixture();try{
  await assert.rejects(route(req(),f.env),e=>e.status===401);
- const tasks=[];const response=await aiRoute(req(),f.env,'alice',{readLimited,waitUntil:p=>tasks.push(p)}),events=(await response.text()).trim().split('\n').map(JSON.parse);await Promise.all(tasks);assert.equal(events.at(-1).type,'done');assert.equal(events.at(-1).result.text,'A concise answer.');assert.equal((await aiStatus(f.env,'alice')).remaining,9);
+ const tasks=[];const response=await aiRoute(req(),f.env,'alice',{readLimited,waitUntil:p=>tasks.push(p)}),events=(await response.text()).trim().split('\n').map(JSON.parse);await Promise.all(tasks);assert.equal(events.at(-1).type,'done');assert.equal(events.at(-1).result.text,'A concise answer.');assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ai_requests').get().n,1);
  f.env.AI_ENABLED='false';assert.equal((await aiRoute(req(),f.env,'alice',{readLimited})).status,503);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ai_requests').get().n,1);
 }finally{f.close();}});
-test('atomic quota trigger rejects duplicate, simultaneous, minute, daily and shared-budget overuse',async()=>{const f=fixture(),now=Date.UTC(2026,10,4);try{
- const id=crypto.randomUUID();await reserveAi(f.env,'a',id,140,now);await assert.rejects(reserveAi(f.env,'a',id,140,now),e=>e.status===429||e.status===409);await assert.rejects(reserveAi(f.env,'a',crypto.randomUUID(),140,now),/already running/);
- f.sql.exec("UPDATE ai_requests SET state='finished'");await reserveAi(f.env,'a',crypto.randomUUID(),140,now);f.sql.exec("UPDATE ai_requests SET state='finished'");await assert.rejects(reserveAi(f.env,'a',crypto.randomUUID(),140,now),/next minute/);
- for(let i=2;i<10;i++){await reserveAi(f.env,'a',crypto.randomUUID(),140,now+i*60000);f.sql.exec("UPDATE ai_requests SET state='finished'");}
- await assert.rejects(reserveAi(f.env,'a',crypto.randomUUID(),140,now+20*60000),/10 daily/);await reserveAi(f.env,'a',crypto.randomUUID(),140,now+86400000);
- for(let i=0;i<47;i++)await reserveAi(f.env,'other-'+i,crypto.randomUUID(),140,now);
- await assert.rejects(reserveAi(f.env,'last',crypto.randomUUID(),140,now),/shared AI allowance/);
- assert.equal((await aiStatus(f.env,'a',now+86400000)).remaining,9);
- const columns=f.sql.prepare('PRAGMA table_info(ai_requests)').all().map(c=>c.name);assert.ok(!columns.some(n=>/prompt|response|context/.test(n)));
-}finally{f.close();}});
+test('shared quota allows one account beyond old limits, rejects duplicates and resets daily',async()=>{
+ const f=fixture(),now=Date.UTC(2026,10,4);
+ try{
+  f.sql.exec(`CREATE TRIGGER ai_request_limits BEFORE INSERT ON ai_requests BEGIN
+   SELECT CASE WHEN (SELECT COUNT(*) FROM ai_requests WHERE uid=NEW.uid AND day=NEW.day)>=10 THEN RAISE(ABORT,'ai_daily_limit') END;
+  END;`);
+  const id=crypto.randomUUID();
+  await reserveAi(f.env,'a',id,140,now);
+  f.sql.exec(readFileSync('cloud/ai-testing-quota.sql','utf8'));
+  f.sql.exec(readFileSync('cloud/ai-testing-quota.sql','utf8'));
+  await assert.rejects(reserveAi(f.env,'a',id,140,now),e=>e.status===409);
+  for(let i=1;i<50;i++)await reserveAi(f.env,'a',crypto.randomUUID(),140,now);
+  for(let i=0;i<7;i++)await reserveAi(f.env,'other',crypto.randomUUID(),140,now);
+  await assert.rejects(reserveAi(f.env,'last',crypto.randomUUID(),140,now),e=>e.status===429&&e.code==='shared_allowance');
+  await reserveAi(f.env,'a',crypto.randomUUID(),20,now);
+  assert.equal((await aiStatus(f.env,'a',now)).appAvailable,false);
+  assert.equal((await aiStatus(f.env,'a',now+86400000)).appAvailable,true);
+  const columns=f.sql.prepare('PRAGMA table_info(ai_requests)').all().map(c=>c.name);
+  assert.ok(!columns.some(n=>/prompt|response|context/.test(n)));
+ }finally{f.close();}
+});
+test('generated images require valid input and use the same shared allowance as text',async()=>{
+ const f=fixture(),tasks=[];
+ const image=prompt=>new Request('https://sync.test/ai/image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:crypto.randomUUID(),prompt})});
+ const options={readLimited,waitUntil:p=>tasks.push(p)};
+ const bytes=[255,216,255,217];
+ let runs=0;
+ f.env.AI.run=async(model,input)=>{
+  runs++;
+  assert.match(model,/flux-1-schnell$/);
+  assert.deepEqual(input,{prompt:'A forest sketch',steps:4});
+  return {image:btoa(String.fromCharCode(...bytes))};
+ };
+ try{
+  await assert.rejects(route(image('A forest sketch'),f.env),e=>e.status===401);
+  assert.equal((await aiRoute(image(' '),f.env,'a',options)).status,400);
+  const response=await aiRoute(image(' A forest sketch '),f.env,'a',options);
+  assert.equal(response.headers.get('Content-Type'),'image/jpeg');
+  assert.deepEqual([...new Uint8Array(await response.arrayBuffer())],bytes);
+  await Promise.all(tasks);
+  assert.equal(f.sql.prepare('SELECT state FROM ai_requests').get().state,'succeeded');
+  await reserveAi(f.env,'text',crypto.randomUUID(),7880);
+  const limited=await aiRoute(image('A forest sketch'),f.env,'another',options);
+  assert.equal(limited.status,429);
+  assert.equal((await limited.json()).code,'shared_allowance');
+  assert.equal(runs,1);
+ }finally{f.close();}
+});
+test('bulk answer targets use selected branch roots and deduplicate mirrors',()=>{
+ const nodes=createMirror([bullet('q',{text:'First?'}),bullet('child',{parentId:'q',text:'Context'}),
+  bullet('b',{text:'Second?',position:1}),bullet('mirror',{position:2})],'mirror','q').nodes;
+ assert.deepEqual(aiBulletTargets(nodes,['q','child','b','mirror'],'answers'),[{id:'q',question:'First?'},{id:'b',question:'Second?'}]);
+ assert.deepEqual(aiBulletTargets(nodes,['child','b'],'answers'),[{id:'child',question:'Context'},{id:'b',question:'Second?'}]);
+});
+test('bulk answers append by destination, tolerate repeat saves and reject a stale target atomically',()=>{
+ const before=withNodes(empty(),[bullet('q',{text:'First?',kind:'QUESTION',collapsed:true}),bullet('old',{text:'Existing',parentId:'q'}),bullet('other',{text:'Second?'})]);
+ const entries=[{id:'q',question:'First?',answer:'One',insertion:'answer-a'},{id:'other',question:'Second?',answer:'Two',insertion:'answer-b'}];
+ const next=insertBulkAnswers(before,entries),nodes=next.tables.bullets;
+ assert.deepEqual(nodes.filter(n=>n.kind==='ANSWER').map(n=>[n.text,n.parentId,n.position]),[['One','q',1],['Two','other',0]]);
+ assert.equal(nodes.find(n=>n.id==='q').collapsed,false);
+ assert.equal(nodes.find(n=>n.id==='q').kind,'QUESTION');
+ assert.equal(insertBulkAnswers(next,entries),next);
+ assert.throws(()=>insertBulkAnswers(before,[entries[0],{...entries[1],question:'Changed?'}]),/changed/);
+ assert.deepEqual(before.tables.bullets.map(n=>n.id),['q','old','other']);
+});
 test('bounded prompts reserve maximum output and reject oversized context and fabricated citations',()=>{
  const p=aiPrompt(input);assert.ok(p.reserved>0&&p.reserved<160);assert.throws(()=>aiPrompt({...input,context:'x'.repeat(9000)}),/too large/);
  assert.throws(()=>validateAiResult('answer',{supported:true,text:'Answer',citations:[88]},[{id:1}]),/unsupported/);
@@ -31,7 +86,7 @@ test('bounded prompts reserve maximum output and reject oversized context and fa
 });
 test('truncated provider streams do not become insertable and failed attempts keep their reservation',async()=>{const f=fixture();try{
  f.env.AI.run=async()=>new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'));c.close();}});
- const response=await aiRoute(req(),f.env,'alice',{readLimited}),events=(await response.text()).trim().split('\n').map(JSON.parse);assert.equal(events.at(-1).type,'error');assert.equal((await aiStatus(f.env,'alice')).remaining,9);
+ const response=await aiRoute(req(),f.env,'alice',{readLimited}),events=(await response.text()).trim().split('\n').map(JSON.parse);assert.equal(events.at(-1).type,'error');assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ai_requests').get().n,1);
 }finally{f.close();}});
 test('note context resolves mirrors and bulk selection without including unrelated children',()=>{
  const ns=createMirror([bullet('q',{text:'Question'}),bullet('a',{parentId:'q',text:'Child'}),bullet('other',{text:'Other',position:1}),bullet('m',{position:2})],'m','q').nodes;
@@ -57,6 +112,6 @@ test('undoing an AI MCQ set leaves no orphan flashcards; redo preserves saved re
  const redone=withNodes(outlineUndoState(restored,added),added.tables.bullets);assert.deepEqual(studyQueue(redone,'__all_mcqs__','NORMAL'),['accepted-q0']);assert.deepEqual(studyQueue(redone,null,'NORMAL'),[]);assert.equal(redone.tables.cards.find(c=>c.id==='accepted-q0').lastReviewAtEpochMillis,12345);
 });
 test('web synthesis fails closed on search errors or zero evidence without invoking inference',async()=>{const f=fixture(),original=globalThis.fetch;let runs=0;f.env.AI.run=()=>{runs++;throw Error('Must not run');};try{
- globalThis.fetch=async()=>new Response('<rss><channel></channel></rss>');const response=await aiRoute(req({...input,mode:'web'}),f.env,'a',{readLimited});assert.equal((await response.json()).result.supported,false);assert.equal(runs,0);assert.equal((await aiStatus(f.env,'a')).remaining,10);
+ globalThis.fetch=async()=>new Response('<rss><channel></channel></rss>');const response=await aiRoute(req({...input,mode:'web'}),f.env,'a',{readLimited});assert.equal((await response.json()).result.supported,false);assert.equal(runs,0);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ai_requests').get().n,0);
  globalThis.fetch=async()=>new Response('',{status:503});assert.equal((await aiRoute(req({...input,mode:'web'}),f.env,'a',{readLimited})).status,502);assert.equal(runs,0);
 }finally{globalThis.fetch=original;f.close();}});

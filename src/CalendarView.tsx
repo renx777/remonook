@@ -158,6 +158,7 @@ type CalendarViewProps = {
   onSelectDate: (date: string) => void;
   onAddBullet: (date: string) => void;
   onOpenDate: (date: string) => void;
+  onVisibleRows?: (ids: readonly string[] | null) => void;
   onEdit: (id: string | null) => void;
   onZoom: (id: string) => void;
   onMindmap?: (id: string) => void;
@@ -180,6 +181,7 @@ type CalendarViewProps = {
   showCompleted: boolean;
   readingSize?: number;
   onImages?: (id: string, files: File[]) => void;
+  onImageDrop?: (id:string, image:File[]|string) => void;
   onRemoveMedia?: (id: string) => void;
   onResizeMedia?: (id:string,width:number)=>void;
   onOccludeMedia?: (id:string)=>void;
@@ -192,7 +194,10 @@ export function CalendarView(props: CalendarViewProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   // The right column (month and agenda) can be hidden for a wider day page; remembered per device.
   const [asideOpen, setAsideOpen] = useState(() => { try { return localStorage.getItem('remo-calendar-aside') !== 'hidden'; } catch { return true; } });
-  const toggleAside = () => setAsideOpen(v => { try { localStorage.setItem('remo-calendar-aside', v ? 'hidden' : 'shown'); } catch { /* storage unavailable */ } return !v; });
+  const [compact,setCompact]=useState(()=>window.matchMedia('(max-width:760px)').matches),[mobileAside,setMobileAside]=useState(false);
+  useEffect(()=>{const media=window.matchMedia('(max-width:760px)');const changed=()=>setCompact(media.matches);media.addEventListener?.('change',changed);return()=>media.removeEventListener?.('change',changed);},[]);
+  const asideExpanded=compact?mobileAside:asideOpen,asideId=React.useId();
+  const toggleAside=()=>{if(compact){setMobileAside(v=>!v);return;}setAsideOpen(v=>{try{localStorage.setItem('remo-calendar-aside',v?'hidden':'shown');}catch{}return !v;});};
   const popoverRef = useRef<HTMLDivElement>(null);
   const pillBtnRef = useRef<HTMLButtonElement>(null);
   const stripScrollRef = useRef<HTMLDivElement>(null);
@@ -366,6 +371,7 @@ export function CalendarView(props: CalendarViewProps) {
             showCompleted={props.showCompleted}
             readingSize={props.readingSize}
             onImages={(id,files)=>{if(id===draft.id&&files.length)materializeDraft();props.onImages?.(id,files);}}
+            onImageDrop={props.onImageDrop ? (id,image)=>{if(id===draft.id)materializeDraft();props.onImageDrop?.(id,image);} : undefined}
             onRemoveMedia={props.onRemoveMedia}
             onResizeMedia={props.onResizeMedia}
             onOccludeMedia={props.onOccludeMedia}
@@ -374,6 +380,7 @@ export function CalendarView(props: CalendarViewProps) {
             disabled={props.disabled}
             assets={props.assets}
             media={props.media}
+            onVisibleRows={props.onVisibleRows}
             onEdit={props.onEdit}
             onZoom={id=>id===draft.id&&!created.current?props.onEdit(id):props.onZoom(id)}
             onMindmap={props.onMindmap}
@@ -395,7 +402,7 @@ export function CalendarView(props: CalendarViewProps) {
       </div>
   );
   return (
-    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}><div className={`calendar-view ${props.aside?'cal2':props.autoOpen===false?'has-workdays':''}${props.aside&&!asideOpen?' cal2-aside-hidden':''}`}>
+    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}><div className={`calendar-view ${props.aside?'cal2':props.autoOpen===false?'has-workdays':''}${props.aside&&!asideExpanded?' cal2-aside-hidden':''}`}>
       {props.aside?<><div className="cal2-page">
       <div className="calendar-header-row cal2-header">
         <div className="calendar-title-wrap">
@@ -412,14 +419,14 @@ export function CalendarView(props: CalendarViewProps) {
         <div className="cal2-day-nav">
           <button className="icon-button" title="Previous day" aria-label="Previous day" onClick={() => onSelectDate(addDays(selectedDate, -1))}><Icon name="back" size={16} /></button>
           <button className="icon-button" title="Next day" aria-label="Next day" onClick={() => onSelectDate(addDays(selectedDate, 1))}><Icon name="forward" size={16} /></button>
-          <button className="icon-button cal2-aside-toggle" title={asideOpen ? "Hide month and agenda" : "Show month and agenda"} aria-label={asideOpen ? "Hide month and agenda" : "Show month and agenda"} aria-expanded={asideOpen} onClick={toggleAside}><Icon name={asideOpen ? "sidebarCollapse" : "sidebarExpand"} size={16} /></button>
+          <button className="icon-button cal2-aside-toggle" title={asideExpanded ? "Hide month and agenda" : "Show month and agenda"} aria-label={asideExpanded ? "Hide month and agenda" : "Show month and agenda"} aria-expanded={asideExpanded} aria-controls={asideId} onClick={toggleAside}><Icon name={asideExpanded ? "sidebarCollapse" : "sidebarExpand"} size={16} /><span>Agenda</span></button>
         </div>
         {props.headerExtra}
       </div>
       {props.trackers}
       {notesSection}
       </div>
-      <aside className="cal2-aside" aria-label="Agenda">{props.aside}</aside></>:<>
+      <aside id={asideId} className="cal2-aside" aria-label="Agenda" hidden={!asideExpanded}>{props.aside}</aside></>:<>
       {/* Top Heading */}
       <div className="calendar-header-row">
         <div className="calendar-title-wrap">

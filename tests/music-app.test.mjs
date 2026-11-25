@@ -24,12 +24,12 @@ const key = async value => act(async () => document.querySelector('.tiptap').dis
 
 
 test('collapsed media hides previews; music survives navigation and fullscreen',async()=>{
- const nodes=[bullet('album',{text:'Pictures',collapsed:true}),bullet('pic',{parentId:'album',text:'![](https://example.com/pic.gif)'}),bullet('music',{position:1,text:'Focus music',kind:'QUESTION'}),bullet('track',{parentId:'music',text:'https://music.youtube.com/watch?v=dQw4w9WgXcQ https://youtu.be/abcdefghijk'})];
+ const nodes=[bullet('test-page',{text:'Mixed page'}),bullet('album',{parentId:'test-page',text:'Pictures',collapsed:true}),bullet('pic',{parentId:'album',text:'![](https://example.com/pic.gif)'}),bullet('music',{parentId:'test-page',position:1,text:'Focus music',kind:'QUESTION'}),bullet('track',{parentId:'music',text:'https://music.youtube.com/watch?v=dQw4w9WgXcQ https://youtu.be/abcdefghijk'})];
  let plays=0,pauses=0;(window).YT={Player:class{constructor(el,options){this.options=options;queueMicrotask(()=>options.events.onReady());}playVideo(){plays++;this.options.events.onStateChange({data:1});}pauseVideo(){pauses++;this.options.events.onStateChange({data:2});}getCurrentTime(){return 0;}destroy(){}}};
  let doc=withNodes(empty(),nodes);doc.web.galleryNodes={album:true};doc.web.musicNodes={music:true};await save(null,doc);let app;
  const click=async selector=>act(async()=>document.querySelector(selector).click());
  const text=async label=>act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===label).click());
- try{await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="album"]'));
+ try{await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="album"]'));await click('[data-node-id="test-page"] [aria-label="Zoom into bullet"]');
  assert.equal(document.querySelector('[data-node-id="album"] .bullet-gallery'),null);assert.ok(document.querySelector('[data-node-id="album"] [aria-label="Images in this branch"]'));
  await click('[data-node-id="album"] [aria-label="Expand branch"]');assert.ok(document.querySelector('[data-node-id="album"] .bullet-gallery'));await click('[data-node-id="album"] [aria-label="Collapse branch"]');assert.equal(document.querySelector('[data-node-id="album"] .bullet-gallery'),null);
  assert.ok(document.querySelector('[data-node-id="music"] .text-button .bullet-inline-media [aria-label="YouTube in this branch"]'));assert.equal(document.querySelector('[data-node-id="music"] .row-end [aria-label="YouTube in this branch"]'),null);await click('[aria-label="Play music in Focus music"]');const frame=document.querySelector('.music-floating iframe');assert.ok(frame);assert.match(frame.src,/autoplay=1/);

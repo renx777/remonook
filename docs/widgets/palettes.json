@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "default": "marigold",
+  "roles": {
+    "surface": "Widget background",
+    "surfaceAlt": "Inner panels (revealed answer, list rows), wallpaper-side tint in mockups",
+    "onSurface": "Primary text on surface and surfaceAlt",
+    "muted": "Secondary text on surface (counts, captions, timestamps)",
+    "eyebrow": "Small caps labels on surface (deck name, widget name)",
+    "primary": "Filled primary button (Reveal, Pause) and the Easy grade",
+    "onPrimary": "Text and icons on primary",
+    "accent": "Secondary pill buttons (Answer aloud), progress ring arc on surface, Capture tile",
+    "onAccent": "Text and icons on accent",
+    "hero": "Emphasis tile background (Study count tile, Capture widget)",
+    "onHero": "Text on hero",
+    "heroAccent": "Labels and ring arc on hero",
+    "outline": "Dividers and hairlines (decorative; no text)"
+  },
+  "grades": {
+    "light": {"againBg": "#FDE2DC", "againFg": "#8F2410", "hardBg": "#FFF0C9", "hardFg": "#6B4700", "goodBg": "#DCEFD9", "goodFg": "#23562A"},
+    "dark":  {"againBg": "#4A1E17", "againFg": "#FFB4A6", "hardBg": "#47360B", "hardFg": "#FFD98A", "goodBg": "#1D3B26", "goodFg": "#A8E0B4"},
+    "easy": "Uses primary / onPrimary of the active palette and mode"
+  },
+  "palettes": {
+    "marigold": {
+      "name": "Marigold Ink",
+      "summary": "Warm, awake and optimistic: marigold on deep ink.",
+      "light": {"surface": "#FFFFFF", "surfaceAlt": "#FFF4E0", "onSurface": "#1C1B22", "muted": "#5C5650", "eyebrow": "#A15C00", "primary": "#1C1B22", "onPrimary": "#FFFFFF", "accent": "#F5A524", "onAccent": "#1C1B22", "hero": "#1C1B22", "onHero": "#FFFFFF", "heroAccent": "#F5A524", "outline": "#EADFCB"},
+      "dark":  {"surface": "#1F1D24", "surfaceAlt": "#2A2630", "onSurface": "#F7F2EA", "muted": "#BDB4A8", "eyebrow": "#F5B94A", "primary": "#F5A524", "onPrimary": "#1C1B22", "accent": "#F5A524", "onAccent": "#1C1B22", "hero": "#F5A524", "onHero": "#1C1B22", "heroAccent": "#1C1B22", "outline": "#3A3540"}
+    },
+    "iris": {
+      "name": "Electric Iris",
+      "summary": "Bold and current: violet-blue with a lime spark.",
+      "light": {"surface": "#FFFFFF", "surfaceAlt": "#EBE8FF", "onSurface": "#14122B", "muted": "#55536B", "eyebrow": "#4B3FD6", "primary": "#5B4CF0", "onPrimary": "#FFFFFF", "accent": "#C6F36B", "onAccent": "#14122B", "hero": "#14122B", "onHero": "#FFFFFF", "heroAccent": "#C6F36B", "outline": "#E0DDF5"},
+      "dark":  {"surface": "#17142E", "surfaceAlt": "#221E45", "onSurface": "#F1EFFF", "muted": "#B7B3D6", "eyebrow": "#A99FFF", "primary": "#8E83FF", "onPrimary": "#14122B", "accent": "#C6F36B", "onAccent": "#14122B", "hero": "#4A3BD8", "onHero": "#FFFFFF", "heroAccent": "#C6F36B", "outline": "#2F2A5C"}
+    },
+    "forest": {
+      "name": "Forest & Peach",
+      "summary": "Calm but rich: deep forest green with soft peach.",
+      "light": {"surface": "#FFFFFF", "surfaceAlt": "#E5EFE8", "onSurface": "#17302A", "muted": "#4F6158", "eyebrow": "#2F6B4C", "primary": "#1E4636", "onPrimary": "#FFFFFF", "accent": "#FFB48A", "onAccent": "#1E4636", "hero": "#1E4636", "onHero": "#FFFFFF", "heroAccent": "#FFB48A", "outline": "#D7E5DC"},
+      "dark":  {"surface": "#13261F", "surfaceAlt": "#1C342B", "onSurface": "#EEF5F0", "muted": "#A9BDB1", "eyebrow": "#9FD1B3", "primary": "#FFB48A", "onPrimary": "#1E4636", "accent": "#FFB48A", "onAccent": "#1E4636", "hero": "#24503E", "onHero": "#FFFFFF", "heroAccent": "#FFB48A", "outline": "#284339"}
+    },
+    "graphite": {
+      "name": "Graphite & Coral",
+      "summary": "Minimal and sharp: neutral graphite with one coral accent.",
+      "light": {"surface": "#FFFFFF", "surfaceAlt": "#F3F4F6", "onSurface": "#1F2328", "muted": "#5B6068", "eyebrow": "#C2361D", "primary": "#1F2328", "onPrimary": "#FFFFFF", "accent": "#FF5A3C", "onAccent": "#1F2328", "hero": "#1F2328", "onHero": "#FFFFFF", "heroAccent": "#FF8A73", "outline": "#E3E5E9"},
+      "dark":  {"surface": "#1B1E22", "surfaceAlt": "#262A30", "onSurface": "#F3F4F6", "muted": "#A7ACB4", "eyebrow": "#FF8A73", "primary": "#FF6A4D", "onPrimary": "#1F2328", "accent": "#FF6A4D", "onAccent": "#1F2328", "hero": "#FF5A3C", "onHero": "#1F2328", "heroAccent": "#1F2328", "outline": "#33373D"}
+    }
+  }
+}

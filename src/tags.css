@@ -100,3 +100,9 @@
 .root-nav .sidebar-tag-row > .sidebar-tag > small { flex: none; }
 .outline-row.is-important .tag-glyph { border-radius: 50%; box-shadow: 0 0 0 2px color-mix(in srgb, var(--tag-ring, #e06c66) 60%, transparent); }
 .notes-filter[hidden] { display: none !important; }
+
+/* Tags show only on the bullet being edited (a bullet that is nothing but tags keeps them). Their
+   effects (colours, icons, #views) still apply. */
+.outline-row:not(.selected):not(.tags-only) .note-tag {
+  display: none;
+}

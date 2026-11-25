@@ -1,3 +1,8 @@
+// Property bullets ("Cover: https://…" under a Traits bullet) stay one plain line: no link cards.
+import {isTraitsBlock,parseTraitRow,traitBulletIds,traitTextByNote} from './traits-block.mjs';
+import {droppedImage,mayDropImage} from './image-drop';
+import {BulletCollection,BulletViewSwitch} from './BulletCollection';
+import {bulletView} from './bullet-views.mjs';
 import {LiveTitleInput} from './LiveTitleInput';
 import {ReadingCitation} from './ReadingSources';
 import {snapshotIndex} from './outline-snapshot.mjs';
@@ -15,15 +20,15 @@ import type { Node } from "./data";
 import { formatDateBadge } from "./CalendarView";
 import { MediaContent } from "./MediaContent";
 import { mediaLinks } from "./media.mjs";
-import { imageType } from "./media.mjs";
 import { depthIndent } from "./outline-layout.mjs";
-import {bulletTagStyle,toggleTagCheckbox} from "./tags.mjs";
+import {bulletTagStyle,toggleTagCheckbox,hasTag} from "./tags.mjs";
 import {TagSettingsContext} from "./TagSettingsContext";
 import {marks as markRanges,encode as encodeMarks} from "./domain.mjs";
 import {useContext} from "react";
 import {SearchContext} from "./SearchBox";
 import {searchMatcher} from "./search.mjs";
 import { readerSelection } from "./outline-selection";
+import { bulletColorOf } from "./BulletColors";
 type Props = {
   hideTitle?: boolean;
   /** Size the canvas to its rows so a parent page can scroll it (short outlines only). */
@@ -38,6 +43,7 @@ type Props = {
   showCompleted: boolean;
   readingSize?: number;
   onImages?: (id: string, files: File[]) => void;
+  onImageDrop?: (id:string, image:File[]|string) => void;
   onRemoveMedia?: (id: string) => void;
   onResizeMedia?: (id:string,width:number)=>void;
   onOccludeMedia?: (id:string)=>void;
@@ -46,6 +52,7 @@ type Props = {
   disabled: boolean;
   assets: Map<string, Blob>;
   media: any[];
+  onVisibleRows?: (ids: readonly string[] | null) => void;
   onEdit: (id: string | null) => void;
   onZoom: (id: string) => void;
   onOpenPane?: (id:string)=>void;
@@ -64,6 +71,16 @@ type Props = {
   onDeleteNodes?: (ids: string[]) => void;
   setNotice?: (msg: string) => void;
 };
+const SELECTION_AI = [
+  ['ai-bulk', 'Answer each', 'An answer under every selected bullet'],
+  ['ai-summarize', 'Summarize', 'One summary of the selection'],
+  ['ai-outline', 'Outline', 'Nested notes from the selection'],
+  ['ai-flashcards', 'Flashcards', 'Study cards from the selection'],
+  ['ai-mcqs', 'MCQs', 'Multiple-choice questions from the selection'],
+  ['ai-mindmap', 'Mindmap', 'Branches from the selection'],
+  ['ai-image', 'Generate image', 'An image for this bullet'],
+] as const;
+
 export function OutlineView(p: Props) {
   const {times}=useContext(SearchContext);
   const tagSettings=useContext(TagSettingsContext);
@@ -77,7 +94,7 @@ export function OutlineView(p: Props) {
     }
     return result;
   },[p.nodes]);
-  const matches=useMemo(()=>p.search.trim()?searchMatcher(p.nodes,p.media,times):()=>true,[p.nodes,p.media,times,p.search]);
+  const matches=useMemo(()=>{if(!p.search.trim())return ()=>true;const hidden=traitBulletIds(p.nodes),words=traitTextByNote(p.nodes);const m=searchMatcher(p.nodes,p.media,times,Date.now(),n=>words.get(n.mirrorSourceId||n.id)||'');return (n:Node,q:string)=>!hidden.has(n.id)&&m(n,q);},[p.nodes,p.media,times,p.search,galleryContext?.doc.web.noteProperties,galleryContext?.doc.web.nookTraits]);
   const readingSize = p.readingSize || 16,
     rowHeight = readingSize * 1.5 + 4;
   const idx = useMemo(() => snapshotIndex(p.nodes), [p.nodes]),
@@ -115,6 +132,13 @@ export function OutlineView(p: Props) {
       },
       [idx, p.scope, p.search, p.showCompleted, p.editing,matches,p.rootIds,p.excludedIds],
     );
+  // Collection layouts require #views explicitly.
+  const viewsTagged=!!p.scope&&hasTag(String(idx.byId.get(p.scope)?.text||''),'views');
+  const viewMode=viewsTagged&&galleryContext?bulletView(galleryContext.doc,p.scope!):'outline';
+  const collectionActive=viewMode!=='outline'&&!p.search&&!p.editing;
+  // Publish the complete filtered outline, not just the virtualised viewport.
+  const visibleRowIds=useMemo(()=>collectionActive?[]:rs.map(row=>row.bullet.id),[rs,collectionActive]);
+  useLayoutEffect(()=>{p.onVisibleRows?.(visibleRowIds);return()=>p.onVisibleRows?.(null);},[p.onVisibleRows,visibleRowIds]);
   const scroller = useRef<HTMLDivElement>(null),
     [view, setView] = useState({ top: 0, height: 600, width: 800 }),
     [measure, setMeasure] = useState(0),
@@ -133,6 +157,8 @@ export function OutlineView(p: Props) {
   dragRef.current = drag;
   const moveCallback = useRef(p.onMove);
   moveCallback.current = p.onMove;
+  // AI actions offered for a multi-bullet selection (the bulk bar); answers go under each bullet, the rest use the selection as context.
+  const [aiMenu, setAiMenu] = useState(false), aiMenuRef = useRef<HTMLDivElement>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()),
     selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
@@ -179,9 +205,17 @@ export function OutlineView(p: Props) {
     }
     return groups;
   }, [p.media]);
+  const layoutScope = useRef(p.scope);
+  if (layoutScope.current !== p.scope) {
+    layoutScope.current = p.scope;
+    heights.current.clear();
+  }
+  const [headerHeight,setHeaderHeight]=useState(44);
   const scopedNode = p.scope ? idx.byId.get(p.scope) : null;
+  const headingElement=useRef<HTMLDivElement>(null);
+  useLayoutEffect(()=>{const el=headingElement.current;if(!el)return;const update=()=>{const height=el.getBoundingClientRect().height;if(height>0)setHeaderHeight(value=>Math.abs(value-height)>1?height:value);};update();const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(update);observer?.observe(el);return()=>observer?.disconnect();},[p.scope,collectionActive]);
   const layout = useMemo(() => {
-    let top = p.hideTitle ? 0 : 44;
+    let top = p.hideTitle ? 0 : scopedNode ? headerHeight : 44;
     return rs.map((r: any, i: number) => {
       const available=Math.max(120,view.width-100-depthIndent(r.depth,view.width));
       let height=heights.current.get(r.bullet.id);
@@ -206,10 +240,10 @@ export function OutlineView(p: Props) {
       top += height;
       return item;
     });
-  }, [rs, view.width, measure, mediaByNode, scopedNode, readingSize, p.hideTitle]);
+  }, [rs, view.width, measure, mediaByNode, scopedNode, headerHeight, readingSize, p.hideTitle]);
   const nextTop = layout.length
     ? layout.at(-1)!.top + layout.at(-1)!.height
-      : p.hideTitle ? 0 : 44;
+      : p.hideTitle ? 0 : scopedNode ? headerHeight : 44;
   const total = nextTop + rowHeight;
   useEffect(() => { heights.current.clear(); setMeasure(value => value + 1); }, [readingSize]);
   const visible = layout.filter(
@@ -242,7 +276,8 @@ export function OutlineView(p: Props) {
       window.removeEventListener("resize", measureViewport);
       cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [collectionActive]);
+  useLayoutEffect(()=>{const top=scroller.current?.scrollTop||0;setView(value=>value.top===top?value:{...value,top});},[collectionActive]);
   useLayoutEffect(() => {
     const updateHeights = (elements: Element[]) => {
       let changed = false;
@@ -279,7 +314,7 @@ export function OutlineView(p: Props) {
     container?.addEventListener('load', mediaLoaded, true);
     container?.addEventListener('error', mediaLoaded, true);
     return () => { obs?.disconnect(); cancelAnimationFrame(settledFrame); container?.removeEventListener('load', mediaLoaded, true); container?.removeEventListener('error', mediaLoaded, true); };
-  }, [visible.map((r: any) => r.bullet.id).join("|"), typeof ResizeObserver==='undefined'?p.nodes:null, p.media, p.assets, p.editing, view.width, readingSize]);
+  }, [visible.map((r: any) => r.bullet.id).join("|"), typeof ResizeObserver==='undefined'?p.nodes:null, p.media, p.assets, p.editing, view.width, readingSize, collectionActive, p.scope]);
   useEffect(() => {
     const el = scroller.current,
       r = layout.find((r: any) => r.bullet.id === p.editing);
@@ -290,7 +325,7 @@ export function OutlineView(p: Props) {
   }, [p.editing]);
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = 0;
-  }, [p.scope, p.search]);
+  }, [p.scope, p.search, viewMode]);
   useEffect(() => {
     if (!drag) return;
     const start = { x: drag.x, y: drag.y },
@@ -376,7 +411,7 @@ export function OutlineView(p: Props) {
     selectionAnchor.current = null;
     dragSelectRef.current = null;
     setBoxSelect(false);
-  }, [p.scope, p.search]);
+  }, [p.scope, p.search, viewMode]);
 
   useEffect(() => {
     let scrollFrame = 0;
@@ -474,6 +509,13 @@ export function OutlineView(p: Props) {
       .join("\n");
   };
 
+  useEffect(() => { if (!selectedIds.size) setAiMenu(false); }, [selectedIds]);
+  useEffect(() => {
+    if (!aiMenu) return;
+    const away = (e: MouseEvent) => { if (!aiMenuRef.current?.contains(e.target as HTMLElement)) setAiMenu(false); };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [aiMenu]);
   const runOnSelection = (action: string) => {
     const ids = [...selectedIds];
     if (!ids.length) return;
@@ -529,7 +571,7 @@ export function OutlineView(p: Props) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (selectedIds.size === 0) return;
+      if (collectionActive || selectedIds.size === 0) return;
       const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase?.();
       if (targetTag === "input" || targetTag === "textarea" || (e.target instanceof window.Element && e.target.closest('[contenteditable="true"]'))) {
         if (e.key === "Escape") {
@@ -593,8 +635,13 @@ export function OutlineView(p: Props) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIds, layout, p.onDeleteNodes, p.onCommand, p.disabled]);
+  }, [selectedIds, layout, p.onDeleteNodes, p.onCommand, p.disabled, collectionActive]);
 
+  if(collectionActive&&scopedNode&&galleryContext)return <section ref={scroller} className="outline-scroll collection-page" aria-label={scopedNode.text+' collection'}>
+    <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} onBlur={()=>p.onCommand('action:traits-tag',scopedNode.id,0,0)} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/></div></div>
+    {viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
+    <BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>
+  </section>;
   return (
     <div
       ref={scroller}
@@ -646,10 +693,11 @@ export function OutlineView(p: Props) {
         }}
       >
         {!p.hideTitle && (scopedNode ? (
-          <div className="zoomed-header">
-            <LiveTitleInput key={scopedNode.id}
-              readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text}
+          <div className="zoomed-header" ref={headingElement}>
+            <div className="nook-heading"><LiveTitleInput key={scopedNode.id}
+              readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} onBlur={()=>p.onCommand('action:traits-tag',scopedNode.id,0,0)}
               className="zoomed-title zoomed-title-input"
+              hideTags
               value={scopedNode.text}
               placeholder="Untitled"
               aria-label="Zoomed node title"
@@ -673,6 +721,9 @@ export function OutlineView(p: Props) {
                 }
               }}
             />
+            </div>
+            {viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
+            {viewMode!=='outline'&&p.editing&&<div className="collection-editing-hint">Editing in outline<button type="button" onClick={()=>p.onEdit(null)}>Return to {viewMode==='list'?'compact list':viewMode}</button></div>}
           </div>
         ) : <h1 className="page-title-hidden">My notes</h1>)}
         {!rs.length && (!scopedNode || p.search) && (
@@ -709,11 +760,27 @@ export function OutlineView(p: Props) {
               data-depth={r.depth}
               data-block-style={n.blockStyle || "paragraph"}
               data-question={n.kind === "QUESTION" || undefined}
-              onDragOver={event => { if (!p.disabled && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
-              onDrop={event => {
-                if (p.disabled || !p.onImages) return;
-                const files = [...event.dataTransfer.files].filter(file => imageType(file.name, file.type));
-                if (files.length) { event.preventDefault(); event.stopPropagation(); p.onImages(n.id, files); }
+              onDragOverCapture={event => {
+                if (p.disabled || !p.onImageDrop || !mayDropImage(event.dataTransfer)) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+                event.currentTarget.classList.add('image-drop-target');
+              }}
+              onDragLeave={event => {
+                if (!(event.relatedTarget instanceof window.Node) || !event.currentTarget.contains(event.relatedTarget))
+                  event.currentTarget.classList.remove('image-drop-target');
+              }}
+              onDropCapture={event => {
+                event.currentTarget.classList.remove('image-drop-target');
+                if (!mayDropImage(event.dataTransfer)) return;
+                const image = droppedImage(event.dataTransfer);
+                if (!image) {
+                  if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+                  return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                if (!p.disabled) p.onImageDrop?.(n.id,image);
               }}
               onContextMenu={event => {
                 // Touch long-press belongs to native text selection, not menus.
@@ -721,7 +788,7 @@ export function OutlineView(p: Props) {
                 event.preventDefault();
                 if (!p.disabled) openMenu(n.id, event.currentTarget);
               }}
-              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
+              className={`outline-row ${n.blockStyle === "divider" ? "is-divider" : ""} ${ts?.ring?"is-important":""} ${ts?.classes||""} ${ts?.icon||ts?.question?"has-tag-glyph":""} ${n.mirrorSourceId?"is-mirror":""} ${/^(?:\s*#[\p{L}\p{N}_\/-]+)+\s*$/u.test(n.text) ? "tags-only" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${selected ? "selected" : ""} ${selectedIds.has(n.id) ? "is-multi-selected" : ""} ${drag?.active && drag.id === n.id ? "dragging" : ""} ${drop ? "drop-" + drag.zone : ""}`}
               style={{
                 top: r.top,
                 paddingLeft: depthIndent(r.depth, view.width),
@@ -798,6 +865,7 @@ export function OutlineView(p: Props) {
               {/* Numbers replace the dot while retaining zoom and drag controls. */}
               <button
                 className={`bullet-dot-btn ${n.listType === "ORDERED" ? "is-numbered" : ""} ${childCount > 0 ? "has-children" : "no-children"} ${childCount > 0 && n.collapsed ? "is-collapsed outer-slate" : "is-expanded"}`}
+                data-bullet-color={bulletColorOf(n.bulletColor)}
                 aria-label="Zoom into bullet"
                 title="Click to zoom; drag to move"
                 disabled={p.disabled}
@@ -869,6 +937,7 @@ export function OutlineView(p: Props) {
                   (n.taskState === "DONE" ? " task-done" : "")
                 }
               >
+                
                 {selected ? (
                   <BulletEditor
                     node={n}
@@ -890,6 +959,12 @@ export function OutlineView(p: Props) {
                     aria-label={n.text || "Edit empty bullet"}
                     aria-disabled={p.disabled}
                     onKeyDown={e => {
+                      if (!p.disabled && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+                          (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                        e.preventDefault();
+                        p.onCommand(e.key === 'ArrowUp' ? 'previous' : 'next', n.id, 0, 0);
+                        return;
+                      }
                       if (!p.disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setReaderRange(n.blockStyle === 'divider' ? {id:n.id,anchor:n.text.length,head:n.text.length} : null); p.onEdit(n.id); }
                     }}
                     onClick={(e) => {
@@ -930,6 +1005,7 @@ export function OutlineView(p: Props) {
                 {badges.get(n.id)?.has('youtube')&&<span className="bullet-media-indicator youtube-indicator" title="YouTube in this branch" aria-label="YouTube in this branch"><Icon name="youtube" size={15}/></span>}
                 {badges.get(n.id)?.has('video')&&<span className="bullet-media-indicator" title="Videos in this branch" aria-label="Videos in this branch"><Icon name="play" size={14}/></span>}
                 {mindmapBadges.get(n.id)&&<button className="bullet-mindmap-open" aria-label="Open mindmap" title="Open mindmap" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();p.onMindmap?.(mindmapBadges.get(n.id)![0]);}}><Icon name="mindmap" size={14}/></button>}
+                {galleryContext&&bulletView(galleryContext.doc,n.id)!=='outline'&&<button type="button" className="bullet-collection-open" aria-label={'Open '+bulletView(galleryContext.doc,n.id)+' view for '+n.text} onClick={()=>p.onZoom(n.id)}><Icon name={bulletView(galleryContext.doc,n.id)==='table'?'table':'notes'} size={12}/>{bulletView(galleryContext.doc,n.id)}</button>}
                 {galleryContext?.doc.web.musicNodes?.[n.mirrorSourceId||n.id]&&<button className="bullet-music-play" aria-label={`Play music in ${n.text}`} title="Play music gallery" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();music?.play(musicItems(galleryContext.doc,n.mirrorSourceId||n.id));}}><Icon name="play" size={14}/></button>}
 </span>
                         {n.dueDate && (
@@ -943,8 +1019,9 @@ export function OutlineView(p: Props) {
                     )}
                   </div>
                 )}
+                
                 <ReadingCitation id={n.mirrorSourceId||n.id}/>
-                {!n.collapsed&&<MediaContent onEdit={p.disabled?undefined:()=>p.onEdit(n.id)} nodeId={n.mirrorSourceId||n.id} text={n.text} media={mediaByNode.get(n.mirrorSourceId||n.id) || []} assets={p.assets} onResize={p.disabled ? undefined : p.onResizeMedia} onOcclude={p.disabled ? undefined : p.onOccludeMedia} onRemove={p.disabled ? undefined : p.onRemoveMedia} />}
+                {!n.collapsed&&<MediaContent onEdit={p.disabled?undefined:()=>p.onEdit(n.id)} nodeId={n.mirrorSourceId||n.id} text={isTraitsBlock(idx.byId.get(n.parentId as unknown as string))&&parseTraitRow(n.text)?'':n.text} media={mediaByNode.get(n.mirrorSourceId||n.id) || []} assets={p.assets} onResize={p.disabled ? undefined : p.onResizeMedia} onOcclude={p.disabled ? undefined : p.onOccludeMedia} onRemove={p.disabled ? undefined : p.onRemoveMedia} />}
                 {n.codeLanguage && (
                   <span className="code-label">{n.codeLanguage}</span>
                 )}
@@ -1004,6 +1081,16 @@ export function OutlineView(p: Props) {
           <span className="selection-count">
             {selectedRoots.length} bullet{selectedRoots.length === 1 ? "" : "s"} selected
           </span>
+          <div className="selection-ai" ref={aiMenuRef}>
+            <button type="button" className="selection-btn selection-ai-btn" title="AI actions" aria-label="AI actions for selected bullets" aria-haspopup="menu" aria-expanded={aiMenu} disabled={p.disabled} onClick={()=>setAiMenu(v=>!v)}>
+              <Icon name="star" size={15}/><span>AI</span>
+            </button>
+            {aiMenu&&<div className="selection-ai-menu" role="menu" aria-label="AI actions" onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();setAiMenu(false);}}}>
+              {SELECTION_AI.filter(([id])=>id!=='ai-image'||selectedRoots.length===1).map(([id,label,detail])=><button key={id} type="button" role="menuitem" disabled={p.disabled} onClick={()=>{setAiMenu(false);runOnSelection('action:'+id);}}>
+                <strong>{label}</strong><small>{detail}</small>
+              </button>)}
+            </div>}
+          </div>
           <span className="separator" />
           <div className="selection-segment" role="group" aria-label="Selected list style">
             <button

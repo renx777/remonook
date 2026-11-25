@@ -1,3 +1,4 @@
+import {studyLibrary} from './view-outline-navigation.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -30,7 +31,7 @@ test('folder shelf supports creation, drag moves, accessible moves and both dele
  const select=async(selector,value)=>act(async()=>{const el=document.querySelector(selector);el.value=value;el.dispatchEvent(new window.Event('change',{bubbles:true}));});
  const stored=async()=>{await act(async()=>new Promise(r=>setTimeout(r,250)));return load();};
  try{
- await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('.outline-row'));await textClick('Study Desk');
+ await act(async()=>{app=await import('./.build/app.mjs');});await studyLibrary();await textClick('Study Desk');
  await textClick('New folder');await input('[aria-label="Folder name"]','Learning');await click('[aria-label="Teal folder"]');await input('[aria-label="Find a subject logo"]','phys');await click('[aria-label="Physics logo"]');
  await act(async()=>document.querySelector('.study-library-dialog form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
  assert.ok(document.querySelector('[aria-label="Open Learning folder"]'));

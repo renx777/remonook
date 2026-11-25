@@ -1,10 +1,29 @@
+import {addTraitsBlock,hasTraitsTag,traitsBlocks} from './traits-block.mjs';
+import {NoteMetadataContext} from './NoteMetadataContext';
+import {createProperty,renameProperty,addPropertyOption,setPropertyValues} from './note-properties.mjs';
+import {instantiateNoteTemplate,saveNoteTemplate,archiveNoteTemplate,noteTemplates} from './note-templates.mjs';
+import {localDate} from "./calendar-events.mjs";
+import {resurfacePresentations,resurfacePresentation,widgetFocusAction} from "./widget-suite.mjs";
+import {INBOX_ID} from "./quick-capture.mjs";
+import {ImageTextDialog,type ImageTextSource} from './ImageTextDialog';
+import {fetchDroppedImage} from './image-drop';
+import {saveCardDetails} from './card-details.mjs';
+import {bulletView,setBulletView} from './bullet-views.mjs';
+import {BulletViewSwitch} from './BulletCollection';
+import {IncomingAndroidShare} from './IncomingAndroidShare';
+import {incomingShare} from './android-share.mjs';
 import {retireDesktopOfflineShell} from './desktop';
 import {restoreLocalBook,isBookPath} from './local-books';
 import {AiAssistBoundary} from './AiAssistBoundary';
 import {outlineUndoState} from './outline-history.mjs';
-import {aiContext,insertAi} from './ai-assist.mjs';
+import {aiBulletTargets,aiContext,insertAi,insertBulkAnswers} from './ai-assist.mjs';
+import {joinTranscript} from './dictation-text.mjs';
+import {useMeaning} from './useMeaning';
+import {insertPhotoResult} from './photo-notes.mjs';
+import {MeaningSearch,RelatedNotes,DuplicateCards} from './MeaningPanels';
+import type {AiAnswer,AiQuestion} from './AiBulletDialog';
 import {useResearchDrafts} from './ai-drafts';
-import type {ResearchDraft} from './data';
+import type {ResearchDraft,AiDraft} from './data';
 import {planTrashPurge} from './trash-purge';
 import {cacheArticle,articleAccount} from './article-cache.mjs';
 import {uploadCachedArticles} from './article-api';
@@ -39,6 +58,9 @@ import {DesktopUpdate} from './DesktopUpdate';
 import {DesktopSettings} from './DesktopSettings';
 import {AndroidUpdate} from './AndroidUpdate';
 import {useBackClose} from './back-stack';
+import {useStudyWidget,clearNativeStudyWidget} from './useStudyWidget';
+import {StudyWidget} from './StudyWidget';
+import {NativeStudyWidgetSettings} from './NativeStudyWidgetSettings';
 import {MobileNav} from './MobileNav';
 import {ViewStats} from './ViewStats';
 import {SidebarFooter} from './SidebarFooter';
@@ -77,7 +99,7 @@ import {createMirror,detachMirror,internalLink,sourceId} from "./relations.mjs";
 import {OcclusionEditor} from "./OcclusionEditor";
 import {ReminderTabs,ReminderEditor,useReminderClock,type ReminderTarget} from './CalendarReminders';
 import {CalendarAgenda,MiniMonth,WorkdaysLine} from './CalendarAgenda';
-import {articleSnapshotHashes} from './bookmarks.mjs';
+import {articleSnapshotHashes,bookmarkNote} from './bookmarks.mjs';
 import {CalendarTrackers} from './CalendarTrackers';
 import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
 import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
@@ -91,7 +113,7 @@ import { SelectionFormatting } from "./SelectionFormatting";
 import { textColors } from "./color-palettes";
 import { prepareCoverImage, type DeckDesign } from "./deck-designs";
 import { configureMcq, configureMcqBranch, bulkMcqPlan, validateReactionGif } from "./mcq.mjs";
-import { NOTE_FILTERS, noteCatalog } from "./notes-filter.mjs";
+import { NOTE_FILTERS, noteCatalog, outlineDestination, ordinaryNoteProjection, keepEditedRoot } from "./notes-filter.mjs";
 import { TagHeader } from "./TagHeader";
 import { isTagQuery, sanitizeTagSettings, setTagRegistry, renameTagInNodes, renameTagSettings, resolveDateTags, hasTag, tagKey } from "./tags.mjs";
 import { TagSettingsContext } from "./TagSettingsContext";
@@ -140,14 +162,16 @@ import {
   type Workspace,
   type Node,
   storageAccountKey,
+  accountLocalKey,
   syncOperation,
 } from "./data";
 import { OutlineView } from "./OutlineView";
 import { OutlinePopover, OutlineSidebar } from "./OutlineChrome";
 import { StudyDesk } from "./StudyDesk";
-import { imageType, mediaLink } from "./media.mjs";
-import { EmojiProvider } from './AnimatedEmoji';
+import { imageType, mediaLink, mediaLinks } from "./media.mjs";
+import { EmojiProvider , EmojiText} from './AnimatedEmoji';
 import {BulletMenuBody} from './BulletMenuBody';
+import {BulletColorPicker} from './BulletColors';
 import {useEmojiAssetRepair} from './useEmojiAssetRepair';
 import { EmojiPicker } from './EmojiPicker';
 import {WorkdayMarker,WorkMode} from './WorkMode';
@@ -172,8 +196,13 @@ import "./outline-chrome.css";
 import "./study.css";
 import "./mcq.css";
 import "./mobile.css";
+import "./navigation-refinement.css";
 const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
+const AiBulletDialog = React.lazy(()=>import('./AiBulletDialog'));
+const NO_NODES:Node[]=[];
+const PhotoNotes = React.lazy(()=>import('./PhotoNotes').then(m=>({default:m.PhotoNotes})));
+const DictationPill = React.lazy(()=>import('./Dictation').then(m=>({default:m.DictationPill})));
 const AiAssist = React.lazy(()=>import('./AiAssist'));
 const AiDraftList = React.lazy(()=>import('./AiAssist').then(m=>({default:m.AiDraftList})));
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
@@ -182,6 +211,9 @@ const Dashboard = React.lazy(()=>import('./Dashboard').then(module=>({default:mo
 const CanvasStudio = React.lazy(()=>import('./CanvasStudio'));
 // Canvas: on in every build except production (web, desktop and Android alike), until it is released.
 const canvasEnabled = APP_ENV !== 'production';
+const PropertiesDialog=React.lazy(()=>import('./PkmDialogs').then(m=>({default:m.PropertiesDialog})));
+const TemplatesDialog=React.lazy(()=>import('./PkmDialogs').then(m=>({default:m.TemplatesDialog})));
+const SaveTemplateDialog=React.lazy(()=>import('./PkmDialogs').then(m=>({default:m.SaveTemplateDialog})));
 const MindmapView = React.lazy(()=>import('./MindmapView').then(module=>({default:module.MindmapView})));
 let recoveryDraft: () => { doc: Workspace | null; assets: Map<string, Blob> } = () => ({ doc: null, assets: new Map() });
 async function downloadRecovery() {
@@ -288,6 +320,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [settingsList,setSettingsList] = useState(true),
     [mcqEditing, setMcqEditing] = useState<string | null>(null),
     [bulkMcqEditing, setBulkMcqEditing] = useState<string | null>(null),
+    [pkm,setPkm]=useState<{kind:'properties'|'templates'|'save-template';id:string|null;account:string}|null>(null),
     [menu, setMenu] = useState<string | null>(null),
     menuAnchor = useRef<HTMLElement | null>(null),
     menuSelection = useRef<string[]>([]),
@@ -321,7 +354,16 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const viewTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const cancelView=()=>{if(viewTimer.current)clearTimeout(viewTimer.current);viewTimer.current=null;};
   const publishView=(immediate=false)=>{cancelView();if(!docRef.current)return;const publish=()=>{setDoc(docRef.current);setHistoryTick(t=>t+1);};if(immediate)publish();else startTransition(publish);};
-  const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);setEditingState(value);};
+  const traitsTagSeen=useRef(new Set<string>());// bullets whose typed text contained #traits (text may not be saved yet)
+  const setEditing=(value:string|null)=>{if(viewTimer.current)publishView(true);
+    // Leaving a bullet that now contains #traits turns the tag into a Traits block under it.
+    // Doing it on leave (not while typing) keeps the cursor still and avoids acting on synced text.
+    const prev=editingRef.current;if(prev&&prev!==value)setTimeout(()=>{if(!traitsTagSeen.current.has(prev)&&!hasTraitsTag(docRef.current?.tables.bullets.find(x=>x.id===prev)))return;traitsTagSeen.current.delete(prev);let row='',blank='';void saveTraits(d=>{const cur=d.tables.bullets.find(x=>x.id===prev);if(!hasTraitsTag(cur))return d;const r=addTraitsBlock(d,prev);row=r.row||'';if(!r.block)return r.doc;
+      // Pressing Enter after "#traits" made an empty bullet below; type the first property instead.
+      const next=editingRef.current?r.doc.tables.bullets.find((x:any)=>x.id===editingRef.current):null;
+      if(next&&!next.text&&next.parentId===cur!.parentId&&next.position>cur!.position&&!r.doc.tables.bullets.some((x:any)=>x.parentId===next.id)){blank=next.id;return withNodes(r.doc,r.doc.tables.bullets.filter((x:any)=>x.id!==blank) as Node[]);}
+      return r.doc;}).then(()=>{if(blank&&row&&editingRef.current===blank)focus(row);}).catch(()=>{});},0);
+    setEditingState(value);};
   // Phones: the back button finishes editing (and so brings back the bottom navigation).
   useBackClose(!!editing, () => setEditing(null));
   useDayBaseline(doc, storageAccountKey());
@@ -388,6 +430,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   }, []);
   const showError = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
+  const [mobileSidebar,setMobileSidebar]=useState(false);
+  useEffect(()=>{const media=window.matchMedia("(max-width:760px)");const changed=()=>{if(!media.matches)setMobileSidebar(false);};media.addEventListener?.("change",changed);return()=>media.removeEventListener?.("change",changed);},[]);
   const toggleSidebar = () => {
     sidebarMotion.capture();
     if (readerFocus && tab === "bookmarks" && sidebarOpen) {
@@ -468,7 +512,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const cloud = useCloudSync({...syncHost,user:cloudUser});
   useLocalSync(syncHost);
   useEffect(()=>{const open=(e:Event)=>{const panel=(e as CustomEvent).detail;if(typeof panel==='string')setSettingsPanel(panel);setSettingsList(false);setDialog('settings');};window.addEventListener('remo-open-settings',open);return()=>window.removeEventListener('remo-open-settings',open);},[]);
-  useEffect(()=>setAccountTransitionHandler(async()=>{await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
+  useEffect(()=>setAccountTransitionHandler(async()=>{await clearNativeStudyWidget();await flush();if(failed.current)throw Error('Export your unsaved changes before reloading to change accounts.');}));
   const accountAction = async(signOut=false)=>{try{await flush();if(failed.current)throw Error('Save or export your changes before changing accounts.');if(signOut)await googleSignOut();else await openAccountSignIn();}catch(e){showError(e);}};
   const commit = (next: Workspace, group?: string, record = true, immediate = true) => {
     if (failed.current) {
@@ -506,6 +550,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
+  const nativeWidget=useStudyWidget({resurfaceCards:current=>meaningRef.current?.enabled?resurfacePresentations(current,(id:string)=>meaningRef.current.related(id)):[],resurface:current=>meaningRef.current?.enabled?resurfacePresentation(current,(id:string)=>meaningRef.current.related(id)):null,ready:!!doc&&!failed.current,revision:doc?.revision,getDoc:()=>docRef.current,canApply:()=>!dirty.current&&!failed.current&&!working&&!cloudApplying.current&&!activeEditor?.view.composing,apply:async next=>{if(failed.current)throw Error('Saving needs attention.');commit(next,undefined,false);await flush();if(failed.current)throw Error('Widget review could not be saved.');},onNotice:setNotice});
   useDesktop({ready:!!doc&&!failed.current,getDoc:()=>docRef.current,commit:next=>commit(next),flush,onError:message=>setError(message||null),onNotice:setNotice});
   useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{
     const current=docRef.current;
@@ -541,7 +586,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const changeEditorContent=(id:string,value:{text:string;formatting:string})=>changeBulletContent(id,value,false);
   const [emptyTrashIds,setEmptyTrashIds]=React.useState<string[]>([]);
   const calendarToday=useReminderClock();
-  const [notesFilter,setNotesFilter]=useState('all');
+  const [viewOutlines,setViewOutlines]=useState<Record<string,boolean>>({});
+  const [outlineScopes,setOutlineScopes]=useState<Record<string,string|null>>({});
+  const dedicatedKind=({study:'study',calendar:'calendar',mindmap:'mindmaps',bookmarks:'bookmarks',bookshelf:'docs'} as Record<string,string>)[tab];
+  const dedicatedOutline=!!dedicatedKind&&!!viewOutlines[tab];
+  const notesFilter=tab==='notes'?'notes':dedicatedKind||'notes';
+  const outlinePanes=tab==='notes'?views.panes:[{...views.active,scope:outlineScopes[tab]||null}];
   const [tablePicker,setTablePicker]=useState<string|null>(null);
   const [tagEditor,setTagEditor]=useState<string|null>(null);
   const tagSettings=React.useMemo(()=>sanitizeTagSettings(doc?.web?.tags),[doc?.web?.tags]);
@@ -586,9 +636,37 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setEditing(null);setSearch('');if(view==='mindmap')setMindmapTarget(null);setTab(view);setViewHint({view,at:Date.now()});
   };
   useViewSwipe(tab,()=>tab==='notes'||tab==='study'||(tab==='mindmap'&&!!document.querySelector('.mindmap-library'))||(tab==='bookmarks'&&!!document.querySelector('.bookmark-library'))||(tab==='bookshelf'&&!document.querySelector('.book-reader')),view=>void swipeTo(view));
-  const notesCatalog=React.useMemo(()=>doc&&tab==='notes'?noteCatalog(doc):null,[tab,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots]);
+  const notesCatalog=React.useMemo(()=>doc&&(tab==='notes'||dedicatedOutline)?noteCatalog(doc):null,[tab,dedicatedOutline,doc?.tables.bullets,doc?.tables.decks,doc?.web.mcqs,doc?.web.bookmarkNoteRoots,doc?.web.readingNoteRoots]);
+  const ordinaryProjection=React.useMemo(()=>notesCatalog?ordinaryNoteProjection(notesCatalog,editing):null,[notesCatalog,editing]);
   const notesFilterCounts=React.useMemo(()=>notesCatalog?.counts(views.active.global&&views.active.search?null:views.active.scope)||{},[notesCatalog,views.active.scope,views.active.global,views.active.search]) as Record<string,number>;
-  const notesFilterRoots=React.useMemo(()=>notesCatalog?Object.fromEntries(views.panes.map(pane=>[pane.id,notesCatalog.roots(notesFilter,pane.global&&pane.search?null:pane.scope)||[]])):null,[notesCatalog,notesFilter,views.panes]) as Record<string,string[]>|null;
+  const notesFilterRoots=React.useMemo(()=>notesCatalog?Object.fromEntries(outlinePanes.map(pane=>{
+    if((pane.global&&pane.search)||(tab==='notes'&&pane.search.trim())||pane.scope)return [pane.id,notesCatalog.roots('all',pane.global&&pane.search?null:pane.scope)||[]];
+    if(tab==='notes')return [pane.id,ordinaryProjection?.roots||[]];
+    // A bullet being edited stays in place even if it stops belonging to this view (outdented
+    // out of a mindmap, no longer a flashcard...) until editing ends; then the Moved notice says where.
+    const list=(notesFilter==='study'?notesCatalog.roots('study',pane.scope):notesCatalog.roots(notesFilter,pane.scope))||[];
+    return [pane.id,keepEditedRoot(notesCatalog.idx,list,editing)];
+  })):null,[notesCatalog,ordinaryProjection,notesFilter,views.panes,tab,outlineScopes,search,editing]) as Record<string,string[]>|null;
+  // Leaving a bullet that now belongs to another view: say where it went, with a way to follow it.
+  const [moved,setMoved]=useState<{id:string;to:string;text:string}|null>(null);
+  const lastEdit=React.useRef<{id:string;tab:string;where:string}|null>(null);
+  React.useEffect(()=>{
+    const prev=lastEdit.current,current=docRef.current;
+    // Leaving a bullet: drop a trailing blank line (with any autospace) that an Android keyboard's
+    // Enter left behind, so it can't show as a gap anywhere.
+    if(prev&&prev.id!==editing&&current&&!disabled){
+      const row=current.tables.bullets.find(x=>x.id===prev.id) as Node|undefined;
+      const tail=row&&!row.codeLanguage&&!/^(?:```|\$\$)/.test(row.text)&&row.text.trim()?row.text.match(/[\s\u200b]*\n[\s\u200b]*$/):null;
+      if(row&&tail)changeBulletContent(row.id,{text:row.text.slice(0,row.text.length-tail[0].length),formatting:row.formatting||''},false);
+    }
+    if(prev&&prev.id!==editing&&current){
+      const n=current.tables.bullets.find(x=>x.id===prev.id),to=n?outlineDestination(current,prev.id):null;
+      const viewKind=prev.tab==='notes'?'notes':prev.tab;
+      if(prev.tab&&n&&to&&to!==prev.where&&to!==viewKind&&!(prev.tab==='notes'?scope:outlineScopes[prev.tab]))setMoved({id:n.id,to,text:String(n.text||'').replace(/<[^>]*>/g,'').trim()||'Bullet'});
+    }
+    lastEdit.current=editing&&current?{id:editing,tab:tab==='notes'||dedicatedOutline?tab:'',where:outlineDestination(current,editing)}:null;
+  },[editing]);
+  React.useEffect(()=>{if(!moved)return;const t=setTimeout(()=>setMoved(null),7000);return()=>clearTimeout(t);},[moved]);
   const calendarWorkdays=React.useMemo(()=>workdaysV2(doc||{web:{}}),[doc?.web.workdays]);
   const readCurrentNode=(id:string)=>docRef.current?.tables.bullets.find(n=>n.id===id) as Node|undefined;
   const undo = (redo = false) => {
@@ -615,6 +693,66 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setCaret(pos);
   };
   const openPane=(id:string|null=scope)=>{if(!docRef.current)return;views.add(id,docRef.current.tables.bullets as Node[]);setTab('notes');setEditing(null);setMenu(null);};
+  useEffect(()=>{
+    (window as any).remoOpenWidgetStudy=(link:string)=>{
+      if(!docRef.current||failed.current)return false;
+      try{
+        const url=new URL(link);
+        if(url.protocol!=='remonook:'||url.hostname!=='study')return true;
+        if(url.searchParams.get('scope')&&url.searchParams.get('scope')!==storageAccountKey()){setNotice('Open the original workspace to study this widget’s cards.');return true;}
+        const card=url.searchParams.get('card');
+        const deck=url.searchParams.get('deck');
+        if(card&&!docRef.current.tables.cards.some(c=>c.id===card)) {setNotice('This card is no longer available in this workspace.');return true;}
+        (window as any).remoWidgetStudy={card,deck,voice:url.searchParams.get('voice')==='1'};
+        setTab('study');
+        window.dispatchEvent(new Event('remo-widget-study'));
+        return true;
+      }catch{return true;}
+    };
+    return ()=>{delete (window as any).remoOpenWidgetStudy;};
+  },[]);
+  useEffect(()=>{
+    (window as any).remoOpenWidgetLink=async(link:string,deliveryId?:string)=>{
+      if(!docRef.current||failed.current)return false;
+      try{
+        const url=new URL(link);
+        if(url.protocol!=='remonook:'||!['capture','focus','note','today'].includes(url.hostname))return true;
+        const owner=storageAccountKey();
+        if(url.searchParams.get('scope')&&url.searchParams.get('scope')!==owner){setNotice('Open the original workspace to use this widget.');return true;}
+        await flush();if(failed.current||cloudApplying.current||storageAccountKey()!==owner)return false;
+        const current=docRef.current!;
+        if(url.hostname==='focus'){
+          const next=widgetFocusAction(current,url.searchParams.get('id')||'',url.searchParams.get('cycle')||'',url.searchParams.get('action')||'');
+          if(next!==current){commit(next,undefined,false);await flush();}
+          const focusId=url.searchParams.get('id')||'';const target=next.web.dashboard?.widgets?.[focusId];if(target?.tabId)try{localStorage.setItem(accountLocalKey('dashboard-tab'),target.tabId);}catch{}
+          (window as any).remoWidgetFocus=focusId;setTab('dashboard');setEditing(null);window.dispatchEvent(new Event('remo-widget-focus'));return true;
+        }
+        if(url.hostname==='today'){setTab('calendar');setCalendarDate(localDate(new Date()));setEditing(null);return true;}
+        if(url.hostname==='note'){
+          const id=url.searchParams.get('id');
+          if(!id){setTab('notes');setSearch('');setEditing(null);setNotice('Open search and enable meaning search to revisit your notes.');return true;}
+          const node=current.tables.bullets.find(n=>n.id===id);
+          if(node){setTab('notes');setSearch('');setScope(node.parentId);setEditing(node.id);setCaret(null);}else setNotice('This note is no longer available.');return true;
+        }
+        const mode=url.searchParams.get('mode');
+        if(!['voice','text','photo'].includes(mode||''))return true;
+        if(mode!=='text'&&!authenticatedUid()){setNotice('Sign in to use voice or AI photo capture. Text capture is available offline.');return true;}
+        let nodes=current.tables.bullets as Node[];
+        if(!nodes.some(n=>n.id===INBOX_ID))nodes=[...nodes.map(n=>n.parentId===null?{...n,position:n.position+1}:n),bullet(INBOX_ID,{text:'Inbox'}) as Node];
+        const id=deliveryId||crypto.randomUUID();if(!nodes.some(n=>n.id===id)){nodes=[...nodes,bullet(id,{parentId:INBOX_ID,position:nodes.filter(n=>n.parentId===INBOX_ID).length}) as Node];commit(withNodes(current,nodes),undefined,true);}await flush();
+        if(failed.current||storageAccountKey()!==owner)return false;
+        setTab('notes');setSearch('');setScope(INBOX_ID);setEditing(id);setCaret(0);
+        if(mode==='voice')setDictateTarget({id,account:owner});
+        if(mode==='photo')setPhotoTarget({id,account:owner});
+        return true;
+      }catch(e){showError(e);return true;}
+    };
+    return()=>{delete (window as any).remoOpenWidgetLink;};
+  },[]);
+  const traitSaveQueue=React.useRef<Promise<unknown>>(Promise.resolve());
+  const saveTraits=(update:(d:Workspace)=>Workspace)=>{const owner=storageAccountKey();const run=async()=>{await flush();if(failed.current||owner!==storageAccountKey())throw Error('Open the original workspace and resolve the save issue first. Your draft is kept.');const current=docRef.current;if(!current)throw Error('This workspace is not ready.');const next=update(current);if(next!==current)commit(next,undefined,true);await flush();if(failed.current||owner!==storageAccountKey())throw Error('Saving needs attention. Your draft is kept.');};const result=traitSaveQueue.current.then(run);traitSaveQueue.current=result.catch(()=>{});return result;};
+  const openPkm=(kind:'properties'|'templates'|'save-template',id:string|null)=>{setMenu(null);setEditing(null);setPkm({kind,id,account:storageAccountKey()});};
+  const pkmSave=async(update:(d:Workspace)=>Workspace)=>{const owner=pkm?.account;await flush();if(failed.current||!owner||owner!==storageAccountKey())throw Error('Save your changes and open the original workspace first. Your form is kept.');const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,true);await flush();if(failed.current||owner!==storageAccountKey())throw Error('Saving needs attention. Your draft stays available.');};
   const openBulletMenu = (id: string, anchor?: HTMLElement, selectedIds?: string[]) => {
     if(viewTimer.current)publishView(true);
     menuAnchor.current = anchor || [...document.querySelectorAll<HTMLElement>("[data-node-id]")].find(el => el.dataset.nodeId === id) || null;
@@ -622,14 +760,81 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setViewMenu(false);
     setMenu(id);
   };
-  const openAi=async(id:string,mode:'general'|'web'='general')=>{
+  const openAi=async(id:string,mode:'general'|'web'='general',operation:AiDraft['operation']='answer')=>{
     if(!research.state)return;const selected=menuSelection.current.includes(id)?[...menuSelection.current]:[];try{
       await flush();if(failed.current)throw Error('Save your notes before opening AI assist.');const current=docRef.current!,context=aiContext(current.tables.bullets,id,selected),node=current.tables.bullets.find(n=>n.id===context.id);
       researchOrigin.current=menuAnchor.current;setMenu(null);setEditing(null);
       const prior=research.state.drafts[context.id];
-      if(!prior?.ai)await research.put({id:context.id,query:node?.text||'',answer:prior?.answer||'',updatedAt:Date.now(),ai:{operation:'answer',mode,context:context.context,sourceIds:context.sourceIds,selectionIds:selected,sourceTexts:context.sourceIds.map(id=>current.tables.bullets.find(n=>n.id===id)?.text||''),complete:false}},context.id);
+      // A slash command picks the action; an unfinished draft of another action is reset to it (its text stays as the topic).
+      if(prior?.ai&&operation!=='answer'&&prior.ai.operation!==operation&&!prior.insertedId)await research.put({...prior,query:prior.query||node?.text||'',answer:'',updatedAt:Date.now(),ai:{...prior.ai,operation,mode:'general',complete:false,candidates:[],sources:[],supported:undefined}},context.id);
+      if(!prior?.ai)await research.put({id:context.id,query:node?.text||'',answer:prior?.answer||'',updatedAt:Date.now(),ai:{operation,mode,context:context.context,sourceIds:context.sourceIds,selectionIds:selected,sourceTexts:context.sourceIds.map(id=>current.tables.bullets.find(n=>n.id===id)?.text||''),complete:false}},context.id);
       setResearchTarget(context.id);
     }catch(e){showError(e);}
+  };
+  const [aiBulletTarget,setAiBulletTarget]=useState<(
+    {mode:'image';target:AiQuestion}|{mode:'answers';targets:AiQuestion[]}
+  )&{account:string}|null>(null);
+  // Dictation into one bullet: at the cursor while it is being edited, otherwise appended to its text,
+  // so a transcript that arrives after editing ends is never lost.
+  const editingRef=useRef(editing);editingRef.current=editing;
+  // Meaning search (opt-in): search results by meaning, Related notes and duplicate flashcards.
+  const meaning=useMeaning(cloudUser,(doc?.tables.bullets as Node[]|undefined)||NO_NODES),meaningRef=useRef(meaning);meaningRef.current=meaning;
+  useEffect(()=>{if(isApp())nativeWidget.refreshPresentation();},[meaning.enabled,meaning.version]);
+  const [relatedTarget,setRelatedTarget]=useState<string|null>(null),[duplicatesOpen,setDuplicatesOpen]=useState(false);
+  const [photoTarget,setPhotoTarget]=useState<{id:string;account:string}|null>(null);
+  const checkDuplicateCard=(id:string)=>{const m=meaningRef.current;if(!m.enabled||!m.indexed(id))return;const questions=new Set((docRef.current?.tables.bullets||[]).filter(n=>n.kind==='QUESTION'&&n.id!==id).map(n=>n.id));const hit=m.similarTo(id,questions)[0];const d=hit&&m.describe(hit.id);if(d)setNotice(`A similar flashcard already exists: “${d.title.slice(0,80)}”. Study Desk → Find duplicates lists them.`);};
+  const [dictateTarget,setDictateTarget]=useState<{id:string;account:string}|null>(null);
+  const insertDictation=(id:string,text:string)=>{
+    const e=editor.current,nodes=docRef.current?.tables.bullets||[],target=sourceId(nodes,id);
+    if(e&&!e.isDestroyed&&editingRef.current&&sourceId(nodes,editingRef.current)===target){const add=joinTranscript(e.state.doc.textBetween(0,e.state.selection.from,'\n'),text);if(add)e.chain().insertContent({type:'text',text:add}).run();return;}
+    const n=nodes.find(x=>x.id===target);if(!n)return;const add=joinTranscript(n.text,text);if(add)changeBulletContent(n.id,{text:n.text+add,formatting:n.formatting});
+  };
+  const openBulletAi=async(mode:'image'|'answers',ids:string[])=>{
+    const account=storageAccountKey();
+    setMenu(null);
+    setEditing(null);
+    await flush();
+    if(account!==storageAccountKey()||!docRef.current||failed.current)return;
+    const targets=aiBulletTargets(docRef.current.tables.bullets,ids,mode);
+    if(!targets.length){setNotice('Select a bullet with text first.');return;}
+    setAiBulletTarget(mode==='image'?{account,mode,target:targets[0]}:{account,mode,targets});
+  };
+  const saveBulkAnswers=async(answers:AiAnswer[])=>{
+    const current=docRef.current;
+    if(!current||!aiBulletTarget||aiBulletTarget.account!==storageAccountKey()||failed.current)
+      throw Error('Saving is unavailable. Your answers are still open.');
+    const next=insertBulkAnswers(current,answers);
+    if(next!==current)commit(withNodes(next,next.tables.bullets as Node[]));
+    await flush();
+    const saved=new Set(persisted.current?.tables.bullets.map(node=>node.id));
+    if(failed.current||aiBulletTarget.account!==storageAccountKey()||!answers.every(answer=>saved.has(answer.insertion)))
+      throw Error('Could not confirm saving. Your answers are still open.');
+    setAiBulletTarget(null);
+    setNotice(answers.length===1?'Answer added.':`${answers.length} answers added. Undo removes them together.`);
+  };
+  const saveAiImage=async(blob:Blob,id:string)=>{
+    const current=docRef.current,target=aiBulletTarget;
+    if(!current||target?.mode!=='image'||target.account!==storageAccountKey()||failed.current)
+      throw Error('Saving is unavailable. Download the image to keep a copy.');
+    if(!current.tables.bullets.some(node=>node.id===target.target.id))
+      throw Error('The destination bullet was removed. You can still download the image.');
+    if(!current.tables.media.some(item=>item.id===id)){
+      const fileName=id+'.jpg', path='media/'+fileName;
+      const file=new File([blob],'AI-generated image.jpg',{type:'image/jpeg'});
+      checkUploadFile(file);
+      const nextAssets=new Map(assetsRef.current).set(path,blob);
+      checkAttachmentBudget(nextAssets);
+      const item={id,bulletId:target.target.id,fileName,mimeType:'image/jpeg',sourceUrl:'',credit:file.name,licenseUrl:''};
+      pendingAssets.current.set(path,blob);
+      assetsRef.current=nextAssets;
+      setAssets(nextAssets);
+      commit(withNodes({...current,tables:{...current.tables,media:[...current.tables.media,item]}},current.tables.bullets as Node[]));
+    }
+    await flush();
+    if(failed.current||target.account!==storageAccountKey()||!persisted.current?.tables.media.some(item=>item.id===id))
+      throw Error('Could not confirm saving. Download the image to keep a copy.');
+    setAiBulletTarget(null);
+    setNotice('Image attached to your bullet.');
   };
   const openReaderAi=async(book:any,selection:any,fingerprint:string)=>{
     const id='reader-'+fingerprint;try{if(!research.state)throw Error('Drafts are still loading.');
@@ -650,23 +855,56 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   };
   const navigateAiResult=(id:string)=>{setTab('notes');setSearch('');setScope(docRef.current!.tables.bullets.find(n=>n.id===id)?.parentId||null);setEditing(id);setCaret(null);};
   const closeResearch=()=>{setResearchTarget(null);requestAnimationFrame(()=>{if(researchOrigin.current?.isConnected)researchOrigin.current.focus();});};
-  const attachImages = async (id: string, files: File[]) => {
+  const imageAttachmentBusy=useRef(false);
+  const [imageTextTarget,setImageTextTarget]=useState<(ImageTextSource&{account:string;childId:string})|null>(null);
+  const extractImageText=(source:ImageTextSource)=>{
+    if(working||failed.current)return;
+    setMenu(null);
+    setEditing(null);
+    setImageTextTarget({...source,account:storageAccountKey(),childId:crypto.randomUUID()});
+  };
+  const insertImageText=async(text:string)=>{
+    const target=imageTextTarget,current=docRef.current;
+    if(!target||!current||target.account!==storageAccountKey())throw Error('The workspace changed. Copy the extracted text before closing.');
+    if(failed.current||working)throw Error('Saving needs attention. The extracted text is still here.');
+    const nodes=current.tables.bullets as Node[];
+    const parent=nodes.find(node=>node.id===target.bulletId);
+    if(!parent||target.mediaId&&!current.tables.media.some(item=>item.id===target.mediaId&&item.bulletId===parent.id)||
+        target.url&&!mediaLinks(parent.text).some(link=>link.kind==='image'&&link.href===target.url))
+      throw Error('The source image was removed. Copy the extracted text before closing.');
+    if(!nodes.some(node=>node.id===target.childId)){
+      const expanded=nodes.map(node=>node.id===parent.id?{...node,collapsed:false}:node);
+      const next=move([...expanded,bullet(target.childId,{text})],target.childId,parent.id,index(nodes).children.get(parent.id)?.length||0);
+      commit(withNodes(current,next));
+    }
+    await flush();
+    if(failed.current||target.account!==storageAccountKey())throw Error('Could not confirm saving. The extracted text is still here.');
+    setNotice('Text added as a child bullet.');
+  };
+  const attachImages = async (id: string, input: File[] | string) => {
     id=sourceId(docRef.current!.tables.bullets,id);
-    if (working || failed.current || !files.length) return;
+    if (working || failed.current || imageAttachmentBusy.current || !input.length) return;
+    const account=storageAccountKey();
+    imageAttachmentBusy.current=true;
     setWorking(true);
+    const controller=new AbortController();
+    const timeout=typeof input==='string'?setTimeout(()=>controller.abort(),15000):null;
     try {
+      const files=typeof input==='string'?[await fetchDroppedImage(input,controller.signal)]:input;
       files.forEach(checkUploadFile);
       const accepted = files.map(file => ({ file, mime: /^(video\/(mp4|webm|ogg)|audio\/[a-zA-Z0-9.+-]+)$/.test(file.type)?file.type:imageType(file.name, file.type) }));
       if (accepted.some(({ file, mime }) => !mime || file.size > 2 * 1024 * 1024))
         throw Error("Choose images, audio or MP4/WebM/OGG videos up to 2 MB each. Unsupported previews keep their original file for download.");
-      const nextAssets = new Map(assetsRef.current), added = [];
+      const blobs = new Map<string,Blob>(), added = [];
       for (const { file, mime } of accepted) {
         const mediaId = crypto.randomUUID(), extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "img",
           fileName = mediaId + "." + extension,
           blob = new Blob([await file.arrayBuffer()], { type: mime });
-        nextAssets.set("media/" + fileName, blob);
+        blobs.set("media/" + fileName, blob);
         added.push({ id: mediaId, bulletId: id, fileName, mimeType: mime, sourceUrl: "", credit: file.name, licenseUrl: "" });
       }
+      if (account!==storageAccountKey()) return;
+      const nextAssets=new Map([...assetsRef.current,...blobs]);
       checkAttachmentBudget(nextAssets);
       const current = docRef.current!;
       if (!current.tables.bullets.some(node => node.id === id)) throw Error("This bullet no longer exists.");
@@ -676,8 +914,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       commit(withNodes({ ...current, tables: { ...current.tables, media: [...current.tables.media, ...added] } }, current.tables.bullets as Node[]));
       setMenu(null);
       setNotice(`${added.length} media file${added.length === 1 ? "" : "s"} added`);
-    } catch (error) { showError(error); }
-    finally { setWorking(false); }
+    } catch (error) {
+      showError(controller.signal.aborted?Error('The image download timed out. Save the picture, then drop the file.'):error);
+    } finally {
+      if(timeout!==null)clearTimeout(timeout);
+      imageAttachmentBusy.current=false;
+      setWorking(false);
+    }
   };
   // Canvas image cards: store image files like bullet images (same limits and sync) and return
   // their media records; the caller adds the records, the bullet and the card in one change.
@@ -861,6 +1104,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (!search.trim()) return;
     commit({ ...current, web: { ...current.web, starredSearches: saved.includes(search.trim()) ? saved.filter(value => value !== search.trim()) : [...saved, search.trim()] } });
   };
+  const outlineRows=useRef(new Map<string,readonly string[]>());
+  const reportOutlineRows=(key:string,ids:readonly string[]|null)=>{if(ids)outlineRows.current.set(key,ids);else outlineRows.current.delete(key);};
   const add = (customParent?: any) => {
     const mirrorParent=typeof customParent==="string"?docRef.current!.tables.bullets.find(n=>n.id===customParent):null;
     const mirrorContext=mirrorParent?.mirrorRootId||docRef.current!.tables.bullets.find(n=>n.id===editing)?.mirrorRootId;
@@ -1012,8 +1257,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     try {const result=createMirror(docRef.current!.tables.bullets,at,source);mutate(()=>result.nodes);focus(result.id);setConnectionTarget(null);setMenu(null);setNotice('Mirror created. Edits update every location.');}catch(error){showError(error);}
   };
   const bulletTargets = (id: string, selectedIds?: string[]) => new Set((selectedIds?.includes(id) ? selectedIds : menu === id ? menuSelection.current : [id]).map(target => sourceId(docRef.current!.tables.bullets, target)));
-  const command = (action: string, id: string, start: number, end: number, selectedIds?: string[]) => {
+  const command = (action: string, id: string, start: number, end: number, selectedIds?: string[], paneId=views.activePane) => {
+    if(action==='block:question'||action==='question')setTimeout(()=>checkDuplicateCard(id),300);
+    const renderedIds=outlineRows.current.get(tab+':'+paneId);
+    const displayId=id;
     const targets = bulletTargets(id, selectedIds);
+    // Leaving a zoomed page title that now holds #traits: same as leaving a bullet with it.
+    if(action==='action:traits-tag'){const n=docRef.current?.tables.bullets.find(x=>x.id===id);if(hasTraitsTag(n))void saveTraits(d=>hasTraitsTag(d.tables.bullets.find(x=>x.id===id))?addTraitsBlock(d,id).doc:d).catch(showError);return;}
+    if(action.startsWith('view:')){commit(setBulletView(docRef.current!,id,action.slice(5)));setMenu(null);setEditing(null);navigateTo(id);return;}
     if (action.startsWith('list:')) {
       const listType = action.slice(5);
       if (['NONE','UNORDERED','ORDERED'].includes(listType)) mutate(ns => ns.map(node => targets.has(node.id) ? {...node,listType} : node));
@@ -1032,6 +1283,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       });
       return;
     }
+    if(action==='action:ai-bulk'){void openBulletAi('answers',selectedIds||[id]);return;}
+    if(action==='action:photo'){if(!cloudUser){setNotice('Sign in to read photos with AI.');return;}setPhotoTarget({id:sourceId(docRef.current!.tables.bullets,id),account:storageAccountKey()});return;}
+    if(action==='action:dictate'){if(!cloudUser){setNotice('Sign in to dictate.');return;}setDictateTarget({id,account:storageAccountKey()});return;}
+    if(action==='action:ai-image'){void openBulletAi('image',[id]);return;}
+    // Answer each child of this bullet as its own question (the slash command for bulk answers).
+    if(action==='action:ai-answer-children'){const kids=(docRef.current?.tables.bullets||[]).filter(n=>n.parentId===sourceId(docRef.current!.tables.bullets,id)&&!n.deleted).sort((a,b)=>a.position-b.position).map(n=>n.id);if(!kids.length){setNotice('Add questions as child bullets first.');return;}void openBulletAi('answers',kids);return;}
+    if(action.startsWith('action:ai-')){const operation=action.slice('action:ai-'.length) as AiDraft['operation'];if(['list','outline','mindmap','diagram','answer','summarize','explain','flashcards','mcqs'].includes(operation)){if(selectedIds?.length)menuSelection.current=selectedIds;void openAi(id,'general',operation);}return;}
     if(action==='action:diagram'){openDiagram({id});return;}
     if(action==='action:drawing'){openDrawing(id);return;}
     if(action==='action:pane'){openPane(id);return;}
@@ -1070,7 +1328,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       if(!rootSplitHere)id=instance.mirrorSourceId;
     }
 
-    const outlineScope = tab === "calendar" ? `journal-${calendarDate}` : scope;
+    const outlineScope = dedicatedOutline ? outlineScopes[tab]||null : tab === "calendar" ? `journal-${calendarDate}` : scope;
     if (
       ["enter", "merge"].includes(action) &&
       unsupportedFormatting(
@@ -1097,7 +1355,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (action === "deleteDivider") {
       const current = docRef.current!,
         ns = current.tables.bullets as Node[],
-        rs = rows(ns, outlineScope),
+        byId = index(ns).byId,
+        rs = renderedIds ? renderedIds.map(key=>({bullet:byId.get(byId.get(key)?.mirrorSourceId||key)})).filter(row=>row.bullet) : rows(ns, outlineScope),
         at = rs.findIndex((r: any) => r.bullet.id === id);
       if (at < 0) return;
       const targetBullet = at > 0 ? rs[at - 1].bullet : rs[1]?.bullet;
@@ -1167,11 +1426,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if (action === "previous" || action === "next") {
-      const visible = rows(docRef.current!.tables.bullets as Node[], outlineScope),
-        at = visible.findIndex((row: any) => row.bullet.id === id),
-        target = visible[at + (action === "previous" ? -1 : 1)]?.bullet;
+      const all=docRef.current!.tables.bullets as Node[],byId=index(all).byId;
+      const visible = renderedIds?renderedIds.map(key=>({bullet:byId.get(key)})).filter(row=>row.bullet):rows(all, outlineScope),
+        at = visible.findIndex((row: any) => row.bullet.id === displayId),
+        target = at < 0 ? null : visible[at + (action === "previous" ? -1 : 1)]?.bullet;
       if (target)
-        commandFocus(target.id, action === "previous" ? target.text.length : 0);
+        focus(target.id, action === "previous" ? target.text.length : 0);
       return;
     }
     if (action === "moveUp" || action === "moveDown") {
@@ -1230,6 +1490,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       return;
     }
     if (action === "indent" || action === "outdent") {
+      const byId=index(docRef.current!.tables.bullets).byId;
+      const visibleSources=renderedIds?new Set(renderedIds.map(key=>byId.get(key)?.mirrorSourceId||key)):null;
       const roots = [...targets].filter(target => {
         const parent = index(docRef.current!.tables.bullets).byId.get(target)?.parentId;
         return parent === null || parent === undefined || !targets.has(parent);
@@ -1240,7 +1502,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           const node = index(out).byId.get(target);
           if (!node || node.mirrorRootId) continue;
           if (action === "outdent" && tab === "calendar" && node.parentId === outlineScope) continue;
-          out = (action === "indent" ? indent : outdent)(out, target);
+          out = action === "indent" ? indent(out,target,visibleSources) : outdent(out,target);
         }
         return out;
       });
@@ -1270,7 +1532,19 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           command('deleteDivider', id, start, end);
           return;
         }
-        const result = merge(ns, id, outlineScope);
+        const previousAt=renderedIds?.indexOf(displayId);
+        const previousId=previousAt===undefined?undefined:previousAt>0?sourceId(ns,renderedIds![previousAt-1]):null;
+        const firstVisible = previousAt === 0 || (previousAt === undefined && rows(ns, outlineScope)[0]?.bullet.id === id);
+        if (firstVisible && targetBullet && !instance?.mirrorSourceId && !targetBullet.text.trim() &&
+            targetBullet.kind === 'NOTE' && !targetBullet.mindmap && !targetBullet.journalDate &&
+            !index(ns).children.get(id)?.length && !current.tables.media.some(m => m.bulletId === id) &&
+            !current.tables.decks.some(d => d.rootId === id)) {
+          remove(id);
+          const nextId = renderedIds?.[1] ?? (renderedIds ? undefined : rows(ns, outlineScope)[1]?.bullet.id);
+          if (nextId && !working) focus(nextId, 0);
+          return;
+        }
+        const result = merge(ns, id, outlineScope, previousId);
         if (result) {
           const withMedia = {
             ...current,
@@ -1528,12 +1802,28 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const menuBulletKind = new Set(menuTargets.map(node => node.kind)).size > 1 ? '' : menuNode?.kind;
   const starred: string[] = Array.isArray(doc.web.starredNodes) ? doc.web.starredNodes : [],
     savedSearches: string[] = Array.isArray(doc.web.starredSearches) ? doc.web.starredSearches : [];
+  // Adding at the top of a view's outline: a flashcard in Study Desk, a mindmap in Mindmaps, an entry
+  // for the shown day in Calendar; Bookmarks and Bookshelf add through their own libraries.
+  const addInView = () => {
+    if(tab==='calendar'){const id=addCalendarBullet(calendarDate);const parent=docRef.current!.tables.bullets.find(n=>n.id===id)?.parentId;setOutlineScopes(value=>({...value,calendar:parent||null}));return;}
+    if(tab==='study'||tab==='mindmap'){const id=crypto.randomUUID();mutate(ns=>[...ns,bullet(id,{kind:tab==='study'?'QUESTION':'NOTE',mindmap:tab==='mindmap',position:Math.max(-1,...ns.filter(n=>!n.parentId).map(n=>n.position))+1})]);focus(id,0);return;}
+    setViewOutlines(value=>({...value,[tab]:false}));setNotice(tab==='bookmarks'?'Add a link in the bookmark library.':'Add a PDF or EPUB in the bookshelf.');
+  };
+  // Opens a bullet on its page in the view it belongs to, with the cursor in it.
+  const revealBullet = (id: string) => {
+    const current=docRef.current!,n=current.tables.bullets.find(x=>x.id===id);if(!n)return;
+    const to=outlineDestination(current,id),parent=n.parentId||null;
+    setDialog(null);setSearch('');setTab(to);
+    if(to==='notes')setScope(parent);
+    else{setViewOutlines(value=>({...value,[to]:true}));setOutlineScopes(value=>({...value,[to]:parent&&outlineDestination(current,parent)===to?parent:null}));}
+    setTimeout(()=>focus(id,0),80);
+  };
   const navigateTo = (id: string | null) => {
-    setTab("notes");
-    setScope(id);
-    setEditing(null);
-    setSearch("");
-    setDialog(null);
+    const destination=id?outlineDestination(docRef.current!,id):'notes';
+    setTab(destination);
+    if(destination==='notes')setScope(id);
+    else{setViewOutlines(value=>({...value,[destination]:true}));setOutlineScopes(value=>({...value,[destination]:id}));}
+    setEditing(null);setSearch('');setDialog(null);
   };
   const theme =
     (ap.theme === "System"
@@ -1574,27 +1864,20 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setMenu(null);
     focus(id, prefix.length);
   };
-  return (
-    <GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing}}>
-    <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setNotesFilter('all');setSearch(tag);},onMirror:mirrorHere}}>
-    <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
-      emojiTarget.current = { id, start, end };
-      await chooseEmoji(item, true);
-    }}>
-    <div className="app" data-theme={theme} data-page={tab} data-editing={!!selected && (tab==='notes'||tab==='calendar')} style={style}>
+  const renderSidebar=(mobile=false)=>(
       <aside
-        className={`sidebar ${sidebarShown ? "" : "collapsed"}`}
-        aria-hidden={!sidebarShown}
-        inert={!sidebarShown}
+        className={`sidebar ${mobile ? "mobile-sidebar-content" : sidebarShown ? "" : "collapsed"}`}
+        aria-hidden={!mobile&&!sidebarShown}
+        inert={!mobile&&!sidebarShown}
       >
         <div className="sidebar-inner">
           <div className="sidebar-header sidebar-workspace-row">
             <WorkspaceSwitcher/>
             <button
               className="icon-button sidebar-toggle-btn"
-              aria-label="Collapse sidebar"
+              aria-label={mobile?"Close navigation":"Collapse sidebar"}
               title="Collapse sidebar (Ctrl+\)"
-              onClick={toggleSidebar}
+              onClick={()=>mobile?setMobileSidebar(false):toggleSidebar()}
             >
               <Icon name="sidebarCollapse" />
             </button>
@@ -1629,17 +1912,30 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               </button>
             ))}
           </nav>
-          <OutlineSidebar nodes={nodes} scope={scope} starred={starred} savedSearches={savedSearches} search={search} tagSettings={tagSettings} onEditTag={setTagEditor} disabled={disabled} onNavigate={navigateTo} onSearch={query => { navigateTo(null); setNotesFilter('all'); setSearch(query); }} onAdd={parent => { setTab("notes"); setScope(parent); setSearch(""); add(parent); }} />
+          <OutlineSidebar nodes={nodes} scope={scope} starred={starred} savedSearches={savedSearches} search={search} tagSettings={tagSettings} onEditTag={setTagEditor} disabled={disabled} onNavigate={navigateTo} onSearch={query => { navigateTo(null);  setSearch(query); }} onAdd={parent => { setTab("notes"); setScope(parent); setSearch(""); add(parent); }} />
           {doc&&<NowBar placement="sidebar" doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>}
           <SidebarFooter signal={cloud.signal} signedIn={!!cloudUser} failed={failed.current} trashCount={doc.tables.trash.length} onSync={()=>cloud.sync()} onTrash={()=>setDialog("trash")} onSettings={()=>setDialog("settings")} onHelp={()=>setDialog("help")} onShortcuts={()=>setDialog("shortcuts")} onHome={async()=>{await flush();if(failed.current){showError(Error('Save or export your changes before returning home.'));return;}window.location.hash='home';}}/>
         </div>
       </aside>
+  );
+  return (
+    <NoteMetadataContext.Provider value={{doc,disabled,save:saveTraits,scope:storageAccountKey(),studying:tab==='study',openNote:id=>navigateTo(id),properties:id=>openPkm('properties',id),templates:id=>openPkm('templates',id)}}><GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onPreviewDetails:disabled?undefined:async(id,url,details)=>{if(failed.current)throw Error('Saving needs attention. Your details remain in this form.');const next=saveCardDetails(docRef.current!,id,url,details);if(next!==docRef.current)commit(next);await flush();if(failed.current)throw Error('Could not save on this device. Your details remain in this form.');},onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing,ocr:extractImageText}}>
+    <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
+    <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
+      emojiTarget.current = { id, start, end };
+      await chooseEmoji(item, true);
+    }}>
+    <div className="app" data-theme={theme} data-page={tab} data-outline={dedicatedOutline} data-editing={!!selected && (tab==='notes'||tab==='calendar'||dedicatedOutline)} style={style}>
+      {renderSidebar()}
+      {mobileSidebar&&<Dialog title="Navigation" className="mobile-sidebar-dialog" onClose={()=>setMobileSidebar(false)}><div onClick={event=>{if((event.target as HTMLElement).closest('.sidebar-nav button,.outline-sidebar>button,.outline-sidebar .sidebar-tag,.outline-sidebar .sidebar-tag-more,.sidebar-footer [aria-label="Settings"],.sidebar-footer [aria-label^="Trash"],.sidebar-help-menu [role="menuitem"]'))setMobileSidebar(false);}}>{renderSidebar(true)}</div></Dialog>}
+
       {isDesktop()&&<DesktopUpdate flush={flush}/>}
       {isMobileApp()&&<AndroidUpdate/>}
       {doc&&<BreakOverlay doc={doc} storageKey={storageAccountKey()} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}}/>}
       {isApp()&&<LocalSyncPairing/>}
       <main ref={sidebarMotion.mainRef}>
         <header className={`topbar${scope ? " has-scope" : ""}`}>
+<button className="icon-button mobile-sidebar-trigger" aria-label="Open navigation" aria-haspopup="dialog" aria-expanded={mobileSidebar} onClick={()=>{setEditing(null);setMobileSidebar(true);}}><Icon name="sidebar" size={18}/></button>
           <button
             className={`icon-button sidebar-toggle-btn topbar-sidebar-toggle ${sidebarShown ? "is-open" : "is-collapsed"}`}
             aria-label={sidebarShown ? "Collapse sidebar" : "Expand sidebar"}
@@ -1650,10 +1946,21 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </button>
           {/* Phones have no sidebar: the workspace switcher sits at the start of the top bar. */}
           <div className="mobile-workspace"><WorkspaceSwitcher/></div>
+          {dedicatedOutline&&outlineScopes[tab]&&<button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={()=>{const parent=idx.byId.get(outlineScopes[tab]!)?.parentId;setOutlineScopes(value=>({...value,[tab]:parent&&outlineDestination(docRef.current!,parent)===tab?parent:null}));setEditing(null);}}><Icon name="back" size={16}/></button>}
           {tab === "notes" && scope && <button className="icon-button outline-back" aria-label="Go to parent" title="Go to parent" onClick={() => navigateTo(current?.parentId || null)}><Icon name="back" size={16} /></button>}
           {tab === "notes" && views.panes.length > 1 && <><button className="icon-button" aria-label="Pane back" title="Pane back" disabled={!views.active.back.length} onClick={() => { views.history(views.activePane); setEditing(null); }}><Icon name="back" size={16} /></button><button className="icon-button" aria-label="Pane forward" title="Pane forward" disabled={!views.active.forward.length} onClick={() => { views.history(views.activePane, true); setEditing(null); }}><Icon name="forward" size={16} /></button></>}
-          <div className="breadcrumbs">
-            {tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
+          <div className="breadcrumbs" ref={el=>{if(el&&el.scrollWidth>el.clientWidth)el.scrollLeft=el.scrollWidth;}}>
+            {dedicatedOutline && outlineScopes[tab] ? (()=>{
+              // Zoomed into a view's outline: the view, then the path down to this bullet.
+              const path:any[]=[];let at=idx.byId.get(outlineScopes[tab]!);const seen=new Set<string>();
+              while(at&&!seen.has(at.id)){seen.add(at.id);path.unshift(at);at=at.parentId?idx.byId.get(at.parentId):undefined;}
+              const label=({study:'Study Desk',calendar:'Calendar',mindmap:'Mindmaps',bookmarks:'Bookmarks',bookshelf:'Bookshelf'} as Record<string,string>)[tab];
+              const plain=(t:string)=>String(t||'').replace(/<[^>]*>/g,'').replace(/\[\[([^\]|]*)\|[^\]]+\]\]/g,'$1').trim()||'Untitled';
+              return <>
+                <button onClick={()=>{setOutlineScopes(value=>({...value,[tab]:null}));setEditing(null);}}><Icon name="notes" size={14}/><span>{label} outline</span></button>
+                {path.map((n,i)=><React.Fragment key={n.id}><Icon name="chevron" size={12}/><button aria-current={i===path.length-1?'page':undefined} onClick={()=>{setOutlineScopes(value=>({...value,[tab]:n.id}));setEditing(null);}}><EmojiText text={plain(n.text).slice(0,40)}/></button></React.Fragment>)}
+              </>;
+            })() : tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
               <>
                 <button onClick={() => navigateTo(calendarRoot?.id || null)}>
                   <Icon name="calendar" size={14} />
@@ -1691,7 +1998,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                         setEditing(null);
                       }}
                     >
-                      {n.text || "Untitled"}
+                      <EmojiText text={n.text || "Untitled"} />
                     </button>
                   </React.Fragment>
                 ))}
@@ -1700,7 +2007,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
           <div className="topbar-right">
             <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
-            {tab !== "bookmarks" && tab !== "canvas" && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
+            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
               className={`icon-button completed-toggle ${paneCompleted ? "is-active" : ""}`}
@@ -1731,6 +2038,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="redo" />
             </button>
             <button className="icon-button" aria-label="Commands & notes" title={`Commands & notes (${modLabel()} K)`} onClick={()=>{if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="commands" size={17}/></button>
+            {dedicatedKind&&<button className={`outline-view-toggle ${dedicatedOutline?'is-active':''}`} aria-pressed={dedicatedOutline} onClick={async()=>{await flush();if(failed.current)return;setEditing(null);setSearch('');if(!viewOutlines[tab])setOutlineScopes(value=>({...value,[tab]:null}));setViewOutlines(value=>({...value,[tab]:!value[tab]}));}}><Icon name="notes" size={16}/>Outline</button>}
             {doc&&<ViewStats doc={doc} tab={tab} scope={scope} scopeTitle={String(current?.text||'').replace(/<[^>]*>/g,'').trim()} calendarDate={calendarDate} counts={notesFilterCounts} kinds={NOTE_FILTERS as any}/>}
             <button data-guide-help className="icon-button" aria-label="Show me how" title="Show me how" onClick={()=>{setViewMenu(false);setMenu(null);setDialog("help");}}><Icon name="help" size={17}/></button>
             <CloudDeviceSaveIndicator signal={deviceStatus} isPending={()=>!!cloudUser&&(dirty.current||persisted.current?.revision!==cloud.acknowledgedRevision)} cloudSignal={cloud.signal} connected={!!cloudUser} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
@@ -1740,6 +2048,15 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <ProfileMenu user={cloudUser} environment={APP_ENV} signal={cloud.signal} onSync={()=>cloud.sync()} onSettings={panel=>{setSettingsPanel(panel);setDialog('settings');}} onSignIn={()=>void accountAction()} onSignOut={()=>void accountAction(true)}/>
           </div>
         </header>
+        <IncomingAndroidShare accountLabel={cloudUser?.email||'On this device'} ready={!!doc&&!working&&!failed.current} onSave={async(entry,text,kind,owner)=>{
+          if(fatal)throw Error('Saving needs attention before capturing this share.');
+          if(failed.current){failed.current=false;setError(null);}
+          await flush();if(failed.current||storageAccountKey()!==owner)throw Error('Saving or the destination workspace needs attention.');
+          const result=incomingShare(docRef.current!,entry,text,kind);
+          if(result.doc!==docRef.current)commit(result.doc);
+          await flush();if(failed.current)throw Object.assign(Error('Your share is in the editor but could not be saved. Retry saving; its original remains on this device.'),{captureApplied:true});
+          setNotice(kind==='bookmark'?'Saved to Bookmarks. Find it in Library → Bookmarks.':'Saved to Inbox in Notes.');
+        }}/>
         {viewHint&&<div className="view-dots" role="status" aria-live="polite">{SWIPE_VIEWS.map(v=><span key={v} className={v===viewHint.view?'is-current':''}>{v===viewHint.view?SWIPE_LABELS[v]:''}</span>)}</div>}
         {error && (
           <div className="error-banner" role="alert">
@@ -1764,33 +2081,28 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             </button>
           </div>
         )}
-        {tab === "notes" ? (
+        {tab === "notes" || dedicatedOutline ? (
           <>
             <section className="page-heading page-heading-hidden" aria-hidden="true"><h1>{current?.text||"My notes"}</h1><button className="primary" disabled={disabled} onClick={()=>add()}>Add bullet</button></section>
             {isTagQuery(search)&&<TagHeader nodes={nodes} tag={search.trim()} settings={tagSettings} disabled={disabled} onEdit={setTagEditor} onFlashcards={ids=>{const set=new Set(ids);if(mutate(ns=>ns.map(n=>set.has(n.id)&&n.kind==='NOTE'?{...n,kind:'QUESTION'}:n)))setNotice(`Made ${ids.length} flashcard${ids.length===1?'':'s'}. Answers are the bullets under each question.`);}} onTag={tag=>{setSearch(tag);}} onClose={()=>setSearch('')}/>}
-            <div className="notes-filter" hidden={isTagQuery(search)} role="tablist" aria-label="Show bullets" onKeyDown={e=>{
-              if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
-              const tabs=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')),at=tabs.indexOf(document.activeElement as HTMLButtonElement);
-              if(at<0)return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(at+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click();
-            }}>
-              {NOTE_FILTERS.filter(([kind])=>['all','notes','calendar'].includes(kind)||kind===notesFilter||notesFilterCounts[kind]).map(([kind,label,emoji])=><button key={kind} id={`notes-filter-${kind}`} role="tab" aria-controls="notes-filter-panel" tabIndex={notesFilter===kind?0:-1} aria-selected={notesFilter===kind} onClick={()=>{setNotesFilter(kind);setEditing(null);}}>{emoji&&<i aria-hidden="true">{emoji}</i>}{label}</button>)}
-            </div>
-            <div id="notes-filter-panel" role="tabpanel" aria-labelledby={`notes-filter-${notesFilter}`} className={`notes-panes ${views.panes.length===1?'is-single':''}`} aria-label="Note panes">
-            {views.panes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
-            {views.panes.length>1&&<div className="pane-bar">
+            <div className={`notes-panes ${outlinePanes.length===1?'is-single':''}`} aria-label={tab==='notes'?'Notes outline':`${tab} outline`}>
+            {outlinePanes.map((pane,i)=><React.Fragment key={pane.id}><section className={`note-pane ${views.activePane===pane.id?'is-active':''}`} data-pane-id={pane.id} aria-label={`Note pane ${i+1}`} style={{flex:`0 0 ${pane.width}px`}} onPointerDownCapture={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}>
+            {tab==='notes'&&views.panes.length>1&&<div className="pane-bar">
              <PaneSearchBar value={pane.search} onChange={q=>views.update(pane.id,{search:q})} label={`Search pane ${i+1}`} onFocus={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}/>
              <button className="icon-button pane-close" aria-label={`Close pane ${i+1}`} title="Close pane" onClick={()=>views.close(pane.id)}><Icon name="close" size={14}/></button>
             </div>}
             {canvasEnabled&&pane.scope&&canvasRoots.get(pane.scope)&&<div className="canvas-open-banner"><span>This page is a canvas.</span><button onClick={()=>{setCanvasOpen({id:canvasRoots.get(pane.scope!)!,n:Date.now()});setEditing(null);setTab('canvas');}}><Icon name="canvas" size={14}/>Open canvas</button></div>}
-            {notesFilter!=='all'&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<p className="notes-filter-empty">No {({notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} {pane.scope?'on this page':'yet'}.</p>:<OutlineView
+            {dedicatedOutline&&!pane.scope&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<div className="notes-filter-empty"><p>No {({study:'study notes',notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} yet.</p>{!disabled&&<button className="primary" onClick={addInView}>{({study:'Add a flashcard',calendar:"Add an entry for this day",mindmap:'Add a mindmap',bookmarks:'Open the bookmark library',bookshelf:'Open the bookshelf'} as Record<string,string>)[tab]}</button>}</div>:<OutlineView
+              onVisibleRows={ids=>reportOutlineRows(tab+':'+pane.id,ids)}
               rootIds={notesFilterRoots?.[pane.id]||null}
-              excludedIds={notesFilter==='notes'?notesCatalog?.excluded:undefined}
+              excludedIds={notesFilter==='notes'&&!pane.scope&&!pane.search?ordinaryProjection?.excluded:undefined}
               nodes={pane.id==='main'?nodes:paneSnapshot(nodes,pane.collapsed)}
               scope={pane.global&&pane.search?null:pane.scope}
               search={pane.search}
               showCompleted={pane.completed??showCompleted}
               readingSize={ap.size || 16}
               onImages={(id, files) => { void attachImages(id, files); }}
+              onImageDrop={(id, image) => { void attachImages(id, image); }}
               onRemoveMedia={removeMedia}
               onResizeMedia={resizeMedia}
               onOccludeMedia={setOcclusionImage}
@@ -1799,22 +2111,26 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               disabled={disabled}
               assets={assets}
               media={doc.tables.media}
-              onAdd={(parentId) => add(parentId===undefined?pane.scope:parentId)}
+              onAdd={(parentId) => {
+                const target=parentId===undefined?pane.scope:parentId;
+                if(!dedicatedOutline||target){add(target);return;}
+                addInView();
+              }}
               onEdit={(id) => {
                 views.setActivePane(pane.id);
                 if (id) focus(id);
                 else setEditing(null);
               }}
               onZoom={(id) => {
-                views.setActivePane(pane.id);views.navigate(pane.id,id);setEditing(null);
+                views.setActivePane(pane.id);if(dedicatedOutline)setOutlineScopes(value=>({...value,[tab]:id}));else views.navigate(pane.id,id);setEditing(null);
               }}
-              onMindmap={(id)=>{setMindmapTarget(id);setTab('mindmap');setScope(id);setEditing(null);}}
+              onMindmap={(id)=>{setViewOutlines(value=>({...value,mindmap:false}));setMindmapTarget(id);setTab('mindmap');setScope(id);setEditing(null);}}
               onOpenPane={openPane}
               onToggle={id=>{if(pane.id==='main')mutate(ns=>ns.map(n=>n.id===id?{...n,collapsed:!n.collapsed}:n));else views.update(pane.id,{collapsed:{...pane.collapsed,[id]:!(pane.collapsed[id]??idx.byId.get(id)?.collapsed)}});}}
               onChange={changeBulletContent}
               onEditorChange={changeEditorContent}
               readCurrentNode={readCurrentNode}
-              onCommand={(action,id,start,end,selectedIds)=>{if(pane.id!=='main'&&['toggleCollapse','expandBranch','collapseBranch'].includes(action)){const ids=action==='toggleCollapse'?new Set([id]):descendants(nodes,id),collapsed={...pane.collapsed};for(const key of ids)collapsed[key]=action==='toggleCollapse'?!(collapsed[key]??idx.byId.get(key)?.collapsed):action==='collapseBranch';views.update(pane.id,{collapsed});return;}command(action,id,start,end,selectedIds);}}
+              onCommand={(action,id,start,end,selectedIds)=>{if(pane.id!=='main'&&['toggleCollapse','expandBranch','collapseBranch'].includes(action)){const ids=action==='toggleCollapse'?new Set([id]):descendants(nodes,id),collapsed={...pane.collapsed};for(const key of ids)collapsed[key]=action==='toggleCollapse'?!(collapsed[key]??idx.byId.get(key)?.collapsed):action==='collapseBranch';views.update(pane.id,{collapsed});return;}views.setActivePane(pane.id);command(action,id,start,end,selectedIds,pane.id);}}
               onOutlinePaste={pasteAsOutline}
               onReady={(e) => {
                 if(views.activePane===pane.id){editor.current=e;setActiveEditor(e);}
@@ -1837,7 +2153,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               setNotice={setNotice}
             />}
               <ConnectionPanel id={pane.scope||(views.activePane===pane.id?editing:null)}/>
-            </section>{i<views.panes.length-1&&<PaneDivider onResize={delta=>views.resize(pane.id,views.panes[i+1].id,delta)}/>}</React.Fragment>)}
+            </section>{tab==='notes'&&i<views.panes.length-1&&<PaneDivider onResize={delta=>views.resize(pane.id,views.panes[i+1].id,delta)}/>}</React.Fragment>)}
             </div>
             {selected&&<SelectionFormatting editor={activeEditor} disabled={disabled||unsupportedFormatting(selected)} blockStyle={selected.blockStyle||'paragraph'} onBlock={type=>command('block:'+type,selected.id,0,0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style=>command('dividerStyle:'+style,selected.id,0,0)} onDividerColor={color=>command('dividerColor:'+color,selected.id,0,0)}/>}
           </>
@@ -1848,15 +2164,22 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
         ) : tab === "bookmarks" ? (
-          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
+          <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onSaveSocialNote={async(bookmarkId,text,id)=>{
+            const owner=storageAccountKey();if(failed.current)throw Error('Saving needs attention. Your draft is kept.');
+            await flush();if(failed.current||owner!==storageAccountKey())throw Error('The workspace changed or saving needs attention. Your draft is kept.');
+            const current=docRef.current!,bookmark=current.web.bookmarks?.[bookmarkId];if(!bookmark||bookmark.deleted)throw Error('This bookmark was removed. Your draft is kept.');
+            const prior=current.tables.bullets.find(n=>n.id===id);if(prior&&prior.text!==text)throw Error('An earlier version is in your notes. Your draft is kept.');
+            if(!prior){const next=bookmarkNote(current,bookmark,text,id);commit(withNodes(next,next.tables.bullets as Node[]));}
+            await flush();if(failed.current||owner!==storageAccountKey()||!persisted.current?.tables.bullets.some(n=>n.id===id))throw Object.assign(Error('The note could not finish saving. Your draft is kept; retry after saving recovers.'),{captureApplied:true});
+          }} onReaderChange={setReaderFocus} readCurrentNote={readCurrentNode} onUndo={undo} onText={changeEditorContent} target={bookmarkTarget} user={cloudUser} doc={doc} assets={assets} disabled={disabled||failed.current} onNotes={navigateTo} onChange={(update,added)=>{if(failed.current)throw Error("Saving needs attention.");if(added){checkNewAssets(assetsRef.current,added);const files=new Map(assetsRef.current);for(const [path,blob] of added){files.set(path,blob);pendingAssets.current.set(path,blob);}assetsRef.current=files;setAssets(files);}const next=update(docRef.current!);commit(withNodes(next,next.tables.bullets as Node[]));}}/></React.Suspense>
         ) : tab === "bookshelf" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading bookshelf…</section>}><Bookshelf key={cloudUser?.uid||'guest'} user={cloudUser} doc={doc} disabled={disabled} onRead={openReader} onNotes={id=>navigateTo(id)} onSignIn={()=>accountAction()} onChange={async update=>{const current=docRef.current!,next=update(current);if(next!==current){commit(next,undefined,false);await flush();if(failed.current)throw Error('Book metadata could not be saved. The original remains on this device; try adding it again.');}}}/></React.Suspense>
         ) : tab === "study" ? (
-          <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} />
+          <StudyDesk doc={doc} assets={assets} disabled={disabled} onChange={next => commit(next, undefined, false)} onLibraryChange={next=>commit(next)} onSaveFolder={saveFolderDesign} onSource={id => navigateTo(id || null)} onSaveDesign={saveDeckDesign} onSaveReactions={saveQuizReactions} onDuplicates={cloudUser?()=>setDuplicatesOpen(true):undefined} user={cloudUser} />
         ) : tab === "canvas" && canvasEnabled ? (
           <React.Suspense fallback={<section role="status">Loading canvas…</section>}><CanvasStudio doc={doc} disabled={disabled||failed.current} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention before editing this canvas.');const next=update(docRef.current!);validateCanvases(next.web.canvases);commit(next);}} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} onOpenNote={id=>navigateAiResult(id)} assets={assets} onStoreImages={storeImages} open={canvasOpen} user={cloudUser}/></React.Suspense>
         ) : tab === "mindmap" ? (
-          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>{setTab('notes');setScope(id);setEditing(null);}} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
+          <React.Suspense fallback={<section className="secondary-page" role="status">Loading mindmap…</section>}><MindmapView styles={doc.web.mindmapStyles||{}} onStyle={(id,patch,branch)=>commit(patchMindmapStyle(docRef.current!,sourceId(nodes,id),patch,branch))} nodes={nodes} scope={mindmapTarget} disabled={disabled} onOpen={id=>navigateTo(id)} onConvert={id=>{if(!disabled)mutate(ns=>ns.map(n=>n.id===id?{...n,mindmap:true}:n));}} onNotes={()=>{setTab('notes');setEditing(null);}} onToggleCollapse={id=>command('toggleCollapse',sourceId(nodes,id),0,0)} onExpandBranch={id=>command('expandBranch',sourceId(nodes,id),0,0)} onCollapseBranch={id=>command('collapseBranch',sourceId(nodes,id),0,0)} onAddChild={(parentId,newId)=>{const pid=sourceId(nodes,parentId);mutate(ns=>{const kids=index(ns).children.get(pid)||[];return move([...ns.map(n=>n.id===pid?{...n,collapsed:false}:n),bullet(newId)],newId,pid,kids.length);});}} onAddSibling={(id,newId)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;const sibs=(index(ns).children.get(n.parentId)||[]) as Node[];return move([...ns,bullet(newId)],newId,n.parentId,sibs.findIndex(x=>x.id===sid)+1);});}} onRename={(id,text)=>{const sid=sourceId(nodes,id);mutate(ns=>renameMindmapBullet(ns,sid,text));}} onDelete={id=>remove(sourceId(nodes,id))} onReorder={(id,at)=>{const sid=sourceId(nodes,id);mutate(ns=>{const n=ns.find(x=>x.id===sid);if(!n)return ns;return move(ns,sid,n.parentId,at);});}}/></React.Suspense>
         ) : (
           <>
           <CalendarView
@@ -1882,13 +2205,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               if (id) focus(id);
               else setEditing(null);
             }}
-            onZoom={(id) => {
-              setScope(id);
-              setTab("notes");
-              setEditing(null);
-              setSearch("");
-            }}
+            onZoom={id=>navigateTo(id)}
             onMindmap={(id) => {
+              setViewOutlines(value=>({...value,mindmap:false}));
               setMindmapTarget(id);setScope(id);
               setTab("mindmap");
               setEditing(null);
@@ -1904,6 +2223,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             onChange={changeBulletContent}
             onEditorChange={changeEditorContent}
             readCurrentNode={readCurrentNode}
+            onVisibleRows={ids=>reportOutlineRows(tab+':'+views.activePane,ids)}
             onCommand={command}
             onOutlinePaste={pasteAsOutline}
             onReady={(e) => {
@@ -1933,6 +2253,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             showCompleted={showCompleted}
             readingSize={ap.size || 16}
             onImages={(id, files) => { void attachImages(id, files); }}
+              onImageDrop={(id, image) => { void attachImages(id, image); }}
             onRemoveMedia={removeMedia}
               onResizeMedia={resizeMedia}
               onOccludeMedia={setOcclusionImage}
@@ -1942,7 +2263,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           {selected && <SelectionFormatting editor={activeEditor} disabled={disabled || unsupportedFormatting(selected)} blockStyle={selected.blockStyle || 'paragraph'} onBlock={type => command('block:' + type, selected.id, 0, 0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style => command('dividerStyle:' + style, selected.id, 0, 0)} onDividerColor={color => command('dividerColor:' + color, selected.id, 0, 0)} />}
           </>
         )}
-        {selected && tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && tab!=="canvas" && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{activeEditor?.commands.blur();command('stop',selected.id,0,0);}} onImages={files=>{void attachImages(selected.id,files);}}/>}
+        {selected && (dedicatedOutline||(tab!=="study" && tab!=="dashboard" && tab!=="bookshelf" && tab!=="bookmarks" && tab!=="mindmap" && tab!=="canvas")) && !dialog && !mcqEditing && !bulkMcqEditing && <MobileEditToolbar editor={activeEditor} disabled={disabled} formattingDisabled={unsupportedFormatting(selected)||!!selected.codeLanguage} blockStyle={selected.blockStyle||'paragraph'} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onCommand={action=>command(action,selected.id,0,0)} onDone={()=>{if(activeEditor&&!activeEditor.isDestroyed)activeEditor.commands.blur();command('stop',selected.id,0,0);}} onImages={files=>{void attachImages(selected.id,files);}}/>}
         {doc&&<NowBar placement="phone" doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onManage={()=>{setTab('calendar');setEditing(null);setSearch('');}} onOpen={(id,date)=>{setTab('calendar');setCalendarDate(date);setEditing(null);setSearch('');setReminderEditor({id,date});}}/>}
         <MobileNav canvas={canvasEnabled} tab={tab} onTab={id=>{if(id==='mindmap')setMindmapTarget(null);setTab(id);setEditing(null);}}/>
       </main>
@@ -1966,19 +2287,42 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           setNotice("MCQ saved. Study it in Study Desk, or make an MCQ notebook from its parent branch.");
         } catch (error) { showError(error); }
       }} />}
+      {photoTarget&&photoTarget.account===storageAccountKey()&&cloudUser&&doc&&<React.Suspense fallback={null}><PhotoNotes user={cloudUser} targetTitle={doc.tables.bullets.find(n=>n.id===photoTarget.id)?.text||''} disabled={disabled||failed.current} onClose={()=>setPhotoTarget(null)} onSave={async result=>{await flush();if(failed.current||photoTarget.account!==storageAccountKey())throw Error('Saving needs attention first.');const current=docRef.current!,next=insertPhotoResult(current,photoTarget.id,result,crypto.randomUUID());commit(next,undefined,true);setNotice(result.cards?`${result.cards.length} flashcard${result.cards.length===1?'':'s'} added. Undo removes them together.`:'Notes added. Undo removes them together.');}}/></React.Suspense>}
+      {pkm&&pkm.account===storageAccountKey()&&doc&&<React.Suspense fallback={null}>
+        {pkm.kind==='properties'&&pkm.id&&<PropertiesDialog doc={doc} id={pkm.id} disabled={disabled} onClose={()=>setPkm(null)} onSave={values=>pkmSave(d=>setPropertyValues(d,pkm.id!,values))} onUpdate={(kind,value)=>pkmSave(d=>kind==='create'?(()=>{return createProperty(d,value).doc;})():kind==='option'?addPropertyOption(d,value.id,value.label):renameProperty(d,value.id,value.name,value.archived||false))}/>}
+        {pkm.kind==='templates'&&<TemplatesDialog doc={doc} parent={pkm.id} disabled={disabled} onClose={()=>setPkm(null)} onArchive={(id,archived)=>pkmSave(d=>archiveNoteTemplate(d,id,archived))} onUse={async(id,variables)=>{let created='';await pkmSave(d=>{const result=instantiateNoteTemplate(d,id,pkm.id,variables);created=result.id;return result.doc;});setTab('notes');setSearch('');setScope(created);setEditing(null);setNotice('Template added as independent notes. Undo removes this insertion.');}}/>}
+        {pkm.kind==='save-template'&&pkm.id&&<SaveTemplateDialog title={doc.tables.bullets.find(n=>n.id===pkm.id)?.text||'My template'} templates={noteTemplates(doc)} onClose={()=>setPkm(null)} onSave={(name,replace)=>pkmSave(d=>saveNoteTemplate(d,pkm.id!,name,()=>crypto.randomUUID(),replace).doc)}/>}
+      </React.Suspense>}
+      {relatedTarget&&doc&&<RelatedNotes meaning={meaning} id={relatedTarget} onOpen={id=>{setRelatedTarget(null);revealBullet(id);}} onClose={()=>setRelatedTarget(null)}/>}
+      {duplicatesOpen&&doc&&<DuplicateCards meaning={meaning} questionIds={doc.tables.bullets.filter(n=>n.kind==='QUESTION').map(n=>n.id)} onOpen={id=>{setDuplicatesOpen(false);revealBullet(id);}} onClose={()=>setDuplicatesOpen(false)}/>}
+      {dictateTarget&&dictateTarget.account===storageAccountKey()&&<React.Suspense fallback={null}><DictationPill key={dictateTarget.id} user={cloudUser} onText={text=>insertDictation(dictateTarget.id,text)} onClose={()=>setDictateTarget(null)}/></React.Suspense>}
+      {aiBulletTarget&&aiBulletTarget.account===storageAccountKey()&&<React.Suspense fallback={null}>
+        {aiBulletTarget.mode==='image'
+          ?<AiBulletDialog mode="image" target={aiBulletTarget.target} user={cloudUser} disabled={disabled||failed.current} onClose={()=>setAiBulletTarget(null)} onSave={saveAiImage}/>
+          :<AiBulletDialog mode="answers" targets={aiBulletTarget.targets} user={cloudUser} disabled={disabled||failed.current} onClose={()=>setAiBulletTarget(null)} onSave={saveBulkAnswers}
+            isCurrent={target=>docRef.current?.tables.bullets.find(node=>node.id===target.id)?.text===target.question}/>}
+      </React.Suspense>}
       {researchTarget!==null&&research.state?.drafts[researchTarget]?.ai&&<AiAssistBoundary key={researchTarget+storageAccountKey()} onClose={closeResearch}><React.Suspense fallback={<div className="research-panel" role="status">Opening AI assist…</div>}><AiAssist key={researchTarget+storageAccountKey()} draft={research.state.drafts[researchTarget]} doc={doc} user={cloudUser} disabled={disabled||failed.current} error={research.error} onEdit={draft=>research.put(draft,draft.id)} onInsert={insertAiDraft} onClose={closeResearch} onDiscard={async()=>{await research.put(null,researchTarget);setResearchTarget(null);}}/></React.Suspense></AiAssistBoundary>}
       {researchTarget===''&&<React.Suspense fallback={null}><AiDraftList drafts={Object.values(research.state?.drafts||{})} onChoose={setResearchTarget} onClose={closeResearch}/></React.Suspense>}
       {menuNode && (
         <OutlinePopover className="bullet-actions-menu" key={menuNode.id} title="Bullet actions" anchor={menuAnchor.current} onClose={() => setMenu(null)}>
 <BulletMenuBody><div className="popover-quick-actions">
             <button disabled={!research.state} onClick={()=>void openAi(menuNode.id)}><Icon name="star" size={16}/><span>Ask AI</span></button>
+            {menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&!menuNode.traitsBlock&&!hasTag(String(menuNode.text||''),'views')&&<button disabled={disabled} onClick={()=>{setMenu(null);let row='';void saveTraits(d=>{const r=addTraitsBlock(d,menuNode.id);row=r.row;return r.doc;}).then(()=>{if(row)focus(row);}).catch(showError);}}><Icon name="sliders" size={16}/><span>{traitsBlocks(doc,menuNode.id).length?'Show traits':'Add traits'}</span></button>}
+            <button disabled={disabled} onClick={()=>openPkm('templates',menuNode.id)}><Icon name="notes" size={16}/><span>Use note template…</span></button>
+            <button disabled={disabled} onClick={()=>openPkm('save-template',menuNode.id)}><Icon name="notes" size={16}/><span>Save as note template…</span></button>
+            {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:dictate',menuNode.id,0,0);}}><Icon name="mic" size={16}/><span>Dictate</span></button>}
+            {cloudUser&&menuNode.blockStyle!=='divider'&&!menuNode.codeLanguage&&<button disabled={disabled} onClick={()=>{setMenu(null);command('action:photo',menuNode.id,0,0);}}><Icon name="camera" size={16}/><span>Photo to notes…</span></button>}
+            {cloudUser&&<button onClick={()=>{setMenu(null);setRelatedTarget(sourceId(docRef.current!.tables.bullets,menuNode.id));}}><Icon name="link" size={16}/><span>Related notes</span></button>}
+            {menuSelection.current.length>1&&<button disabled={disabled} onClick={()=>void openBulletAi('answers',[...menuSelection.current])}><Icon name="study" size={16}/><span>Answer selected bullets…</span></button>}
+            {menuNode.blockStyle!=='divider'&&<button disabled={disabled} onClick={()=>void openBulletAi('image',[menuNode.id])}><Icon name="image" size={16}/><span>Generate image…</span></button>}
             <button onClick={()=>openPane(menuNode.id)}><Icon name="pane" size={16}/><span>Open in pane</span><kbd>Alt+click</kbd></button>
             <button disabled={disabled} onClick={()=>command('action:mindmap',menuNode.id,0,0)}><Icon name="mindmap" size={16}/><span>{menuNode.mindmap?'Remove mindmap':'Mindmap'}</span></button>
             <button disabled={disabled} onClick={()=>command('action:date',menuNode.id,0,0)}><Icon name="calendar" size={16}/><span>Add date…</span></button>
             <button disabled={disabled} onClick={() => { command("complete", menuNode.id, 0, 0); setMenu(null); }}><Icon name="check" size={16} /><span>{menuNode.taskState === "DONE" ? "Uncomplete" : "Complete"}</span><kbd>Ctrl ↵</kbd></button>
             <button disabled={disabled} onClick={() => { toggleStar(menuNode.id); setMenu(null); }}><Icon name="star" size={16} /><span>{starred.includes(menuNode.id) ? "Unstar" : "Star"}</span></button>
             {(idx.children.get(menuNode.id) || []).length > 0 && <button disabled={disabled} onClick={() => { command("toggleCollapse", menuNode.id, 0, 0); setMenu(null); }}><Icon name={menuNode.collapsed ? "expand" : "collapse"} size={16} /><span>{menuNode.collapsed ? "Expand" : "Collapse"}</span><kbd>Ctrl Space</kbd></button>}
-</div><details data-tour="format-category" className="bullet-action-section"><summary><Icon name="format" size={16}/><span>Format & type</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <label className="field-label">Text style<select aria-label="Bullet text style" disabled={disabled} value={['h1','h2','h3','quote','divider'].includes(menuNode.blockStyle) ? menuNode.blockStyle : 'paragraph'} onChange={event => command('block:' + event.target.value, menuNode.id, 0, 0)}><option value="paragraph">Paragraph</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option><option value="quote">Quote</option><option value="divider">Divider</option></select></label>
+</div>{menuNode.blockStyle !== 'divider' && <BulletColorPicker value={menuNode.bulletColor} disabled={disabled} onChange={color => mutate(ns => ns.map(n => n.id === menuNode.id ? { ...n, bulletColor: color } : n))}/>}<details data-tour="format-category" className="bullet-action-section"><summary><Icon name="format" size={16}/><span>Format & type</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <label className="field-label">Text style<select aria-label="Bullet text style" disabled={disabled} value={['h1','h2','h3','quote','divider'].includes(menuNode.blockStyle) ? menuNode.blockStyle : 'paragraph'} onChange={event => command('block:' + event.target.value, menuNode.id, 0, 0)}><option value="paragraph">Paragraph</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option><option value="quote">Quote</option><option value="divider">Divider</option></select></label>
             {menuNode.blockStyle === 'divider' && (
               <>
                 <label className="field-label">Divider line style
@@ -2039,7 +2383,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {menuNode.mirrorSourceId&&<button onClick={()=>{navigateTo(menuNode.mirrorSourceId);setMenu(null);}}><Icon name="mirror" size={16}/><span>Open mirror source</span></button>}
             {menuNode.mirrorSourceId&&<button disabled={disabled} onClick={()=>{mutate(ns=>detachMirror(ns,menuNode.id));setMenu(null);setNotice('Mirror detached. This branch is now independent.');}}><Icon name="mirror" size={16}/><span>Detach mirror</span></button>}
 
-</div></details><details className="bullet-action-section"><summary><Icon name="organize" size={16}/><span>Organize branch</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">
+</div></details><details className="bullet-action-section"><summary><Icon name="organize" size={16}/><span>Organize branch</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">{hasTag(String(menuNode.text||''),'views')?<div className="bullet-view-menu"><span>View child notes</span><BulletViewSwitch value={bulletView(doc,menuNode.id)} disabled={disabled} onChange={view=>command('view:'+view,menuNode.id,0,0)}/></div>:<p className="bullet-view-hint">Add <code>#views</code> to this bullet to show its children as a grid, compact list or table.</p>}
           {copyTargets().map(target => <button key={target.key} className="wide action" disabled={disabled} onClick={async () => {
             setMenu(null);
             try { await flush(); const count = await copyBranch(docRef.current!, menuNode.id, target); setNotice(`Copied ${count} bullet${count === 1 ? "" : "s"} to “${target.name}”.${target.synced ? " It syncs the next time you open that workspace." : ""} Images and attachments are not copied.`); }
@@ -2063,7 +2407,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <button
               disabled={disabled}
               onClick={() => {
-                mutate((ns) => indent(ns, menuNode.id));
+                command("indent", menuNode.id, 0, 0);
                 setMenu(null);
               }}
             >
@@ -2170,6 +2514,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
         ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
+        {id:'note-templates',label:'New note from template',icon:'notes',keywords:['template','meeting','project','daily review'],disabled,run:()=>openPkm('templates',null)},
         {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
         {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},
         {id:'settings',label:'Open settings & backups',icon:'settings',run:()=>setDialog('settings')},
@@ -2186,7 +2531,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </nav>
           <div className="settings-content" key={settingsPanel} data-mobile-shown={!settingsList}>
           <button className="settings-back" onClick={()=>setSettingsList(true)}><Icon name="back" size={16}/>All settings</button>
-          {settingsPanel==="study" && <section aria-label="Study"><div className="settings-section-heading"><h3>Study</h3><p>How Study Desk schedules your flashcards and multiple-choice questions.</p></div><FsrsPreferences open doc={doc} disabled={disabled} onChange={next=>commit(next,undefined,false)}/></section>}
+          {settingsPanel==="study" && <section aria-label="Study"><div className="settings-section-heading"><h3>Study</h3><p>How Study Desk schedules your flashcards and multiple-choice questions.</p></div><NativeStudyWidgetSettings widget={nativeWidget}/><FsrsPreferences open doc={doc} disabled={disabled} onChange={next=>commit(next,undefined,false)}/></section>}
           {settingsPanel==="shortcuts" && <section aria-label="Keyboard shortcuts"><KeyboardShortcuts/></section>}
           {settingsPanel==="appearance" && <section aria-label="Appearance"><div className="settings-section-heading"><h3>Feel at home.</h3><p>Choose how your workspace looks and reads.</p></div>
           <div className="settings-tabs">
@@ -2486,6 +2831,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       {tablePicker&&<TablePicker onClose={()=>setTablePicker(null)} onPick={grid=>insertTable(tablePicker,grid)}/>}
       {reminderEditor&&<ReminderEditor key={`${reminderEditor.id||'new'}:${reminderEditor.date}`} doc={doc} target={reminderEditor} disabled={disabled} onChange={next=>commit(next)} onClose={()=>setReminderEditor(null)}/>}
       {diagramTarget&&<VisualToolLoader title="Diagram workspace" onClose={()=>setDiagramTarget(null)}><DiagramEditor source={diagramTarget.source} editing={!!diagramTarget.original} disabled={disabled} onClose={()=>setDiagramTarget(null)} onSave={source=>{if(disabled)throw Error('Saving is unavailable.');const next=saveDiagram(docRef.current!.tables.bullets,diagramTarget,source);commit(withNodes(docRef.current!,next));setDiagramTarget(null);setNotice('Diagram saved to your note.');}}/></VisualToolLoader>}
+      {imageTextTarget&&<ImageTextDialog source={imageTextTarget} onClose={()=>setImageTextTarget(null)} onInsert={insertImageText}/>}
       {drawingTarget&&<VisualToolLoader title="Drawing workspace" onClose={()=>setDrawingTarget(null)}><DrawingEditor blob={drawingTarget.mediaId?assets.get('media/'+doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.fileName):undefined} title={drawingTarget.mediaId?doc.tables.media.find(m=>m.id===drawingTarget.mediaId)?.credit:undefined} theme={['Light','Catppuccin Latte'].includes(theme)?'light':'dark'} disabled={disabled} onClose={()=>setDrawingTarget(null)} onSave={saveDrawing}/></VisualToolLoader>}
       {occlusionImage && doc.tables.media.some(item=>item.id===occlusionImage) && <OcclusionEditor groupId={(Object.values(doc.web.occlusions||{}) as any[]).find(config=>config.mediaId===occlusionImage)?.groupId} doc={doc} item={doc.tables.media.find(item=>item.id===occlusionImage)!} assets={assets} disabled={disabled} onSave={next=>{commit(next);setNotice('Image occlusion cards saved to Study Desk.');}} onClose={()=>setOcclusionImage(null)}/>}
       <ReleaseUpdate enabled={import.meta.env.PROD} onApply={async()=>{
@@ -2494,6 +2840,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         if(failed.current||dirty.current||pendingAssets.current.size||cloudApplying.current||docRef.current!==persisted.current)throw Error('Your latest changes need to finish saving before updating.');
         location.reload();
       }}/>
+      {moved && (
+        <div className="toast toast-moved" role="status">
+          <Icon name="forward" size={16} />
+          <span>“{moved.text.slice(0,40)}” moved to {({notes:'Notes',study:'Study Desk',calendar:'Calendar',mindmap:'Mindmaps',bookmarks:'Bookmarks',bookshelf:'Bookshelf'} as Record<string,string>)[moved.to]||'Notes'}</span>
+          <button onClick={()=>{const id=moved.id;setMoved(null);revealBullet(id);}}>Show</button>
+        </div>
+      )}
       {notice && (
         <div className="toast" role="status">
           <Icon name="check" size={16} />
@@ -2503,12 +2856,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     </div>
     </EmojiProvider>
     </ConnectionContext.Provider></TagSettingsContext.Provider>
-    </VisualToolsContext.Provider></SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></ReadingSources.Provider></GoogleTasksProvider>
+    </VisualToolsContext.Provider></SearchContext.Provider></TableContext.Provider></GalleryContext.Provider></MusicProvider></ReadingSources.Provider></GoogleTasksProvider></NoteMetadataContext.Provider>
   );
 }
 export const appRoot = createRoot(document.getElementById("root")!);
 // The browser half of desktop Google sign-in runs on its own page (see DesktopSignIn).
-appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isApp() ? <DesktopSignIn/> : window.location.hash === "#quick-capture" && isDesktop() ? <QuickCapture/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
+appRoot.render(<RecoveryBoundary onBackup={downloadRecovery}>{window.location.hash === "#desktop-signin" && !isApp() ? <DesktopSignIn/> : window.location.hash === "#study-widget" && isDesktop() ? <StudyWidget/> : window.location.hash === "#quick-capture" && isDesktop() ? <QuickCapture/> : (import.meta.env.PROD || import.meta.env?.DEV) ? <AuthGate>{user=><App cloudUser={user}/>}</AuthGate> : <App />}</RecoveryBoundary>);
 
 // The desktop app bundles its files, so it needs no offline service worker.
 if (import.meta.env.PROD && "serviceWorker" in navigator && !isApp())

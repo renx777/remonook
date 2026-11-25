@@ -1,3 +1,4 @@
+import { EmojiText } from './AnimatedEmoji';
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { coverIcons, coverPresets, type DeckDesign } from "./deck-designs";
 import { Icon } from "./icons";
@@ -18,7 +19,7 @@ export function DeckArtwork({ title, design, image, small = false }: { title: st
   return <div className={`deck-artwork cover-pattern-${design.pattern} ${url ? "has-cover-image" : ""} ${small ? "is-small" : ""}`} style={{ "--cover-color": preset.color, "--cover-accent": preset.accent } as CSSProperties}>
     {url && <img className="deck-cover-image" src={url} alt="" style={{ objectPosition: `50% ${design.position}%` }} />}
     <div className="cover-shade" /><span className="notebook-spine" aria-hidden="true" />
-    <div className="cover-lettering"><span className="cover-emblem" aria-hidden="true">{design.icon}</span><span className="cover-overline">REMO · STUDY NOTEBOOK</span><strong>{title}</strong><span className="cover-rule" /></div>
+    <div className="cover-lettering"><span className="cover-emblem" aria-hidden="true">{design.icon}</span><span className="cover-overline">REMO · STUDY NOTEBOOK</span><strong><EmojiText text={title}/></strong><span className="cover-rule" /></div>
   </div>;
 }
 
@@ -33,7 +34,7 @@ export function CoverDesigner({ title, design, assets, desk = false, onSave, onC
   }, []);
   const update = (value: Partial<DeckDesign>) => setDraft(current => ({ ...current, ...value }));
   return <dialog ref={dialog} className="cover-designer" aria-labelledby="cover-designer-title" onCancel={event => { event.preventDefault(); if (!saving) onClose(); }} onClick={event => { if (event.target === dialog.current && !saving) onClose(); }}>
-    <div className="cover-designer-heading"><div><span className="eyebrow">MAKE IT YOURS</span><h2 id="cover-designer-title">{desk ? "Your study space" : "Design your notebook"}</h2><p>{title}</p></div><button className="icon-button" aria-label="Close cover designer" disabled={saving} onClick={onClose}><Icon name="close" size={18} /></button></div>
+    <div className="cover-designer-heading"><div><span className="eyebrow">MAKE IT YOURS</span><h2 id="cover-designer-title">{desk ? "Your study space" : "Design your notebook"}</h2><p><EmojiText text={title}/></p></div><button className="icon-button" aria-label="Close cover designer" disabled={saving} onClick={onClose}><Icon name="close" size={18} /></button></div>
     <div className="cover-designer-body"><div className="cover-live-preview"><DeckArtwork title={title} design={draft} image={image} /><small>Full cover · no cropping · live preview</small></div>
       <div className="cover-options"><fieldset disabled={saving}><legend>Cover collection</legend><div className="cover-presets">{coverPresets.map(preset => <button key={preset.id} aria-label={`${preset.name} cover`} aria-pressed={draft.preset === preset.id} title={preset.name} style={{ backgroundColor: preset.color }} onClick={() => update({ preset: preset.id })}>{draft.preset === preset.id ? "✓" : ""}</button>)}</div></fieldset>
       <fieldset disabled={saving}><legend>Paper texture</legend><div className="cover-textures">{["plain", "ruled", "grid", "dots"].map(pattern => <button key={pattern} aria-pressed={draft.pattern === pattern} onClick={() => update({ pattern })}>{pattern[0].toUpperCase() + pattern.slice(1)}</button>)}</div></fieldset>

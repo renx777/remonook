@@ -24,11 +24,11 @@ const stored=async()=>{await act(async()=>new Promise(resolve=>setTimeout(resolv
 const wait=async check=>{for(let i=0;i<100;i++){if(check())return;await act(async()=>new Promise(resolve=>setTimeout(resolve,20)));}throw Error('Timed out waiting for outline');};
 
 test('list styles and bullet types apply atomically to selected branches through toolbar, menu and shortcuts',async()=>{
- await save(null,withNodes(empty(),[bullet('a',{text:'First',collapsed:true}),bullet('child',{parentId:'a',text:'Hidden child'}),bullet('b',{position:1,text:'Second'}),bullet('c',{position:2,text:'Outside selection'})]));
+ await save(null,withNodes(empty(),[bullet('test-page',{text:'Mixed page'}),bullet('a',{parentId:'test-page',text:'First',collapsed:true}),bullet('child',{parentId:'a',text:'Hidden child'}),bullet('b',{parentId:'test-page',position:1,text:'Second'}),bullet('c',{parentId:'test-page',position:2,text:'Outside selection'})]));
  let app;
- const types=doc=>Object.fromEntries(doc.tables.bullets.map(n=>[n.id,n.listType]));
+ const types=doc=>Object.fromEntries(doc.tables.bullets.filter(n=>n.id!=='test-page').map(n=>[n.id,n.listType]));
  try{
-  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="a"]'));
+  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="a"]'));await click('[data-node-id="test-page"] [aria-label="Zoom into bullet"]');
   await click('[data-node-id="a"] .text-button',{ctrlKey:true});
   await click('[data-node-id="b"] .text-button',{ctrlKey:true});
   await click('[aria-label="Numbered list"]');
@@ -41,7 +41,7 @@ test('list styles and bullet types apply atomically to selected branches through
   assert.equal(document.querySelector('[aria-label="Bulleted list"]').getAttribute('aria-pressed'),'true');
   await choose('[aria-label="Bullet type"]','QUESTION');
   const questionDoc=await stored();
-  assert.ok(questionDoc.tables.bullets.filter(n=>n.id!=='c').every(n=>n.kind==='QUESTION'));
+  assert.ok(questionDoc.tables.bullets.filter(n=>n.id!=='c'&&n.id!=='test-page').every(n=>n.kind==='QUESTION'));
   assert.equal(questionDoc.tables.bullets.find(n=>n.id==='c').kind,'NOTE');
   // Close just the menu while retaining the selection.
   await click('.bullet-actions-menu .popover-heading .icon-button');
