@@ -171,3 +171,16 @@ test('table totals', ()=>{
   assert.equal(traitTotal(d,list,'Year','count'),'2');assert.equal(traitTotal(d,list,'Year','empty'),'1');assert.equal(traitTotal(d,list,'Year','min'),'1988');
   assert.equal(traitTotal(d,list,'Rating','avg'),'3');assert.equal(traitTotal(d,list,'Author','unique'),'3');assert.equal(traitTotal(d,list,'Author','sum'),'—');
 });
+
+test('a bullet named "Traits" counts as a Traits bullet without the marker (typed by hand or from an older app)', ()=>{
+  const d=doc([bullet('m',{text:'Movies #views'}),bullet('t',{parentId:'m',position:0,text:'Terminator 2'}),bullet('tr',{parentId:'t',position:0,text:'Traits'}),
+   bullet('y',{parentId:'tr',position:0,text:'Year: 1991'}),bullet('dir',{parentId:'tr',position:1,text:'Director: James Cameron'}),bullet('note',{parentId:'t',position:1,text:'Great sequel'})]);
+  assert.deepEqual(noteTraits(d,'t').map(r=>r.key+'='+r.value),['Year=1991','Director=James Cameron']);
+  assert.deepEqual(collectionTraitKeys(d,['t']),['Director','Year']);
+  assert.equal(traitsBlocks(d,'t').length,1);assert.ok(insideTraits(d,'y'));assert.ok(!insideTraits(d,'note'));
+  const r=addTraitsBlock({...d,tables:{...d.tables,bullets:d.tables.bullets.map(n=>n.id==='t'?{...n,text:'Terminator 2 #traits'}:n)}},'t',make);
+  assert.equal(r.block,'tr','#traits reuses the hand-made Traits bullet');
+  for(const text of ['traits','TRAITS ',' Traits:'])assert.ok(isTraitsBlockName(text),text);
+  for(const text of ['Traits of a hero','My traits','traitsy'])assert.ok(!isTraitsBlockName(text),text);
+});
+const isTraitsBlockName=text=>traitsBlocks(doc([bullet('p',{text:'P'}),bullet('c',{parentId:'p',text})]),'p').length===1;
