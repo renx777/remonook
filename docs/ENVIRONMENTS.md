@@ -2,6 +2,18 @@
 
 ## Current state
 
+### Traits by name; native staging Android 0.1.47, Windows/macOS 0.1.35, iPad 0.1.3 — 25 November 2026
+
+PR #104 merged as `f28f580cd4b81a1c23e25798146c0ad7fcfca40b`. Any bullet named exactly "Traits" now counts as a Traits bullet, even without the `#traits` marker. This fixes local vaults on Android and Windows: there, Traits bullets typed by hand or made by an older app showed no traits.
+
+Web staging and all native staging apps run `main` at that commit:
+- **Web staging:** `staging-source.json` reports `main` @ `f28f580`.
+- **Android 0.1.47:** APK of 150,907,950 bytes.
+- **Windows/macOS 0.1.35:** `latest.json` has `windows-x86_64`, `darwin-aarch64` and `darwin-x86_64`. Linux is paused.
+- **iPad 0.1.3:** `.ipa` of 45,816,846 bytes, sideloaded.
+
+All downloads return HTTP 200. Device checks by the owner are pending. No Worker, production or data change.
+
 ### Native staging apps: Android 0.1.46, Windows/macOS 0.1.34, iPad 0.1.2 (new) — 25 November 2026
 
 All native apps were built from branch `feat/native-ipad`. That branch is `main` at `a13eb0c` plus the iPad workflow, iOS config and iPad detection; it has no other app changes. Web staging runs `main`.
