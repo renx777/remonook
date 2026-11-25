@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>RemoNook uses the camera when you take a photo to turn into notes or flashcards.</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>RemoNook opens photos you choose to add to notes or turn into notes and flashcards.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>RemoNook saves images you choose to your photo library.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>RemoNook uses the microphone for dictation and voice review of flashcards.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>RemoNook finds and syncs with your other devices on this network when you turn on local sync.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_remonook._tcp</string>
+  </array>
+  <key>UIFileSharingEnabled</key>
+  <true/>
+  <key>LSSupportsOpeningDocumentsInPlace</key>
+  <false/>
+</dict>
+</plist>

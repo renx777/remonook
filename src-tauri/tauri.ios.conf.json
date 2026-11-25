@@ -1,0 +1,17 @@
+{
+  "identifier": "com.remonook.ipad",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "RemoNook",
+        "visible": true
+      }
+    ]
+  },
+  "bundle": {
+    "iOS": {
+      "minimumSystemVersion": "16.0"
+    }
+  }
+}

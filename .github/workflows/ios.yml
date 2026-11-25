@@ -1,0 +1,99 @@
+name: iPad app
+# Builds the iPad (and iPhone) app as an unsigned .ipa for sideloading: install it with Sideloadly
+# (or AltStore), which signs it with your own Apple ID. No Apple developer account is needed here.
+# The .ipa is published to the sync server like the Android APK:
+#   <sync server>/desktop/<channel>/RemoNook-<channel>_<version>_ipad.ipa
+#   <sync server>/desktop/<channel>/ipad.json   ({version, url}; the app says when a newer build exists)
+# Notes stay on the iPad when you install a newer build over the old one with the same Apple ID.
+on:
+  push:
+    branches: [feat/native-ipad]  # TEMPORARY while the first iPad build is brought up; removed before merging
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which sync server and Firebase project the app uses
+        type: choice
+        options: [staging, production]
+        default: staging
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 75
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      VERSION: 0.1.${{ github.run_number }}
+      CHANNEL: ${{ inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install the iOS Rust target and XcodeGen
+        run: |
+          rustup target add aarch64-apple-ios
+          command -v xcodegen || brew install xcodegen
+          xcodebuild -version
+      - run: npm ci
+      - name: Build the app for ${{ inputs.environment || 'staging' }}
+        run: |
+          if [ "$CHANNEL" = "production" ]; then
+            cp .env.production.example .env.production.local && npm run build:production
+          else
+            cp .env.staging.example .env.staging.local && npm run build:staging
+          fi
+      - name: Prepare the build configuration
+        run: |
+          if [ "$CHANNEL" = "production" ]; then ID=com.remonook.ipad; NAME=RemoNook; else ID=com.remonook.ipad.staging; NAME="RemoNook Staging"; fi
+          echo "{\"version\":\"$VERSION\",\"identifier\":\"$ID\"}" > src-tauri/tauri.release.json
+          echo "IOS_NAME=$NAME" >> "$GITHUB_ENV"
+          cat src-tauri/tauri.release.json
+      - name: Create the Xcode project
+        run: npx tauri ios init --ci --config src-tauri/tauri.release.json
+      - name: Build the unsigned app
+        run: |
+          npx tauri ios build --no-sign --target aarch64 --config src-tauri/tauri.release.json --ci
+          find src-tauri/gen/apple -name "*.ipa" -o -name "*.xcarchive" -maxdepth 5 | head
+      - name: Package the .ipa
+        run: |
+          mkdir -p out
+          ipa=$(find src-tauri/gen/apple -name "*.ipa" | head -1)
+          if [ -z "$ipa" ]; then
+            # Older CLI output: wrap the archived .app in Payload/ ourselves.
+            app=$(find src-tauri/gen/apple -path "*.xcarchive/Products/Applications/*.app" -maxdepth 8 | head -1)
+            test -n "$app" || { echo "::error::No .ipa or archived .app was produced"; exit 1; }
+            rm -rf Payload && mkdir Payload && cp -R "$app" Payload/ && zip -qry out/app.ipa Payload && ipa=out/app.ipa
+          fi
+          name="RemoNook-${CHANNEL}_${VERSION}_ipad.ipa"
+          cp "$ipa" "out/$name"
+          # Sanity: a real app bundle with the expected version and an iPad device family.
+          unzip -qo "out/$name" -d check
+          plist=$(find check/Payload -maxdepth 2 -name Info.plist | head -1)
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" -c "Print :CFBundleShortVersionString" -c "Print :UIDeviceFamily" "$plist"
+          /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$plist" > /dev/null || { echo "::error::Camera usage description missing; the app would crash on photo capture"; exit 1; }
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RemoNook-${{ inputs.environment || 'staging' }}-ipad
+          path: out/RemoNook-*_ipad.ipa
+          if-no-files-found: error
+      - name: Publish the .ipa
+        env:
+          CLOUDFLARE_ACCOUNT_ID: e9a5c70b0fbe2e2d493fc21de0bbb40f
+          CLOUDFLARE_API_TOKEN: ${{ (inputs.environment || 'staging') == 'production' && secrets.CLOUDFLARE_PRODUCTION_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ "$CHANNEL" = "production" ]; then BUCKET=remo-attachments; API=https://remo-sync.remo-978fb.workers.dev; else BUCKET=remo-attachments-staging; API=https://remo-sync-staging.remo-978fb.workers.dev; fi
+          name="RemoNook-${CHANNEL}_${VERSION}_ipad.ipa"
+          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/$name" --file "out/$name" --remote || {
+            echo "::error::Cloudflare refused the upload. The API token needs the account permission Workers R2 Storage: Edit."; exit 1; }
+          echo "{\"version\":\"$VERSION\",\"url\":\"$API/desktop/$CHANNEL/$name\"}" > ipad.json
+          cat ipad.json
+          npx --yes wrangler@4 r2 object put "$BUCKET/desktop/$CHANNEL/ipad.json" --file ipad.json --remote --content-type application/json
+          echo "Download: $API/desktop/$CHANNEL/$name"

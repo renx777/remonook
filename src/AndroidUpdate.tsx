@@ -1,9 +1,10 @@
+// Android and iPad app updates (the iPad app reads ipad.json and is reinstalled with Sideloadly).
 // Android app updates. The app is installed from an APK (not a store yet), so it cannot replace
 // itself: it checks the channel's android.json (written by the Android app workflow) and, when
 // a newer build exists, offers to download it. Android then asks the person to install it over
 // the current app; notes are kept because the app's storage stays in place.
 import React, { useEffect, useState } from 'react';
-import { isMobileApp, openExternal, desktopInvoke } from './desktop';
+import { isMobileApp, isIosApp, openExternal, desktopInvoke } from './desktop';
 import { APP_ENV, CLOUD_API } from './cloud-config';
 
 type Latest = { version: string; url: string };
@@ -23,7 +24,7 @@ export function AndroidUpdate() {
     let alive = true;
     const check = async () => {
       try {
-        const [current, r] = await Promise.all([desktopInvoke<string>('plugin:app|version'), fetch(`${CLOUD_API}/desktop/${APP_ENV}/android.json`, { cache: 'no-store' })]);
+        const [current, r] = await Promise.all([desktopInvoke<string>('plugin:app|version'), fetch(`${CLOUD_API}/desktop/${APP_ENV}/${isIosApp() ? 'ipad' : 'android'}.json`, { cache: 'no-store' })]);
         if (!r.ok) return;
         const next = await r.json() as Latest;
         if (alive && typeof next?.version === 'string' && /^https:\/\//.test(next.url) && newer(next.version, current)) setLatest(next);
@@ -34,7 +35,9 @@ export function AndroidUpdate() {
   }, []);
   if (!latest || hidden) return null;
   return <div className="desktop-update" role="status">
-    <div><strong>Update available</strong><small>RemoNook {latest.version} is ready to download. Open the file when it finishes and choose Update.</small></div>
+    <div><strong>Update available</strong><small>{isIosApp()
+      ? <>RemoNook {latest.version} for iPad is ready. Download the .ipa on your computer and install it with Sideloadly over this app; notes on the iPad are kept.</>
+      : <>RemoNook {latest.version} is ready to download. Open the file when it finishes and choose Update.</>}</small></div>
     <div className="desktop-update-actions">
       <button onClick={() => setHidden(true)}>Later</button>
       <button className="primary" onClick={() => { void openExternal(latest.url); setHidden(true); }}>Download</button>
