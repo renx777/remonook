@@ -2,6 +2,17 @@
 
 ## Current state
 
+### Traits blocks (`#traits`), 25 November 2026
+
+Web staging runs branch `feat/nooktraits-upgrade`, commit
+`f931b890738bbb4c600c0ddc2034fc60190432b1`, release `2026-11-14.1`, Staging frontend run
+45550811998. Typing `#traits` on a bullet adds a collapsible "Traits" child whose `key:: value`
+children render as Obsidian-style property rows (typed per property name). `#views` collections get
+property columns and covers. Web-only change: no Worker, migration or production change. Checked
+on staging with a guest flow at 1280 and 390 px: the tag becomes a block, text, list, number,
+checkbox and date properties are added, the block collapses, and the data survives a reload; no
+page errors. Tests: 711 passing.
+
 ### NookTraits: own note types, study starters and shelf tools, 24 November 2026
 
 Web staging runs branch `feat/nooktraits-upgrade`, commit
