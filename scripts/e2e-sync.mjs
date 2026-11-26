@@ -172,6 +172,31 @@ try{
  const C=await device(browser,'C'),c=(await texts(C)).filter(t=>t.startsWith(RUN)).sort(),b=(await texts(B)).filter(t=>t.startsWith(RUN)).sort();
  check('a third new device sees the same notes',c.length===4&&JSON.stringify(c)===JSON.stringify(b),`${c.length}/4`);
 
+ // Task planning is gated to the new staging frontend. Reuse this run's own n4
+ // rather than creating an Inbox/system root or touching anyone else's notes.
+ if(process.env.E2E_TASK_PLANNING==='true'){
+  const base=await server(),task=base.doc.tables.bullets.find(n=>n.text===`${RUN} n4`);
+  if(!task)throw Error('Missing this run\'s task fixture.');
+  const next={...base.doc,tables:{...base.doc.tables,bullets:base.doc.tables.bullets.map(n=>n.id===task.id?{...n,taskState:'TODO'}:n)}};
+  const {updates}=applyDocument(base.states,base.doc,next,{clientID:Math.floor(Math.random()*2**31)});
+  const response=await fetch(`${API}/sync/v3`,{method:'POST',headers:{Authorization:token,Origin:APP,'Content-Type':'application/json'},body:JSON.stringify({operationId:crypto.randomUUID(),updates,since:base.revision})});
+  if(!response.ok)throw Error('Task fixture was refused: '+response.status);
+  const openTasks=async d=>{await d.page.locator('.sidebar-nav').getByRole('button',{name:'Tasks',exact:true}).click();await d.page.getByLabel('Search tasks',{exact:true}).fill(RUN);};
+  const taskView=async(d,label)=>d.page.getByRole('navigation',{name:'Task views'}).getByRole('button',{name:new RegExp('^'+label+'\\b')}).click();
+  await openTasks(A);await taskView(A,'Anytime');
+  const ar=A.page.locator(`[data-task-id="${task.id}"]`);await ar.getByRole('button',{name:'Plan',exact:true}).click();
+  const date=await A.page.evaluate(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');});
+  await online(A,false);await A.page.getByLabel('Task scheduled date',{exact:true}).fill(date);await A.page.getByLabel('Task priority',{exact:true}).selectOption('3');await A.page.getByLabel('Task estimated minutes',{exact:true}).fill('25');await A.page.getByRole('button',{name:'Save task details',exact:true}).click();await sleep(800);
+  check('offline task planning remains pending',/sync pending/i.test(await status(A)));
+  await online(A,true);await synced(A,30000);await openTasks(B);
+  const br=B.page.locator(`[data-task-id="${task.id}"]`);await br.getByText('25 min',{exact:true}).waitFor();await br.getByText('Scheduled '+date,{exact:true}).waitFor();
+  check('task planning reaches the other device without copies',await br.count()===1);
+  await br.getByRole('checkbox',{name:'Complete task '+task.text,exact:true}).click();await taskView(A,'Completed');await ar.waitFor();await synced(B,30000);
+  const saved=(await server()).doc.tables.bullets.filter(n=>n.id===task.id);
+  check('task completion and planning converge on the original',saved.length===1&&saved[0].taskState==='DONE'&&saved[0].scheduledDate===date&&saved[0].taskPriority===3&&saved[0].taskDurationMinutes===25);
+  for(const d of [A,B])await d.page.locator('.sidebar-nav').getByRole('button',{name:/^Notes/}).click();
+ }
+
  // 6. A device-only workspace never sends anything: its note text must not appear in any request,
  // and the main workspace must not show it. The workspace is deleted afterwards.
  if(await C.page.$('.workspace-current')){

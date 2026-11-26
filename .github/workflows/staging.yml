@@ -50,6 +50,7 @@ jobs:
       # (scripts/e2e-sync.mjs). Production releases require this to pass for the same code.
       - name: End-to-end sync check
         env:
+          E2E_TASK_PLANNING: 'true'
           E2E_EMAIL: ${{ secrets.STAGING_E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.STAGING_E2E_PASSWORD }}
         run: |
