@@ -2,6 +2,37 @@
 
 ## Current state
 
+### Inbox processing: web staging — 26 November 2026
+
+Web staging runs `codex/inbox-processing` at
+`e3112a429d62bceec3614dbbcd2a7244ff43613d` (PR #109), release `2026-11-14.1`.
+Phase 0 fixes from PR #108 are included; neither PR has been merged to main.
+
+- Inbox is available in navigation, the command palette and its ordinary outline.
+  New capture uses the normal editor. Dashboard quick capture now joins desktop,
+  widget and Android note captures in the existing canonical Inbox.
+- File moves the original branch; Link appends a reference; Make task marks the
+  original bullet; Schedule creates/reschedules one linked Calendar reminder,
+  leaving the note's deadline unchanged. Content, children, attachments and
+  provenance stay with the original. Explicit Android bookmark captures stay in
+  Bookmarks. Undo/redo and Trash use normal outline history and persistence.
+- The final build and TypeScript check passed. The full local suite passed:
+  **700 tests, zero failures**, including account isolation, pending outbox
+  preservation, stale/failed-save UI behavior and concurrent offline file/text edits.
+- [Application CI](https://github.com/renx777/remonook/actions/runs/45803482446)
+  passed. [Staging frontend](https://github.com/renx777/remonook/actions/runs/45804078739)
+  passed, including deployed sync, link collections and the new Inbox acceptance
+  check. Desktop-light and phone-dark guest contexts passed offline processing,
+  filing/link/task/reminder actions, undo/redo, Trash recovery, focus and reload.
+- The published source marker matches the commit above. See [INBOX.md](INBOX.md)
+  for the tutorial, scope and owner device checks.
+
+Native apps, production and the sync backend were not released. There is no
+schema migration. The staging workflow publishes the frontend separately from
+the sync server. Real Android share/keyboard and native device checks remain
+pending before native rollout; Phase 2 has not started.
+
+
 ### Editing reliability: web staging — 26 November 2026
 
 Web staging runs `codex/editing-reliability` at
