@@ -3,7 +3,7 @@ import {Icon} from './icons';
 import {useVisualTools} from './VisualTools';
 import {NoteTable} from './NoteTable';
 import {readTable} from './table.mjs';
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ClipboardInput } from "./clipboard";
 import {ConnectedText,InlineConnections} from "./Connections";
 import {tagHighlight} from "./TagHighlight";
@@ -422,7 +422,7 @@ function MountedBulletEditor({
   const connectionKeys = useRef<((event:KeyboardEvent)=>boolean)|null>(null);
   const traitKeys = useRef<((event:KeyboardEvent)=>boolean)|null>(null);
   const [emojiEditor, setEmojiEditor] = useState<Editor | null>(null), slashKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null), emojiKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!host.current) return;
     const e = new Editor({
       element: host.current,
@@ -608,7 +608,6 @@ function MountedBulletEditor({
     editor.current = e;
     setEmojiEditor(e);
     onReady(e);
-    e.commands.focus();
     if (initialSelection) {
       const clamp = (offset: number) => Math.min(node.text.length + 1, Math.max(1, offset + 1));
       e.view.dispatch(e.state.tr.setSelection(TextSelection.create(e.state.doc, clamp(initialSelection.anchor), clamp(initialSelection.head))));
@@ -616,6 +615,10 @@ function MountedBulletEditor({
       e.commands.setTextSelection(
         Math.min(node.text.length + 1, Math.max(1, caret + 1)),
       );
+    // Tiptap's focus command queues requestAnimationFrame on desktop. During a
+    // bullet switch that leaves a frame with no input target (and can later steal
+    // focus from a toolbar). Mount, select and focus in this layout effect instead.
+    e.view.focus();
     return () => {
       onReady(null);
       e.destroy();
@@ -631,6 +634,10 @@ function MountedBulletEditor({
     // document, which is published synchronously before React renders it.
     // Check every published render: fast Undo can restore the last rendered
     // text while the native editor still contains a newer, un-echoed draft.
+    // Android's temporary paragraph split is published without its separator.
+    // Replacing that DOM from the flattened echo would erase the split before
+    // queueSplitRepair can turn it into a new bullet.
+    if (!study && !usesLiteralLines(callbacks.current.node) && e.state.doc.childCount > 1) return;
     const incoming = readCurrentNode?.(node.id) || node;
     const current = content(e);
     if (current.text !== incoming.text || current.formatting !== incoming.formatting) {
