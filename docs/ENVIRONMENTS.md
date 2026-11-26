@@ -2,6 +2,48 @@
 
 ## Current state
 
+### Calendar planning increment: web staging — 26 November 2026
+
+Web staging runs `codex/calendar-planning` at
+`57df99ddda269dee73b66ad76c6e6becf0d98b9d` (PR #111), release `2026-11-14.1`.
+It carries the prior editing, Inbox and Tasks staging work forward without a main merge.
+
+- Tasks → Plan adds local start time and reserved minutes, separate from effort
+  estimates and deadlines. Calendar orders original task references by start time.
+- Recurring Calendar completion uses date-keyed booleans alongside the legacy
+  completed list. Concurrent completions retain both dates; completing the same
+  occurrence produces one next occurrence from the single series, with no note
+  generation or duplicate text. Weekly/monthly/yearly anchors are retained.
+- Explicit browser notification opt-in lives in the Calendar top bar. Delivery is
+  best effort while the app is open and visible, with device/account-local receipts,
+  permission/storage errors and focus catch-up. Scans run on timer/focus checks,
+  not on every note edit. See [CALENDAR-PLANNING.md](CALENDAR-PLANNING.md).
+- Local build/full suite passed 714 tests; final targeted tests passed 7 cases.
+  The final [application CI](https://github.com/renx777/remonook/actions/runs/45866071809)
+  passed the full **716-test** suite, including permission denial/opt-out,
+  concurrent recurrence completion, full-backup time blocks and New York DST.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45866096460)
+  passed all 16 signed-in sync checks plus deployed desktop-light/phone-dark
+  Tasks, Inbox and collections checks. The Tasks browser test now also verifies
+  start time and block duration after offline edits and reload. The earlier
+  frontend attempt was cancelled before completing so the timer/focus performance
+  correction could be included. The published source marker matches the SHA above.
+- The separate [server deployment](https://github.com/renx777/remonook/actions/runs/45865287806)
+  passed from `c95d04f4b0d97343537913a4671e7d4836d96a4c`, Worker version
+  `573d43e9-5f67-4134-b2ce-f43a70ed0b83`. Live variables, secret names, resource
+  bindings and cron schedules were verified retained. The later frontend-only
+  correction does not change server code. No SQL migration was required.
+- Health reports syncProtocol 3, workdaysSchema 2, taskPlanning 1,
+  calendarPlanning 1, aiEnabled true, aiAssist 1 and bookmarkReader 1. Books,
+  article capture, Google Tasks and MCP remain enabled.
+
+Production and native apps are unchanged. Physical-device notification delivery
+has not been verified. Closed-app push, automatic successor task-note creation,
+new daily recurrence modes and a drag timeline are outside this increment.
+A subsequent documentation-only commit records this deployment without changing
+the application source marker. Phase 3 has not started.
+
+
 ### Tasks sync-server update: staging — 26 November 2026
 
 The pending staging server update was deployed from `codex/tasks-workspace` at

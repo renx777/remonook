@@ -13,6 +13,8 @@ its original context, children, attachments and formatting.
 3. Set **Scheduled for** to the day you intend to work on it. Set **Deadline**
    separately only if it must be finished by a particular day. Optionally set a
    priority and an estimate in minutes, or put it in Someday or Waiting.
+   For a time block, also set Start time and Time block minutes; these reserve
+   calendar time separately from the effort estimate.
 4. Save. **Today** shows scheduled work carried forward and deadlines that are due.
    Tick the checkbox to complete the original task. Reopen it in **Completed**.
    Undo/redo use the same normal outline history, including the whole planning edit.
@@ -40,8 +42,9 @@ Scheduled dates are local calendar dates, without a time zone or notification.
 They never replace an existing deadline or create an agenda reminder. Calendar's
 day pane shows references to those same tasks, and the mini-month marks their
 dates. Today includes carryover work; other days show exact schedule/deadline
-matches. Completing a Calendar task completes the original bullet. Time blocks,
-recurrence and background reminder delivery belong to the next increment.
+matches. Completing a Calendar task completes the original bullet. Time blocks and opt-in open-app browser delivery are available in the calendar-planning
+increment; see [CALENDAR-PLANNING.md](CALENDAR-PLANNING.md). Closed-app push remains
+future work.
 
 ## Google Tasks
 
