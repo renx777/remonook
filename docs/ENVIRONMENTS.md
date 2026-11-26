@@ -2,6 +2,20 @@
 
 ## Current state
 
+### iPad fixes; native staging Android 0.1.48, Windows/macOS 0.1.36, iPad 0.1.4 — 26 November 2026
+
+PR #106 merged as `b44273168446fde9181ddfda3f74f26245a101fc`. It contains three fixes:
+- The app now sits below the status bar.
+- iPad updates go through SideStore or AltStore, using a source feed.
+- Pairing errors are clearer, and the iPad asks for Local Network permission when local sync is turned on.
+
+Web staging and all native staging apps run that commit:
+- **Android 0.1.48**
+- **Windows/macOS 0.1.36**: no Linux build.
+- **iPad 0.1.4**: 45,818,015 bytes. The SideStore/AltStore source `desktop/staging/ipad-source.json` lists `com.remonook.ipad.staging` 0.1.4. The icon is served (HTTP 200, 46,328 bytes).
+
+Device checks by the owner are pending. No Worker, production or data change.
+
 ### Traits by name; native staging Android 0.1.47, Windows/macOS 0.1.35, iPad 0.1.3 — 25 November 2026
 
 PR #104 merged as `f28f580cd4b81a1c23e25798146c0ad7fcfca40b`. Any bullet named exactly "Traits" now counts as a Traits bullet, even without the `#traits` marker. This fixes local vaults on Android and Windows: there, Traits bullets typed by hand or made by an older app showed no traits.
