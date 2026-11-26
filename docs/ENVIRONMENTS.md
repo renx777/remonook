@@ -2,6 +2,60 @@
 
 ## Current state
 
+### Tasks workspace: web staging — 26 November 2026
+
+Web staging runs `codex/tasks-workspace` at
+`1caf95d52e3b9d4be7c5931311767da66f122466` (PR #110), release `2026-11-14.1`.
+It includes the editing/Inbox work from PRs #108/#109 without merging to main.
+
+- Open Tasks from the sidebar, command palette or **More → Tasks** on phones.
+  Inbox, Today, Upcoming, Anytime, Someday, Waiting and Completed project the
+  original task bullets. Plans add optional scheduled dates, priority and estimates;
+  deadlines retain their meaning. Project/source filters, search and date/priority
+  sort keep the source context accessible. Calendar shows/completes those same
+  tasks, with no note copies or duplicate agenda reminders. Google Tasks is a
+  separate explicit source using the existing connection. See [TASKS.md](TASKS.md).
+- Optional fields retain legacy defaults without a startup rewrite. Planning forms
+  write dirty fields against the latest document; normal saves, undo, full backups,
+  mirror identity and the durable outbox remain authoritative. Legacy Android-format
+  export refuses to omit planning metadata.
+- TypeScript, the final production build and all **711 local tests** passed. The
+  final targeted app/model/config suite passed all 11 tests. Desktop-light and
+  phone-dark guest browsers passed offline planning, deadline/priority/estimate
+  edits, filters, completion, undo/redo, optional Google source and reload.
+- [Application CI](https://github.com/renx777/remonook/actions/runs/45847571129)
+  and [Staging frontend](https://github.com/renx777/remonook/actions/runs/45847591418)
+  passed for the deployed commit. All **16 deployed signed-in sync checks** passed,
+  including offline planning remaining pending, propagation to another device,
+  completion converging on the original, and exact cleanup preserving every earlier
+  test-account note. Deployed collection, Inbox and Tasks desktop/phone acceptance
+  checks passed. The public staging source marker matches the commit above.
+- **Sync backend unchanged:** the first server attempt received 403 because the
+  frontend token is restricted to its own Worker. The prepared separate deployment
+  now uses `CLOUDFLARE_SYNC_STAGING_API_TOKEN`; its
+  [server run](https://github.com/renx777/remonook/actions/runs/45846769125)
+  stopped before any deployment because that secret was unavailable, including
+  on retry. The owner is setting it up. Re-run failed jobs after saving the secret;
+  no credentials belong in source, docs or chat.
+- The existing v3 server accepts/transports the optional fields: this was verified
+  by the deployed two-device check. Stronger server field validation/recovery and
+  cloud MCP planning controls are implemented but **not live** until the separate
+  sync-server deployment succeeds. The frontend workflow still deploys only the
+  frontend. No migration or resource change was made.
+
+Post-release backend health remained:
+`ok: true`, `attachments: true`, `syncProtocol: 3`, `workdaysSchema: 2`,
+`authProviders: [google.com, password]`, `bookStorage: 1`, `bookReader: 1`,
+`aiAssist: 1`, `aiImage: 1`, `aiEnabled: true`, `bookmarkReader: 1`, `mcp: 1`,
+`mcpOAuth: 1`, `bookmarkCapture: true`, `googleTasksConfigured: true`.
+There is no `taskPlanning` marker yet, and no new Worker version was deployed.
+
+Production and native apps are unchanged. Real Android keyboard/date controls and
+owner-device task checks remain pending; automated browser clients are not a
+physical-device claim. Phase 2B has not started. This release record may be a
+later documentation-only commit than the application source marker above.
+
+
 ### Inbox processing: web staging — 26 November 2026
 
 Web staging runs `codex/inbox-processing` at
