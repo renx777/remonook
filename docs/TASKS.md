@@ -47,7 +47,7 @@ recurrence and background reminder delivery belong to the next increment.
 
 Choose the explicit **Google Tasks** source inside Tasks. It reuses the existing
 Google connection, consent and list controls; its tasks stay in Google rather
-than becoming note copies. The normal RemoNook tab never requests Google tasks.
+than becoming note copies. Opening the normal RemoNook tab does not enable Google Tasks.
 Google actions need a connection and network access. Choosing a list is
 account/device-local. No API key or new paid service is required.
 
@@ -68,10 +68,14 @@ not a cloud acknowledgement. Failed persistence keeps normal actionable status.
 Full ZIP backups retain these optional fields, including mixed legacy rows.
 Legacy Android-format export explicitly refuses to omit planning; use a full
 backup. Older current native builds preserve unknown fields but do not display
-these controls; native rollout remains separate. MCP `update_note` accepts
+these controls; native rollout remains separate. The prepared MCP `update_note` update accepts
 `scheduled_date`, `task_state`, `task_planning`, `task_priority` and
 `task_duration_minutes` with version checking; old fieldless note hashes remain
-unchanged.
+unchanged. Cloud MCP planning controls and stronger server validation require the
+separate sync-server deployment. The existing v3 server already preserves these
+optional fields through its generic bullet-field transport. The web interface
+can run before that deployment; the deployed two-device test verifies acceptance
+and propagation.
 
 ## Verification and release scope
 
