@@ -1342,7 +1342,13 @@ The working flow is local → staging → production:
    after deployment (`syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`,
    `bookmarkReader: 1`, with `aiEnabled: true` while staging AI is enabled).
    When local credentials are unavailable, manually dispatch **CI** on the tested
-   staging feature branch with `sync_staging=true`. Its separate server job first
+   staging feature branch with `sync_staging=true`. This job uses the separate
+   GitHub secret `CLOUDFLARE_SYNC_STAGING_API_TOKEN`, scoped for `remo-sync-staging`;
+   the frontend's `CLOUDFLARE_API_TOKEN` is restricted to `remonook-staging` and
+   receives 403 on the sync Worker. Never broaden or replace that frontend token
+   to work around the separation. The server token needs Worker script/settings
+   and schedule read/write access, plus any resource-read permissions Wrangler
+   needs for the existing bindings. Its separate server job first
    runs the build/full suite, compares the checked-in staging example with live
    bindings and cron schedules, removes example variables and uses `keep_vars`
    to retain live settings/secrets. It refuses unknown/mismatched resources, then
