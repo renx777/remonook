@@ -310,7 +310,17 @@ fn update_stored(app: &tauri::AppHandle, f: impl FnOnce(&mut Stored)) -> Result<
 /// use their identifier; the Android app has one identifier for both and is told its channel at
 /// build time (REMONOOK_CHANNEL, see .github/workflows/android.yml).
 fn channel(app: &tauri::AppHandle) -> String {
-    option_env!("REMONOOK_CHANNEL").map(str::to_string).unwrap_or_else(|| app.config().identifier.clone())
+    channel_for(option_env!("REMONOOK_CHANNEL"), &app.config().identifier)
+}
+/// The channel name shared by every platform: staging builds (any app id ending in `.staging`,
+/// e.g. the iPad's `com.remonook.ipad.staging`) pair with each other, production with production.
+/// Derived from the app id because the iOS build compiles Rust inside Xcode, which does not pass
+/// build environment variables through.
+pub(crate) fn channel_for(env: Option<&str>, identifier: &str) -> String {
+    if let Some(c) = env.filter(|c| !c.is_empty()) {
+        return c.to_string();
+    }
+    if identifier.ends_with(".staging") { "com.remonook.desktop.staging".into() } else { "com.remonook.desktop".into() }
 }
 fn changed(app: &tauri::AppHandle) {
     let _ = app.emit_to("main", "local-sync-status", ());
@@ -778,6 +788,16 @@ pub async fn local_sync_send(app: tauri::AppHandle, peer: String, data: String) 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn every_platform_shares_one_channel_per_environment() {
+        assert_eq!(super::channel_for(None, "com.remonook.ipad.staging"), "com.remonook.desktop.staging");
+        assert_eq!(super::channel_for(None, "com.remonook.desktop.staging"), "com.remonook.desktop.staging");
+        assert_eq!(super::channel_for(None, "com.remonook.ipad"), "com.remonook.desktop");
+        assert_eq!(super::channel_for(None, "com.remonook.desktop"), "com.remonook.desktop");
+        assert_eq!(super::channel_for(Some("com.remonook.desktop.staging"), "com.remonook.app"), "com.remonook.desktop.staging");
+        assert_eq!(super::channel_for(Some(""), "com.remonook.ipad.staging"), "com.remonook.desktop.staging");
+    }
+
     use super::*;
 
     fn keypair() -> snow::Keypair {
