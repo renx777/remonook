@@ -1339,8 +1339,17 @@ The working flow is local → staging → production:
    same tested branch. Keep that local config ignored; compare its bindings and
    plain variables against live staging first. Preserve secrets, enabled AI,
    Google Tasks, article capture, D1/R2 and scheduled cleanup. Verify `/health`
-   after deployment (`syncProtocol: 2`, `workdaysSchema: 2`, `aiAssist: 1`,
+   after deployment (`syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`,
    `bookmarkReader: 1`, with `aiEnabled: true` while staging AI is enabled).
+   When local credentials are unavailable, manually dispatch **CI** on the tested
+   staging feature branch with `sync_staging=true`. Its separate server job first
+   runs the build/full suite, compares the checked-in staging example with live
+   bindings and cron schedules, removes example variables and uses `keep_vars`
+   to retain live settings/secrets. It refuses unknown/mismatched resources, then
+   dry-runs, deploys **remo-sync-staging only** and verifies health, resource
+   bindings, variable digests and secret names. Nothing logs secret values or
+   commits the ignored generated local config. Review any mismatch rather than
+   bypassing it. It never deploys production or publishes a frontend.
 3. Open a PR into `main` once testing passes. CI runs Node 24, `npm ci`, a local-only build and the full tests.
 4. Merge to `main`. A push to `main` also deploys staging automatically.
 5. Release production explicitly from `main`. Before doing so, confirm `main` contains everything staging has been running, so the release and staging match.
