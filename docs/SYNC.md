@@ -279,3 +279,26 @@ an idempotent Inbox bullet; colliding content is also retained in recovery notes
 Neither a local widget action nor a local app save claims cloud acknowledgement.
 The broker archives evidence only after the existing durable save path succeeds.
 See [ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for the exchange details.
+
+## Optional task planning metadata
+
+Tasks adds optional bullet fields `scheduledDate`, `taskPlanning`, `taskPriority`
+and `taskDurationMinutes`; `dueDate` keeps its deadline meaning. Legacy absent or
+null values retain their defaults without a document-wide startup rewrite. They
+use the existing field-level CRDT/outbox paths, mirror propagation and note update
+timestamps. Dirty-field planning forms do not write stale task text or completion.
+Both v2 shared validation and v3 bucket projection validate these fields; malformed
+values use the existing recovery path, retaining originals in recovery notes.
+
+Full backups append optional columns only when used and retain sparse legacy
+rows. The legacy Android-format exporter refuses to silently omit this metadata.
+MCP supports planning changes with expected-version checks; legacy notes keep
+identical version hashes. Existing current native clients preserve unknown fields.
+No new SQL migration or snapshot replacement is required.
+
+Deploy the staging sync server **before** this frontend so validation and MCP
+understand the additive fields. Health reports `taskPlanning: 1` alongside
+`syncProtocol: 3`. The separate manual CI staging-server job prepares an ignored
+config from the current example, checks it against live resources, retains live
+variables and secrets, then verifies bindings, schedules and enabled capabilities.
+The **Staging frontend** workflow still deploys only the frontend.

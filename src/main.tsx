@@ -6,6 +6,7 @@ import {localDate} from "./calendar-events.mjs";
 import {resurfacePresentations,resurfacePresentation,widgetFocusAction} from "./widget-suite.mjs";
 import {INBOX_ID} from "./quick-capture.mjs";
 import {startInboxCapture} from "./inbox.mjs";
+import {startTask} from "./tasks.mjs";
 import {ImageTextDialog,type ImageTextSource} from './ImageTextDialog';
 import {fetchDroppedImage} from './image-drop';
 import {saveCardDetails} from './card-details.mjs';
@@ -272,6 +273,8 @@ function Dialog({
     </dialog>
   );
 }
+const CalendarTasks=React.lazy(()=>import('./CalendarTasks').then(m=>({default:m.CalendarTasks})));
+const TasksView=React.lazy(()=>import('./TasksView').then(m=>({default:m.TasksView})));
 const InboxView=React.lazy(()=>import('./InboxView').then(m=>({default:m.InboxView})));
 const DiagramEditor=React.lazy(()=>import('./DiagramEditor').then(m=>({default:m.DiagramEditor})));
 const DrawingEditor=React.lazy(()=>import('./DrawingEditor').then(m=>({default:m.DrawingEditor})));
@@ -1889,6 +1892,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               ["dashboard", "Dashboard", "dashboard"],
               ["notes", "Notes", "notes"],
               ["inbox", "Inbox", "inbox"],
+              ["tasks", "Tasks", "check"],
               ["calendar", "Calendar", "calendar"],
               ["study", "Study Desk", "study"],
               ["library"],
@@ -1964,7 +1968,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                 <button onClick={()=>{setOutlineScopes(value=>({...value,[tab]:null}));setEditing(null);}}><Icon name="notes" size={14}/><span>{label} outline</span></button>
                 {path.map((n,i)=><React.Fragment key={n.id}><Icon name="chevron" size={12}/><button aria-current={i===path.length-1?'page':undefined} onClick={()=>{setOutlineScopes(value=>({...value,[tab]:n.id}));setEditing(null);}}><EmojiText text={plain(n.text).slice(0,40)}/></button></React.Fragment>)}
               </>;
-            })() : tab === "inbox" ? <button onClick={()=>setTab("inbox")}><Icon name="inbox" size={16}/>Inbox</button> : tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
+            })() : tab === "tasks" ? <button onClick={()=>setTab("tasks")}><Icon name="check" size={16}/>Tasks</button> : tab === "inbox" ? <button onClick={()=>setTab("inbox")}><Icon name="inbox" size={16}/>Inbox</button> : tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
               <>
                 <button onClick={() => navigateTo(calendarRoot?.id || null)}>
                   <Icon name="calendar" size={14} />
@@ -2011,7 +2015,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
           <div className="topbar-right">
             <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
-            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
+            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas" && tab !== "tasks")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
               className={`icon-button completed-toggle ${paneCompleted ? "is-active" : ""}`}
@@ -2162,6 +2166,14 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             </div>
             {selected&&<SelectionFormatting editor={activeEditor} disabled={disabled||unsupportedFormatting(selected)} blockStyle={selected.blockStyle||'paragraph'} onBlock={type=>command('block:'+type,selected.id,0,0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style=>command('dividerStyle:'+style,selected.id,0,0)} onDividerColor={color=>command('dividerColor:'+color,selected.id,0,0)}/>}
           </>
+        ) : tab === "tasks" ? (
+          <React.Suspense fallback={<section className="secondary-page" role="status">Opening Tasks…</section>}><TasksView key={storageAccountKey()} storageKey={accountLocalKey('tasks-google-list')} doc={doc} disabled={disabled||failed.current} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onUndo={redo=>{undo(redo);setEditing(null);}} onOpen={id=>navigateTo(id)} onInbox={()=>{setEditing(null);setTab('inbox');}} onNew={()=>{
+            if(disabled||failed.current)throw Error('Saving needs attention before adding a task.');
+            const result=startTask(docRef.current!,crypto.randomUUID());commit(result.doc);setTab('notes');setScope(INBOX_ID);setSearch('');focus(result.id,0);
+          }} onChange={update=>{
+            if(disabled||failed.current)throw Error('Saving needs attention. Your task is unchanged.');
+            const current=docRef.current!,next=update(current);if(next!==current)commit(next);
+          }}/></React.Suspense>
         ) : tab === "inbox" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Opening Inbox…</section>}><InboxView key={storageAccountKey()} doc={doc} disabled={disabled||failed.current} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onUndo={redo=>{undo(redo);setEditing(null);}} onOpen={id=>navigateTo(id)} onCapture={()=>{
             if(disabled||failed.current)throw Error('Resolve the saving error before adding a capture.');
@@ -2206,6 +2218,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             aside={<>
               <MiniMonth doc={doc} date={calendarDate} today={calendarToday} workdays={!!calendarWorkdays.enabled} onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}/>
               {calendarWorkdays.enabled&&<WorkdaysLine doc={doc} date={calendarDate} today={calendarToday} onOpen={()=>setWorkdaysOpen(true)}/>}
+              <React.Suspense fallback={null}><CalendarTasks doc={doc} date={calendarDate} disabled={disabled||failed.current} onOpen={id=>navigateTo(id)} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention.');const current=docRef.current!,next=update(current);if(next!==current)commit(next);}}/></React.Suspense>
               <CalendarAgenda doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}/>
             </>}
             onCreateNote={(date,value,id)=>mutate(ns=>{const prepared=ensureCalendarHierarchy(ns,date);return move([...prepared.nodes,bullet(id,{parentId:prepared.dayId,...value})],id,prepared.dayId,(index(prepared.nodes).children.get(prepared.dayId)||[]).length);})}
@@ -2529,7 +2542,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         commit(withNodes(result.doc,result.doc.tables.bullets as Node[]));await flush();if(failed.current)throw Error('The capture is in your notes, but saving needs attention. Open Account settings to retry.');
       }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
-        ...[['notes','Open notes','notes'],['inbox','Open Inbox','inbox'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
+        ...[['notes','Open notes','notes'],['inbox','Open Inbox','inbox'],['tasks','Open Tasks','check'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
         {id:'note-templates',label:'New note from template',icon:'notes',keywords:['template','meeting','project','daily review'],disabled,run:()=>openPkm('templates',null)},
         {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
         {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},

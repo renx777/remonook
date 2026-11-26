@@ -1,3 +1,4 @@
+import {TASK_FIELDS,validTaskField} from './task-fields.mjs';
 import {roughPattern} from './rough-annotations.mjs';
 export function safeRandomUUID() {
   if (typeof crypto !== 'undefined') {
@@ -121,6 +122,7 @@ export function validate(nodes) {
       )
         throw Error("Invalid calendar date");
     }
+    for(const key of TASK_FIELDS)if(!validTaskField(key,n[key]))throw Error('Invalid task planning metadata');
     const path = new Set();
     let id = n.id;
     while (id !== null && !complete.has(id)) {
