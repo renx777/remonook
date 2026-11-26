@@ -2,6 +2,20 @@
 
 ## Current state
 
+### Tasks sync-server update: staging — 26 November 2026
+
+The pending staging server update was deployed from `codex/tasks-workspace` at
+`11db9c843c4755d71f6113f31ed3d2613cc42de1` using the successful rerun of
+[CI](https://github.com/renx777/remonook/actions/runs/45846769125). Worker version
+`0d20fb0f-6e27-4da9-9451-c7e1bad7f2f7` is live. The build/full suite and staging
+configuration, package and deployment checks passed. Live bindings, variables,
+secret names, schedules and existing capabilities were verified unchanged.
+Health reports `syncProtocol: 3`, `workdaysSchema: 2`, `taskPlanning: 1`,
+`aiEnabled: true`, `aiAssist: 1`, `bookmarkReader: 1`, book storage/reader,
+Google Tasks and MCP enabled. The stricter task validation and cloud MCP planning
+controls are now live on staging. The frontend remains at `1caf95d52e3b9d4be7c5931311767da66f122466`.
+Production and native releases were not touched.
+
 ### Tasks workspace: web staging — 26 November 2026
 
 Web staging runs `codex/tasks-workspace` at
@@ -35,12 +49,12 @@ It includes the editing/Inbox work from PRs #108/#109 without merging to main.
   now uses `CLOUDFLARE_SYNC_STAGING_API_TOKEN`; its
   [server run](https://github.com/renx777/remonook/actions/runs/45846769125)
   stopped before any deployment because that secret was unavailable, including
-  on retry. The owner is setting it up. Re-run failed jobs after saving the secret;
+  on retry. The owner subsequently added the secret and the rerun succeeded, as recorded above;
   no credentials belong in source, docs or chat.
 - The existing v3 server accepts/transports the optional fields: this was verified
   by the deployed two-device check. Stronger server field validation/recovery and
-  cloud MCP planning controls are implemented but **not live** until the separate
-  sync-server deployment succeeds. The frontend workflow still deploys only the
+  cloud MCP planning controls are now live following the separate
+  sync-server deployment recorded above. The frontend workflow still deploys only the
   frontend. No migration or resource change was made.
 
 Post-release backend health remained:
@@ -48,7 +62,7 @@ Post-release backend health remained:
 `authProviders: [google.com, password]`, `bookStorage: 1`, `bookReader: 1`,
 `aiAssist: 1`, `aiImage: 1`, `aiEnabled: true`, `bookmarkReader: 1`, `mcp: 1`,
 `mcpOAuth: 1`, `bookmarkCapture: true`, `googleTasksConfigured: true`.
-There is no `taskPlanning` marker yet, and no new Worker version was deployed.
+This health snapshot predates the subsequent server deployment recorded above.
 
 Production and native apps are unchanged. Real Android keyboard/date controls and
 owner-device task checks remain pending; automated browser clients are not a
