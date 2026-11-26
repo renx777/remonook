@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useRef,useState} from 'react';
+import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import type {Workspace,Node} from './data';
 import {Icon} from './icons';
 import {RichRead} from './editor';
@@ -17,7 +17,7 @@ export function InboxView({doc,disabled,onChange,onOpen,onCapture,onTrash,onUndo
  const destinations=useMemo(()=>{const q=query.trim().toLocaleLowerCase();return q?destinationNotes.filter(n=>(n.title+' '+n.path).toLocaleLowerCase().includes(q)):destinationNotes;},[destinationNotes,query]);
  const receipts=useMemo(()=>new Map(Object.values(doc.web.androidShareReceipts||{}).map((r:any)=>[r.id,r.receivedAt])),[doc.web.androidShareReceipts]);
  useEffect(()=>{setLimit(30);},[search]);
- useEffect(()=>{if(panel)panelInput.current?.focus();},[panel?.id,panel?.kind]);
+ useLayoutEffect(()=>{if(panel)panelInput.current?.focus();},[panel?.id,panel?.kind]);
  useEffect(()=>{if(panel&&!items.some(n=>n.id===panel.id)){setPanel(null);setError('The capture moved or was removed. Your other notes are unchanged.');}},[items,panel]);
  const history=(redo=false)=>{setNotice('');setError('');setPanel(null);onUndo(redo);};
  const capture=()=>{try{onCapture();}catch(e){setError(e instanceof Error?e.message:String(e));}};
