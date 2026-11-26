@@ -92,3 +92,13 @@ The dedicated Inbox processing view is implemented; see [INBOX.md](INBOX.md) for
 behavior, preservation rules and the tutorial. Advancing to Phase 1 was explicitly
 authorized by the owner on 26 November 2026. This does not claim the outstanding
 physical-device checks from Phase 0 have been completed.
+
+## Phase 2A implementation
+
+The owner authorized the next phase on 26 November 2026. The Tasks workspace
+implements the seven planning views over canonical task bullets, separate
+scheduled dates/deadlines, optional priority/estimate, project/source filters,
+Calendar references and an explicit Google Tasks source. See [TASKS.md](TASKS.md).
+It includes the Phase 0/1 staging work without merging either branch into main.
+Web staging is the first release; physical-device gates remain open. Phase 2B
+(time blocking, recurrence and reminder delivery) has not started.

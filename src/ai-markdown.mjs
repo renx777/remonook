@@ -1,3 +1,4 @@
+import {TASK_FIELDS} from './task-fields.mjs';
 import {marks as parseMarks,encode} from './domain.mjs';
 import {readTable,tableText,tableMarkdown,parseClipboardGrid} from './table.mjs';
 
@@ -165,7 +166,7 @@ export function bulletMarkdown(n){
 }
 /** A stable short version of a bullet's content and place; edits must quote the version they read. */
 export function bulletVersion(n){
-  const s=JSON.stringify([n.text,n.formatting,n.parentId,n.position,n.taskState,n.kind,n.listType,n.codeLanguage,n.blockStyle||'',n.dueDate,!!n.mindmap,!!n.collapsed]);
+  const s=JSON.stringify([n.text,n.formatting,n.parentId,n.position,n.taskState,n.kind,n.listType,n.codeLanguage,n.blockStyle||'',n.dueDate,!!n.mindmap,!!n.collapsed,...(TASK_FIELDS.some(k=>n[k]!=null)?TASK_FIELDS.map(k=>n[k]??null):[])]);
   let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(36);
 }
 /** A subtree as an outline: one line per bullet, ending with <!-- id=… v=… --> so edits can target it. */
@@ -175,7 +176,7 @@ export function outlineMarkdown(idx,rootId,{maxNodes=400,offset=0,maxDepth=20}={
     if(more)return;
     if(index++>=offset){
       if(emitted>=maxNodes){more=true;return;}emitted++;
-      const body=bulletMarkdown(n).split('\n'),pad='  '.repeat(depth),marker=n.listType==='ORDERED'?'1.':'-',tag=` <!-- id=${n.id} v=${bulletVersion(n)}${n.kind!=='NOTE'?' kind='+n.kind:''}${n.mindmap?' mindmap':''} -->`;
+      const body=bulletMarkdown(n).split('\n'),pad='  '.repeat(depth),marker=n.listType==='ORDERED'?'1.':'-',tag=` <!-- id=${n.id} v=${bulletVersion(n)}${n.kind!=='NOTE'?' kind='+n.kind:''}${n.mindmap?' mindmap':''}${n.dueDate?' deadline='+n.dueDate:''}${TASK_FIELDS.filter(k=>n[k]!=null).map(k=>' '+k+'='+n[k]).join('')} -->`;
       lines.push(`${pad}${marker} ${body[0]}${body.length===1?tag:''}`);
       for(const extra of body.slice(1))lines.push(`${pad}  ${extra}`);
       if(body.length>1)lines.push(`${pad} ${tag}`);
