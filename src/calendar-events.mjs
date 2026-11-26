@@ -18,6 +18,7 @@ const stamp=date=>Date.parse(date+'T00:00:00Z');
 export const dateGap=(a,b)=>Math.round((stamp(a)-stamp(b))/DAY);
 export function validEventDate(date){if(typeof date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date))return false;const time=stamp(date);return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===date&&+date.slice(0,4)>=1900&&+date.slice(0,4)<=2199;}
 const dateAt=(y,m,d)=>{const last=new Date(Date.UTC(y,m+1,0)).getUTCDate();return new Date(Date.UTC(y,m,Math.min(d,last))).toISOString().slice(0,10);};
+export const occurrenceComplete=(event,date)=>Object.hasOwn(event.completions||{},date)?event.completions[date]:event.completed.includes(date);
 export function eventOnDate(event,date){
  if(!validEventDate(date)||date<event.date)return false;
  if(event.repeat==='none')return date===event.date;
@@ -31,15 +32,15 @@ export function calendarEvents(doc){return Array.isArray(doc.web.calendarEvents)
 export function validateCalendarEvents(events){
  if(events===undefined)return;
  if(!Array.isArray(events)||events.length>5000||new Set(events.map(e=>e?.id)).size!==events.length)throw Error('Invalid calendar reminders');
- for(const e of events)if(!e||(e.countdown!==undefined&&typeof e.countdown!=='boolean')||typeof e.id!=='string'||!e.id||e.id.length>200||typeof e.title!=='string'||!e.title.trim()||e.title.length>160||!eventKinds.some(k=>k.id===e.kind)||!validEventDate(e.date)||!['none','weekly','monthly','yearly'].includes(e.repeat)||!Number.isInteger(e.leadDays)||e.leadDays<0||e.leadDays>365||typeof e.time!=='string'||(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time))||typeof e.notes!=='string'||e.notes.length>2000||!Array.isArray(e.completed)||e.completed.length>1000||e.completed.some(d=>!validEventDate(d)))throw Error('Invalid calendar reminder');
+ for(const e of events)if(!e||(e.completions!==undefined&&(!e.completions||typeof e.completions!=='object'||Array.isArray(e.completions)||Object.keys(e.completions).length>5000||Object.entries(e.completions).some(([d,v])=>!validEventDate(d)||typeof v!=='boolean')))||(e.countdown!==undefined&&typeof e.countdown!=='boolean')||typeof e.id!=='string'||!e.id||e.id.length>200||typeof e.title!=='string'||!e.title.trim()||e.title.length>160||!eventKinds.some(k=>k.id===e.kind)||!validEventDate(e.date)||!['none','weekly','monthly','yearly'].includes(e.repeat)||!Number.isInteger(e.leadDays)||e.leadDays<0||e.leadDays>365||typeof e.time!=='string'||(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time))||typeof e.notes!=='string'||e.notes.length>2000||!Array.isArray(e.completed)||e.completed.length>1000||e.completed.some(d=>!validEventDate(d)))throw Error('Invalid calendar reminder');
 }
 export function saveCalendarEvent(doc,draft,uuid=()=>crypto.randomUUID()){
  const prior=calendarEvents(doc).find(e=>e.id===draft.id);if(draft.id&&!prior)throw Error('This reminder no longer exists.');
- const item={countdown:!!draft.countdown,id:prior?.id||uuid(),title:String(draft.title||'').trim(),kind:draft.kind,date:draft.date,time:draft.time||'',repeat:draft.repeat,leadDays:Number(draft.leadDays),notes:String(draft.notes||'').trim(),completed:prior&&prior.date===draft.date&&prior.repeat===draft.repeat?prior.completed:[]};
+ const item={countdown:!!draft.countdown,id:prior?.id||uuid(),title:String(draft.title||'').trim(),kind:draft.kind,date:draft.date,time:draft.time||'',repeat:draft.repeat,leadDays:Number(draft.leadDays),notes:String(draft.notes||'').trim(),...(prior?.completions&&prior.date===draft.date&&prior.repeat===draft.repeat?{completions:prior.completions}:{}),completed:prior&&prior.date===draft.date&&prior.repeat===draft.repeat?prior.completed:[]};
  const events=prior?calendarEvents(doc).map(e=>e.id===item.id?item:e):[...calendarEvents(doc),item];validateCalendarEvents(events);return {...doc,web:{...doc.web,calendarEvents:events}};
 }
 export function removeCalendarEvent(doc,id){return {...doc,web:{...doc.web,calendarEvents:calendarEvents(doc).filter(e=>e.id!==id)}};}
-export function completeCalendarEvent(doc,id,date){return {...doc,web:{...doc.web,calendarEvents:calendarEvents(doc).map(e=>e.id!==id?e:!eventOnDate(e,date)?e:{...e,completed:e.completed.includes(date)?e.completed.filter(d=>d!==date):[...e.completed,date].slice(-1000)})}};}
+export function completeCalendarEvent(doc,id,date){const next={...doc,web:{...doc.web,calendarEvents:calendarEvents(doc).map(e=>e.id!==id?e:!eventOnDate(e,date)?e:{...e,completed:occurrenceComplete(e,date)?e.completed.filter(d=>d!==date):[...new Set([...e.completed,date])].slice(-1000),completions:{...e.completions,[date]:!occurrenceComplete(e,date)}})}};validateCalendarEvents(next.web.calendarEvents);return next;}
 /** @param {CalendarEvent[]} events @returns {CalendarEvent[]} */
 export const eventsOnDate=(events,date)=>events.filter(e=>eventOnDate(e,date)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')||a.title.localeCompare(b.title));
 // At most one overdue occurrence plus the nearest upcoming occurrence per recurring reminder.
@@ -47,7 +48,7 @@ export const eventsOnDate=(events,date)=>events.filter(e=>eventOnDate(e,date)).s
 export function upcomingEvents(events,today=localDate()){
  const output=[];
  for(const e of events){
-  const completed=new Set(e.completed),[y,m,d]=e.date.split('-').map(Number),[cy,cm]=today.split('-').map(Number);let candidates=[];
+  const completed={has:date=>occurrenceComplete(e,date)},[y,m,d]=e.date.split('-').map(Number),[cy,cm]=today.split('-').map(Number);let candidates=[];
   if(e.repeat==='none')candidates=[e.date];
   else if(e.repeat==='yearly')candidates=[cy-1,cy,cy+1,cy+2].map(year=>dateAt(year,m-1,d));
   else if(e.repeat==='monthly')candidates=Array.from({length:15},(_,i)=>dateAt(cy,cm-2+i,d));

@@ -1,3 +1,4 @@
+import {ReminderDelivery} from './ReminderDelivery';
 import {addTraitsBlock,hasTraitsTag,traitsBlocks,isTraitsBlock} from './traits-block.mjs';
 import {NoteMetadataContext} from './NoteMetadataContext';
 import {createProperty,renameProperty,addPropertyOption,setPropertyValues} from './note-properties.mjs';
@@ -2014,7 +2015,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             )}
           </div>
           <div className="topbar-right">
-            <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
+            <ReminderDelivery key={storageAccountKey()} doc={doc} controls={tab==='calendar'}/><FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
             {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas" && tab !== "tasks")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button

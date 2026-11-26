@@ -24,6 +24,6 @@ test('reminders edit, persist in backups, reject invalid dates and delete withou
  doc=saveCalendarEvent(doc,{...doc.web.calendarEvents[0],title:'Updated'});assert.deepEqual(doc.web.calendarEvents[0].completed,['2026-06-02']);
  const restored=await parseArchive(await archive(doc,new Map()));assert.deepEqual(restored.doc.web.calendarEvents,doc.web.calendarEvents);assert.ok(androidBlockers(doc).some(s=>s.includes('reminders')));
  assert.equal(eventsOnDate(doc.web.calendarEvents,'2027-06-02')[0].title,'Updated');const nodes=doc.tables.bullets;doc=removeCalendarEvent(doc,'e');assert.equal(doc.web.calendarEvents.length,0);assert.equal(doc.tables.bullets,nodes);
- for(const patch of [{date:'2026-02-30'},{repeat:'daily'},{time:'25:00'},{leadDays:-1},{title:''}])assert.throws(()=>saveCalendarEvent(empty(),draft(patch)),/Invalid calendar reminder/);
+ for(const patch of [{date:'2026-02-30'},{repeat:'fortnightly'},{time:'25:00'},{leadDays:-1},{title:''}])assert.throws(()=>saveCalendarEvent(empty(),draft(patch)),/Invalid calendar reminder/);
  assert.throws(()=>validateCalendarEvents([event({completed:['bad']})]),/Invalid/);assert.equal(eventKinds.length,11);
 });

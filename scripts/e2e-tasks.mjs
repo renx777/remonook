@@ -20,8 +20,8 @@ try{
   const row=page.locator('.task-row').filter({hasText:'Review the learning plan'});await row.waitFor();
   await context.setOffline(true);await row.getByRole('button',{name:'Plan',exact:true}).click();
   const today=await page.evaluate(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');});
-  await page.getByLabel('Task scheduled date',{exact:true}).fill(today);await page.getByLabel('Task deadline',{exact:true}).fill('2029-12-31');await page.getByLabel('Task priority',{exact:true}).selectOption('3');await page.getByLabel('Task estimated minutes',{exact:true}).fill('25');await page.getByRole('button',{name:'Save task details',exact:true}).click();
-  await view('Today');await row.getByText('25 min',{exact:true}).waitFor();await row.getByText('Due 2029-12-31',{exact:true}).waitFor();
+  await page.getByLabel('Task scheduled date',{exact:true}).fill(today);await page.getByLabel('Task deadline',{exact:true}).fill('2029-12-31');await page.getByLabel('Task start time',{exact:true}).fill('10:30');await page.getByLabel('Task block minutes',{exact:true}).fill('45');await page.getByLabel('Task priority',{exact:true}).selectOption('3');await page.getByLabel('Task estimated minutes',{exact:true}).fill('25');await page.getByRole('button',{name:'Save task details',exact:true}).click();
+  await view('Today');await row.getByText('10:30 · 45 min block',{exact:true}).waitFor();await row.getByText('25 min',{exact:true}).waitFor();await row.getByText('Due 2029-12-31',{exact:true}).waitFor();
   await page.getByLabel('Undo task action',{exact:true}).click();await row.waitFor({state:'detached'});await page.getByLabel('Redo task action',{exact:true}).click();await row.getByText('25 min',{exact:true}).waitFor();
   await row.getByRole('button',{name:'Plan',exact:true}).click();await page.getByLabel('Task planning status',{exact:true}).selectOption('SOMEDAY');await page.getByRole('button',{name:'Save task details',exact:true}).click();await view('Someday');await row.waitFor();
   await row.getByRole('button',{name:'Plan',exact:true}).click();await page.getByLabel('Task planning status',{exact:true}).selectOption('WAITING');await page.getByRole('button',{name:'Save task details',exact:true}).click();await view('Waiting');await row.waitFor();
@@ -36,7 +36,7 @@ try{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'No page overflow');
   if(process.env.TASKS_SCREENSHOTS)await page.screenshot({path:`${process.env.TASKS_SCREENSHOTS}-${mobile?'phone':'desktop'}.png`,fullPage:true});
   await context.setOffline(false);await page.waitForTimeout(800);await page.reload();await page.locator('.app').waitFor();await go('Tasks');
-  await row.getByText('25 min',{exact:true}).waitFor();await row.getByText('Due 2029-12-31',{exact:true}).waitFor();assert.equal(await page.locator('.task-row').count(),1,'The same original task persists without copies');assert.deepEqual(errors,[]);
+  await row.getByText('10:30 · 45 min block',{exact:true}).waitFor();await row.getByText('25 min',{exact:true}).waitFor();await row.getByText('Due 2029-12-31',{exact:true}).waitFor();assert.equal(await page.locator('.task-row').count(),1,'The same original task persists without copies');assert.deepEqual(errors,[]);
   console.log(`Tasks ${mobile?'phone dark':'desktop light'}: offline planning, deadlines, priority, filters, completion, undo/redo, Google opt-in and reload passed`);await context.close();
  }
 }finally{await browser.close();}

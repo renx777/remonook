@@ -305,3 +305,15 @@ deployment succeeds. Health then reports `taskPlanning: 1` alongside
 config from the current example, checks it against live resources, retains live
 variables and secrets, then verifies bindings, schedules and enabled capabilities.
 The **Staging frontend** workflow still deploys only the frontend.
+
+## Calendar planning
+
+Task time blocks add optional taskStartTime/taskBlockMinutes fields through the
+existing task validation, backup, mirror, repair and MCP paths. Calendar series
+completion writes a date-keyed completions boolean map as well as retaining the
+legacy completed array. A map entry takes precedence over the old array; dates
+merge independently through ordinary root CRDT leaves. Two offline completions
+of the same date project one next occurrence of the single series, without
+creating another note or inserting duplicate text. Reopen/undo retain normal
+history. Browser delivery preferences/receipts are device/account-local and never
+acknowledge cloud operations. Health calendarPlanning: 1 identifies this server.
