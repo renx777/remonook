@@ -279,3 +279,41 @@ an idempotent Inbox bullet; colliding content is also retained in recovery notes
 Neither a local widget action nor a local app save claims cloud acknowledgement.
 The broker archives evidence only after the existing durable save path succeeds.
 See [ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for the exchange details.
+
+## Optional task planning metadata
+
+Tasks adds optional bullet fields `scheduledDate`, `taskPlanning`, `taskPriority`
+and `taskDurationMinutes`; `dueDate` keeps its deadline meaning. Legacy absent or
+null values retain their defaults without a document-wide startup rewrite. They
+use the existing field-level CRDT/outbox paths, mirror propagation and note update
+timestamps. Dirty-field planning forms do not write stale task text or completion.
+Both v2 shared validation and v3 bucket projection validate these fields; malformed
+values use the existing recovery path, retaining originals in recovery notes.
+
+Full backups append optional columns only when used and retain sparse legacy
+rows. The legacy Android-format exporter refuses to silently omit this metadata.
+MCP supports planning changes with expected-version checks; legacy notes keep
+identical version hashes. Existing current native clients preserve unknown fields.
+No new SQL migration or snapshot replacement is required.
+
+The existing v3 server transports optional bullet fields without a whitelist, so
+web planning can be released independently after deployed cross-device checks.
+The prepared sync-server update adds strict field validation/recovery and cloud
+MCP planning controls; those server enhancements are not live until its separate
+deployment succeeds. Health then reports `taskPlanning: 1` alongside
+`syncProtocol: 3`. The separate manual CI staging-server job prepares an ignored
+config from the current example, checks it against live resources, retains live
+variables and secrets, then verifies bindings, schedules and enabled capabilities.
+The **Staging frontend** workflow still deploys only the frontend.
+
+## Calendar planning
+
+Task time blocks add optional taskStartTime/taskBlockMinutes fields through the
+existing task validation, backup, mirror, repair and MCP paths. Calendar series
+completion writes a date-keyed completions boolean map as well as retaining the
+legacy completed array. A map entry takes precedence over the old array; dates
+merge independently through ordinary root CRDT leaves. Two offline completions
+of the same date project one next occurrence of the single series, without
+creating another note or inserting duplicate text. Reopen/undo retain normal
+history. Browser delivery preferences/receipts are device/account-local and never
+acknowledge cloud operations. Health calendarPlanning: 1 identifies this server.
