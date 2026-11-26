@@ -57,6 +57,8 @@ jobs:
         run: npx tauri ios init --ci --config src-tauri/tauri.release.json
       - name: Build the unsigned app
         run: |
+          # Local sync only pairs devices of the same channel; use the desktop/Android channel names.
+          if [ "$CHANNEL" = "production" ]; then export REMONOOK_CHANNEL=com.remonook.desktop; else export REMONOOK_CHANNEL=com.remonook.desktop.staging; fi
           npx tauri ios build --no-sign --target aarch64 --config src-tauri/tauri.release.json --ci
           find src-tauri/gen/apple -name "*.ipa" -o -name "*.xcarchive" -maxdepth 5 | head
       - name: Package the .ipa
