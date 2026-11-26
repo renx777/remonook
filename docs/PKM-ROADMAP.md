@@ -85,3 +85,10 @@ focus transfer passed. Ordinary typing meets the reference targets. Structural
 Enter remains slower and is explicitly reported, not included in the ordinary
 character metric. These development-mode results are not native-device claims.
 The full Phase 0 gate remains open until the owner device checks pass.
+
+## Phase 1 implementation
+
+The dedicated Inbox processing view is implemented; see [INBOX.md](INBOX.md) for
+behavior, preservation rules and the tutorial. Advancing to Phase 1 was explicitly
+authorized by the owner on 26 November 2026. This does not claim the outstanding
+physical-device checks from Phase 0 have been completed.
