@@ -100,8 +100,8 @@ implements the seven planning views over canonical task bullets, separate
 scheduled dates/deadlines, optional priority/estimate, project/source filters,
 Calendar references and an explicit Google Tasks source. See [TASKS.md](TASKS.md).
 It includes the Phase 0/1 staging work without merging either branch into main.
-Web staging is the first release; physical-device gates remain open. Phase 2B
-(time blocking, recurrence and reminder delivery) has not started.
+Web staging is the first release; physical-device gates remain open. The Phase 2B
+calendar-planning increment is described below.
 
 ## Phase 2B implementation
 
