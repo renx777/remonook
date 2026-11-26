@@ -17,7 +17,7 @@ const fixture=()=>withNodes(empty(),[
 const ids=xs=>xs.map(t=>t.node.id).sort();
 test('legacy tasks default without a startup rewrite; deadlines and planning views have explicit semantics',()=>{
  const doc=fixture(),before=JSON.stringify(doc),c=taskCatalog(doc,today);
- assert.deepEqual(taskPlan(doc.tables.bullets.find(n=>n.id==='captured')),{scheduledDate:'',taskPlanning:'ACTIVE',taskPriority:0,taskDurationMinutes:0});
+ assert.deepEqual(taskPlan(doc.tables.bullets.find(n=>n.id==='captured')),{scheduledDate:'',taskPlanning:'ACTIVE',taskPriority:0,taskDurationMinutes:0,taskStartTime:'',taskBlockMinutes:0});
  assert.deepEqual(ids(c.list('today')),['late','today','waiting']);
  assert.deepEqual(ids(c.list('upcoming')),['any','future']);assert.deepEqual(ids(c.list('anytime')),['any','captured']);
  assert.deepEqual(ids(c.list('inbox')),['captured']);assert.deepEqual(ids(c.list('someday')),['someday']);assert.deepEqual(ids(c.list('waiting')),['waiting']);assert.deepEqual(ids(c.list('completed')),['done']);
@@ -29,7 +29,7 @@ test('planning and completion update the original bullet, preserve source text/f
  const next=updateTask(doc,'task',{scheduledDate:today,taskPlanning:'WAITING',taskPriority:3,taskDurationMinutes:25});
  const n=next.tables.bullets.find(n=>n.id==='task');assert.equal(n.dueDate,'2026-12-10');assert.equal(n.formatting,'0:5:BOLD');assert.equal(n.text,'Learn SQL');assert.equal(next.tables.bullets.length,3);
  const done=updateTask(next,'task',{taskState:'DONE'});assert.equal(done.tables.bullets.find(n=>n.id==='task').scheduledDate,today);assert.equal(taskCatalog(done,today).list('completed').length,1);
- const cleared=updateTask(done,'task',{taskState:'TODO',scheduledDate:'',dueDate:'',taskPlanning:'ACTIVE',taskPriority:0,taskDurationMinutes:0});assert.equal(taskCatalog(cleared,today).list('anytime').length,1);
+ const cleared=updateTask(done,'task',{taskState:'TODO',scheduledDate:'',dueDate:'',taskPlanning:'ACTIVE',taskPriority:0,taskDurationMinutes:0,taskStartTime:'',taskBlockMinutes:0});assert.equal(taskCatalog(cleared,today).list('anytime').length,1);
  assert.equal(cleared.tables.bullets.find(n=>n.id==='child').text,'Source context');
 });
 test('mirrors are deduplicated and edits resolve to their source; trait rows never become task results',()=>{

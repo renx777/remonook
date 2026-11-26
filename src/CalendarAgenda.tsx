@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Workspace } from "./data";
 import { Icon } from "./icons";
 import {
-  calendarEvents,
+  calendarEvents,occurrenceComplete,
   eventKinds,
   eventsOnDate,
   upcomingEvents,
@@ -285,7 +285,7 @@ export function CalendarAgenda({ doc, date, disabled, onSelectDate, onChange, on
               </>
             )}
             {day.map((e, i) => {
-              const done = e.completed.includes(date);
+              const done = occurrenceComplete(e,date);
               return [
                 i === nowIndex && nowAt ? nowLine : null,
                 <div className={"cal2-row" + (done ? " is-complete" : "")} key={e.id}>

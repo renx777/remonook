@@ -39,6 +39,7 @@ export function updateTask(doc,id,patch){
   else if(key==='dueDate'){if(typeof value!=='string'||!validTaskField('scheduledDate',value))throw Error('Invalid deadline.');}
   else if(!validTaskField(key,value)||value==null)throw Error('Invalid task planning value.');
  }
+ const planned=taskPlan({...node,...patch});if((planned.taskStartTime||planned.taskBlockMinutes)&&(!planned.scheduledDate||!planned.taskStartTime||!planned.taskBlockMinutes))throw Error('A time block needs a scheduled date, start time and duration.');
  if(Object.entries(patch).every(([k,v])=>node[k]===v))return doc;
  return withNodes(doc,doc.tables.bullets.map(n=>n.id===source?{...n,...patch}:n));
 }

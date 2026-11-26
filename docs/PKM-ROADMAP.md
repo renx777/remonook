@@ -102,3 +102,13 @@ Calendar references and an explicit Google Tasks source. See [TASKS.md](TASKS.md
 It includes the Phase 0/1 staging work without merging either branch into main.
 Web staging is the first release; physical-device gates remain open. Phase 2B
 (time blocking, recurrence and reminder delivery) has not started.
+
+## Phase 2B implementation
+
+Calendar planning adds task time blocks (local start time and reserved minutes,
+separate from estimates), safely merged recurrence occurrence completion and
+explicit opt-in browser delivery while the app is visible. See
+[CALENDAR-PLANNING.md](CALENDAR-PLANNING.md) for semantics and limits. Repetition
+uses existing Calendar series; automatic successor task-note generation and
+closed-app push delivery are not implemented in this increment. Native daily
+repeat compatibility must be resolved before offering a new daily enum.
