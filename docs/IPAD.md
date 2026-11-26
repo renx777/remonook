@@ -40,6 +40,7 @@ notes are safe either way. Back up anything kept only on the iPad.
 - **Local Network permission.** Turning on local sync now makes iPadOS ask for it straight away.
   If it was refused, turn it on in Settings → Privacy & Security → Local Network → RemoNook.
 - **Keep the app on screen while pairing.** iPadOS pauses apps in the background.
+- **Same channel as the other apps.** Local sync only pairs devices of one channel (staging with staging). The iPad build sets `REMONOOK_CHANNEL` like Android, so its app id (`com.remonook.ipad…`) does not count as a different channel. Before 0.1.5 it did, and pairing silently failed with "did not answer".
 - **Clearer errors.** A failed pairing now says why: refused (local sync off over there), no answer
   (network, VPN or firewall), or this iPad not allowed on the local network.
 

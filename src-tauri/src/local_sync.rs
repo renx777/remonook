@@ -431,10 +431,12 @@ fn accept_pairing(app: &tauri::AppHandle, mut stream: TcpStream) {
     let result = (|| -> Result<Peer, String> {
         let them: PairHello = serde_json::from_slice(&read_frame(&mut stream).map_err(err)?).map_err(err)?;
         let me = pair_hello(app)?;
+        // Always answer first, so a device that cannot pair (another channel) hears why instead
+        // of timing out with "did not answer".
+        write_frame(&mut stream, &serde_json::to_vec(&me).map_err(err)?).map_err(err)?;
         if them.channel != me.channel || them.id == me.id || them.id.len() > 64 || them.name.len() > 200 {
             return Err("This device cannot pair with that one.".into());
         }
-        write_frame(&mut stream, &serde_json::to_vec(&me).map_err(err)?).map_err(err)?;
         let mut n = [0u8; 4];
         getrandom::fill(&mut n).map_err(err)?;
         let code = format!("{:06}", u32::from_le_bytes(n) % 1_000_000);
