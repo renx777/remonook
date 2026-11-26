@@ -8,8 +8,8 @@ import {GoogleTasksWidget} from './GoogleTasksWidget';
 import {useReminderClock} from './CalendarReminders';
 import './tasks.css';
 type Props={doc:Workspace;disabled:boolean;canUndo:boolean;canRedo:boolean;onChange:(update:(doc:Workspace)=>Workspace)=>void;onOpen:(id:string)=>void;onNew:()=>void;onInbox:()=>void;onUndo:(redo?:boolean)=>void;storageKey:string};
-type Draft={scheduledDate:string;dueDate:string;taskPlanning:string;taskPriority:string;taskDurationMinutes:string};
-function planDraft(n:Node):Draft{const p=taskPlan(n);return {scheduledDate:p.scheduledDate,dueDate:n.dueDate||'',taskPlanning:p.taskPlanning,taskPriority:String(p.taskPriority),taskDurationMinutes:p.taskDurationMinutes?String(p.taskDurationMinutes):''} as Draft;}
+type Draft={scheduledDate:string;dueDate:string;taskPlanning:string;taskPriority:string;taskDurationMinutes:string;taskStartTime:string;taskBlockMinutes:string};
+function planDraft(n:Node):Draft{const p=taskPlan(n);return {scheduledDate:p.scheduledDate,dueDate:n.dueDate||'',taskPlanning:p.taskPlanning,taskPriority:String(p.taskPriority),taskDurationMinutes:p.taskDurationMinutes?String(p.taskDurationMinutes):'',taskStartTime:String(p.taskStartTime),taskBlockMinutes:p.taskBlockMinutes?String(p.taskBlockMinutes):''} as Draft;}
 const priority=['No priority','Low','Medium','High'];
 function TaskDetails({node,disabled,onChange,onClose}:{node:Node;disabled:boolean;onChange:Props['onChange'];onClose:(saved?:boolean)=>void}){
  const [initial]=useState(()=>planDraft(node)),[draft,setDraft]=useState(initial),[error,setError]=useState('');
@@ -19,7 +19,7 @@ function TaskDetails({node,disabled,onChange,onClose}:{node:Node;disabled:boolea
   e.preventDefault();if(disabled)return;
   try{
    // Write only fields the user changed. Remote text, completion and other plan fields survive.
-   const patch:Record<string,unknown>={};for(const key of [...TASK_FIELDS,'dueDate'] as (keyof Draft)[])if(draft[key]!==initial[key])patch[key]=key==='taskPriority'||key==='taskDurationMinutes'?Number(draft[key]):draft[key];
+   const patch:Record<string,unknown>={};for(const key of [...TASK_FIELDS,'dueDate'] as (keyof Draft)[])if(draft[key]!==initial[key])patch[key]=key==='taskPriority'||key==='taskDurationMinutes'||key==='taskBlockMinutes'?Number(draft[key]):draft[key];
    onChange(doc=>updateTask(doc,node.id,patch));onClose(true);
   }catch(e){setError(e instanceof Error?e.message:String(e));}
  }}>
@@ -30,6 +30,8 @@ function TaskDetails({node,disabled,onChange,onClose}:{node:Node;disabled:boolea
    <label>Planning status<select aria-label="Task planning status" value={draft.taskPlanning} onChange={e=>set('taskPlanning',e.target.value)}><option value="ACTIVE">Active</option><option value="SOMEDAY">Someday</option><option value="WAITING">Waiting</option></select></label>
    <label>Priority<select aria-label="Task priority" value={draft.taskPriority} onChange={e=>set('taskPriority',e.target.value)}>{priority.map((p,i)=><option key={p} value={i}>{p}</option>)}</select></label>
    <label>Estimated minutes<input aria-label="Task estimated minutes" type="number" min="0" max="1440" step="1" placeholder="Optional" value={draft.taskDurationMinutes} onChange={e=>set('taskDurationMinutes',e.target.value)}/></label>
+   <label>Start time<input aria-label="Task start time" type="time" value={draft.taskStartTime} onChange={e=>set('taskStartTime',e.target.value)}/><small>Local time on the scheduled date.</small></label>
+   <label>Time block (minutes)<input aria-label="Task block minutes" type="number" min="0" max="1440" step="1" value={draft.taskBlockMinutes} onChange={e=>set('taskBlockMinutes',e.target.value)}/><small>Separate from your effort estimate. Overlaps remain allowed.</small></label>
   </div>
   {error&&<p role="alert">{error}</p>}
   <footer><button type="button" onClick={()=>onClose()}>Cancel</button><button className="task-primary" disabled={disabled}>Save task details</button></footer>
@@ -67,7 +69,7 @@ export function TasksView({doc,disabled,canUndo,canRedo,onChange,onOpen,onNew,on
    {!tasks.length?<div className="tasks-empty"><Icon name="check" size={28}/><h2>{search||project?'No matching tasks.':view==='today'?'A clear day.':`No ${TASK_VIEWS.find(([id])=>id===view)?.[1].toLowerCase()} tasks.`}</h2><p>{view==='today'?'Schedule a task, or choose Anytime to find your next action.':'Tasks are ordinary note bullets with a checkbox.'}</p>{view==='today'&&<button onClick={()=>setView('anytime')}>Browse Anytime</button>}</div>:<ol className="tasks-list">{tasks.slice(0,limit).map(t=>{
     const n=t.node,done=n.taskState==='DONE',p=t.plan;
     return <li key={n.id} data-task-id={n.id} className={done?'task-row is-completed':'task-row'}>
-     <div className="task-row-main"><input type="checkbox" aria-label={`${done?'Reopen':'Complete'} task ${n.text.slice(0,100)||'Untitled'}`} checked={done} disabled={disabled} onChange={()=>run(()=>{onChange(d=>updateTask(d,n.id,{taskState:done?'TODO':'DONE'}));searchInput.current?.focus();})}/><div className="task-copy"><div className="task-text"><RichRead node={n}/>{!n.text&&'Untitled task'}</div><div className="task-meta"><span>{t.path}</span>{p.scheduledDate&&<span>Scheduled {String(p.scheduledDate)}</span>}{t.deadline&&<span className={!done&&t.deadline<today?'is-overdue':''}>Due {t.deadline}</span>}{p.taskPlanning!=='ACTIVE'&&<span>{p.taskPlanning==='WAITING'?'Waiting':'Someday'}</span>}{Number(p.taskPriority)>0&&<span className={'priority-'+p.taskPriority}>{priority[Number(p.taskPriority)]}</span>}{Number(p.taskDurationMinutes)>0&&<span>{String(p.taskDurationMinutes)} min</span>}</div></div></div>
+     <div className="task-row-main"><input type="checkbox" aria-label={`${done?'Reopen':'Complete'} task ${n.text.slice(0,100)||'Untitled'}`} checked={done} disabled={disabled} onChange={()=>run(()=>{onChange(d=>updateTask(d,n.id,{taskState:done?'TODO':'DONE'}));searchInput.current?.focus();})}/><div className="task-copy"><div className="task-text"><RichRead node={n}/>{!n.text&&'Untitled task'}</div><div className="task-meta"><span>{t.path}</span>{p.taskStartTime&&<span>{String(p.taskStartTime)} · {String(p.taskBlockMinutes)} min block</span>}{p.scheduledDate&&<span>Scheduled {String(p.scheduledDate)}</span>}{t.deadline&&<span className={!done&&t.deadline<today?'is-overdue':''}>Due {t.deadline}</span>}{p.taskPlanning!=='ACTIVE'&&<span>{p.taskPlanning==='WAITING'?'Waiting':'Someday'}</span>}{Number(p.taskPriority)>0&&<span className={'priority-'+p.taskPriority}>{priority[Number(p.taskPriority)]}</span>}{Number(p.taskDurationMinutes)>0&&<span>{String(p.taskDurationMinutes)} min</span>}</div></div></div>
      <div className="task-row-actions"><button onClick={()=>onOpen(n.id)}><Icon name="notes" size={14}/>Open note</button><button disabled={disabled} aria-expanded={editing===n.id} onClick={e=>{origin.current=e.currentTarget;setEditing(editing===n.id?null:n.id);}}><Icon name="sliders" size={14}/>Plan</button></div>
     </li>;
    })}</ol>}

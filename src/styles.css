@@ -2294,3 +2294,5 @@ html {
    (viewport-fit=cover), so keep the app's own bars below it. The inset is 0 elsewhere. */
 .app{padding-top:env(safe-area-inset-top,0px);box-sizing:border-box}
 .app>.sidebar{top:env(safe-area-inset-top,0px)}
+
+.calendar-delivery>p{position:fixed;bottom:90px;right:20px;max-width:320px;padding:16px;background:var(--bg);border:1px solid var(--line);border-radius:12px;color:var(--text);font-size:13px;z-index:80;box-shadow:0 8px 24px #0002}
