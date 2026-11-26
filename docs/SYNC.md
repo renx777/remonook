@@ -296,8 +296,11 @@ MCP supports planning changes with expected-version checks; legacy notes keep
 identical version hashes. Existing current native clients preserve unknown fields.
 No new SQL migration or snapshot replacement is required.
 
-Deploy the staging sync server **before** this frontend so validation and MCP
-understand the additive fields. Health reports `taskPlanning: 1` alongside
+The existing v3 server transports optional bullet fields without a whitelist, so
+web planning can be released independently after deployed cross-device checks.
+The prepared sync-server update adds strict field validation/recovery and cloud
+MCP planning controls; those server enhancements are not live until its separate
+deployment succeeds. Health then reports `taskPlanning: 1` alongside
 `syncProtocol: 3`. The separate manual CI staging-server job prepares an ignored
 config from the current example, checks it against live resources, retains live
 variables and secrets, then verifies bindings, schedules and enabled capabilities.
