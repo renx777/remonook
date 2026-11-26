@@ -1,3 +1,4 @@
+import {TASK_FIELDS} from './task-fields.mjs';
 import {localBookFiles,localBookManifest,isBookPath} from './local-books';
 import {cachedArticle,cacheArticle} from './article-cache.mjs';
 import {validateBookmarks,articleSnapshotHashes} from './bookmarks.mjs';
@@ -137,6 +138,7 @@ export function tableManifest(doc: Workspace) {
 }
 export function androidBlockers(doc: Workspace) {
   const reasons = [];
+  if(doc.tables.bullets.some(n=>TASK_FIELDS.some(key=>n[key]!=null)))reasons.push('Task planning requires a full web backup; legacy Android exports cannot retain it');
   if(doc.web.androidShareReceipts)reasons.push("Incoming share receipts require a full web backup");
   if(doc.web.widgetReviewRecoveries||doc.tables.review_logs.some(log=>log.widgetEventId))reasons.push("Widget review receipts require a full web backup");
   if(doc.web.canvases)reasons.push("Canvas boards require a full web backup");

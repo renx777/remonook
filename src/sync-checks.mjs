@@ -1,3 +1,4 @@
+import {TASK_FIELDS,TASK_DEFAULTS,validTaskField} from './task-fields.mjs';
 // The checks the sync v3 server runs on every accepted change, shared with the app so a
 // refused batch can be repaired on the device with exactly the same rules.
 import {validate} from './domain.mjs';
@@ -45,6 +46,7 @@ const validDate=d=>{if(d==='')return true;if(typeof d!=='string'||!DATE.test(d))
 /** A bullet with every invalid field replaced by its default; its text is always kept. */
 function sanitizeBullet(row){
  const n={...row};
+ for(const key of TASK_FIELDS)if(!validTaskField(key,n[key]))n[key]=TASK_DEFAULTS[key];
  if(typeof n.text!=='string')n.text=n.text==null?'':String(n.text);
  if(!Number.isInteger(n.position))n.position=Math.max(0,Math.round(Number(n.position))||0);
  if(n.parentId!==null&&typeof n.parentId!=='string')n.parentId=null;
