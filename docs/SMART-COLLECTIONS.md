@@ -45,7 +45,7 @@ revisions, including saved view settings. Missing fields default to Direct
 children and no recipe, without a startup rewrite. Full backups retain them.
 Existing native builds preserve the metadata but cannot display Smart Collection
 queries until updated. Query evaluation occurs only in the collection view;
-branch membership uses one tree traversal. Results are paged in batches of 24.
+branch membership uses one tree traversal. Results are paged in batches of 24; scope, saved-view and filter changes reset the visible page immediately.
 No sync protocol, Worker deployment, SQL or replacement snapshot is required for this web
 release. MCP's existing source-note and Trait-bullet edits remain canonical and
 update the results; a dedicated collection-query MCP tool is not added.

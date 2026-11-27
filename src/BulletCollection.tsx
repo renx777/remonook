@@ -73,10 +73,11 @@ async function addCollectionNote(ctx:MetadataContext|null,parent:string,names:st
 }
 export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentId}:{doc:Workspace;parentId?:string;nodes:Node[];mode:string;assets:Map<string,Blob>;onOpen:(id:string)=>void;onAdd?:()=>void}){
  const metadata=useContext(NoteMetadataContext),[addError,setAddError]=useState('');
- const [limit,setLimit]=useState(24),idx=useMemo(()=>snapshotIndex(doc.tables.bullets),[doc.tables.bullets]);
+ const [paging,setPaging]=useState({key:'',limit:24}),idx=useMemo(()=>snapshotIndex(doc.tables.bullets),[doc.tables.bullets]);
  // A Traits block describes the collection itself, so it is not one of its items.
  const parent=parentId||all[0]?.parentId||'';
  const view=(parent?traitView(doc,parent):traitView(doc,'')) as unknown as View;
+ const pageKey=JSON.stringify([parent,mode,view.active,view.source,view.sourceBranch,view.filterKey,view.filter,view.conditions,view.match]),limit=paging.key===pageKey?paging.limit:24;
  const members=useMemo(()=>parentId?smartMembers(doc,parentId,view):all.filter(n=>!isTraitsBlock(n)),[doc.tables.bullets,doc.tables.media,parentId,all,view.source,view.sourceBranch]);
  const available=useMemo(()=>collectionTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
  const imageNames=useMemo(()=>imageTraitNames(doc,members.map(n=>n.mirrorSourceId||n.id),idx).filter((k:string)=>!available.some(a=>a.toLocaleLowerCase()===k.toLocaleLowerCase())),[doc,members,idx,available]);
@@ -87,7 +88,6 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
  const smartAdd=!!parentId&&(view.source!=='children'||!!view.recipe||available.length>0),add=smartAdd?()=>{setAddError('');void addCollectionNote(metadata,parent,available,onOpen).catch(e=>setAddError(e.message));}:onAdd;
  const sourceUnavailable=view.source==='branch'&&(!idx.byId.has(view.sourceBranch)||traitBulletIds(doc.tables.bullets).has(idx.byId.get(view.sourceBranch)?.mirrorSourceId||view.sourceBranch));
  const links=useMemo(()=>!available.length||members.some(n=>mediaLinks(n.text).length>0),[members,available]);
- useEffect(()=>setLimit(24),[nodes[0]?.parentId,mode]);
  const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links,cover:view.cover,source:view.source!=='children'});
  const dateKeys:string[]=useMemo(()=>dateTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
  const renderItems=(list:Node[])=>mode==='board'?<Board doc={doc} parent={parent} view={view} available={available} items={list} assets={assets} onOpen={onOpen}/>
@@ -104,7 +104,7 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
   {nodes.length>0&&(view.group&&mode!=='board'&&mode!=='calendar'?groupCollection(doc,items,view.group,view.groupDir,idx).map((g:{label:string;items:Node[]})=>{const key=g.label.toLocaleLowerCase()||'\u0000';const isClosed=closed.has(key);
     return <section key={key} className="collection-group"><button type="button" className="collection-group-head" aria-expanded={!isClosed} onClick={()=>setClosed(c=>{const n=new Set(c);if(n.has(key))n.delete(key);else n.add(key);return n;})}><ChevronDown size={14} className={isClosed?'is-closed':''}/><span>{g.label||'No '+view.group}</span><small>{g.items.length}</small></button>{!isClosed&&renderItems(g.items)}</section>;})
    :renderItems(items))}
-  {nodes.length>limit&&<button className="collection-more" type="button" onClick={()=>setLimit(value=>value+24)}>Show {Math.min(24,nodes.length-limit)} more · {nodes.length-limit} remaining</button>}
+  {nodes.length>limit&&<button className="collection-more" type="button" onClick={()=>setPaging({key:pageKey,limit:limit+24})}>Show {Math.min(24,nodes.length-limit)} more · {nodes.length-limit} remaining</button>}
   {nodes.length>0&&<p className="collection-footnote">Your original notes, in a different view. Website details may be unavailable or change.</p>}
  </div>;
 }
