@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {indexedDB} from 'fake-indexeddb';import {reminderServiceWorker} from '../scripts/reminder-service-worker.mjs';
+test('service worker displays private generic reminders with no app tab, scopes devices and opens Calendar',async()=>{
+ const handlers={},shown=[],opened=[];const self={addEventListener:(k,f)=>handlers[k]=f,registration:{showNotification:async(...args)=>shown.push(args)},location:{origin:'https://staging.remonook.com'},clients:{matchAll:async()=>[],openWindow:async url=>opened.push(url)}};
+ vm.runInNewContext(reminderServiceWorker,{self,indexedDB,URL});const fire=async(type,props)=>{const pending=[];handlers[type]({...props,waitUntil:p=>pending.push(p)});await Promise.all(pending);};
+ await fire('message',{data:{type:'REMINDER_DEVICE',id:'device-a'}});await fire('push',{data:{json:()=>({type:'reminder',device:'other',date:'2026-11-27'})}});assert.equal(shown.length,0);
+ await fire('push',{data:{json:()=>({type:'reminder',device:'device-a',date:'2026-11-27'})}});assert.equal(shown.length,1);assert.equal(shown[0][0],'RemoNook');assert.match(shown[0][1].body,/scheduled reminder/);
+ let closed=false;await fire('notificationclick',{notification:{data:{date:'2026-11-27',device:'device-a'},close(){closed=true;}}});assert.equal(closed,true);assert.equal(opened[0],'https://staging.remonook.com/?reminderDate=2026-11-27#app');
+ const messages=[];let focused=false;self.clients.matchAll=async()=>[{url:'https://staging.remonook.com/#app',postMessage:m=>messages.push(m),focus:async()=>{focused=true;},navigate(){throw Error('Never reload an open editor for a notification');}}];await fire('notificationclick',{notification:{data:{date:'2026-11-27',device:'device-a'},close(){}}});assert.equal(focused,true);assert.equal(messages[0].type,'OPEN_REMINDER');assert.equal(opened.length,1);
+ await fire('message',{data:{type:'REMINDER_DEVICE',id:null}});await fire('push',{data:{json:()=>({type:'reminder',device:'device-a',date:'2026-11-27'})}});assert.equal(shown.length,1,'Revoked device cannot display another reminder');
+});

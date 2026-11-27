@@ -1,3 +1,4 @@
+import {ReminderPush,reminderFieldsChanged} from './reminder-push.mjs';
 import {repeatTemplate,validateRepeatReceipts} from '../src/task-repeat-fields.mjs';
 import {advanceRecurringTasks} from '../src/recurring-tasks.mjs';
 // Sync protocol v3: one Durable Object per account holds the workspace as buckets.
@@ -29,6 +30,8 @@ export class SyncSpace{
   this.sql.exec(`CREATE TABLE IF NOT EXISTS records(k TEXT PRIMARY KEY, tbl TEXT NOT NULL, bucket TEXT NOT NULL, body TEXT NOT NULL)`);
   // Children lookups for the AI apps connection read only the part of the outline they need.
   this.sql.exec(`CREATE INDEX IF NOT EXISTS records_parent ON records(tbl, json_extract(body,'$.parentId'))`);
+  this.sql.exec("CREATE INDEX IF NOT EXISTS records_timed ON records(k) WHERE tbl='bullets' AND json_extract(body,'$.taskState')='TODO' AND json_extract(body,'$.taskStartTime')!=''");
+  this.reminders=new ReminderPush(this);
  }
  // ---- storage helpers
  meta(k){return this.sql.exec('SELECT v FROM meta WHERE k=?',k).toArray()[0]?.v;}
@@ -91,6 +94,13 @@ export class SyncSpace{
   const open=id=>{if(!touched.has(id)){const hit=this.load(id);touched.set(id,{hit,vector:Y.encodeStateVector(hit.doc),before:hit.parts});}return touched.get(id).hit.doc;};
   try{
    mutate(open);
+   // Old forms omit unknown daily metadata. New forms explicitly write false.
+   for(const [,t] of touched){const after=projectParts(t.hit.doc),fields=t.hit.doc.getMap('fields');
+    for(const f of t.before.rootFields)if(f.path[0]==='web'&&f.path[1]==='calendarEvents'&&f.path[3]==='daily'&&f.value===true){
+     const rest=after.rootFields.filter(a=>a.path[0]==='web'&&a.path[1]==='calendarEvents'&&a.path[2]===f.path[2]);
+     if(rest.some(a=>a.path[3]==='id')&&rest.some(a=>a.path[3]==='repeat'&&a.value==='none')&&!rest.some(a=>a.path[3]==='daily'))fields.set(JSON.stringify(f.path),true);
+    }
+   }
    // Reconcile legacy-client completions before validation/journalling. Only a
    // changed completed repeating row opens this indexed projection path.
    const recurring=[];let generated=false;const overrides=new Map();
@@ -142,6 +152,7 @@ export class SyncSpace{
    });
    for(const id of changed){const t=touched.get(id);t.hit.parts=t.after;const size=states.get(id).length;this.cacheBytes+=size-t.hit.size;t.hit.size=size;}
    this.notify(next);
+   if([...touched.values()].some(t=>t.after&&reminderFieldsChanged(t.before,t.after)))try{await this.reminders.nudge();}catch{console.error(JSON.stringify({event:'reminder_alarm_retry'}));}
    return {revision:next};
   }catch(e){this.evict(touched.keys());throw e;}
  }
@@ -206,11 +217,13 @@ export class SyncSpace{
  webSocketMessage(ws,message){if(message==='ping')ws.send(JSON.stringify({revision:this.revision()}));}
  webSocketClose(ws,code){try{ws.close(code);}catch{}}
 
+ async alarm(){return this.reminders.alarm();}
  async fetch(request){
   const url=new URL(request.url),uid=request.headers.get('X-Remo-Uid');
   if(!uid)return json({error:'Missing account'},400);
   try{
    await this.serial(()=>this.ensure(uid));
+   if(this.meta('reminder_dirty')==='1')try{await this.serial(()=>this.reminders.nudge());}catch{console.error(JSON.stringify({event:'reminder_alarm_retry'}));}
    if(url.pathname==='/ws'){
     if(request.headers.get('Upgrade')!=='websocket')return json({error:'Expected WebSocket'},426);
     const pair=new WebSocketPair();this.ctx.acceptWebSocket(pair[1]);pair[1].send(JSON.stringify({revision:this.revision()}));
@@ -220,6 +233,7 @@ export class SyncSpace{
    if(url.pathname==='/read')return json(this.read());
    if(url.pathname==='/subset')return json(this.subset(await request.json()));
    const body=await request.json();
+   if(url.pathname==='/reminders')return json(await this.serial(()=>this.reminders.request(body)));
    if(url.pathname==='/push')return json(await this.serial(()=>this.push(body)));
    if(url.pathname==='/patch')return json(await this.serial(()=>this.patch(body)));
    return json({error:'Not found'},404);

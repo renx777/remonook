@@ -1,3 +1,4 @@
+import {BackgroundReminders} from './BackgroundReminders';
 import {hasPendingRepeat} from './recurring-tasks.mjs';
 import {ReminderDelivery} from './ReminderDelivery';
 import {addTraitsBlock,hasTraitsTag,traitsBlocks,isTraitsBlock} from './traits-block.mjs';
@@ -106,7 +107,7 @@ import {CalendarAgenda,MiniMonth,WorkdaysLine} from './CalendarAgenda';
 import {articleSnapshotHashes,bookmarkNote} from './bookmarks.mjs';
 import {CalendarTrackers} from './CalendarTrackers';
 import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
-import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
+import {calendarEvents,eventsOnDate,validEventDate} from './calendar-events.mjs';
 import {enableStudyBranch,saveStudyFolder} from './study-library.mjs';
 import type {FolderDraft} from './StudyFolders';
 import React, { startTransition, useEffect, useRef, useState } from "react";
@@ -310,7 +311,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [tab, setTab] = useState("notes"),
     [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string;snapshotHash?:string}|null>(null),
     [mindmapTarget,setMindmapTarget]=useState<string|null>(null),
-    [calendarDate, setCalendarDate] = useState(() => getLocalDateString()),
+    [calendarDate, setCalendarDate] = useState(() => {const date=new URLSearchParams(window.location.search).get('reminderDate');return validEventDate(date)?date!:getLocalDateString();}),
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
     [nodeDate,setNodeDate]=useState<{id:string;date:string}|null>(null),
     [reminderEditor,setReminderEditor]=useState<ReminderTarget|null>(null),
@@ -1152,6 +1153,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if(edit)focus(bulletId, text.length);
     return bulletId;
   };
+  const reminderOpen=useRef<(date:string)=>Promise<void>>(async()=>{});
+  reminderOpen.current=async date=>{if(!validEventDate(date))return;if(activeEditor?.view.composing){setNotice('A reminder is due. Finish your current word, then open Calendar.');return;}await flush();if(failed.current){setNotice('Save your current edit before opening the reminder.');return;}setTab('calendar');setCalendarDate(date);setEditing(null);};
+  useEffect(()=>{const listener=(e:MessageEvent)=>{if(e.data?.type==='OPEN_REMINDER'&&validEventDate(e.data.date))void reminderOpen.current(e.data.date).catch(showError);};navigator.serviceWorker?.addEventListener('message',listener);const date=new URLSearchParams(window.location.search).get('reminderDate');if(date&&validEventDate(date)){void reminderOpen.current(date).catch(showError);const url=new URL(window.location.href);url.searchParams.delete('reminderDate');window.history.replaceState(null,'',url.href);}return()=>navigator.serviceWorker?.removeEventListener('message',listener);},[]);
   const openCalendarDate = (date:string) => {setCalendarDate(date);setEditing(null);};
   const remove = (id: string) => {
     removeMultiple([id]);
@@ -2023,7 +2027,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             )}
           </div>
           <div className="topbar-right">
-            <ReminderDelivery key={storageAccountKey()} doc={doc} controls={tab==='calendar'}/><FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
+            <BackgroundReminders key={'push:'+storageAccountKey()} signedIn={!!cloudUser&&!activeLocalWorkspace()} controls={tab==='calendar'}/><ReminderDelivery key={storageAccountKey()} doc={doc} controls={tab==='calendar'}/><FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
             {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas" && tab !== "tasks")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
@@ -2220,6 +2224,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : (
           <>
           <CalendarView
+            dayPlan={<React.Suspense fallback={null}><CalendarTasks doc={doc} date={calendarDate} disabled={disabled||failed.current} onOpen={id=>navigateTo(id)} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention.');const current=docRef.current!,next=update(current);if(next!==current)commit(next);}}/></React.Suspense>}
             autoOpen={false}
             workdayMarker={calendarWorkdays.enabled?date=><WorkdayMarker w={calendarWorkdays} date={date}/>:undefined}
             trackers={<CalendarTrackers workModeInHeader workspaceOpen={workdaysOpen} onWorkspace={setWorkdaysOpen} onDate={date=>{setCalendarDate(date);setEditing(null);}} doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
@@ -2227,7 +2232,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             aside={<>
               <MiniMonth doc={doc} date={calendarDate} today={calendarToday} workdays={!!calendarWorkdays.enabled} onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}/>
               {calendarWorkdays.enabled&&<WorkdaysLine doc={doc} date={calendarDate} today={calendarToday} onOpen={()=>setWorkdaysOpen(true)}/>}
-              <React.Suspense fallback={null}><CalendarTasks doc={doc} date={calendarDate} disabled={disabled||failed.current} onOpen={id=>navigateTo(id)} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention.');const current=docRef.current!,next=update(current);if(next!==current)commit(next);}}/></React.Suspense>
+
               <CalendarAgenda doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}/>
             </>}
             onCreateNote={(date,value,id)=>mutate(ns=>{const prepared=ensureCalendarHierarchy(ns,date);return move([...prepared.nodes,bullet(id,{parentId:prepared.dayId,...value})],id,prepared.dayId,(index(prepared.nodes).children.get(prepared.dayId)||[]).length);})}

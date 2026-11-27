@@ -1,4 +1,4 @@
-/** @typedef {{id:string,title:string,kind:string,date:string,time:string,repeat:string,leadDays:number,notes:string,completed:string[],countdown?:boolean}} CalendarEvent */
+/** @typedef {{id:string,title:string,kind:string,date:string,time:string,repeat:string,leadDays:number,notes:string,completed:string[],countdown?:boolean,daily?:boolean}} CalendarEvent */
 export const eventKinds=[
  {id:'birthday',name:'Birthday',icon:'birthday',repeat:'yearly',lead:7},
  {id:'exam',name:'Exam / assignment',icon:'study',repeat:'none',lead:14},
@@ -21,6 +21,7 @@ const dateAt=(y,m,d)=>{const last=new Date(Date.UTC(y,m+1,0)).getUTCDate();retur
 export const occurrenceComplete=(event,date)=>Object.hasOwn(event.completions||{},date)?event.completions[date]:event.completed.includes(date);
 export function eventOnDate(event,date){
  if(!validEventDate(date)||date<event.date)return false;
+ if(event.daily)return true;
  if(event.repeat==='none')return date===event.date;
  const [y,m,d]=event.date.split('-').map(Number),[cy,cm]=date.split('-').map(Number);
  if(event.repeat==='weekly')return dateGap(date,event.date)%7===0;
@@ -32,11 +33,12 @@ export function calendarEvents(doc){return Array.isArray(doc.web.calendarEvents)
 export function validateCalendarEvents(events){
  if(events===undefined)return;
  if(!Array.isArray(events)||events.length>5000||new Set(events.map(e=>e?.id)).size!==events.length)throw Error('Invalid calendar reminders');
- for(const e of events)if(!e||(e.completions!==undefined&&(!e.completions||typeof e.completions!=='object'||Array.isArray(e.completions)||Object.keys(e.completions).length>5000||Object.entries(e.completions).some(([d,v])=>!validEventDate(d)||typeof v!=='boolean')))||(e.countdown!==undefined&&typeof e.countdown!=='boolean')||typeof e.id!=='string'||!e.id||e.id.length>200||typeof e.title!=='string'||!e.title.trim()||e.title.length>160||!eventKinds.some(k=>k.id===e.kind)||!validEventDate(e.date)||!['none','weekly','monthly','yearly'].includes(e.repeat)||!Number.isInteger(e.leadDays)||e.leadDays<0||e.leadDays>365||typeof e.time!=='string'||(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time))||typeof e.notes!=='string'||e.notes.length>2000||!Array.isArray(e.completed)||e.completed.length>1000||e.completed.some(d=>!validEventDate(d)))throw Error('Invalid calendar reminder');
+ for(const e of events)if(!e||(e.daily!==undefined&&(typeof e.daily!=='boolean'||e.daily&&e.repeat!=='none'))||(e.completions!==undefined&&(!e.completions||typeof e.completions!=='object'||Array.isArray(e.completions)||Object.keys(e.completions).length>5000||Object.entries(e.completions).some(([d,v])=>!validEventDate(d)||typeof v!=='boolean')))||(e.countdown!==undefined&&typeof e.countdown!=='boolean')||typeof e.id!=='string'||!e.id||e.id.length>200||typeof e.title!=='string'||!e.title.trim()||e.title.length>160||!eventKinds.some(k=>k.id===e.kind)||!validEventDate(e.date)||!['none','weekly','monthly','yearly'].includes(e.repeat)||!Number.isInteger(e.leadDays)||e.leadDays<0||e.leadDays>365||typeof e.time!=='string'||(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time))||typeof e.notes!=='string'||e.notes.length>2000||!Array.isArray(e.completed)||e.completed.length>1000||e.completed.some(d=>!validEventDate(d)))throw Error('Invalid calendar reminder');
 }
 export function saveCalendarEvent(doc,draft,uuid=()=>crypto.randomUUID()){
  const prior=calendarEvents(doc).find(e=>e.id===draft.id);if(draft.id&&!prior)throw Error('This reminder no longer exists.');
- const item={countdown:!!draft.countdown,id:prior?.id||uuid(),title:String(draft.title||'').trim(),kind:draft.kind,date:draft.date,time:draft.time||'',repeat:draft.repeat,leadDays:Number(draft.leadDays),notes:String(draft.notes||'').trim(),...(prior?.completions&&prior.date===draft.date&&prior.repeat===draft.repeat?{completions:prior.completions}:{}),completed:prior&&prior.date===draft.date&&prior.repeat===draft.repeat?prior.completed:[]};
+ const daily=draft.repeat==='daily'||draft.daily===true&&draft.repeat==='none';
+ const item={...(daily||prior?.daily!==undefined?{daily}:{}),countdown:!!draft.countdown,id:prior?.id||uuid(),title:String(draft.title||'').trim(),kind:draft.kind,date:draft.date,time:draft.time||'',repeat:draft.repeat==='daily'?'none':draft.repeat,leadDays:Number(draft.leadDays),notes:String(draft.notes||'').trim(),...(prior?.completions&&prior.date===draft.date&&prior.repeat===(draft.repeat==='daily'?'none':draft.repeat)&&!!prior.daily===daily?{completions:prior.completions}:{}),completed:prior&&prior.date===draft.date&&prior.repeat===(draft.repeat==='daily'?'none':draft.repeat)&&!!prior.daily===daily?prior.completed:[]};
  const events=prior?calendarEvents(doc).map(e=>e.id===item.id?item:e):[...calendarEvents(doc),item];validateCalendarEvents(events);return {...doc,web:{...doc.web,calendarEvents:events}};
 }
 export function removeCalendarEvent(doc,id){return {...doc,web:{...doc.web,calendarEvents:calendarEvents(doc).filter(e=>e.id!==id)}};}
@@ -49,7 +51,8 @@ export function upcomingEvents(events,today=localDate()){
  const output=[];
  for(const e of events){
   const completed={has:date=>occurrenceComplete(e,date)},[y,m,d]=e.date.split('-').map(Number),[cy,cm]=today.split('-').map(Number);let candidates=[];
-  if(e.repeat==='none')candidates=[e.date];
+  if(e.daily)candidates=Array.from({length:368},(_,i)=>new Date(stamp(today)+(i-1)*DAY).toISOString().slice(0,10));
+  else if(e.repeat==='none')candidates=[e.date];
   else if(e.repeat==='yearly')candidates=[cy-1,cy,cy+1,cy+2].map(year=>dateAt(year,m-1,d));
   else if(e.repeat==='monthly')candidates=Array.from({length:15},(_,i)=>dateAt(cy,cm-2+i,d));
   else {const steps=Math.max(0,Math.floor(dateGap(today,e.date)/7));candidates=Array.from({length:55},(_,i)=>new Date(stamp(e.date)+(steps-1+i)*7*DAY).toISOString().slice(0,10));}

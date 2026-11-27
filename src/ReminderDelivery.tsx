@@ -1,3 +1,4 @@
+import {backgroundEnabled} from './background-reminders';
 import {Icon} from './icons';
 import {useEffect,useRef,useState} from 'react';
 import type {Workspace} from './data';
@@ -9,7 +10,7 @@ export function ReminderDelivery({doc,controls=false}:{doc:Workspace;controls?:b
  const key=accountLocalKey('calendar-delivery'),[enabled,setEnabled]=useState(()=>{try{return localStorage.getItem(key)==='enabled';}catch{return false;}}),[message,setMessage]=useState('');
  useEffect(()=>{
   if(!enabled)return;let cancelled=false;
-  const check=async()=>{if(!enabled||document.hidden||typeof Notification==='undefined'||Notification.permission!=='granted')return;
+  const check=async()=>{if(!enabled||backgroundEnabled()&&navigator.onLine!==false||document.hidden||typeof Notification==='undefined'||Notification.permission!=='granted')return;
    const deliver=()=>{if(cancelled||document.hidden)return;try{const now=new Date(),day=localDate(now),raw=JSON.parse(localStorage.getItem(key+'-receipts')||'{}'),receipts=raw.day===day?raw.keys||{}:{};
     for(const item of dueReminders(latest.current,now)){if(receipts[item.key])continue;receipts[item.key]=true;localStorage.setItem(key+'-receipts',JSON.stringify({day,keys:receipts}));try{const n=new Notification(item.title,{body:'Your scheduled reminder in RemoNook',tag:item.key});n.onclick=()=>{window.focus();n.close();};}catch{delete receipts[item.key];localStorage.setItem(key+'-receipts',JSON.stringify({day,keys:receipts}));setMessage('Browser delivery is unavailable here. Calendar reminders remain available.');}}
    }catch{setMessage('Reminder delivery needs device storage. Your calendar is unchanged.');}};

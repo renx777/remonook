@@ -1,3 +1,4 @@
+import {reminderPushRoute} from './reminder-push.mjs';
 import {aiRoute,aiEnabled} from './ai.mjs';
 import {cleanupArticles} from './article-storage.mjs';
 import {bookmarksRoute} from './bookmarks.mjs';
@@ -43,7 +44,7 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID),ctx) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:env.SYNC_SPACE?3:2,workdaysSchema:2,taskPlanning:1,calendarPlanning:1,taskRecurrence:1,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiImage:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:env.SYNC_SPACE?3:2,workdaysSchema:2,taskPlanning:1,calendarPlanning:1,taskRecurrence:1,calendarDaily:1,backgroundReminders:1,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiImage:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
   // Desktop app updates (public: the app checks before anyone signs in). Files are uploaded by
   // the Desktop app workflow to R2 under desktop/<channel>/; builds are signed, and the app only
   // installs updates whose signature matches the key built into it.
@@ -61,6 +62,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   // Browsers cannot set headers on a WebSocket, so the live sync connection sends its token in the query.
   const token=request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1]||(url.pathname==='/sync/v3/ws'?url.searchParams.get('access_token'):null);if(!token)fail('Sign in required.',401);
   let uid;try{uid=await authenticate(token);}catch{fail('Your session expired. Sign in again.',401);}
+  if(url.pathname==='/reminders')return reminderPushRoute(request,env,uid,readLimited);
   if(url.pathname.startsWith('/ai/'))return aiRoute(request,env,uid,{readLimited,waitUntil:ctx?p=>ctx.waitUntil(p):undefined});
   if(url.pathname==='/storage'||url.pathname==='/books'||url.pathname.startsWith('/books/'))return booksRoute(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/integrations/google-tasks/'))return googleTasksRoute(request,env,uid,{readLimited});

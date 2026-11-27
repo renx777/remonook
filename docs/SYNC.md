@@ -334,3 +334,19 @@ of the same date project one next occurrence of the single series, without
 creating another note or inserting duplicate text. Reopen/undo retain normal
 history. Browser delivery preferences/receipts are device/account-local and never
 acknowledge cloud operations. Health calendarPlanning: 1 identifies this server.
+
+
+## Calendar delivery and daily compatibility
+
+Daily Calendar reminders retain `repeat: none` and add `daily: true`. New forms
+write explicit false to turn it off. The v3 server preserves true if a legacy
+form omits that unknown field while leaving the same nonrepeating enum; deletion
+of the whole event and explicit false still apply normally. Dates, completion
+maps, timeline edits and daily metadata use normal incremental shared storage.
+
+Web Push subscriptions, VAPID private keys, device leases and delivery receipts
+live only in private per-account server storage, outside the shared document,
+MCP reads, ZIP exports and durable note outbox. They never acknowledge note edits.
+A scheduling change nudges an alarm only after its normal journal commit.
+Provider I/O runs outside the account's sync queue, and failed notification
+attempts do not discard or block pending notes. See CALENDAR-PLANNING.md.

@@ -111,5 +111,9 @@ explicit opt-in browser delivery while the app is visible. See
 [CALENDAR-PLANNING.md](CALENDAR-PLANNING.md) for semantics and limits. Repetition
 uses existing Calendar series. The [recurring-task follow-up](RECURRING-TASKS.md)
 adds actual successor notes, including daily tasks, through optional metadata
-compatible with older clients. Closed-app push delivery, a drag timeline and
-daily Calendar reminder enums remain pending; native rollout is separate.
+compatible with older clients. The completion branch adds daily Calendar reminders
+through an additive `daily` flag, a main-pane drag/resize timeline and explicit
+background Web Push through the existing account Durable Object. See
+[CALENDAR-PLANNING.md](CALENDAR-PLANNING.md) for usage and delivery limits. Web
+staging acceptance, physical-device delivery and native rollout are separate
+verification gates; a simulated push is not a physical delivery result.
