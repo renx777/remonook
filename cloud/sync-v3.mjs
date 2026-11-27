@@ -1,3 +1,6 @@
+import {ReminderPush,reminderFieldsChanged} from './reminder-push.mjs';
+import {repeatTemplate,validateRepeatReceipts} from '../src/task-repeat-fields.mjs';
+import {advanceRecurringTasks} from '../src/recurring-tasks.mjs';
 // Sync protocol v3: one Durable Object per account holds the workspace as buckets.
 //
 // A push opens only the buckets it touches, checks the changed records and the root data
@@ -6,7 +9,7 @@
 // unchanged buckets are never decoded. Records (projected rows as JSON) serve the AI apps
 // connection and other server readers without opening any Yjs document.
 import {Y,pack,unpack,projectParts,assembleParts,applyParts,emptyShared} from '../src/sync-crdt.mjs';
-import {applyDocument,isBucket,readRepair,patchBuckets,diffPatch,emptyPatch,ASSET_BUCKET,PROTOCOL_V3} from '../src/sync-buckets.mjs';
+import {bulletBucket,applyDocument,isBucket,readRepair,patchBuckets,diffPatch,emptyPatch,ASSET_BUCKET,PROTOCOL_V3} from '../src/sync-buckets.mjs';
 import {checkRow,checkRoot,checkAssets} from '../src/sync-checks.mjs';
 
 const CHUNK=1_000_000,REQUEST_LIMIT=4*1024*1024,PULL_LIMIT=4*1024*1024,BUCKET_LIMIT=8*1024*1024,ACCOUNT_LIMIT=1024*1024*1024,JOURNAL_KEEP=5000,CACHE_LIMIT=24*1024*1024;
@@ -27,6 +30,8 @@ export class SyncSpace{
   this.sql.exec(`CREATE TABLE IF NOT EXISTS records(k TEXT PRIMARY KEY, tbl TEXT NOT NULL, bucket TEXT NOT NULL, body TEXT NOT NULL)`);
   // Children lookups for the AI apps connection read only the part of the outline they need.
   this.sql.exec(`CREATE INDEX IF NOT EXISTS records_parent ON records(tbl, json_extract(body,'$.parentId'))`);
+  this.sql.exec("CREATE INDEX IF NOT EXISTS records_timed ON records(k) WHERE tbl='bullets' AND json_extract(body,'$.taskState')='TODO' AND json_extract(body,'$.taskStartTime')!=''");
+  this.reminders=new ReminderPush(this);
  }
  // ---- storage helpers
  meta(k){return this.sql.exec('SELECT v FROM meta WHERE k=?',k).toArray()[0]?.v;}
@@ -89,12 +94,32 @@ export class SyncSpace{
   const open=id=>{if(!touched.has(id)){const hit=this.load(id);touched.set(id,{hit,vector:Y.encodeStateVector(hit.doc),before:hit.parts});}return touched.get(id).hit.doc;};
   try{
    mutate(open);
+   // Old forms omit unknown daily metadata. New forms explicitly write false.
+   for(const [,t] of touched){const after=projectParts(t.hit.doc),fields=t.hit.doc.getMap('fields');
+    for(const f of t.before.rootFields)if(f.path[0]==='web'&&f.path[1]==='calendarEvents'&&f.path[3]==='daily'&&f.value===true){
+     const rest=after.rootFields.filter(a=>a.path[0]==='web'&&a.path[1]==='calendarEvents'&&a.path[2]===f.path[2]);
+     if(rest.some(a=>a.path[3]==='id')&&rest.some(a=>a.path[3]==='repeat'&&a.value==='none')&&!rest.some(a=>a.path[3]==='daily'))fields.set(JSON.stringify(f.path),true);
+    }
+   }
+   // Reconcile legacy-client completions before validation/journalling. Only a
+   // changed completed repeating row opens this indexed projection path.
+   const recurring=[];let generated=false;const overrides=new Map();
+   for(const [id,t] of touched){const after=projectParts(t.hit.doc);overrides.set(id,after);const before=rowMap(t.before);for(const r of after.rows)if(r.table==='bullets'&&!r.row.mirrorSourceId&&r.row.taskState==='DONE'&&r.row.taskRepeat&&r.row.taskRepeat!=='NONE'&&JSON.stringify(before.get(r.key)?.row)!==JSON.stringify(r.row))recurring.push(r.row);}
+   let needsRepeat=false;
+   if(recurring.length){
+    needsRepeat=recurring.some(n=>{const t=repeatTemplate(n.taskRepeatTemplate);if(!t)return false;const parts=overrides.get(bulletBucket(n.id))||this.load(bulletBucket(n.id)).parts;
+     return !parts.rootFields.some(f=>f.path[0]==='web'&&f.path[1]==='taskRepeatReceipts'&&f.path[2]===n.id&&f.path[3]===t.id);
+    });
+   }
+   if(needsRepeat){const current=this.read(overrides).doc;let next;try{next=advanceRecurringTasks(current);}catch(e){error('Recurring tasks: '+e.message,400,'SYNC_VALIDATION_FAILED');}if(next!==current){generated=true;for(const [id,[b,a]] of patchBuckets(diffPatch(current,next)))applyParts(open(id),b,a,[],[],true);}}
    const updates={},changed=[];
    let rootTouched=false,assetsTouched=false;
    for(const [id,t] of touched){
     const update=Y.encodeStateAsUpdate(t.hit.doc,t.vector);if(update.length<=2)continue;
     updates[id]=pack(update);
-    t.after=projectParts(t.hit.doc);
+    t.after=!generated&&overrides.has(id)?overrides.get(id):projectParts(t.hit.doc);
+    const receiptFields=t.after.rootFields.filter(f=>f.path[0]==='web'&&f.path[1]==='taskRepeatReceipts');
+    if(receiptFields.length)try{validateRepeatReceipts(assembleParts([{rootFields:receiptFields,rows:[],tables:[],assets:[]}]).doc.web.taskRepeatReceipts);}catch(e){error(e.message,400,'SYNC_VALIDATION_FAILED');}
     const b=rowMap(t.before);
     for(const [key,r] of rowMap(t.after))if(JSON.stringify(b.get(key)?.row)!==JSON.stringify(r.row))try{checkRow(r.table,r.row);}catch(e){error(`Invalid shared document: ${r.table} record: ${e.message}`,400,'SYNC_VALIDATION_FAILED');}
     if(id.startsWith('r'))rootTouched=true;if(id===ASSET_BUCKET)assetsTouched=true;
@@ -127,6 +152,7 @@ export class SyncSpace{
    });
    for(const id of changed){const t=touched.get(id);t.hit.parts=t.after;const size=states.get(id).length;this.cacheBytes+=size-t.hit.size;t.hit.size=size;}
    this.notify(next);
+   if([...touched.values()].some(t=>t.after&&reminderFieldsChanged(t.before,t.after)))try{await this.reminders.nudge();}catch{console.error(JSON.stringify({event:'reminder_alarm_retry'}));}
    return {revision:next};
   }catch(e){this.evict(touched.keys());throw e;}
  }
@@ -156,11 +182,11 @@ export class SyncSpace{
  }
 
  /** The whole document from projected records; no Yjs documents are opened for rows. */
- read(){
-  const rows=this.sql.exec("SELECT k,tbl,body FROM records WHERE tbl!='$leaf'").toArray().map(r=>({key:r.k,table:r.tbl,row:JSON.parse(r.body)}));
-  const leaves=this.sql.exec("SELECT k,body FROM records WHERE tbl='$leaf'").toArray().map(r=>({path:JSON.parse(r.k.slice(5)),value:JSON.parse(r.body)}));
-  const roots=this.rootIds().map(id=>this.load(id).parts),assets=this.bucketIds().includes(ASSET_BUCKET)?this.load(ASSET_BUCKET).parts.assets:[];
-  const value=assembleParts([...roots,{rootFields:leaves,rows,tables:[],assets}]);
+ read(overrides=new Map()){
+  const rows=this.sql.exec("SELECT k,tbl,body,bucket FROM records WHERE tbl!='$leaf'").toArray().filter(r=>!overrides.has(r.bucket)).map(r=>({key:r.k,table:r.tbl,row:JSON.parse(r.body)}));
+  const leaves=this.sql.exec("SELECT k,body,bucket FROM records WHERE tbl='$leaf'").toArray().filter(r=>!overrides.has(r.bucket)).map(r=>({path:JSON.parse(r.k.slice(5)),value:JSON.parse(r.body)}));
+  const roots=this.rootIds().filter(id=>!overrides.has(id)).map(id=>this.load(id).parts),assets=overrides.has(ASSET_BUCKET)?[]:this.bucketIds().includes(ASSET_BUCKET)?this.load(ASSET_BUCKET).parts.assets:[];
+  const value=assembleParts([...roots,...overrides.values(),{rootFields:leaves,rows,tables:[],assets}]);
   readRepair(value.doc);
   return {...value,revision:this.revision()};
  }
@@ -191,11 +217,13 @@ export class SyncSpace{
  webSocketMessage(ws,message){if(message==='ping')ws.send(JSON.stringify({revision:this.revision()}));}
  webSocketClose(ws,code){try{ws.close(code);}catch{}}
 
+ async alarm(){return this.reminders.alarm();}
  async fetch(request){
   const url=new URL(request.url),uid=request.headers.get('X-Remo-Uid');
   if(!uid)return json({error:'Missing account'},400);
   try{
    await this.serial(()=>this.ensure(uid));
+   if(this.meta('reminder_dirty')==='1')try{await this.serial(()=>this.reminders.nudge());}catch{console.error(JSON.stringify({event:'reminder_alarm_retry'}));}
    if(url.pathname==='/ws'){
     if(request.headers.get('Upgrade')!=='websocket')return json({error:'Expected WebSocket'},426);
     const pair=new WebSocketPair();this.ctx.acceptWebSocket(pair[1]);pair[1].send(JSON.stringify({revision:this.revision()}));
@@ -205,6 +233,7 @@ export class SyncSpace{
    if(url.pathname==='/read')return json(this.read());
    if(url.pathname==='/subset')return json(this.subset(await request.json()));
    const body=await request.json();
+   if(url.pathname==='/reminders')return json(await this.serial(()=>this.reminders.request(body)));
    if(url.pathname==='/push')return json(await this.serial(()=>this.push(body)));
    if(url.pathname==='/patch')return json(await this.serial(()=>this.patch(body)));
    return json({error:'Not found'},404);

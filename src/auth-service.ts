@@ -10,7 +10,7 @@ export const authenticatedUid=()=>auth?.currentUser?.uid;
 /** Desktop: Google sign-in happens in the system browser, which returns a Google ID token. */
 export async function desktopGoogleSignIn(onLink?:(url:string)=>void){if(!auth)throw Error('Cloud sign-in is disabled in local development.');const idToken=await desktopGoogleToken(APP_ENV,onLink);try{await signInWithCredential(auth,GoogleAuthProvider.credential(idToken));}catch(e:any){throw Object.assign(Error('Google sign-in could not be completed. Try again.'),{cause:e});}}
 export async function googleSignIn(){if(isApp())return desktopGoogleSignIn();if(!auth)throw Error('Cloud sign-in is disabled in local development. Configure staging to test sync.');const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await signInWithPopup(auth,provider);}
-export const googleSignOut=()=>auth?signOut(auth):Promise.resolve();
+export const googleSignOut=async()=>{if(!auth)return;const {disableBackgroundReminders}=await import('./background-reminders');await disableBackgroundReminders();await signOut(auth);};
 
 import {createUserWithEmailAndPassword,signInWithEmailAndPassword,sendPasswordResetEmail,sendEmailVerification,EmailAuthProvider,linkWithCredential,reload} from 'firebase/auth';
 const requireAuth=()=>{if(!auth)throw Error('Cloud sign-in is disabled in local development. Use staging to test accounts.');return auth;};

@@ -18,7 +18,7 @@ test('a bullet switches between outline, grid, list and table without copying no
   assert.deepEqual((await stored()).tables.bullets,initial.tables.bullets.slice().sort((a,b)=>a.id.localeCompare(b.id)),'only view metadata changes');
   await choose('Table');await wait(()=>document.querySelector('.collection-table-scroll'));assert.equal(document.querySelectorAll('.collection-table-scroll tbody tr').length,3);assert.match(document.querySelector('caption').textContent,/may change/);await wait(()=>document.querySelector('.collection-table-scroll').textContent.includes('In stock'));
   await choose('Compact list');await wait(()=>document.querySelector('.collection-list'));
-  await click(document.querySelector('.collection-toolbar button'));await wait(()=>document.querySelector('.tiptap'));
+  await click(document.querySelector('[aria-label="Add note or link"]'));await wait(()=>document.querySelector('.tiptap'));
   await act(async()=>document.querySelector('.tiptap').editor.commands.insertContent('My comparison'));
   await key('Escape');await wait(()=>document.querySelector('.collection-list'));assert.equal(document.querySelectorAll('.collection-card').length,4);
   await choose('Table');await stored();await act(async()=>window.dispatchEvent(new window.KeyboardEvent('keydown',{key:'z',code:'KeyZ',ctrlKey:true,bubbles:true,cancelable:true})));

@@ -640,7 +640,7 @@ export function OutlineView(p: Props) {
   if(collectionActive&&scopedNode&&galleryContext)return <section ref={scroller} className="outline-scroll collection-page" aria-label={scopedNode.text+' collection'}>
     <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} onBlur={()=>p.onCommand('action:traits-tag',scopedNode.id,0,0)} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/></div></div>
     {viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
-    <BulletCollection doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>
+    <BulletCollection parentId={scopedNode.id} doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)}/>
   </section>;
   return (
     <div
@@ -1008,6 +1008,7 @@ export function OutlineView(p: Props) {
                 {galleryContext&&bulletView(galleryContext.doc,n.id)!=='outline'&&<button type="button" className="bullet-collection-open" aria-label={'Open '+bulletView(galleryContext.doc,n.id)+' view for '+n.text} onClick={()=>p.onZoom(n.id)}><Icon name={bulletView(galleryContext.doc,n.id)==='table'?'table':'notes'} size={12}/>{bulletView(galleryContext.doc,n.id)}</button>}
                 {galleryContext?.doc.web.musicNodes?.[n.mirrorSourceId||n.id]&&<button className="bullet-music-play" aria-label={`Play music in ${n.text}`} title="Play music gallery" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();music?.play(musicItems(galleryContext.doc,n.mirrorSourceId||n.id));}}><Icon name="play" size={14}/></button>}
 </span>
+                        {n.taskRepeat&&n.taskRepeat!=='NONE'&&<span className="due-badge">{String(n.taskRepeat).toLowerCase()} · {String(n.scheduledDate||'')}</span>}
                         {n.dueDate && (
                           <span className="row-date-badge">
                             {formatDateBadge(n.dueDate)}
