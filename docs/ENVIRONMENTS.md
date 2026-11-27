@@ -2,6 +2,41 @@
 
 ## Current state
 
+### MovieSearch on web staging — 28 November 2026
+
+Owner requested web-staging publication of `codex/movie-search`, application
+commit `2fdd7a3ccfd76270f344a3438cbb69189f5bb19e`, release `2026-11-14.1`.
+PR [#121](https://github.com/renx777/remonook/pull/121) builds on the previous
+Grid/Calendar staging branch and retains the current UI and quota fixes.
+
+- `#MovieSearch` enables lookup on a zoomed note in outline or collection layout.
+  Users supply their own TMDB v3 or OMDb key. Account/workspace-scoped keys stay
+  in app-session memory and are never saved to notes, sync or backups.
+- Individual lookup and exact title/year matching of up to 50 direct child
+  movies prepare reviewed Poster URL changes. Ambiguous results remain unchanged.
+  Apply uses normal note persistence and undo; stale titles/posters or deleted
+  targets reject the batch without overwriting newer edits.
+- [CI](https://github.com/renx777/remonook/actions/runs/46076937369) passed the
+  build and **792 tests**. Local desktop/phone browser acceptance passed with
+  mocked TMDB responses, including individual and child-poster apply, credential
+  exclusion from notes and no horizontal overflow. No valid provider key was
+  available for live-provider verification; licensing, allowances and CORS still
+  apply. See docs/MOVIE-SEARCH.md.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/46077277825)
+  published `2fdd7a3ccfd76270f344a3438cbb69189f5bb19e`; the public
+  `staging-source.json` confirms the branch, commit and release. Hosted desktop
+  and phone MovieSearch checks passed for individual and child-poster apply,
+  credential exclusion from notes and no overflow, using mocked TMDB responses.
+  This environment's browser needed its HTTPS interception certificate exception
+  for that hosted test. Real-provider key access remains unverified.
+  Backend health remains healthy with AI and Google Tasks enabled. The workflow's
+  broader signed-in sync acceptance is still running as of this record; do not
+  describe the full release workflow as passed. It was left running.
+  No backend deployment, native release,
+  production change or main merge. Earlier test-account preservation discrepancies
+  are not claimed resolved by this feature.
+
+
 ### Collection emoji and collapsible calendar panel — 28 November 2026
 
 Web staging runs `codex/grid-emoji-calendar` at
