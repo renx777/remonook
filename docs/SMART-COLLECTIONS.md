@@ -11,6 +11,9 @@ Use an existing `#views` note, open it, choose Grid, Compact list or Table, then
 - **Current workspace** searches this workspace only. It never opens or queries
   other local folders, accounts or workspaces.
 
+Outline continues to show physical children; source queries apply to Grid, Compact
+list and Table.
+
 Use the existing Filter conditions (title or Trait values), Sort, Group,
 Properties and saved view tabs to refine the result. For example, choose Current
 workspace and an Author → is not empty condition to collect books kept in several

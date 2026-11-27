@@ -2,6 +2,42 @@
 
 ## Current state
 
+### Smart Collections: implemented; staging coordination pending — 27 November 2026
+
+PR #114, branch `codex/smart-collections`, application commit
+`755c0d891cdb02a60a991417ee3be083bc8fc75e`, is ready for review. It starts from
+latest main `6d96cf0017b240f03f8d5b882f4145f3bd1f6746`, preserves the newer iPad/local-sync
+fixes, and carries the prior editing, Inbox, Tasks and Calendar feature commits.
+
+- Configure on a #views collection now offers direct children, a selected branch
+  or the current workspace. Existing filters/grouping/saved views and grid/list/table
+  presentation are reused. Queries return live canonical notes with source paths,
+  excluding Traits/self/ancestors/other collection roots and deduplicating mirrors.
+- Optional Book shelf, Movie shelf and Project recipes add ordinary Trait names
+  only when creating a new item. Creation targets the chosen branch or collection,
+  including when the collection itself is opened through a mirror. Existing note
+  content, values, locations and attachments are never copied or moved by queries.
+- Source settings/recipes use existing append-only traitViews revisions and full
+  backups. No Worker, SQL migration or sync-protocol change is required. See
+  [SMART-COLLECTIONS.md](SMART-COLLECTIONS.md) for semantics and compatibility limits.
+- The local build and full suite passed 723 tests. Final model checks passed seven
+  cases; the app test verifies original Trait editing/undo and recipe placement.
+  [Final CI](https://github.com/renx777/remonook/actions/runs/45936713122) passed all
+  **724 tests**, zero failures, for the application commit above.
+- Local browser checks passed desktop-light and phone-dark source/filter changes,
+  offline original edits/undo, canonical identity, recipe insertion and reload.
+  Existing link-collection browser acceptance also passed at 1280/390 px for
+  images/details, add/edit, nested notes, persistence and layout without app errors.
+  These are guest/browser checks, not physical-device claims. The staging workflow
+  now includes the Smart Collections model/app and deployed guest acceptance tests.
+
+**Not deployed:** staging was verified still on `main` at `6d96cf0`, release
+`2026-11-14.1`. Coordination approval to replace that branch is pending under
+AGENTS.md; the owner was asked before deployment. No staging, production or native
+release was performed for this phase. No branch was merged to main. This record
+is a later documentation-only commit than the tested application commit above.
+
+
 ### Calendar planning increment: web staging — 26 November 2026
 
 Web staging runs `codex/calendar-planning` at
