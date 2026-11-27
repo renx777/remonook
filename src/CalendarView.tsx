@@ -433,7 +433,7 @@ export function CalendarView(props: CalendarViewProps) {
       {props.dayPlan}
       {notesSection}
       </div>
-      <aside id={asideId} className="cal2-aside" aria-label="Agenda" hidden={!asideExpanded}>{props.aside}</aside></>:<>
+      <aside id={asideId} className="cal2-aside" aria-label="Agenda" hidden={!asideExpanded}><div className="cal2-aside-controls"><button type="button" className="icon-button" aria-label="Collapse calendar panel" title="Collapse calendar panel" aria-expanded={asideExpanded} aria-controls={asideId} onClick={toggleAside}><Icon name="sidebarCollapse" size={18}/></button></div>{props.aside}</aside></>:<>
       {/* Top Heading */}
       <div className="calendar-header-row">
         <div className="calendar-title-wrap">

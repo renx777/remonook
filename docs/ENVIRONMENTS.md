@@ -2,6 +2,38 @@
 
 ## Current state
 
+### Collection emoji and collapsible calendar panel — 28 November 2026
+
+Web staging runs `codex/grid-emoji-calendar` at
+`744c4bc6a5f25a93ea487100c6488d1979ef7cc2`, release `2026-11-14.1`, confirmed
+by `staging-source.json`. PR [#120](https://github.com/renx777/remonook/pull/120)
+targets the preceding staging branch so its UI and quota recovery remain intact.
+
+- Grid/poster, compact-list and table titles use the existing lazy emoji renderer
+  instead of showing stored token strings. Default child collections retain their
+  result count without the “this note’s children” source chip. Explicit workspace
+  and branch sources remain visible and editable in Configure.
+- The right Calendar panel has an accessible close control. The Agenda toggle
+  reopens it; desktop collapse preference survives reload. Mobile hidden state
+  now agrees with the toggle instead of being overridden by display:contents.
+- Local full suite: **789 passed**, staging build passed with Node's 4 GB heap.
+  Guest checks passed on development and packaged builds for desktop/light and
+  phone/dark: emoji artwork in grid/list/table, clean count, collapse/reopen,
+  keyboard, reload preference and overflow. Packaged Calendar planning acceptance
+  also passed on both viewport/theme combinations.
+- [CI](https://github.com/renx777/remonook/actions/runs/46057947594) passed.
+  [Staging frontend](https://github.com/renx777/remonook/actions/runs/46057971256)
+  completed successfully. Frontend Worker version:
+  `aaf4971a-0a5b-44a6-8302-ae9bebc1fe25`. Deployed guest checks passed for
+  collections, Inbox, Tasks, Calendar planning, Smart Collections, Grid emoji /
+  Calendar collapse, and Library discovery on desktop/light and phone/dark.
+  All **22 signed-in sync checks passed**, preserving this run's **3,575** baseline
+  notes through cleanup. This is the observed baseline for this run, not proof
+  of recovery of the earlier missing notes. CI also passed all **789 tests**.
+- Frontend only. No backend, native, production or main change. This release does
+  not resolve the historical test-account count discrepancy recorded below.
+
+
 ### Attachment quota recovery on web staging — 28 November 2026
 
 Owner-approved staging release of `codex/attachment-quota-recovery`, application
@@ -57,9 +89,8 @@ and the existing Phase 0–4 work. Production, main and native apps are unchange
   unresolved preservation finding. No merge or production rollout is authorized.
   Link collections, Inbox, Tasks, Calendar planning, Smart Collections and Library
   discovery acceptance also passed on desktop/light and phone/dark.
-- The affected owner's actual devices are not connected to this environment;
-  their confirmation after reloading is pending. Synthetic checks do not prove
-  that account's final status. The earlier unrelated three-note discrepancy is
+- The owner subsequently confirmed the affected account reached **Synced** after
+  the quota fix. Both-device convergence was not independently observed here. The earlier unrelated three-note discrepancy is
   not claimed fixed by this release.
 
 
