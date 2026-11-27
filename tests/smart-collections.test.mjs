@@ -34,3 +34,26 @@ test('collection definitions and results stay account/workspace isolated across 
 test('a mirrored collection queries and creates against its canonical source, never itself',()=>{
  const doc=withNodes(empty(),[bullet('c',{text:'Collection #views'}),bullet('child',{parentId:'c',text:'Original child'}),bullet('m',{text:'',mirrorSourceId:'c',mirrorRootId:'m'})]);const wide=setTraitView(doc,'m',{source:'workspace'});assert.deepEqual(ids(smartMembers(wide,'m')),['child']);const created=newSmartCollectionItem(wide,'m',[],()=> 'created');assert.equal(created.doc.tables.bullets.find(n=>n.id==='created').parentId,'c');
 });
+
+test('legacy settings writers retain each saved view scope and recipe; explicit clears still apply',()=>{
+ let doc=setTraitView(fixture(),'collection',{source:'workspace',recipe:'movie'},()=> 'wide',10),i=0;const added=addTraitTab(doc,'collection','Branch',()=> 'tab-'+i++,20);doc=setTraitView(added.doc,'collection',{source:'branch',sourceBranch:'branch',recipe:'book'},()=> 'branch-view',30);
+ const strip=v=>{const {source,sourceBranch,recipe,...rest}=v;return rest;},current=Object.values(doc.web.traitViews.collection).sort((a,b)=>b.at-a.at)[0],legacy={...strip(current),at:40,sort:'title',tabs:current.tabs.map(t=>({...t,settings:strip(t.settings)}))};
+ doc={...doc,web:{...doc.web,traitViews:{...doc.web.traitViews,collection:{...doc.web.traitViews.collection,legacy}}}};
+ assert.equal(traitView(doc,'collection').source,'branch');assert.equal(traitView(doc,'collection').sourceBranch,'branch');assert.equal(traitView(doc,'collection').recipe,'book');assert.equal(traitView(doc,'collection').sort,'title');
+ doc=switchTraitTab(doc,'collection','all');assert.equal(traitView(doc,'collection').source,'workspace');assert.equal(traitView(doc,'collection').recipe,'movie');doc=setTraitView(doc,'collection',{source:'children',sourceBranch:'',recipe:''});assert.equal(traitView(doc,'collection').source,'children');assert.equal(traitView(doc,'collection').recipe,'');assert.ok(doc.web.traitViews.collection.legacy);
+});
+test('deleted collections, Traits sources and malformed saved tabs never expand or insert hidden notes',()=>{
+ let doc=setTraitView(fixture(),'collection',{source:'workspace'}),view=traitView(doc,'collection');const removed=withNodes(doc,doc.tables.bullets.filter(n=>n.id!=='collection'&&n.parentId!=='collection'&&!n.mirrorRootId));assert.deepEqual(smartMembers(removed,'collection',view),[]);
+ doc=setTraitView(fixture(),'collection',{source:'branch',sourceBranch:'traits'});assert.deepEqual(smartMembers(doc,'collection'),[]);assert.throws(()=>newSmartCollectionItem(doc,'collection'),/ordinary note branch/);
+ const broken={...doc,web:{...doc.web,traitViews:{collection:{bad:{at:9999999999999,tabs:[null,{id:1}],source:'workspace'}}}}};assert.equal(traitView(broken,'collection').tabs.length,1);assert.doesNotThrow(()=>smartMembers(broken,'collection'));
+});
+test('long valid source identities are preserved without truncation',()=>{
+ const id='branch-'+ 'x'.repeat(250),doc=withNodes(empty(),[bullet('collection',{text:'Shelf #views'}),bullet(id,{text:'Long branch',position:1}),bullet('child',{parentId:id,text:'Original'})]),scoped=setTraitView(doc,'collection',{source:'branch',sourceBranch:id});assert.equal(traitView(scoped,'collection').sourceBranch,id);assert.deepEqual(ids(smartMembers(scoped,'collection')),['child']);
+});
+
+test('offline legacy sorting and modern scope changes converge without losing either revision',()=>{
+ const configured=setTraitView(fixture(),'collection',{source:'workspace',recipe:'movie'},()=> 'initial',10),states=applyDocument(new Map(),null,configured,{clientID:21}).states,base=projectBuckets(states).doc;
+ const modern=setTraitView(base,'collection',{source:'branch',sourceBranch:'branch',recipe:'book'},()=> 'modern',30),v=traitView(base,'collection'),strip=raw=>Object.fromEntries(Object.entries(raw).filter(([k])=>!['source','sourceBranch','recipe'].includes(k))),old={...strip(v),at:40,sort:'title',tabs:v.tabs.map(t=>({...t,settings:strip(t.settings)}))};
+ const legacy={...base,web:{...base.web,traitViews:{...base.web.traitViews,collection:{...base.web.traitViews.collection,legacy:old}}}},a=applyDocument(states,base,modern,{clientID:22}),b=applyDocument(states,base,legacy,{clientID:23});
+ for(const order of [[a.updates,b.updates],[b.updates,a.updates]]){let merged=states;for(const updates of order)merged=mergeUpdates(merged,updates);const doc=projectBuckets(merged).doc,view=traitView(doc,'collection');assert.equal(view.source,'branch');assert.equal(view.sourceBranch,'branch');assert.equal(view.recipe,'book');assert.equal(view.sort,'title');assert.ok(doc.web.traitViews.collection.modern);assert.ok(doc.web.traitViews.collection.legacy);assert.deepEqual(ids(smartMembers(doc,'collection')),['book']);}
+});

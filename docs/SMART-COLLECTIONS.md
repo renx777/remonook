@@ -46,7 +46,7 @@ children and no recipe, without a startup rewrite. Full backups retain them.
 Existing native builds preserve the metadata but cannot display Smart Collection
 queries until updated. Query evaluation occurs only in the collection view;
 branch membership uses one tree traversal. Results are paged in batches of 24.
-No sync protocol, Worker, SQL or replacement snapshot is required for this web
+No sync protocol, Worker deployment, SQL or replacement snapshot is required for this web
 release. MCP's existing source-note and Trait-bullet edits remain canonical and
 update the results; a dedicated collection-query MCP tool is not added.
 
@@ -58,3 +58,40 @@ backup round trips and concurrent query/text edits in both delivery orders. App
 and browser checks cover Configure, original table edits, undo, recipes, source
 navigation, reload and mobile layout. Physical-device/native checks remain
 separate from browser emulation.
+
+## Rollout review
+
+The Phase 3 rollout includes the current Phase 2B calendar/push work; it does not
+replace it with the earlier PR's base. Before release, verify legacy settings
+writers cannot erase collection scope merely by omitting new fields. Missing
+scope/recipe fields inherit the most recent explicit values for that saved-view
+ID from retained revisions; explicit Direct children / no recipe still clears
+them. This is read-time compatibility, not a rewrite or conflict choice.
+
+Deleted collections and source branches that become Traits must return no
+results and refuse insertion until an ordinary source is selected. Collection
+queries must remain linear in notes/media membership and independent of another
+account's workspace. The prior sync-count discrepancy remains an unresolved
+release observation; preserve all strict deployed checks.
+
+
+The empty-state Add your first item button uses the same selected destination
+and recipe as New. A save failure keeps the collection visible and shows an
+error; it does not navigate to an unsaved item. Branch IDs are retained verbatim.
+Workspace querying indexes attached-media membership once, avoiding a media scan
+for every blank note.
+
+### Examples
+
+- **Book shelf:** make `Books #views`, choose Table or Grid, then Configure →
+  Current workspace. Set Author → is not empty in Filter, and choose the Book
+  shelf recipe for new items. Existing books stay in their original branches;
+  fill Author, Status, Rating and Cover on new books using ordinary Trait bullets.
+- **Movie shelf:** use Director → is not empty and the Movie shelf recipe. Keep
+  a saved Watchlist view filtered by Status → is → Watchlist. A second view can
+  show highly rated movies without duplicating the movie notes.
+- **Project review:** choose A note branch, select the project, and filter by
+  a Status or Due trait. New items are inserted under that project, while edits
+  in the table update each original note.
+
+Recipes do not fetch movie/book metadata or install a second property system.

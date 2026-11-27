@@ -1,7 +1,7 @@
 import {CardDetailsButton} from './CardDetailsDialog';
 import {cardDetails} from './card-details.mjs';
 import {useContext,useEffect,useMemo,useRef,useState} from 'react';
-import {NoteMetadataContext} from './NoteMetadataContext';
+import {NoteMetadataContext,type MetadataContext} from './NoteMetadataContext';
 import {LayoutGrid,List,ListTree,Table2,ExternalLink,ArrowUpRight,Plus,ArrowUpDown,Filter,ListChecks,Settings2,Rows3,ChevronDown,Pencil,Trash2,X,Link2,Columns3,CalendarDays,ChevronLeft,ChevronRight} from 'lucide-react';
 import {mediaLinks} from './media.mjs';
 import {snapshotIndex} from './outline-snapshot.mjs';
@@ -68,7 +68,11 @@ function CollectionTableRow({doc,node,assets,onOpen,traitKeys,links,cover,source
  const item=useItem(doc,node,assets,cover);
  return <tr><td><div ref={item.root} className="collection-table-item"><div className="collection-table-thumbnail"><PreviewImage src={item.image} title={item.title}/></div><div><button className="collection-title" type="button" onClick={()=>onOpen(node.id)}>{item.title}</button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}{item.error&&<small>Preview unavailable · link kept</small>}{item.loading&&item.url&&<small role="status">Loading…</small>}</div></div></td>{traitKeys.map(k=><td key={k}><EditableCell doc={doc} node={node} k={k}/></td>)}{links&&<><td>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">{item.site}<ExternalLink size={11}/></a>:'Note'}</td><td>{item.price||'—'}{item.details?.amount&&<small className="collection-status">Your price</small>}</td><td>{item.data?.availability||'—'}</td></>}<td>{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="collection-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={15}/></button></td></tr>;
 }
+async function addCollectionNote(ctx:MetadataContext|null,parent:string,names:string[],onOpen:(id:string)=>void){
+ if(!ctx?.save||ctx.disabled)return;let id='';await ctx.save(d=>{const r=newSmartCollectionItem(d,parent,names);id=r.id;return r.doc;});if(id)onOpen(id);
+}
 export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentId}:{doc:Workspace;parentId?:string;nodes:Node[];mode:string;assets:Map<string,Blob>;onOpen:(id:string)=>void;onAdd?:()=>void}){
+ const metadata=useContext(NoteMetadataContext),[addError,setAddError]=useState('');
  const [limit,setLimit]=useState(24),idx=useMemo(()=>snapshotIndex(doc.tables.bullets),[doc.tables.bullets]);
  // A Traits block describes the collection itself, so it is not one of its items.
  const parent=parentId||all[0]?.parentId||'';
@@ -80,6 +84,8 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
 
  const nodes:Node[]=useMemo(()=>arrangeCollection(doc,members,view,idx) as Node[],[doc,members,idx,JSON.stringify(view)]);
  const traitKeys:string[]=shownTraits(view,available);
+ const smartAdd=!!parentId&&(view.source!=='children'||!!view.recipe||available.length>0),add=smartAdd?()=>{setAddError('');void addCollectionNote(metadata,parent,available,onOpen).catch(e=>setAddError(e.message));}:onAdd;
+ const sourceUnavailable=view.source==='branch'&&(!idx.byId.has(view.sourceBranch)||traitBulletIds(doc.tables.bullets).has(idx.byId.get(view.sourceBranch)?.mirrorSourceId||view.sourceBranch));
  const links=useMemo(()=>!available.length||members.some(n=>mediaLinks(n.text).length>0),[members,available]);
  useEffect(()=>setLimit(24),[nodes[0]?.parentId,mode]);
  const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links,cover:view.cover,source:view.source!=='children'});
@@ -92,9 +98,9 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
  return <div className={'bullet-collection collection-'+mode}>
   {parent&&(parentId||available.length>0)?<CollectionBar parent={parent} view={view} available={available} imageNames={imageNames} dateKeys={dateKeys} mode={mode} count={nodes.length} total={members.length} onAdd={onAdd} onOpen={onOpen} items={members}/>
   :<div className="collection-toolbar"><span>{members.length} {members.length===1?'item':'items'}</span>{onAdd&&<button type="button" onClick={onAdd}><Plus size={14}/>Add note or link</button>}</div>}
-  {view.source==='branch'&&!idx.byId.has(view.sourceBranch)&&<p role="status">Choose an existing source branch. This view has no results until then.</p>}
+  {sourceUnavailable&&<p role="status">Choose an ordinary source branch in Configure. This view has no results until then.</p>}{addError&&<p role="alert">{addError}</p>}
   {members.length>0&&nodes.length===0&&<p role="status">No notes match this view. Adjust its filters or fill the new item’s Traits.</p>}
-  {!members.length&&<div className="collection-empty"><LayoutGrid size={25}/><p>A little room for a collection.</p><small>Add child notes or paste website links, then choose how to see them.</small>{onAdd&&<button type="button" onClick={onAdd}>Add your first item</button>}</div>}
+  {!members.length&&<div className="collection-empty"><LayoutGrid size={25}/><p>A little room for a collection.</p><small>Add child notes or paste website links, then choose how to see them.</small>{add&&<button type="button" disabled={!!metadata?.disabled||smartAdd&&!metadata?.save} onClick={add}>Add your first item</button>}</div>}
   {nodes.length>0&&(view.group&&mode!=='board'&&mode!=='calendar'?groupCollection(doc,items,view.group,view.groupDir,idx).map((g:{label:string;items:Node[]})=>{const key=g.label.toLocaleLowerCase()||'\u0000';const isClosed=closed.has(key);
     return <section key={key} className="collection-group"><button type="button" className="collection-group-head" aria-expanded={!isClosed} onClick={()=>setClosed(c=>{const n=new Set(c);if(n.has(key))n.delete(key);else n.add(key);return n;})}><ChevronDown size={14} className={isClosed?'is-closed':''}/><span>{g.label||'No '+view.group}</span><small>{g.items.length}</small></button>{!isClosed&&renderItems(g.items)}</section>;})
    :renderItems(items))}
@@ -113,7 +119,7 @@ function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,tot
  const set=(patch:Partial<View>)=>{setError('');if(!ctx?.save)return;void ctx.save(d=>setTraitView(d,parent,patch)).catch((e:Error)=>setError(e.message));};
  const run=(fn:(d:Workspace)=>Workspace)=>{setError('');if(!ctx?.save)return Promise.resolve();return ctx.save(fn).catch((e:Error)=>setError(e.message));};
  // New item: an empty title with this collection's trait names ready to fill, opened at once.
- const newItem=()=>{let id='';void run(d=>{const r=newSmartCollectionItem(d,parent,available);id=r.id;return r.doc;}).then(()=>{if(id)onOpen(id);});};
+ const newItem=()=>{setError('');void addCollectionNote(ctx,parent,available,onOpen).catch(e=>setError(e.message));};
  // Fill from links: each item's page preview adds the traits it is missing (never overwrites).
  const [filling,setFilling]=useState('');
  const fill=async()=>{const doc=ctx?.doc;if(!doc)return;const targets=items.map(n=>({id:n.mirrorSourceId||n.id,url:itemLink(doc,n.mirrorSourceId||n.id,n.text)})).filter(t=>t.url).slice(0,60);

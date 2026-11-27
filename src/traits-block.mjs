@@ -13,7 +13,14 @@ import {withNodes} from './workspace-nodes.mjs';
 // starts after whitespace (so "https://…" alone is not a property).
 const ROW=/^\s*([^:\n]{1,64}?)\s*::?(?:[ \t]+([\s\S]*))?$/;
 const uuid=()=>crypto.randomUUID();
-const latest=events=>Object.entries(events||{}).filter(([,v])=>v&&typeof v==='object'&&Number.isSafeInteger(v.at)).sort(([a,x],[b,y])=>y.at-x.at||b.localeCompare(a))[0]?.[1];
+const revisions=new WeakMap();
+function orderedRevisions(events){if(!events||typeof events!=='object')return [];let ordered=revisions.get(events);if(!ordered){ordered=Object.entries(events).filter(([,v])=>v&&typeof v==='object'&&Number.isSafeInteger(v.at)).sort(([a,x],[b,y])=>y.at-x.at||b.localeCompare(a)).map(([,v])=>v);revisions.set(events,ordered);}return ordered;}
+const latest=events=>orderedRevisions(events)[0];
+const SCOPE_KEYS=['source','sourceBranch','recipe'];
+function retainedScope(raw,tab,history){const out={...(raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{})};
+ for(const version of history){if(SCOPE_KEYS.every(k=>Object.hasOwn(out,k)))break;const candidate=(Array.isArray(version.tabs)?version.tabs.find(t=>t?.id===tab)?.settings:null)||((version.active||'all')===tab?version:null);if(!candidate||typeof candidate!=='object')continue;for(const key of SCOPE_KEYS)if(!Object.hasOwn(out,key)&&Object.hasOwn(candidate,key))out[key]=candidate[key];}
+ return out;
+}
 
 /** `Name: value` → {key, value}; null for any other text. */
 export function parseTraitRow(text){const m=ROW.exec(String(text??''));if(!m)return null;const key=m[1].trim();return key&&!/^https?$/i.test(key)?{key,value:(m[2]||'').trim()}:null;}
@@ -75,7 +82,7 @@ const OPS=new Set(FILTER_OPS.map(([k])=>k));
 const clamp=(v,lo,hi,d)=>{v=Number(v);return Number.isFinite(v)?Math.min(hi,Math.max(lo,v)):d;};
 /** Cleans one view's settings (anything stored, possibly by an older or newer app). */
 function settingsOf(v){v=v&&typeof v==='object'?v:{};return {
- source:['children','branch','workspace'].includes(v.source)?v.source:'children',sourceBranch:typeof v.sourceBranch==='string'?v.sourceBranch.slice(0,200):'',recipe:Object.hasOwn(TRAIT_RECIPES,v.recipe)?v.recipe:'',
+ source:['children','branch','workspace'].includes(v.source)?v.source:'children',sourceBranch:typeof v.sourceBranch==='string'?v.sourceBranch:'',recipe:Object.hasOwn(TRAIT_RECIPES,v.recipe)?v.recipe:'',
  fields:Array.isArray(v.fields)?v.fields.filter(f=>typeof f==='string').slice(0,12):null,sort:String(v.sort||''),dir:v.dir==='desc'?'desc':'asc',
  filterKey:String(v.filterKey||''),filter:String(v.filter||'').slice(0,200),
  conditions:Array.isArray(v.conditions)?v.conditions.filter(c=>c&&OPS.has(c.op)).slice(0,8).map(c=>({key:String(c.key||''),op:c.op,value:String(c.value??'').slice(0,200)})):[],match:v.match==='any'?'any':'all',
@@ -89,10 +96,11 @@ const pick=v=>Object.fromEntries(SETTING_KEYS.map(k=>[k,v[k]]));
  * The view choices for one collection: the active saved view's settings at the top level,
  * plus `tabs` (saved views: {id, name, settings}) and `active`. Defaults when never set.
  */
-export function traitView(doc,id){const owner=ownerOf(doc,id),v=latest(doc.web?.traitViews?.[owner]);
- const tabs=Array.isArray(v?.tabs)&&v.tabs.length?v.tabs.filter(t=>t&&typeof t.id==='string'&&typeof t.name==='string').slice(0,12).map(t=>({id:t.id,name:t.name.slice(0,40),settings:settingsOf(t.settings)})):[{id:'all',name:'All',settings:settingsOf({})}];
+export function traitView(doc,id){const owner=ownerOf(doc,id),history=orderedRevisions(doc.web?.traitViews?.[owner]),v=history[0];
+ let stored=Array.isArray(v?.tabs)?v.tabs.filter(t=>t&&typeof t.id==='string'&&typeof t.name==='string').slice(0,12):[];if(!stored.length)stored=[{id:'all',name:'All',settings:{}}];
+ const tabs=stored.map(t=>({id:t.id,name:t.name.slice(0,40),settings:settingsOf(retainedScope(t.settings,t.id,history))}));
  const active=tabs.some(t=>t.id===v?.active)?v.active:tabs[0].id;
- return {...DEFAULTS,...settingsOf(v||{}),tabs,active};}
+ return {...DEFAULTS,...settingsOf(retainedScope(v,active,history)),tabs,active};}
 export function setTraitView(doc,id,patch,make=uuid,now=Date.now()){
  const owner=ownerOf(doc,id);if(!doc.tables.bullets.some(n=>n.id===owner))throw Error('This collection was removed.');
  const current=traitView(doc,owner),next={...current,...patch};if(JSON.stringify(next)===JSON.stringify(current))return doc;
@@ -303,9 +311,11 @@ export const TRAIT_RECIPES={book:['Author','Status','Rating','Cover'],movie:['Di
 export function smartMembers(doc,collection,view=traitView(doc,collection)){
  collection=ownerOf(doc,collection);
  const idx=snapshotIndex(doc.tables.bullets),hidden=traitBulletIds(doc.tables.bullets),skip=new Set([collection]);
+ if(!idx.byId.has(collection)||hidden.has(collection))return [];
+ const mediaIds=new Set(doc.tables.media.map(m=>m.bulletId));
  let parent=idx.byId.get(collection)?.parentId;while(parent&&!skip.has(parent)){skip.add(parent);parent=idx.byId.get(parent)?.parentId;}
  const root=view.source==='branch'?ownerOf(doc,view.sourceBranch):collection;
- if(view.source!=='workspace'&&!idx.byId.has(root))return [];
+ if(view.source!=='workspace'&&(!idx.byId.has(root)||hidden.has(root)))return [];
  const branchIds=new Set(),pending=view.source==='branch'?[root]:[];
  while(pending.length){const id=pending.pop();if(branchIds.has(id))continue;branchIds.add(id);for(const child of idx.children.get(id)||[])pending.push(child.id);}
  const seen=new Set(),out=[];
@@ -313,7 +323,7 @@ export function smartMembers(doc,collection,view=traitView(doc,collection)){
   if(view.source==='children'?shown.parentId!==collection:view.source==='branch'?(!branchIds.has(shown.id)||shown.id===root):false)continue;
   const id=shown.mirrorSourceId||shown.id,n=idx.byId.get(id);
   if(!n||seen.has(id)||hidden.has(id)||hidden.has(shown.id)||skip.has(id)||tagsInText(n.text||'').some(t=>t.key==='views'))continue;
-  if(!n.text.trim()&&!(idx.children.get(id)||[]).length&&!doc.tables.media.some(m=>m.bulletId===id))continue;
+  if(!n.text.trim()&&!(idx.children.get(id)||[]).length&&!mediaIds.has(id))continue;
   seen.add(id);out.push(n);
  }
  return out;
@@ -324,6 +334,7 @@ export function newSmartCollectionItem(doc,collection,names=[],make=uuid){
  collection=ownerOf(doc,collection);
  const view=traitView(doc,collection),parent=view.source==='branch'?ownerOf(doc,view.sourceBranch):collection;
  if(!doc.tables.bullets.some(n=>n.id===collection)||!doc.tables.bullets.some(n=>n.id===parent))throw Error('The collection or source branch was removed.');
+ const hidden=traitBulletIds(doc.tables.bullets);if(hidden.has(collection)||hidden.has(parent))throw Error('Choose an ordinary note branch, not a Traits block.');
  const fields=view.recipe?TRAIT_RECIPES[view.recipe]:names;
  if(fields.length)return newCollectionItem(doc,parent,fields,make);
  const id=make(),position=Math.max(-1,...doc.tables.bullets.filter(n=>n.parentId===parent).map(n=>n.position))+1;
