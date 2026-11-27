@@ -2,6 +2,26 @@
 
 ## Current state
 
+### Consistency pass on web staging — 27 November 2026
+
+Web staging runs branch `ccr-641b18bf-2fe80f`, commit `b2a8e8450f96666fc7186b029431b00f653863a5`, release `2026-11-14.1`.
+
+What changed (see docs/DESIGN.md):
+- Six text styles across the app.
+- Outline is an icon; Undo/Redo sit in the phone ⋯ menu.
+- Tasks: a view menu and a filter sheet replace the dropdowns.
+- Calendar: week strip on phones.
+- Study Desk: folder boxes and a stats strip; notebook covers unchanged.
+- Dashboard, Bookshelf, Bookmarks, Canvas and Mindmaps: the same header pattern.
+
+Web only: no Worker, migration, native or production change.
+
+Checks:
+- Unit tests: 769 passed. The 2 failures (app DOM integration and the bookshelf UI) were tests still using the old controls; after updating them, both files pass.
+- Staging build: clean.
+- Deployed staging, guest acceptance scripts: Tasks, Inbox, Calendar planning and Smart Collections passed on desktop (light) and phone (dark).
+- Run locally only: Library discovery and navigation passed. `e2e-view-outlines` fails at its "moved to Study Desk" toast step, and fails the same way without this change, so the failure predates it.
+
 ### Design philosophy on web staging — 27 November 2026
 
 Web staging runs branch `ccr-641b18bf-2fe80f`, commit `3e013eeb7729d6175e4e4a7bdfd26bc9b98a6506`, release `2026-11-14.1`. The branch is Codex's `codex/library-discovery` (`2a880eb`) plus one commit. That commit applies docs/DESIGN.md:
