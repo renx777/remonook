@@ -1,12 +1,16 @@
+import {advanceRecurringTasks} from './recurring-tasks.mjs';
+import {TASK_FIELDS} from './task-fields.mjs';
 import {syncMirrors} from './relations.mjs';
 import {validate,refreshCards,uuid} from './domain.mjs';
 
 /** Replaces a workspace's bullets: mirrors, note times, validation, media, decks and derived cards. */
 export function withNodes(doc, nodes) {
+  const original=doc;
   nodes = syncMirrors(doc.tables.bullets, nodes);
-  const oldNodes=new Map(doc.tables.bullets.map(n=>[n.id,n]));
+  const oldNodes=new Map(original.tables.bullets.map(n=>[n.id,n]));
+  doc=advanceRecurringTasks(doc,nodes,oldNodes);nodes=doc.tables.bullets;
   const noteTimes={...doc.web.noteTimes},now=Date.now();
-  for(const n of nodes){const before=oldNodes.get(n.id);if(!before||['text','formatting','parentId','position','taskState','dueDate','kind','blockStyle','codeLanguage','dividerStyle','dividerColor','bulletColor'].some(k=>before[k]!==n[k]))noteTimes[n.id]={...noteTimes[n.id],...(!before?{createdAt:now}:{}),updatedAt:now};}
+  for(const n of nodes){const before=oldNodes.get(n.id);if(!before||[...TASK_FIELDS,'text','formatting','parentId','position','taskState','dueDate','kind','blockStyle','codeLanguage','dividerStyle','dividerColor','bulletColor'].some(k=>before[k]!==n[k]))noteTimes[n.id]={...noteTimes[n.id],...(!before?{createdAt:now}:{}),updatedAt:now};}
   doc={...doc,web:{...doc.web,noteTimes}};
   const detached=nodes.filter(n=>!n.mirrorSourceId&&oldNodes.get(n.id)?.mirrorSourceId);
   const detachedMedia=detached.flatMap(n=>doc.tables.media.filter(m=>m.bulletId===oldNodes.get(n.id).mirrorSourceId).map(m=>({...m,id:uuid(),bulletId:n.id})));
@@ -14,7 +18,7 @@ export function withNodes(doc, nodes) {
 
   validate(nodes);
   const ids = new Set(nodes.map((n) => n.id)),
-    sourceIds = new Set([...doc.tables.bullets.map(node => node.id), ...ids]),
+    sourceIds = new Set([...original.tables.bullets.map(node => node.id), ...ids]),
     sourceCards = doc.tables.cards.filter(card => sourceIds.has(card.id)),
     independentCards = doc.tables.cards.filter(card => !sourceIds.has(card.id));
   const media = doc.tables.media.filter((m) => ids.has(m.bulletId)),
@@ -23,7 +27,7 @@ export function withNodes(doc, nodes) {
     ...doc,
     columns: { ...doc.columns,
       media: media.some(item=>item.displayWidth!==undefined) && !doc.columns.media.includes("displayWidth") ? [...doc.columns.media,"displayWidth"] : doc.columns.media,
-      bullets: [...new Set([...doc.columns.bullets.filter(field=>nodes.some(n=>n.mirrorSourceId)||!['mirrorSourceId','mirrorRootId'].includes(field)), ...nodes.flatMap(node => node.mirrorSourceId ? ['mirrorSourceId','mirrorRootId'] : []), ...(nodes.some(node=>node.mindmap)?['mindmap']:[]), ...(nodes.some(node=>node.blockStyle&&node.blockStyle!=='paragraph')?['blockStyle']:[]), ...(nodes.some(node=>node.dividerStyle)?['dividerStyle']:[]), ...(nodes.some(node=>node.dividerColor)?['dividerColor']:[])])],
+      bullets: [...new Set([...doc.columns.bullets.filter(field=>nodes.some(n=>n.mirrorSourceId)||!['mirrorSourceId','mirrorRootId'].includes(field)), ...nodes.flatMap(node => node.mirrorSourceId ? ['mirrorSourceId','mirrorRootId'] : []), ...(nodes.some(node=>node.mindmap)?['mindmap']:[]), ...(nodes.some(node=>node.blockStyle&&node.blockStyle!=='paragraph')?['blockStyle']:[]), ...(nodes.some(node=>node.dividerStyle)?['dividerStyle']:[]), ...(nodes.some(node=>node.dividerColor)?['dividerColor']:[]), ...TASK_FIELDS.filter(key=>nodes.some(n=>n[key]!=null))])],
       decks: doc.tables.decks.some(deck => deck.layout) && !doc.columns.decks.includes('layout') ? [...doc.columns.decks, 'layout'] : doc.columns.decks,
     },
     tables: {

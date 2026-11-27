@@ -143,6 +143,7 @@ const WEEKDAY_NAMES_2 = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 type CalendarViewProps = {
   /** Agenda column (month, Workdays, reminders). When set, the day page layout replaces the date strip. */
   aside?: React.ReactNode;
+  dayPlan?: React.ReactNode;
   /** Controls shown beside the date heading, such as the work mode switch. */
   headerExtra?: React.ReactNode;
   workdays?: React.ReactNode;
@@ -424,6 +425,7 @@ export function CalendarView(props: CalendarViewProps) {
         {props.headerExtra}
       </div>
       {props.trackers}
+      {props.dayPlan}
       {notesSection}
       </div>
       <aside id={asideId} className="cal2-aside" aria-label="Agenda" hidden={!asideExpanded}>{props.aside}</aside></>:<>

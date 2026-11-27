@@ -40,7 +40,7 @@ try {
     page.on("pageerror", (e) => { if (!/ResizeObserver/.test(e.message)) errors.push(e.message); });
     await page.goto(process.env.CANVAS_URL || "http://127.0.0.1:5197");
     await page.getByText("Try as a guest", { exact: true }).click();
-    if (mobile) await page.getByRole("button", { name: "Library", exact: true }).click();
+    if (mobile) await page.getByRole("button", { name: "More", exact: true }).click();
     await page.getByRole(mobile ? "menuitem" : "button", { name: "Canvas", exact: true }).click();
     await page.getByRole("button", { name: "＋ New canvas", exact: true }).click();
     // A new text card opens for typing on the card itself.
@@ -131,7 +131,7 @@ try {
     assert.ok((await page.locator("svg.canvas-thumbnail rect").count()) >= 5, "thumbnail draws the cards");
     await page.screenshot({ path: `${shot}-${mobile ? "phone" : "desktop"}-library.png` });
     await page.reload();
-    if (mobile) await page.getByRole("button", { name: "Library", exact: true }).click();
+    if (mobile) await page.getByRole("button", { name: "More", exact: true }).click();
     await page.getByRole(mobile ? "menuitem" : "button", { name: "Canvas", exact: true }).click();
     await page.locator(".canvas-board").first().click(); // the list was open when the page reloaded
     await page.locator(".canvas-card.is-image img").first().waitFor();

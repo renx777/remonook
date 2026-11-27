@@ -2,6 +2,294 @@
 
 ## Current state
 
+### Phase 2B completion: web staging — 27 November 2026
+
+Web staging runs `codex/calendar-completion` at
+`dfd9747a726ca7429d49bcf8dbd64255fdcf4153` (PR
+[#116](https://github.com/renx777/remonook/pull/116)), release `2026-11-14.1`.
+`staging-source.json` confirms the branch/commit/release. The branch starts from
+main `6d96cf0` and includes the earlier editing, Inbox, Tasks, Calendar and recurring
+task staging work; Smart Collections remains separate in PR #114.
+
+- Daily Calendar reminders use additive metadata and the existing repeat enum;
+  legacy forms cannot strip daily mode, and explicit false/deletion still apply.
+- Calendar's main Day plan offers List / Timeline. Original task blocks and timed
+  reminders support pointer/touch and keyboard moves, task resizing, precise
+  forms and one-step undo/redo. Collision lanes, first-item scrolling, narrow
+  layouts and completed-reminder states use the existing theme.
+- Signed-in browsers can opt into private background Web Push using the existing
+  account Durable Object and alarms. Push credentials stay outside note sync and
+  backups. Payloads have no titles. Leases, bounded devices, encrypted requests,
+  chunked receipts, provider retries/removal, IANA/DST, zone changes, permission
+  errors, sign-out and active-worker/guard acknowledgement are covered. Provider
+  I/O is outside the note-sync queue, and alarm failures cannot block note saves.
+  No paid push API, new binding, deployment secret or global minute cron was added.
+- [Final application CI](https://github.com/renx777/remonook/actions/runs/45970603951)
+  passed **742 tests** and the build. Local build/Worker dry-run passed; the local
+  full suite passed 740 before the final targeted frontend refinements, with
+  focused and browser checks for those refinements followed by the final full CI.
+- The separate [backend workflow](https://github.com/renx777/remonook/actions/runs/45969697115)
+  passed build/full-suite, live configuration comparison, dry-run, deployment and
+  preservation checks. Sync Worker version `f7d08c05-1447-4b1e-a3c7-ad908c3aa377`
+  was deployed from `3eee9e6e0d9dc8e903f5e9b3a45ff96bc2db2c41`. The following
+  frontend-only worker-readiness fix changes no backend code. Live variables,
+  secret names, resource bindings and cron schedules were verified retained.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45970593811)
+  passed every step. Frontend Worker version
+  `5cabfd42-5349-4187-9c61-f0aef94fbde3` published the source above. All **19**
+  signed-in sync checks passed, retaining all **1,610** earlier test-account
+  notes after each add, new-device sign-in and cleanup. Tasks, Inbox, collections
+  and the new day-planning checks passed on deployed desktop-light/phone-dark
+  browsers, including emulated touch drag, daily creation, undo/redo and reload.
+- A separate isolated Chromium run against staging displayed a synthetic push
+  notification with **zero app tabs open** and confirmed durable worker guard
+  acknowledgement. `scripts/e2e-reminder-worker.mjs` reproduces it without an
+  account, external subscription or server-note changes. This does not verify
+  external FCM/APNs/Firefox service delivery or physical OS notification behavior.
+- Health reports `syncProtocol: 3`, `workdaysSchema: 2`, `taskPlanning: 1`,
+  `calendarPlanning: 1`, `taskRecurrence: 1`, `calendarDaily: 1`,
+  `backgroundReminders: 1`, `aiEnabled: true`, `aiAssist: 1`, `aiImage: 1`,
+  `bookmarkReader: 1`, books, Google Tasks and MCP enabled.
+
+The earlier three-note discrepancy did not recur, but its original IDs/cause and
+recovery are still unconfirmed. Do not describe it as fixed or restored; retain
+strict preservation checks and review before main/production. Production, main
+and native apps are unchanged. Physical external-provider delivery and native
+notification integration remain device rollout gates. See
+[CALENDAR-PLANNING.md](CALENDAR-PLANNING.md) for usage and limits. A subsequent
+release-record/acceptance-script commit changes no deployed application source.
+
+
+### Recurring task notes: web staging — 27 November 2026
+
+Web staging runs `codex/recurring-tasks` at
+`0f37bdbfef5d65cd65f904a1bec3fe30f8b40cc7` (PR
+[#115](https://github.com/renx777/remonook/pull/115)), release `2026-11-14.1`.
+The branch starts from main `6d96cf0` and carries forward editing, Inbox, Tasks
+and Calendar planning. Smart Collections remains separate in PR #114.
+
+- Tasks → Plan adds daily/weekly/monthly/yearly Repeat. Completion keeps the source
+  note and generates one successor linked to its series context, with preserved
+  month/leap anchors and a cleared deadline.
+- Deterministic version-one creation updates prevent two offline creators from
+  duplicating initial text. Per-source receipts prevent retries or intentional
+  deletion from recreating tasks. Old-client completion is reconciled inside the
+  v3 server's ordinary incremental commit. See [RECURRING-TASKS.md](RECURRING-TASKS.md)
+  and [SYNC.md](SYNC.md). There is no SQL migration or snapshot replacement.
+- TypeScript and application build passed; the full local suite passed **726 tests**.
+  Desktop-light and phone-dark browser acceptance passed offline daily completion,
+  undo/redo and reload. The targeted model/app/SQLite-backed server suite passed
+  23 cases. [Application CI](https://github.com/renx777/remonook/actions/runs/45952403350)
+  passed for the deployed source.
+- The separately gated [backend release](https://github.com/renx777/remonook/actions/runs/45951183254)
+  passed its build/full suite, configuration comparison, dry-run, deployment and
+  post-deploy preservation checks. Worker version
+  `988a12fe-337b-4800-a667-64a6dc083498` is live on `remo-sync-staging`, deployed
+  from `29ebbeef0cfacd22c51fa0e20123503f32ad5934`. The later commit only changes
+  the browser acceptance script; backend/application code is identical.
+  Existing variables, bindings, secret names and cron schedules were retained.
+- Health reports `syncProtocol: 3`, `workdaysSchema: 2`, `taskPlanning: 1`,
+  `calendarPlanning: 1`, `taskRecurrence: 1`, `aiEnabled: true`, `aiAssist: 1`,
+  `aiImage: 1`, `bookmarkReader: 1`, book storage/reader, Google Tasks and MCP enabled.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45952398975)
+  passed every step. Frontend Worker version
+  `a59bdfde-29b2-4c33-b1c2-7e2e72edfbf0` published the source above. All **19**
+  signed-in sync checks passed, including the additional checkpoints after each
+  test note creation. The account retained all 1,610 earlier notes after new-device
+  sign-in and fixture cleanup. Tasks/Inbox/collections acceptance passed on the
+  deployed frontend; desktop-light and phone-dark Tasks checks include daily
+  recurrence, offline completion, undo/redo and reload.
+- **Unresolved observation:** the [first frontend attempt](https://github.com/renx777/remonook/actions/runs/45951677254)
+  deployed successfully but failed two note-preservation assertions (1,613 → 1,610).
+  Its other 14 signed-in checks passed. The failure did not recur after adding
+  per-add checkpoints and ID/structure-only missing-row diagnostics; no assertion
+  was disabled. The application and backend were unchanged between attempts.
+  The original three IDs were not logged by the old test, so their cause and any
+  recovery have not been established. Do not describe this as a fixed data-loss
+  bug or infer that the earlier notes were restored. Review before main/production.
+- `staging-source.json` confirms the deployed branch/commit/release. Use that
+  source marker to identify staging; `release.json.applicationBase` is the static
+  release baseline, not the deployed commit. This corrects the earlier prepared
+  record's interpretation of `a0e324f` as a newer live release.
+
+Production, main and native apps are unchanged. Physical devices and native
+releases have not been verified. Closed-app push, daily Calendar reminder enums
+and a visual drag timeline remain pending. A subsequent documentation-only commit
+records this deployment without changing the tested application source.
+
+
+### Calendar planning increment: web staging — 26 November 2026
+
+Web staging runs `codex/calendar-planning` at
+`57df99ddda269dee73b66ad76c6e6becf0d98b9d` (PR #111), release `2026-11-14.1`.
+It carries the prior editing, Inbox and Tasks staging work forward without a main merge.
+
+- Tasks → Plan adds local start time and reserved minutes, separate from effort
+  estimates and deadlines. Calendar orders original task references by start time.
+- Recurring Calendar completion uses date-keyed booleans alongside the legacy
+  completed list. Concurrent completions retain both dates; completing the same
+  occurrence produces one next occurrence from the single series, with no note
+  generation or duplicate text. Weekly/monthly/yearly anchors are retained.
+- Explicit browser notification opt-in lives in the Calendar top bar. Delivery is
+  best effort while the app is open and visible, with device/account-local receipts,
+  permission/storage errors and focus catch-up. Scans run on timer/focus checks,
+  not on every note edit. See [CALENDAR-PLANNING.md](CALENDAR-PLANNING.md).
+- Local build/full suite passed 714 tests; final targeted tests passed 7 cases.
+  The final [application CI](https://github.com/renx777/remonook/actions/runs/45866071809)
+  passed the full **716-test** suite, including permission denial/opt-out,
+  concurrent recurrence completion, full-backup time blocks and New York DST.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45866096460)
+  passed all 16 signed-in sync checks plus deployed desktop-light/phone-dark
+  Tasks, Inbox and collections checks. The Tasks browser test now also verifies
+  start time and block duration after offline edits and reload. The earlier
+  frontend attempt was cancelled before completing so the timer/focus performance
+  correction could be included. The published source marker matches the SHA above.
+- The separate [server deployment](https://github.com/renx777/remonook/actions/runs/45865287806)
+  passed from `c95d04f4b0d97343537913a4671e7d4836d96a4c`, Worker version
+  `573d43e9-5f67-4134-b2ce-f43a70ed0b83`. Live variables, secret names, resource
+  bindings and cron schedules were verified retained. The later frontend-only
+  correction does not change server code. No SQL migration was required.
+- Health reports syncProtocol 3, workdaysSchema 2, taskPlanning 1,
+  calendarPlanning 1, aiEnabled true, aiAssist 1 and bookmarkReader 1. Books,
+  article capture, Google Tasks and MCP remain enabled.
+
+Production and native apps are unchanged. Physical-device notification delivery
+has not been verified. Closed-app push, automatic successor task-note creation,
+new daily recurrence modes and a drag timeline are outside this increment.
+A subsequent documentation-only commit records this deployment without changing
+the application source marker. Phase 3 has not started.
+
+
+### Tasks sync-server update: staging — 26 November 2026
+
+The pending staging server update was deployed from `codex/tasks-workspace` at
+`11db9c843c4755d71f6113f31ed3d2613cc42de1` using the successful rerun of
+[CI](https://github.com/renx777/remonook/actions/runs/45846769125). Worker version
+`0d20fb0f-6e27-4da9-9451-c7e1bad7f2f7` is live. The build/full suite and staging
+configuration, package and deployment checks passed. Live bindings, variables,
+secret names, schedules and existing capabilities were verified unchanged.
+Health reports `syncProtocol: 3`, `workdaysSchema: 2`, `taskPlanning: 1`,
+`aiEnabled: true`, `aiAssist: 1`, `bookmarkReader: 1`, book storage/reader,
+Google Tasks and MCP enabled. The stricter task validation and cloud MCP planning
+controls are now live on staging. The frontend remains at `1caf95d52e3b9d4be7c5931311767da66f122466`.
+Production and native releases were not touched.
+
+### Tasks workspace: web staging — 26 November 2026
+
+Web staging runs `codex/tasks-workspace` at
+`1caf95d52e3b9d4be7c5931311767da66f122466` (PR #110), release `2026-11-14.1`.
+It includes the editing/Inbox work from PRs #108/#109 without merging to main.
+
+- Open Tasks from the sidebar, command palette or **More → Tasks** on phones.
+  Inbox, Today, Upcoming, Anytime, Someday, Waiting and Completed project the
+  original task bullets. Plans add optional scheduled dates, priority and estimates;
+  deadlines retain their meaning. Project/source filters, search and date/priority
+  sort keep the source context accessible. Calendar shows/completes those same
+  tasks, with no note copies or duplicate agenda reminders. Google Tasks is a
+  separate explicit source using the existing connection. See [TASKS.md](TASKS.md).
+- Optional fields retain legacy defaults without a startup rewrite. Planning forms
+  write dirty fields against the latest document; normal saves, undo, full backups,
+  mirror identity and the durable outbox remain authoritative. Legacy Android-format
+  export refuses to omit planning metadata.
+- TypeScript, the final production build and all **711 local tests** passed. The
+  final targeted app/model/config suite passed all 11 tests. Desktop-light and
+  phone-dark guest browsers passed offline planning, deadline/priority/estimate
+  edits, filters, completion, undo/redo, optional Google source and reload.
+- [Application CI](https://github.com/renx777/remonook/actions/runs/45847571129)
+  and [Staging frontend](https://github.com/renx777/remonook/actions/runs/45847591418)
+  passed for the deployed commit. All **16 deployed signed-in sync checks** passed,
+  including offline planning remaining pending, propagation to another device,
+  completion converging on the original, and exact cleanup preserving every earlier
+  test-account note. Deployed collection, Inbox and Tasks desktop/phone acceptance
+  checks passed. The public staging source marker matches the commit above.
+- **Sync backend unchanged:** the first server attempt received 403 because the
+  frontend token is restricted to its own Worker. The prepared separate deployment
+  now uses `CLOUDFLARE_SYNC_STAGING_API_TOKEN`; its
+  [server run](https://github.com/renx777/remonook/actions/runs/45846769125)
+  stopped before any deployment because that secret was unavailable, including
+  on retry. The owner subsequently added the secret and the rerun succeeded, as recorded above;
+  no credentials belong in source, docs or chat.
+- The existing v3 server accepts/transports the optional fields: this was verified
+  by the deployed two-device check. Stronger server field validation/recovery and
+  cloud MCP planning controls are now live following the separate
+  sync-server deployment recorded above. The frontend workflow still deploys only the
+  frontend. No migration or resource change was made.
+
+Post-release backend health remained:
+`ok: true`, `attachments: true`, `syncProtocol: 3`, `workdaysSchema: 2`,
+`authProviders: [google.com, password]`, `bookStorage: 1`, `bookReader: 1`,
+`aiAssist: 1`, `aiImage: 1`, `aiEnabled: true`, `bookmarkReader: 1`, `mcp: 1`,
+`mcpOAuth: 1`, `bookmarkCapture: true`, `googleTasksConfigured: true`.
+This health snapshot predates the subsequent server deployment recorded above.
+
+Production and native apps are unchanged. Real Android keyboard/date controls and
+owner-device task checks remain pending; automated browser clients are not a
+physical-device claim. Phase 2B has not started. This release record may be a
+later documentation-only commit than the application source marker above.
+
+
+### Inbox processing: web staging — 26 November 2026
+
+Web staging runs `codex/inbox-processing` at
+`e3112a429d62bceec3614dbbcd2a7244ff43613d` (PR #109), release `2026-11-14.1`.
+Phase 0 fixes from PR #108 are included; neither PR has been merged to main.
+
+- Inbox is available in navigation, the command palette and its ordinary outline.
+  New capture uses the normal editor. Dashboard quick capture now joins desktop,
+  widget and Android note captures in the existing canonical Inbox.
+- File moves the original branch; Link appends a reference; Make task marks the
+  original bullet; Schedule creates/reschedules one linked Calendar reminder,
+  leaving the note's deadline unchanged. Content, children, attachments and
+  provenance stay with the original. Explicit Android bookmark captures stay in
+  Bookmarks. Undo/redo and Trash use normal outline history and persistence.
+- The final build and TypeScript check passed. The full local suite passed:
+  **700 tests, zero failures**, including account isolation, pending outbox
+  preservation, stale/failed-save UI behavior and concurrent offline file/text edits.
+- [Application CI](https://github.com/renx777/remonook/actions/runs/45803482446)
+  passed. [Staging frontend](https://github.com/renx777/remonook/actions/runs/45804078739)
+  passed, including deployed sync, link collections and the new Inbox acceptance
+  check. Desktop-light and phone-dark guest contexts passed offline processing,
+  filing/link/task/reminder actions, undo/redo, Trash recovery, focus and reload.
+- The published source marker matches the commit above. See [INBOX.md](INBOX.md)
+  for the tutorial, scope and owner device checks.
+
+Native apps, production and the sync backend were not released. There is no
+schema migration. The staging workflow publishes the frontend separately from
+the sync server. Real Android share/keyboard and native device checks remain
+pending before native rollout; Phase 2 has not started.
+
+
+### Editing reliability: web staging — 26 November 2026
+
+Web staging runs `codex/editing-reliability` at
+`dc8881e6e8aac6efa9f806acd3e04b8871d60274` (PR #108), release `2026-11-14.1`.
+This is the first increment of Phase 0 in [PKM-ROADMAP.md](PKM-ROADMAP.md).
+
+- The editor mounts, selects and focuses before paint, preventing a frame without
+  an input target after switching bullets and removing delayed focus stealing.
+- Android temporary paragraph splits survive flattened React echoes until the
+  existing repair converts them to a new bullet.
+- Staging checks no longer reference removed NookTraits tests; the new editor
+  focus/composition regression is included.
+- Local TypeScript/build and all **691 tests** passed. Four isolated 1k/10k-bullet
+  browser fixtures retained 120 rapid-entered bullets exactly after reload.
+  Ordinary typing p95 was 14.5–16.3 ms on the cloud VM; Enter transitions were
+  87–167 ms, measured separately. These are not physical Android measurements.
+- [CI](https://github.com/renx777/remonook/actions/runs/45784033336) passed.
+  [Staging frontend](https://github.com/renx777/remonook/actions/runs/45784514140)
+  passed, including deployed cross-device sync and link-collection checks.
+- The published `staging-source.json` matches the commit above. Fresh guest
+  sessions on the deployed build passed rapid typing, paragraph splitting and
+  reload in desktop/light and phone-emulation/dark, without page errors. The
+  local browser needed its test-only HTTPS error override for the environment's
+  certificate trust; normal curl verification and GitHub deployment checks passed.
+
+**Pending:** real Android IME/keyboard and second-device owner verification. The
+Phase 0 device gate remains open; Phase 1 has not started. Native apps, backend
+Workers and production were not released. The frontend workflow deploys separately
+from the sync backend; this change requires no server deployment or migration.
+
+
 ### iPad fixes; native staging Android 0.1.48, Windows/macOS 0.1.36, iPad 0.1.4 — 26 November 2026
 
 PR #106 merged as `b44273168446fde9181ddfda3f74f26245a101fc`. It contains three fixes:
@@ -1277,8 +1565,23 @@ The working flow is local → staging → production:
    same tested branch. Keep that local config ignored; compare its bindings and
    plain variables against live staging first. Preserve secrets, enabled AI,
    Google Tasks, article capture, D1/R2 and scheduled cleanup. Verify `/health`
-   after deployment (`syncProtocol: 2`, `workdaysSchema: 2`, `aiAssist: 1`,
+   after deployment (`syncProtocol: 3`, `workdaysSchema: 2`, `aiAssist: 1`,
    `bookmarkReader: 1`, with `aiEnabled: true` while staging AI is enabled).
+   When local credentials are unavailable, manually dispatch **CI** on the tested
+   staging feature branch with `sync_staging=true`. This job uses the separate
+   GitHub secret `CLOUDFLARE_SYNC_STAGING_API_TOKEN`, scoped for `remo-sync-staging`;
+   the frontend's `CLOUDFLARE_API_TOKEN` is restricted to `remonook-staging` and
+   receives 403 on the sync Worker. Never broaden or replace that frontend token
+   to work around the separation. The server token needs Worker script/settings
+   and schedule read/write access, plus any resource-read permissions Wrangler
+   needs for the existing bindings. Its separate server job first
+   runs the build/full suite, compares the checked-in staging example with live
+   bindings and cron schedules, removes example variables and uses `keep_vars`
+   to retain live settings/secrets. It refuses unknown/mismatched resources, then
+   dry-runs, deploys **remo-sync-staging only** and verifies health, resource
+   bindings, variable digests and secret names. Nothing logs secret values or
+   commits the ignored generated local config. Review any mismatch rather than
+   bypassing it. It never deploys production or publishes a frontend.
 3. Open a PR into `main` once testing passes. CI runs Node 24, `npm ci`, a local-only build and the full tests.
 4. Merge to `main`. A push to `main` also deploys staging automatically.
 5. Release production explicitly from `main`. Before doing so, confirm `main` contains everything staging has been running, so the release and staging match.

@@ -1008,6 +1008,7 @@ export function OutlineView(p: Props) {
                 {galleryContext&&bulletView(galleryContext.doc,n.id)!=='outline'&&<button type="button" className="bullet-collection-open" aria-label={'Open '+bulletView(galleryContext.doc,n.id)+' view for '+n.text} onClick={()=>p.onZoom(n.id)}><Icon name={bulletView(galleryContext.doc,n.id)==='table'?'table':'notes'} size={12}/>{bulletView(galleryContext.doc,n.id)}</button>}
                 {galleryContext?.doc.web.musicNodes?.[n.mirrorSourceId||n.id]&&<button className="bullet-music-play" aria-label={`Play music in ${n.text}`} title="Play music gallery" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();music?.play(musicItems(galleryContext.doc,n.mirrorSourceId||n.id));}}><Icon name="play" size={14}/></button>}
 </span>
+                        {n.taskRepeat&&n.taskRepeat!=='NONE'&&<span className="due-badge">{String(n.taskRepeat).toLowerCase()} · {String(n.scheduledDate||'')}</span>}
                         {n.dueDate && (
                           <span className="row-date-badge">
                             {formatDateBadge(n.dueDate)}

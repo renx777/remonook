@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {syncSpaces} from './helpers/sync-space.mjs';import {empty,withNodes} from './.build/data.mjs';import {bullet} from '../src/domain.mjs';import {updateTask} from '../src/tasks.mjs';import {applyDocument,mergeUpdates,projectBuckets} from '../src/sync-buckets.mjs';
+const configured=()=>updateTask(withNodes(empty(),[bullet('task',{text:'Daily practice',taskState:'TODO',scheduledDate:'2026-11-27'})]),'task',{taskRepeat:'DAILY'});
+function client(space,id){return {states:new Map(),since:0,get doc(){return projectBuckets(this.states).doc;},async request(path,body){const r=await space.fetch(new Request('https://space'+path,{method:body?'POST':'GET',headers:{'X-Remo-Uid':'alice','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}));const j=await r.json();assert.ok(r.ok,JSON.stringify(j));if(j.updates){this.states=mergeUpdates(this.states,j.updates);this.since=j.revision;}return j;},async pull(){return this.request('/pull?since='+this.since);},edit(after){const out=applyDocument(this.states,this.doc,after,{clientID:id});this.states=out.states;return out.updates;},async push(updates,operationId=crypto.randomUUID()){return this.request('/push',{updates,operationId,since:this.since});}};}
+test('server and new offline client create one shared successor after legacy completion, including retries and later edits',async()=>{
+ for(const oldFirst of [true,false]){
+ const env={},space=syncSpaces(env).get('alice'),a=client(space,11),b=client(space,12);await a.pull();await a.push(a.edit(configured()));await b.pull();
+ const before=b.doc,legacy=structuredClone(before);legacy.tables.bullets.find(n=>n.id==='task').taskState='DONE';const oldUpdate=b.edit(legacy),newUpdate=a.edit(updateTask(a.doc,'task',{taskState:'DONE'}));
+ const op=crypto.randomUUID();if(oldFirst){await b.push(oldUpdate,op);await a.push(newUpdate);}else{await a.push(newUpdate);await b.push(oldUpdate,op);}await b.push(oldUpdate,op);await a.pull();await b.pull();
+ for(const c of [a,b]){assert.equal(c.doc.tables.bullets.length,3);const next=c.doc.tables.bullets.find(n=>n.taskState==='TODO');assert.equal(next.text,'Daily practice');assert.equal(next.scheduledDate,'2026-11-28');assert.ok(c.doc.web.taskRepeatReceipts);}
+ const nextId=a.doc.tables.bullets.find(n=>n.taskState==='TODO').id;const edited=structuredClone(a.doc);edited.tables.bullets.find(n=>n.id===nextId).text+=' edited';await a.push(a.edit(edited));await b.pull();assert.equal(b.doc.tables.bullets.find(n=>n.id===nextId).text,'Daily practice edited');
+ }
+});

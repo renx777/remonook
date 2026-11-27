@@ -1,3 +1,6 @@
+import {BackgroundReminders} from './BackgroundReminders';
+import {hasPendingRepeat} from './recurring-tasks.mjs';
+import {ReminderDelivery} from './ReminderDelivery';
 import {addTraitsBlock,hasTraitsTag,traitsBlocks,isTraitsBlock} from './traits-block.mjs';
 import {NoteMetadataContext} from './NoteMetadataContext';
 import {createProperty,renameProperty,addPropertyOption,setPropertyValues} from './note-properties.mjs';
@@ -5,6 +8,8 @@ import {instantiateNoteTemplate,saveNoteTemplate,archiveNoteTemplate,noteTemplat
 import {localDate} from "./calendar-events.mjs";
 import {resurfacePresentations,resurfacePresentation,widgetFocusAction} from "./widget-suite.mjs";
 import {INBOX_ID} from "./quick-capture.mjs";
+import {startInboxCapture} from "./inbox.mjs";
+import {startTask} from "./tasks.mjs";
 import {ImageTextDialog,type ImageTextSource} from './ImageTextDialog';
 import {fetchDroppedImage} from './image-drop';
 import {saveCardDetails} from './card-details.mjs';
@@ -102,7 +107,7 @@ import {CalendarAgenda,MiniMonth,WorkdaysLine} from './CalendarAgenda';
 import {articleSnapshotHashes,bookmarkNote} from './bookmarks.mjs';
 import {CalendarTrackers} from './CalendarTrackers';
 import {patchMindmapStyle,renameMindmapBullet} from './mindmap-style.mjs';
-import {calendarEvents,eventsOnDate} from './calendar-events.mjs';
+import {calendarEvents,eventsOnDate,validEventDate} from './calendar-events.mjs';
 import {enableStudyBranch,saveStudyFolder} from './study-library.mjs';
 import type {FolderDraft} from './StudyFolders';
 import React, { startTransition, useEffect, useRef, useState } from "react";
@@ -271,6 +276,9 @@ function Dialog({
     </dialog>
   );
 }
+const CalendarTasks=React.lazy(()=>import('./CalendarTasks').then(m=>({default:m.CalendarTasks})));
+const TasksView=React.lazy(()=>import('./TasksView').then(m=>({default:m.TasksView})));
+const InboxView=React.lazy(()=>import('./InboxView').then(m=>({default:m.InboxView})));
 const DiagramEditor=React.lazy(()=>import('./DiagramEditor').then(m=>({default:m.DiagramEditor})));
 const DrawingEditor=React.lazy(()=>import('./DrawingEditor').then(m=>({default:m.DrawingEditor})));
 export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
@@ -303,7 +311,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [tab, setTab] = useState("notes"),
     [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string;snapshotHash?:string}|null>(null),
     [mindmapTarget,setMindmapTarget]=useState<string|null>(null),
-    [calendarDate, setCalendarDate] = useState(() => getLocalDateString()),
+    [calendarDate, setCalendarDate] = useState(() => {const date=new URLSearchParams(window.location.search).get('reminderDate');return validEventDate(date)?date!:getLocalDateString();}),
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
     [nodeDate,setNodeDate]=useState<{id:string;date:string}|null>(null),
     [reminderEditor,setReminderEditor]=useState<ReminderTarget|null>(null),
@@ -550,6 +558,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
+  useEffect(()=>{
+    if(!doc?.columns.bullets.includes('taskRepeat')||!hasPendingRepeat(doc))return;
+    const account=storageAccountKey(),timer=setInterval(()=>{
+      const current=docRef.current;if(account!==storageAccountKey()||!current||failed.current||dirty.current||working||cloudApplying.current||activeEditor?.view.composing)return;
+      if(hasPendingRepeat(current)){try{commit(withNodes(current,current.tables.bullets as Node[]),undefined,false);}catch(e){showError(e);}}
+    },500);return()=>clearInterval(timer);
+  },[doc?.tables.bullets,doc?.web.taskRepeatReceipts,working]);
   const nativeWidget=useStudyWidget({resurfaceCards:current=>meaningRef.current?.enabled?resurfacePresentations(current,(id:string)=>meaningRef.current.related(id)):[],resurface:current=>meaningRef.current?.enabled?resurfacePresentation(current,(id:string)=>meaningRef.current.related(id)):null,ready:!!doc&&!failed.current,revision:doc?.revision,getDoc:()=>docRef.current,canApply:()=>!dirty.current&&!failed.current&&!working&&!cloudApplying.current&&!activeEditor?.view.composing,apply:async next=>{if(failed.current)throw Error('Saving needs attention.');commit(next,undefined,false);await flush();if(failed.current)throw Error('Widget review could not be saved.');},onNotice:setNotice});
   useDesktop({ready:!!doc&&!failed.current,getDoc:()=>docRef.current,commit:next=>commit(next),flush,onError:message=>setError(message||null),onNotice:setNotice});
   useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{
@@ -1138,6 +1153,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if(edit)focus(bulletId, text.length);
     return bulletId;
   };
+  const reminderOpen=useRef<(date:string)=>Promise<void>>(async()=>{});
+  reminderOpen.current=async date=>{if(!validEventDate(date))return;if(activeEditor?.view.composing){setNotice('A reminder is due. Finish your current word, then open Calendar.');return;}await flush();if(failed.current){setNotice('Save your current edit before opening the reminder.');return;}setTab('calendar');setCalendarDate(date);setEditing(null);};
+  useEffect(()=>{const listener=(e:MessageEvent)=>{if(e.data?.type==='OPEN_REMINDER'&&validEventDate(e.data.date))void reminderOpen.current(e.data.date).catch(showError);};navigator.serviceWorker?.addEventListener('message',listener);const date=new URLSearchParams(window.location.search).get('reminderDate');if(date&&validEventDate(date)){void reminderOpen.current(date).catch(showError);const url=new URL(window.location.href);url.searchParams.delete('reminderDate');window.history.replaceState(null,'',url.href);}return()=>navigator.serviceWorker?.removeEventListener('message',listener);},[]);
   const openCalendarDate = (date:string) => {setCalendarDate(date);setEditing(null);};
   const remove = (id: string) => {
     removeMultiple([id]);
@@ -1886,6 +1904,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             {([
               ["dashboard", "Dashboard", "dashboard"],
               ["notes", "Notes", "notes"],
+              ["inbox", "Inbox", "inbox"],
+              ["tasks", "Tasks", "check"],
               ["calendar", "Calendar", "calendar"],
               ["study", "Study Desk", "study"],
               ["library"],
@@ -1907,6 +1927,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               >
                 <Icon name={icon} />
                 <span>{label}</span>
+                {id === "inbox" && (idx.children.get(INBOX_ID)||[]).length>0 && <span className="nav-badge">{(idx.children.get(INBOX_ID)||[]).length}</span>}
                 {id === "calendar" && sidebarCounts.reminders > 0 && <span className="nav-badge is-due" title={`${sidebarCounts.reminders} reminders due`}>{sidebarCounts.reminders} due</span>}
                 {id === "study" && sidebarCounts.cards > 0 && <span className="nav-badge" title={`${sidebarCounts.cards} cards due`}>{sidebarCounts.cards} {sidebarCounts.cards === 1 ? "card" : "cards"}</span>}
               </button>
@@ -1960,7 +1981,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
                 <button onClick={()=>{setOutlineScopes(value=>({...value,[tab]:null}));setEditing(null);}}><Icon name="notes" size={14}/><span>{label} outline</span></button>
                 {path.map((n,i)=><React.Fragment key={n.id}><Icon name="chevron" size={12}/><button aria-current={i===path.length-1?'page':undefined} onClick={()=>{setOutlineScopes(value=>({...value,[tab]:n.id}));setEditing(null);}}><EmojiText text={plain(n.text).slice(0,40)}/></button></React.Fragment>)}
               </>;
-            })() : tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
+            })() : tab === "tasks" ? <button onClick={()=>setTab("tasks")}><Icon name="check" size={16}/>Tasks</button> : tab === "inbox" ? <button onClick={()=>setTab("inbox")}><Icon name="inbox" size={16}/>Inbox</button> : tab === "canvas" && canvasEnabled ? <button onClick={()=>setTab("canvas")}><Icon name="canvas" size={16}/>Canvas</button> : tab === "bookmarks" ? <button onClick={()=>setTab("bookmarks")}><Icon name="link" size={16}/>Bookmarks</button> : tab === "bookshelf" ? <button onClick={()=>setTab('bookshelf')}><Icon name="study" size={16}/>Bookshelf</button> : tab === "dashboard" ? <button onClick={()=>setTab('dashboard')}><Icon name="dashboard" size={15}/>Dashboard</button> : tab === "study" ? <button onClick={() => setTab("study")}><Icon name="study" size={16} />Study Desk</button> : tab === "mindmap" ? <button onClick={() => setTab("mindmap")}><Icon name="mindmap" size={16}/>Mindmap</button> : tab === "calendar" ? (
               <>
                 <button onClick={() => navigateTo(calendarRoot?.id || null)}>
                   <Icon name="calendar" size={14} />
@@ -2006,8 +2027,8 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             )}
           </div>
           <div className="topbar-right">
-            <FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
-            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
+            <BackgroundReminders key={'push:'+storageAccountKey()} signedIn={!!cloudUser&&!activeLocalWorkspace()} controls={tab==='calendar'}/><ReminderDelivery key={storageAccountKey()} doc={doc} controls={tab==='calendar'}/><FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
+            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas" && tab !== "tasks")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
               className={`icon-button completed-toggle ${paneCompleted ? "is-active" : ""}`}
@@ -2091,6 +2112,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
              <PaneSearchBar value={pane.search} onChange={q=>views.update(pane.id,{search:q})} label={`Search pane ${i+1}`} onFocus={()=>{if(views.activePane!==pane.id){views.setActivePane(pane.id);setEditing(null);}}}/>
              <button className="icon-button pane-close" aria-label={`Close pane ${i+1}`} title="Close pane" onClick={()=>views.close(pane.id)}><Icon name="close" size={14}/></button>
             </div>}
+            {pane.scope===INBOX_ID&&<div className="canvas-open-banner"><span>Decide what comes next for your captures.</span><button onClick={()=>{setEditing(null);setTab('inbox');}}>Process Inbox</button></div>}
             {canvasEnabled&&pane.scope&&canvasRoots.get(pane.scope)&&<div className="canvas-open-banner"><span>This page is a canvas.</span><button onClick={()=>{setCanvasOpen({id:canvasRoots.get(pane.scope!)!,n:Date.now()});setEditing(null);setTab('canvas');}}><Icon name="canvas" size={14}/>Open canvas</button></div>}
             {dedicatedOutline&&!pane.scope&&notesFilterRoots&&!notesFilterRoots[pane.id]?.length?<div className="notes-filter-empty"><p>No {({study:'study notes',notes:'notes',calendar:'calendar entries',flashcards:'flashcards',mcqs:'MCQs',mindmaps:'mindmaps',bookmarks:'bookmark notes',docs:'PDF or EPUB notes'} as Record<string,string>)[notesFilter]} yet.</p>{!disabled&&<button className="primary" onClick={addInView}>{({study:'Add a flashcard',calendar:"Add an entry for this day",mindmap:'Add a mindmap',bookmarks:'Open the bookmark library',bookshelf:'Open the bookshelf'} as Record<string,string>)[tab]}</button>}</div>:<OutlineView
               onVisibleRows={ids=>reportOutlineRows(tab+':'+pane.id,ids)}
@@ -2157,11 +2179,30 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             </div>
             {selected&&<SelectionFormatting editor={activeEditor} disabled={disabled||unsupportedFormatting(selected)} blockStyle={selected.blockStyle||'paragraph'} onBlock={type=>command('block:'+type,selected.id,0,0)} dividerStyle={selected.dividerStyle} dividerColor={selected.dividerColor} onDividerStyle={style=>command('dividerStyle:'+style,selected.id,0,0)} onDividerColor={color=>command('dividerColor:'+color,selected.id,0,0)}/>}
           </>
+        ) : tab === "tasks" ? (
+          <React.Suspense fallback={<section className="secondary-page" role="status">Opening Tasks…</section>}><TasksView key={storageAccountKey()} storageKey={accountLocalKey('tasks-google-list')} doc={doc} disabled={disabled||failed.current} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onUndo={redo=>{undo(redo);setEditing(null);}} onOpen={id=>navigateTo(id)} onInbox={()=>{setEditing(null);setTab('inbox');}} onNew={()=>{
+            if(disabled||failed.current)throw Error('Saving needs attention before adding a task.');
+            const result=startTask(docRef.current!,crypto.randomUUID());commit(result.doc);setTab('notes');setScope(INBOX_ID);setSearch('');focus(result.id,0);
+          }} onChange={update=>{
+            if(disabled||failed.current)throw Error('Saving needs attention. Your task is unchanged.');
+            const current=docRef.current!,next=update(current);if(next!==current)commit(next);
+          }}/></React.Suspense>
+        ) : tab === "inbox" ? (
+          <React.Suspense fallback={<section className="secondary-page" role="status">Opening Inbox…</section>}><InboxView key={storageAccountKey()} doc={doc} disabled={disabled||failed.current} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onUndo={redo=>{undo(redo);setEditing(null);}} onOpen={id=>navigateTo(id)} onCapture={()=>{
+            if(disabled||failed.current)throw Error('Resolve the saving error before adding a capture.');
+            const result=startInboxCapture(docRef.current!);commit(result.doc);setTab('notes');setScope(INBOX_ID);setSearch('');focus(result.id,0);
+          }} onChange={update=>{
+            if(disabled||failed.current)throw Error('Saving needs attention. Your capture stays in Inbox.');
+            const current=docRef.current!,next=update(current);if(next!==current)commit(next);
+          }} onTrash={id=>{
+            if(disabled||failed.current)throw Error('Saving needs attention. Your capture stays in Inbox.');
+            if(docRef.current!.tables.bullets.find(n=>n.id===id)?.parentId!==INBOX_ID)throw Error('This capture moved or was removed.');
+            remove(id);
+          }}/></React.Suspense>
         ) : tab === "dashboard" ? (
           <React.Suspense fallback={<section className="secondary-page" role="status">Loading dashboard…</section>}><Dashboard doc={doc} disabled={disabled} onRead={openReader} onLibrary={()=>{setTab('bookshelf');setEditing(null);}} onChange={update=>commit(update(docRef.current!),undefined,false)} onCapture={text=>{
             if(disabled||failed.current)throw Error('Resolve the saving error before adding a note.');
-            const current=docRef.current!,id=crypto.randomUUID(),position=current.tables.bullets.filter(node=>!node.parentId).reduce((max,node)=>Math.max(max,node.position+1),0);
-            commit(withNodes(current,[...(current.tables.bullets as Node[]),bullet(id,{text,position})]));return id;
+            const result=startInboxCapture(docRef.current!,crypto.randomUUID(),text);commit(result.doc);return result.id;
           }} onNote={id=>navigateTo(id||null)} onStudy={()=>{setTab('study');setEditing(null);}} onCalendar={date=>{setTab('calendar');setCalendarDate(date);setEditing(null);}} onTask={id=>mutate(ns=>ns.map(node=>node.id===id?{...node,taskState:'DONE'}:node))}/></React.Suspense>
         ) : tab === "bookmarks" ? (
           <React.Suspense fallback={<p role="status">Loading bookmarks…</p>}><Bookmarks onSaveSocialNote={async(bookmarkId,text,id)=>{
@@ -2183,6 +2224,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         ) : (
           <>
           <CalendarView
+            dayPlan={<React.Suspense fallback={null}><CalendarTasks doc={doc} date={calendarDate} disabled={disabled||failed.current} onOpen={id=>navigateTo(id)} onChange={update=>{if(disabled||failed.current)throw Error('Saving needs attention.');const current=docRef.current!,next=update(current);if(next!==current)commit(next);}}/></React.Suspense>}
             autoOpen={false}
             workdayMarker={calendarWorkdays.enabled?date=><WorkdayMarker w={calendarWorkdays} date={date}/>:undefined}
             trackers={<CalendarTrackers workModeInHeader workspaceOpen={workdaysOpen} onWorkspace={setWorkdaysOpen} onDate={date=>{setCalendarDate(date);setEditing(null);}} doc={doc} date={calendarDate} disabled={disabled} onChange={update=>commit(update(docRef.current!))}/>}
@@ -2190,6 +2232,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             aside={<>
               <MiniMonth doc={doc} date={calendarDate} today={calendarToday} workdays={!!calendarWorkdays.enabled} onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}/>
               {calendarWorkdays.enabled&&<WorkdaysLine doc={doc} date={calendarDate} today={calendarToday} onOpen={()=>setWorkdaysOpen(true)}/>}
+
               <CalendarAgenda doc={doc} date={calendarDate} disabled={disabled} onChange={next=>commit(next)} onEdit={setReminderEditor} onSelectDate={date=>{setCalendarDate(date);setEditing(null);}}/>
             </>}
             onCreateNote={(date,value,id)=>mutate(ns=>{const prepared=ensureCalendarHierarchy(ns,date);return move([...prepared.nodes,bullet(id,{parentId:prepared.dayId,...value})],id,prepared.dayId,(index(prepared.nodes).children.get(prepared.dayId)||[]).length);})}
@@ -2513,7 +2556,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         commit(withNodes(result.doc,result.doc.tables.bullets as Node[]));await flush();if(failed.current)throw Error('The capture is in your notes, but saving needs attention. Open Account settings to retry.');
       }} onChange={(update,undo=false)=>{if(failed.current)throw Error('Saving has stopped. Your existing notes are safe; reopen Account settings to retry.');const current=docRef.current!,next=update(current);if(next!==current){validateReading(next.web);commit(next.tables.bullets!==current.tables.bullets?withNodes(next,next.tables.bullets as Node[]):next,undefined,undo);}}}/></React.Suspense></ReaderBoundary>}
       {dialog === "jump" && <CommandPalette nodes={nodes} onClose={()=>setDialog(value=>value==='jump'?null:value)} onChoose={async id=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');navigateTo(id);}} actions={[
-        ...[['notes','Open notes','notes'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
+        ...[['notes','Open notes','notes'],['inbox','Open Inbox','inbox'],['tasks','Open Tasks','check'],['dashboard','Open dashboard','dashboard'],['bookmarks','Open Bookmarks','link'],['bookshelf','Open bookshelf','study'],['study','Open Study Desk','study'],['calendar','Open calendar','calendar'],['mindmap','Open Mindmaps','mindmap']].map(([id,label,icon])=>({id,label,icon,keywords:id==='study'?['review','cards','learn']:id==='bookshelf'?['pdf','epub','reader','books']:[],run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');setEditing(null);if(id==='mindmap')setMindmapTarget(null);setTab(id);setSearch('');if(id==='notes')setScope(null);}})),
         {id:'note-templates',label:'New note from template',icon:'notes',keywords:['template','meeting','project','daily review'],disabled,run:()=>openPkm('templates',null)},
         {id:'new-note',label:'Create a new note',icon:'plus',keywords:['add','bullet'],disabled,run:async()=>{await flush();if(failed.current)throw Error('Saving needs attention before adding a note.');setTab('notes');setScope(null);setSearch('');add(null);}},
         {id:'sidebar',label:'Toggle sidebar',icon:'pane',run:toggleSidebar},

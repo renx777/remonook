@@ -1,3 +1,4 @@
+import {validateRepeatReceipts} from './task-repeat-fields.mjs';
 // The server's acceptance check for a merged shared document (cloud/sync-v2.mjs).
 // It lives here so the app can run exactly the same check on its own sync copy and
 // name the failing step when the server rejects a batch without saying why.
@@ -26,6 +27,7 @@ const fail = (message, status = 400) => {
 export function sharedSnapshot(y, step = () => {}) {
   step("project");
   let value = project(y);
+  step('Recurring tasks');validateRepeatReceipts(value.doc.web.taskRepeatReceipts);
   for (const [table, rows] of Object.entries(value.doc.tables))
     rows.forEach((row, i) => {
       const key = rowKey(table, row, i);
