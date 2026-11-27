@@ -408,3 +408,10 @@ removed before upload does not block the account. No validation/network/auth err
 is silently acknowledged, no outbox is discarded, and no force-overwrite/snapshot
 replacement or user conflict choice is introduced. Existing limits stay enforced;
 a genuinely full active library stays pending with an honest quota message.
+
+The deployed staging server identifies support with `attachmentRecovery: 1` in
+`/health`. The frontend staging workflow publishes only the frontend; the sync
+Worker is released separately. Deploy the supporting server first. A rollback to
+a server without recovery support does not recreate retired allocation rows,
+although the R2 originals remain. Prefer rolling forward; any server rollback
+needs to preserve retained-object allocation checks before accepting references.

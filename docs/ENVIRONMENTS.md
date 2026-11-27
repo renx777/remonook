@@ -2,6 +2,67 @@
 
 ## Current state
 
+### Attachment quota recovery on web staging — 28 November 2026
+
+Owner-approved staging release of `codex/attachment-quota-recovery`, application
+commit `4cf0435d033f9a9d447d64fa6dd4c3fc046dc91c`, release `2026-11-14.1`.
+The public `staging-source.json` confirms this source. It carries forward the
+current staging UI (`ccr-641b18bf-2fe80f` through `35115cd`, UI at `b2a8e84`)
+and the existing Phase 0–4 work. Production, main and native apps are unchanged.
+
+- The separate [backend release](https://github.com/renx777/remonook/actions/runs/46047650902)
+  deployed Worker `remo-sync-staging` from
+  `95be971e9af1bc18be2c7521f71a7bc6a8aaea33`, version
+  `dfc931b2-6269-4b24-b881-8d7f91a7344c`. Later commits change only client scope
+  guards and the signed-in acceptance script; backend source is identical.
+  Live variables, secrets, D1/R2/AI/service/DO bindings and cron schedules were
+  retained and verified. No D1 migration or new binding is required.
+- Health reports `ok: true`, `attachmentRecovery: 1`, `syncProtocol: 3`,
+  `workdaysSchema: 2`, `aiAssist: 1`, `aiEnabled: true`, `bookmarkReader: 1`,
+  `googleTasksConfigured: true` and all prior planning/reminder capabilities.
+- Unreferenced attachment allocations are retired automatically, including
+  legacy orphans. Trash, other-device references and upload leases remain
+  protected. Physical R2 originals are retained for offline/undo recovery;
+  restoring one reacquires quota. Physical garbage collection is a separate
+  policy. Active 20 MiB attachment / 100 MiB combined limits remain enforced.
+- Durable note and attachment-removal progress can pass a quota-blocked upload.
+  Original pending batches and operation identities remain intact until their
+  normal acknowledgement; progress alone never reports Synced. Account/workspace
+  guards prevent a delayed request from crossing an account switch.
+- Validation: local release build, Worker dry run and sync-rejection reproduction
+  passed; dedicated quota tests **15 passed**, React sync runtime tests **16
+  passed**. The backend release passed **788 tests**; application CI at `d2d3859`
+  passed **789 tests**. [CI on `4513ec4`](https://github.com/renx777/remonook/actions/runs/46049602199)
+  also passed **789 tests**. [CI on deployed `4cf0435`](https://github.com/renx777/remonook/actions/runs/46050624545)
+  also passed **789 tests**. Final frontend acceptance results are recorded below.
+- The [first frontend attempt](https://github.com/renx777/remonook/actions/runs/46048490422)
+  published successfully but stopped at an outdated effort-estimate selector in
+  the task-planning acceptance test. Prior sync checks and cleanup preserved all
+  **4,765** baseline test-account notes. The script now opens the current task
+  form's effort section and checks its current date/estimate controls.
+- The [second frontend attempt](https://github.com/renx777/remonook/actions/runs/46049595839)
+  passed 18 of 19 signed-in checks, including task planning and workspace isolation,
+  but the final preservation assertion reported **3,576 of 4,765** baseline notes.
+  The cause is unresolved. Diagnostic checkpoints now distinguish task planning,
+  workspace isolation and cleanup; no claim is made that the missing baseline
+  records have been recovered.
+  Subsequent acceptance views were skipped by the workflow after that failure.
+- The [final frontend release](https://github.com/renx777/remonook/actions/runs/46050616854)
+  completed successfully, frontend Worker version
+  `c592c946-1fd7-4e9f-a985-674c10e76cab`. All **22 signed-in checks passed**,
+  including the added preservation checkpoints, against the subsequent **3,576**
+  baseline notes; cleanup preserved all 3,576. This passing run does not explain
+  or resolve the prior reduction from 4,765. PR
+  [#119](https://github.com/renx777/remonook/pull/119) remains draft for that
+  unresolved preservation finding. No merge or production rollout is authorized.
+  Link collections, Inbox, Tasks, Calendar planning, Smart Collections and Library
+  discovery acceptance also passed on desktop/light and phone/dark.
+- The affected owner's actual devices are not connected to this environment;
+  their confirmation after reloading is pending. Synthetic checks do not prove
+  that account's final status. The earlier unrelated three-note discrepancy is
+  not claimed fixed by this release.
+
+
 ### Consistency pass on web staging — 27 November 2026
 
 Web staging runs branch `ccr-641b18bf-2fe80f`, commit `b2a8e8450f96666fc7186b029431b00f653863a5`, release `2026-11-14.1`.
