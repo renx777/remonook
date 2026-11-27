@@ -128,4 +128,7 @@ be described as fixed merely because subsequent preservation checks pass.
 Smart Collections extends existing #views with current-workspace and branch
 sources, canonical mirror-deduplicated results, source paths and optional Trait
 recipes. Existing filtering, grouping, saved views and table edits are reused.
-See [SMART-COLLECTIONS.md](SMART-COLLECTIONS.md). Phase 4 has not started.
+See [SMART-COLLECTIONS.md](SMART-COLLECTIONS.md). Web staging runs the integrated
+rollout in PR #117, preserving Phase 2B. The final full CI suite passed 755 tests;
+19 deployed signed-in sync checks and desktop/phone-layout Smart Collections
+acceptance passed. Physical/native checks remain separate. Phase 4 has not started.

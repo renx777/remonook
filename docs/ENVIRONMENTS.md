@@ -2,6 +2,53 @@
 
 ## Current state
 
+### Phase 3 Smart Collections: web staging — 27 November 2026
+
+Web staging runs `codex/smart-collections-rollout` at
+`cc2156a8158499ff9d33d64a7d02a9abbee72067` (PR
+[#117](https://github.com/renx777/remonook/pull/117)), release `2026-11-14.1`.
+`staging-source.json` confirms the exact branch/commit/release. Frontend Worker
+version: `73f8e603-0588-4783-b6a7-fc75338e2e4c`.
+
+- Configure a `#views` collection to query Direct children, a selected note branch
+  or Current workspace. Results are original canonical notes, mirror-deduplicated,
+  with source paths and the existing Trait filters, sorting/grouping, saved views
+  and grid/list/table layouts. No result notes are copied or relocated.
+- Optional Book shelf, Movie shelf and Project recipes create ordinary Trait
+  bullets only on new notes. Both New and the empty-state button respect the
+  selected branch/recipe. Failed saves do not navigate to unsaved items.
+- Legacy settings writers that omit scope/recipe fields retain the most recent
+  explicit values for the same saved-view ID. Explicit clears remain effective,
+  all revisions stay retained, and no startup rewrite is introduced. Deleted
+  collections, missing branches and Traits sources fail closed; IDs are not
+  truncated. Scope/saved-view/filter changes immediately reset paging to 24.
+- This is the integrated rollout of PR #114's implementation, carried onto the
+  current Phase 2B calendar/push work, plus review fixes. The branch started at
+  main `6d96cf0`; no other branch was rewritten. Phase 4 has not started.
+- TypeScript/build and **755 local tests** passed before the final paging fix;
+  its focused regression passed, followed by final [CI](https://github.com/renx777/remonook/actions/runs/45974207296)
+  passing the build and all **755 tests** on the deployed source. Desktop-light
+  and phone-dark browser acceptance passed scoped queries, live filters, offline
+  original edits/undo, recipes, placement and reload without page errors/overflow.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45974199863)
+  passed all steps, including **19 signed-in sync checks** that retained all
+  **1,610** earlier test-account notes after adds, new-device sign-in and cleanup.
+  Deployed Smart Collections, link collections, Inbox, Tasks and day-planning
+  checks passed. The preceding frontend attempt was cancelled during its build,
+  before publication, to include the paging fix.
+- No backend redeployment, SQL/protocol migration, new binding or paid API/library
+  is required. Sync Worker remains `f7d08c05-1447-4b1e-a3c7-ad908c3aa377`. Health
+  retains syncProtocol 3, workdaysSchema 2, taskPlanning/calendarPlanning/
+  taskRecurrence/calendarDaily/backgroundReminders all 1; AI enabled, books,
+  article capture, Google Tasks and MCP remain available.
+
+Production, main and native apps are unchanged. The earlier three-note discrepancy
+remains unexplained; this run's preservation results do not establish its cause
+or recovery. Physical/native gates remain separate. See
+[SMART-COLLECTIONS.md](SMART-COLLECTIONS.md) for usage and examples. A following
+release-record-only commit changes no deployed application source.
+
+
 ### Phase 2B completion: web staging — 27 November 2026
 
 Web staging runs `codex/calendar-completion` at

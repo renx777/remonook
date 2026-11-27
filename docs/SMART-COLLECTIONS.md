@@ -95,3 +95,13 @@ for every blank note.
   in the table update each original note.
 
 Recipes do not fetch movie/book metadata or install a second property system.
+
+
+## Staging rollout
+
+The integrated Phase 3 release is PR #117 on `codex/smart-collections-rollout`,
+which includes the current Phase 2B work. PR #114 is the original implementation
+history and was not deployed independently. Final CI passed 755 tests; deployed
+sync preservation and desktop/phone-layout acceptance passed. Exact source,
+Worker version and workflow links are in [ENVIRONMENTS.md](ENVIRONMENTS.md).
+Production and native apps are unchanged; physical-device checks remain open.
