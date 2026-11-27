@@ -2,6 +2,38 @@
 
 ## Current state
 
+### Recurring task notes: prepared for web staging — 27 November 2026
+
+PR [#115](https://github.com/renx777/remonook/pull/115), branch
+`codex/recurring-tasks`, application commit
+`c47e7a781a1564ea4ccda4585d332cf7d83a2648`, starts from main `6d96cf0` and
+carries forward editing, Inbox, Tasks and Calendar planning. Smart Collections
+remains separate in PR #114. **This entry is not a deployment record.**
+
+- Tasks → Plan adds daily/weekly/monthly/yearly Repeat. Completion keeps the source
+  note and generates one successor linked to its series context, with preserved
+  month/leap anchors and a cleared deadline.
+- Deterministic version-one creation updates prevent two offline creators from
+  duplicating initial text. Per-source receipts prevent retries or intentional
+  deletion from recreating tasks. Old-client completion is reconciled inside the
+  v3 server's ordinary incremental commit. See [RECURRING-TASKS.md](RECURRING-TASKS.md).
+- TypeScript and application build passed; the full local suite passed **726 tests**.
+  Desktop-light and phone-dark browser acceptance passed offline daily completion,
+  undo/redo and reload. The targeted model/app/SQLite-backed server suite passed
+  23 cases. Physical devices and native releases have not been verified.
+- [Application CI](https://github.com/renx777/remonook/actions/runs/45942110749)
+  is tracked on the PR; its final result must be checked before deployment.
+- Deployment is pending staging coordination. On 27 November the live frontend
+  marker reported `a0e324fd90753469aabbb6f99dac15bddfff5fe8`, newer than the last
+  recorded workflow release. Do not overwrite that uncoordinated release.
+- When authorized, deploy the separately tested sync server first with the
+  dedicated staging secret, preserve live settings/bindings/secrets, and verify
+  `taskRecurrence: 1` plus existing capabilities. Then run Staging frontend on this
+  branch and its deployed acceptance checks. No production or native release is
+  included. Closed-app push, daily Calendar reminder enums and drag timeline are
+  still pending.
+
+
 ### Calendar planning increment: web staging — 26 November 2026
 
 Web staging runs `codex/calendar-planning` at
