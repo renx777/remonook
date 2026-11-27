@@ -350,3 +350,15 @@ MCP reads, ZIP exports and durable note outbox. They never acknowledge note edit
 A scheduling change nudges an alarm only after its normal journal commit.
 Provider I/O runs outside the account's sync queue, and failed notification
 attempts do not discard or block pending notes. See CALENDAR-PLANNING.md.
+
+
+## Smart Collections
+
+Collection source, sourceBranch and recipe are additive settings in the existing
+append-only web.traitViews revisions and each saved view. They query the current
+workspace projection, never replace it. Result rows are original bullet identities;
+mirrors deduplicate to canonical sources and edits use normal source mutations.
+Recipes create ordinary Trait bullets only for explicitly created new notes.
+Full backups preserve the settings and previous revisions. No protocol migration,
+new Worker or durable-outbox change is required. Older apps preserve the metadata
+but display their existing direct-child views until updated.

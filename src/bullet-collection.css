@@ -11,3 +11,5 @@
 @media(max-width:520px){.card-details-dialog{padding:20px}.card-details-dialog input{font-size:16px}.collection-card-actions{gap:1px}}
 .collection-price-source{display:block;font-size:10px;color:var(--muted);margin-top:3px}.collection-list .collection-price-source{display:inline;font-size:10px}.collection-list .collection-price{display:inline-block;margin-inline-end:7px}
 @media(max-width:600px){.bullet-view-switch button{min-height:42px}.collection-card-actions .card-details-button{min-width:40px;min-height:40px}.collection-card-actions>button:last-child:not(.card-details-button){display:none}.collection-card .collection-title{min-height:38px}.collection-toolbar button{min-height:40px}.collection-table-scroll td .card-details-button,.collection-table-scroll td .collection-open{min-width:40px;min-height:40px}.card-details-dialog header button{min-width:40px;min-height:40px}}
+.smart-source{display:block;font-size:11px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere;margin:4px 0 8px}
+.smart-source{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}

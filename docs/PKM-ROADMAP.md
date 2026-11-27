@@ -121,3 +121,11 @@ with zero app tabs passed. Physical external-provider delivery and native rollou
 remain separate verification gates; synthetic Chrome push is not a physical
 FCM/APNs result. The earlier sync-count anomaly remains unexplained and must not
 be described as fixed merely because subsequent preservation checks pass.
+
+
+## Phase 3 implementation
+
+Smart Collections extends existing #views with current-workspace and branch
+sources, canonical mirror-deduplicated results, source paths and optional Trait
+recipes. Existing filtering, grouping, saved views and table edits are reused.
+See [SMART-COLLECTIONS.md](SMART-COLLECTIONS.md). Phase 4 has not started.

@@ -10,8 +10,8 @@ import {PreviewImage,useLinkPreview} from './LinkPreview';
 import {previewPrice} from './link-preview-client';
 import './traits-block.css';
 import {loadLinkPreview} from './link-preview-client';
-import {dateTraitKeys,dateOf,calendarMonth,monthGrid,shiftMonth,boardColumns,TOTALS,traitTotal} from './traits-block.mjs';
-import {traitImageRow,FILTER_OPS,newCollectionItem,setNoteTrait,itemLink,applyPreviewTraits,switchTraitTab,addTraitTab,renameTraitTab,deleteTraitTab,imageTraitNames,noteTraits,ratingOf,ratingText,setTraitValue,groupCollection,collectionTraitKeys,noteTrait,traitCover,isTraitsBlock,isUrl,traitView,setTraitView,arrangeCollection,shownTraits} from './traits-block.mjs';
+import {newSmartCollectionItem,smartMembers,traitBulletIds,sourcePath,dateTraitKeys,dateOf,calendarMonth,monthGrid,shiftMonth,boardColumns,TOTALS,traitTotal} from './traits-block.mjs';
+import {traitImageRow,FILTER_OPS,setNoteTrait,itemLink,applyPreviewTraits,switchTraitTab,addTraitTab,renameTraitTab,deleteTraitTab,imageTraitNames,noteTraits,ratingOf,ratingText,setTraitValue,groupCollection,collectionTraitKeys,noteTrait,traitCover,isTraitsBlock,isUrl,traitView,setTraitView,arrangeCollection,shownTraits} from './traits-block.mjs';
 import type {Node,Workspace} from './data';
 import './bullet-collection.css';
 const VIEWS=[['outline','Outline',ListTree],['grid','Grid',LayoutGrid],['list','Compact list',List],['table','Table',Table2]] as const;// Board and Calendar layouts are held back from this release.
@@ -33,7 +33,7 @@ function useItem(doc:Workspace,node:Node,assets:Map<string,Blob>,cover='auto'){
  const image=cover==='none'?null:(cover!=='auto'&&traitLocal)||chosen||details?.image||local||(link?.kind==='image'?url:preview.data?.image)||traitLocal||traitCover(doc,node.mirrorSourceId||node.id)||null;
  return {...preview,url,title,image,site:preview.data?.site||(url?new URL(url).hostname.replace(/^www\./,''):''),details,price:previewPrice(details?.amount?{amount:details.amount,currency:details.currency,from:false}:preview.data?.price||null),description:details?.description||preview.data?.description||(!url?node.text.split('\n').slice(1).join('\n'):'')};
 }
-type ItemProps={doc:Workspace;node:Node;assets:Map<string,Blob>;onOpen:(id:string)=>void;childCount:number;traitKeys:string[];links:boolean;cover:string};
+type ItemProps={doc:Workspace;node:Node;assets:Map<string,Blob>;onOpen:(id:string)=>void;childCount:number;traitKeys:string[];links:boolean;cover:string;source?:boolean};
 /** A rating trait as stars; tapping a star sets it (tapping the current one clears it). */
 function Stars({doc,node,k}:{doc:Workspace;node:Node;k:string}){
  const ctx=useContext(NoteMetadataContext),row=noteTraits(doc,node.mirrorSourceId||node.id).find((t:any)=>!t.duplicate&&t.key.toLocaleLowerCase()===k.toLocaleLowerCase());
@@ -43,20 +43,20 @@ function Stars({doc,node,k}:{doc:Workspace;node:Node;k:string}){
 }
 const isRating=(doc:Workspace,node:Node,k:string)=>{const v=noteTrait(doc,node.mirrorSourceId||node.id,k);return v!==null&&!!ratingOf(k,v);};
 function TraitCell({doc,node,k}:{doc:Workspace;node:Node;k:string}){const v=noteTrait(doc,node.mirrorSourceId||node.id,k);if(v!==null&&ratingOf(k,v))return <Stars doc={doc} node={node} k={k}/>;if(!v)return <>—</>;if(isUrl(v))return <a className="trait-url" href={v} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}>{v.replace(/^https?:\/\/(www\.)?/,'')}</a>;return <>{v}</>;}
-function PosterCard({doc,node,assets,onOpen,traitKeys,cover}:ItemProps){
+function PosterCard({doc,node,assets,onOpen,traitKeys,cover,source}:ItemProps){
  const item=useItem(doc,node,assets,cover),id=node.mirrorSourceId||node.id;
  const shown=traitKeys.filter(k=>!(item.image&&k.toLocaleLowerCase()===String(cover).toLocaleLowerCase())).map(k=>[k,noteTrait(doc,id,k)] as const).filter(([k,v])=>v!==null&&(isRating(doc,node,k)||(v&&!isUrl(v)))).slice(0,4);
  return <article ref={item.root} className="poster-card">
   <button type="button" className="poster-image" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}>{cover!=='none'&&<PreviewImage src={item.image} title={item.title}/>}</button>
-  <div className="poster-copy"><button type="button" className="poster-title" title={item.title} onClick={()=>onOpen(node.id)}>{item.title}</button>
+  <div className="poster-copy"><button type="button" className="poster-title" title={item.title} onClick={()=>onOpen(node.id)}>{item.title}</button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}
    {shown.map(([k,v])=><div key={k} className="poster-trait"><span>{k}</span>{isRating(doc,node,k)?<Stars doc={doc} node={node} k={k}/>:<strong>{v}</strong>}</div>)}</div>
  </article>;
 }
-function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys,cover}:ItemProps){
+function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys,cover,source}:ItemProps){
  const item=useItem(doc,node,assets,cover),[imageFailed,setImageFailed]=useState(false);useEffect(()=>setImageFailed(false),[item.image]);
  return <article ref={item.root} className={'collection-card'+(item.url||item.image?' has-cover':'')}>
   {((item.image&&!imageFailed)||item.loading)&&<button className="collection-cover" type="button" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><PreviewImage src={item.image} title={item.title} onUnavailable={()=>setImageFailed(true)}/></button>}
-  <div className="collection-card-copy"><span className="collection-site">{item.site||'Note'}</span><button type="button" className="collection-title" onClick={()=>onOpen(node.id)}>{item.title}</button>{item.description&&<p>{item.description}</p>}
+  <div className="collection-card-copy"><span className="collection-site">{item.site||'Note'}</span><button type="button" className="collection-title" onClick={()=>onOpen(node.id)}>{item.title}</button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}{item.description&&<p>{item.description}</p>}
    {traitKeys.length>0&&<dl className="collection-traits">{traitKeys.filter(k=>!(item.image&&k.toLocaleLowerCase()===String(cover).toLocaleLowerCase())&&!isUrl(noteTrait(doc,node.mirrorSourceId||node.id,k)||'x')).slice(0,4).filter(k=>noteTrait(doc,node.mirrorSourceId||node.id,k)).map(k=><div key={k}><dt>{k}</dt><dd><TraitCell doc={doc} node={node} k={k}/></dd></div>)}</dl>}
    {item.price&&<><strong className="collection-price" title={item.details?.amount?'Your entered price':'Page preview · prices may change'}>{item.price}</strong><small className="collection-price-source">{item.details?.amount?'Your price':'Website preview'}</small></>}
    <footer>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">Open website <ExternalLink size={12}/></a>:<span>{childCount?childCount+' nested '+(childCount===1?'note':'notes'):'Text note'}</span>}<span className="collection-card-actions">{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={14}/></button></span></footer>
@@ -64,23 +64,25 @@ function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys,cover}:Item
   </div>
  </article>;
 }
-function CollectionTableRow({doc,node,assets,onOpen,traitKeys,links,cover}:ItemProps){
+function CollectionTableRow({doc,node,assets,onOpen,traitKeys,links,cover,source}:ItemProps){
  const item=useItem(doc,node,assets,cover);
- return <tr><td><div ref={item.root} className="collection-table-item"><div className="collection-table-thumbnail"><PreviewImage src={item.image} title={item.title}/></div><div><button className="collection-title" type="button" onClick={()=>onOpen(node.id)}>{item.title}</button>{item.error&&<small>Preview unavailable · link kept</small>}{item.loading&&item.url&&<small role="status">Loading…</small>}</div></div></td>{traitKeys.map(k=><td key={k}><EditableCell doc={doc} node={node} k={k}/></td>)}{links&&<><td>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">{item.site}<ExternalLink size={11}/></a>:'Note'}</td><td>{item.price||'—'}{item.details?.amount&&<small className="collection-status">Your price</small>}</td><td>{item.data?.availability||'—'}</td></>}<td>{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="collection-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={15}/></button></td></tr>;
+ return <tr><td><div ref={item.root} className="collection-table-item"><div className="collection-table-thumbnail"><PreviewImage src={item.image} title={item.title}/></div><div><button className="collection-title" type="button" onClick={()=>onOpen(node.id)}>{item.title}</button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}{item.error&&<small>Preview unavailable · link kept</small>}{item.loading&&item.url&&<small role="status">Loading…</small>}</div></div></td>{traitKeys.map(k=><td key={k}><EditableCell doc={doc} node={node} k={k}/></td>)}{links&&<><td>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">{item.site}<ExternalLink size={11}/></a>:'Note'}</td><td>{item.price||'—'}{item.details?.amount&&<small className="collection-status">Your price</small>}</td><td>{item.data?.availability||'—'}</td></>}<td>{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="collection-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={15}/></button></td></tr>;
 }
-export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd}:{doc:Workspace;nodes:Node[];mode:string;assets:Map<string,Blob>;onOpen:(id:string)=>void;onAdd?:()=>void}){
+export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentId}:{doc:Workspace;parentId?:string;nodes:Node[];mode:string;assets:Map<string,Blob>;onOpen:(id:string)=>void;onAdd?:()=>void}){
  const [limit,setLimit]=useState(24),idx=useMemo(()=>snapshotIndex(doc.tables.bullets),[doc.tables.bullets]);
  // A Traits block describes the collection itself, so it is not one of its items.
- const members=useMemo(()=>all.filter(n=>!isTraitsBlock(n)&&(n.text.trim()||(idx.children.get(n.id)||[]).length>0||doc.tables.media.some(m=>m.bulletId===(n.mirrorSourceId||n.id)))),[all,idx,doc.tables.media]),parent=members[0]?.parentId||all[0]?.parentId||'';
+ const parent=parentId||all[0]?.parentId||'';
+ const view=(parent?traitView(doc,parent):traitView(doc,'')) as unknown as View;
+ const members=useMemo(()=>parentId?smartMembers(doc,parentId,view):all.filter(n=>!isTraitsBlock(n)),[doc.tables.bullets,doc.tables.media,parentId,all,view.source,view.sourceBranch]);
  const available=useMemo(()=>collectionTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
  const imageNames=useMemo(()=>imageTraitNames(doc,members.map(n=>n.mirrorSourceId||n.id),idx).filter((k:string)=>!available.some(a=>a.toLocaleLowerCase()===k.toLocaleLowerCase())),[doc,members,idx,available]);
  const [closed,setClosed]=useState<Set<string>>(new Set());
- const view=(parent?traitView(doc,parent):traitView(doc,'')) as unknown as View;
+
  const nodes:Node[]=useMemo(()=>arrangeCollection(doc,members,view,idx) as Node[],[doc,members,idx,JSON.stringify(view)]);
  const traitKeys:string[]=shownTraits(view,available);
  const links=useMemo(()=>!available.length||members.some(n=>mediaLinks(n.text).length>0),[members,available]);
  useEffect(()=>setLimit(24),[nodes[0]?.parentId,mode]);
- const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links,cover:view.cover});
+ const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links,cover:view.cover,source:view.source!=='children'});
  const dateKeys:string[]=useMemo(()=>dateTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
  const renderItems=(list:Node[])=>mode==='board'?<Board doc={doc} parent={parent} view={view} available={available} items={list} assets={assets} onOpen={onOpen}/>
   :mode==='calendar'?<TraitCalendar doc={doc} view={view} dateKeys={dateKeys} items={list} onOpen={onOpen}/>
@@ -88,8 +90,10 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd}:{doc:W
   :mode==='grid'&&available.length>0?<div className="poster-grid" style={{'--card':view.cardSize+'px','--ratio':String(view.ratio),'--fit':view.fit} as React.CSSProperties}>{list.map(node=><PosterCard key={node.id} {...props(node)}/>)}</div>
   :<div className="collection-items">{list.map(node=><CollectionCard key={node.id} {...props(node)}/>)}</div>;
  return <div className={'bullet-collection collection-'+mode}>
-  {parent&&available.length>0?<CollectionBar parent={parent} view={view} available={available} imageNames={imageNames} dateKeys={dateKeys} mode={mode} count={nodes.length} total={members.length} onAdd={onAdd} onOpen={onOpen} items={members}/>
+  {parent&&(parentId||available.length>0)?<CollectionBar parent={parent} view={view} available={available} imageNames={imageNames} dateKeys={dateKeys} mode={mode} count={nodes.length} total={members.length} onAdd={onAdd} onOpen={onOpen} items={members}/>
   :<div className="collection-toolbar"><span>{members.length} {members.length===1?'item':'items'}</span>{onAdd&&<button type="button" onClick={onAdd}><Plus size={14}/>Add note or link</button>}</div>}
+  {view.source==='branch'&&!idx.byId.has(view.sourceBranch)&&<p role="status">Choose an existing source branch. This view has no results until then.</p>}
+  {members.length>0&&nodes.length===0&&<p role="status">No notes match this view. Adjust its filters or fill the new item’s Traits.</p>}
   {!members.length&&<div className="collection-empty"><LayoutGrid size={25}/><p>A little room for a collection.</p><small>Add child notes or paste website links, then choose how to see them.</small>{onAdd&&<button type="button" onClick={onAdd}>Add your first item</button>}</div>}
   {nodes.length>0&&(view.group&&mode!=='board'&&mode!=='calendar'?groupCollection(doc,items,view.group,view.groupDir,idx).map((g:{label:string;items:Node[]})=>{const key=g.label.toLocaleLowerCase()||'\u0000';const isClosed=closed.has(key);
     return <section key={key} className="collection-group"><button type="button" className="collection-group-head" aria-expanded={!isClosed} onClick={()=>setClosed(c=>{const n=new Set(c);if(n.has(key))n.delete(key);else n.add(key);return n;})}><ChevronDown size={14} className={isClosed?'is-closed':''}/><span>{g.label||'No '+view.group}</span><small>{g.items.length}</small></button>{!isClosed&&renderItems(g.items)}</section>;})
@@ -109,13 +113,15 @@ function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,tot
  const set=(patch:Partial<View>)=>{setError('');if(!ctx?.save)return;void ctx.save(d=>setTraitView(d,parent,patch)).catch((e:Error)=>setError(e.message));};
  const run=(fn:(d:Workspace)=>Workspace)=>{setError('');if(!ctx?.save)return Promise.resolve();return ctx.save(fn).catch((e:Error)=>setError(e.message));};
  // New item: an empty title with this collection's trait names ready to fill, opened at once.
- const newItem=()=>{let id='';void run(d=>{const r=newCollectionItem(d,parent,available);id=r.id;return r.doc;}).then(()=>{if(id)onOpen(id);});};
+ const newItem=()=>{let id='';void run(d=>{const r=newSmartCollectionItem(d,parent,available);id=r.id;return r.doc;}).then(()=>{if(id)onOpen(id);});};
  // Fill from links: each item's page preview adds the traits it is missing (never overwrites).
  const [filling,setFilling]=useState('');
  const fill=async()=>{const doc=ctx?.doc;if(!doc)return;const targets=items.map(n=>({id:n.mirrorSourceId||n.id,url:itemLink(doc,n.mirrorSourceId||n.id,n.text)})).filter(t=>t.url).slice(0,60);
   if(!targets.length){setFilling('No item has a link yet. Put a link in an item\'s title or a Link trait.');return;}
   let done=0,failed=0;for(const t of targets){setFilling(`Reading ${done+failed+1} of ${targets.length}…`);try{const p=await loadLinkPreview(t.url!);await run(d=>applyPreviewTraits(d,t.id,p));done++;}catch{failed++;}}
   setFilling(`Filled ${done} of ${targets.length}${failed?` · ${failed} could not be read`:''}.`);};
+ const [branchSearch,setBranchSearch]=useState('');
+ const branchChoices=useMemo(()=>{const doc=ctx?.doc;if(!doc)return [];const hidden=traitBulletIds(doc.tables.bullets);const selected=doc.tables.bullets.find(n=>n.id===view.sourceBranch);return [...(selected?[selected]:[]),...doc.tables.bullets.filter(n=>n.id!==view.sourceBranch&&!n.mirrorSourceId&&!hidden.has(n.id)&&n.text.toLocaleLowerCase().includes(branchSearch.toLocaleLowerCase())).slice(0,100)];},[ctx?.doc?.tables.bullets,view.sourceBranch,branchSearch]);
  const [tabName,setTabName]=useState(''),[renaming,setRenaming]=useState('');
  const conds=view.conditions||[];const setConds=(c:typeof conds)=>set({conditions:c});
  useEffect(()=>{if(filter===view.filter)return;const t=setTimeout(()=>set({filter}),350);return()=>clearTimeout(t);},[filter]);
@@ -130,7 +136,7 @@ function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,tot
   <span className="collection-count">{count===total?total:count+' of '+total} {total===1?'result':'results'}</span></div>
   <div className="collection-bar-actions">
    {tab('sort','Sort',ArrowUpDown,!!view.sort)}{tab('group','Group',Rows3,!!view.group)}{tab('filter','Filter',Filter,!!view.filter)}{tab('props','Properties',ListChecks)}{tab('config','Configure',Settings2)}
-   {(onAdd||available.length>0)&&<button type="button" aria-label="New item" title="New item" disabled={off} onClick={available.length?newItem:onAdd}><Plus size={14}/><span>New</span></button>}
+   {(onAdd||available.length>0)&&<button type="button" aria-label={available.length||view.recipe||view.source!=='children'?'New item':'Add note or link'} title="New item" disabled={off} onClick={available.length||view.recipe||view.source!=='children'?newItem:onAdd}><Plus size={14}/><span>New</span></button>}
   </div>
   {open==='views'&&<div className="collection-panel collection-panel-left" role="group" aria-label="Saved views">
    <div className="collection-tabs">{view.tabs.map(t=>renaming===t.id?<form key={t.id} onSubmit={e=>{e.preventDefault();void run(d=>renameTraitTab(d,parent,t.id,tabName)).then(()=>setRenaming(''));}}><input autoFocus aria-label="View name" maxLength={40} value={tabName} onChange={e=>setTabName(e.target.value)}/><button type="submit">Save</button></form>
@@ -156,6 +162,9 @@ function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,tot
    {open==='props'&&<><div className="collection-props">{available.map(k=><label key={k}><input type="checkbox" disabled={off} checked={shown.some(x=>same(x,k))} onChange={()=>toggle(k)}/>{k}</label>)}</div>
     <div className="collection-fill"><button type="button" disabled={off||/^Reading/.test(filling)} onClick={()=>void fill()}><Link2 size={13}/>Fill traits from links</button><small>{filling||'Reads each item\'s link (IMDb, Letterboxd, Goodreads, shops…) and adds Cover, Year, Director, Author or Site where missing.'}</small></div></>}
    {open==='config'&&<>
+    <label>Notes from<select aria-label="Collection source" value={view.source} disabled={off} onChange={e=>set({source:e.target.value as View['source']})}><option value="children">Direct children</option><option value="branch">A note branch</option><option value="workspace">Current workspace</option></select></label>
+    {view.source==='branch'&&<><label>Find branch<input aria-label="Find collection branch" value={branchSearch} onChange={e=>setBranchSearch(e.target.value)}/></label><label>Branch<select aria-label="Collection branch" value={view.sourceBranch} disabled={off} onChange={e=>set({sourceBranch:e.target.value})}><option value="">Choose a branch</option>{branchChoices.map(n=><option key={n.id} value={n.id}>{sourcePath(ctx!.doc,n.id)} / {n.text||'Untitled'}</option>)}</select></label></>}
+    <label>Trait recipe for new items<select aria-label="New item Trait recipe" value={view.recipe} disabled={off} onChange={e=>set({recipe:e.target.value})}><option value="">Use this collection’s Trait names</option><option value="book">Book shelf</option><option value="movie">Movie shelf</option><option value="project">Projects</option></select></label><small>Recipes add ordinary Trait bullets to new items. Existing notes stay as they are.</small>
     {mode==='board'&&<label>Columns from<select aria-label="Board columns from" value={view.boardKey||view.group||available[0]||''} disabled={off} onChange={e=>set({boardKey:e.target.value})}>{options}</select></label>}
     {mode==='calendar'&&<label>Date trait<select aria-label="Calendar date trait" value={view.dateKey||dateKeys[0]||''} disabled={off} onChange={e=>set({dateKey:e.target.value})}>{dateKeys.length?dateKeys.map(k=><option key={k} value={k}>{k}</option>):<option value="">No trait holds a date yet</option>}</select></label>}
     {mode==='grid'&&<label>Card size <output>{draft.cardSize??view.cardSize}</output><input type="range" aria-label="Card size" min={140} max={420} step={10} value={draft.cardSize??view.cardSize} disabled={off} onChange={e=>setDraft({...draft,cardSize:+e.target.value})} onPointerUp={()=>draft.cardSize&&set({cardSize:draft.cardSize})} onKeyUp={()=>draft.cardSize&&set({cardSize:draft.cardSize})}/></label>}
