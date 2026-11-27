@@ -132,3 +132,24 @@ See [SMART-COLLECTIONS.md](SMART-COLLECTIONS.md). Web staging runs the integrate
 rollout in PR #117, preserving Phase 2B. The final full CI suite passed 755 tests;
 19 deployed signed-in sync checks and desktop/phone-layout Smart Collections
 acceptance passed. Physical/native checks remain separate. Phase 4 has not started.
+
+## Phase 4 implementation
+
+Local library discovery is an explicit Search menu action. Cached PDF pages,
+EPUB passages and saved articles get an account/workspace-scoped derived index;
+content hashes reuse extracted units. Search matching and EPUB parsing run in a
+worker; PDF.js uses its existing parser worker with yielding page orchestration.
+Opening Notes or typing bullets does not start extraction or download originals.
+Unavailable, scanned/unreadable and budget-limited sources are reported separately.
+Results open the existing reader at the page/passage or an unambiguous article quote.
+
+Aliases use ordinary `Aliases: ML, Machine learning` Traits, retained by normal
+sync and backups. They work in the inline `[[` picker and note chooser. The existing
+Connections/backlinks panel offers explicit reviewed unlinked mentions, with
+chunked scanning, Unicode boundaries and code/link/URL/Traits/mirror exclusions.
+Linking revalidates the source and target through the normal saved outline path
+and remains one undo step. There is no competing backlinks panel or shared schema
+migration. See [LIBRARY-DISCOVERY.md](LIBRARY-DISCOVERY.md) for usage and limits.
+
+Release checks and physical-device gates are recorded in ENVIRONMENTS.md.
+Native deployment and the next roadmap phase remain separate owner decisions.

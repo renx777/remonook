@@ -210,6 +210,7 @@ const PhotoNotes = React.lazy(()=>import('./PhotoNotes').then(m=>({default:m.Pho
 const DictationPill = React.lazy(()=>import('./Dictation').then(m=>({default:m.DictationPill})));
 const AiAssist = React.lazy(()=>import('./AiAssist'));
 const AiDraftList = React.lazy(()=>import('./AiAssist').then(m=>({default:m.AiDraftList})));
+const LibrarySearch=React.lazy(()=>import('./LibrarySearch').then(m=>({default:m.LibrarySearch})));
 const BookReader = React.lazy(()=>import('./BookReader').then(module=>({default:module.BookReader})));
 const Bookshelf = React.lazy(()=>import('./Bookshelf').then(module=>({default:module.Bookshelf})));
 const Dashboard = React.lazy(()=>import('./Dashboard').then(module=>({default:module.Dashboard})));
@@ -285,6 +286,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   const research=useResearchDrafts(storageAccountKey());
   const [researchTarget,setResearchTarget]=useState<string|null>(null);
   const researchBusy=useRef(false),researchOrigin=useRef<HTMLElement|null>(null);
+  const [librarySearch,setLibrarySearch]=useState(false);
   const [readerTarget,setReaderTarget]=useState<{hash:string;unit?:number;id?:string}|null>(null);
   const readerOrigin=useRef<HTMLElement|null>(null);
   const closeReader=React.useCallback(()=>{if(viewTimer.current)publishView(true);setReaderTarget(null);requestAnimationFrame(()=>{const element=readerOrigin.current?.isConnected?readerOrigin.current:document.querySelector<HTMLElement>('.topbar button');element?.focus();});},[]);
@@ -309,7 +311,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     [editing, setEditingState] = useState<string | null>(null),
     [caret, setCaret] = useState<number | null>(null),
     [tab, setTab] = useState("notes"),
-    [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string;snapshotHash?:string}|null>(null),
+    [bookmarkTarget,setBookmarkTarget]=useState<{id:string;highlight?:string;snapshotHash?:string;quote?:string}|null>(null),
     [mindmapTarget,setMindmapTarget]=useState<string|null>(null),
     [calendarDate, setCalendarDate] = useState(() => {const date=new URLSearchParams(window.location.search).get('reminderDate');return validEventDate(date)?date!:getLocalDateString();}),
     [connectionTarget,setConnectionTarget]=useState<{mode:string;id:string;start:number;end:number}|null>(null),
@@ -2028,7 +2030,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </div>
           <div className="topbar-right">
             <BackgroundReminders key={'push:'+storageAccountKey()} signedIn={!!cloudUser&&!activeLocalWorkspace()} controls={tab==='calendar'}/><ReminderDelivery key={storageAccountKey()} doc={doc} controls={tab==='calendar'}/><FocusPill doc={doc} disabled={disabled} onChange={update=>{const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,false);}} onOpen={()=>{setTab('dashboard');setEditing(null);}}/>
-            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas" && tab !== "tasks")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
+            {(dedicatedOutline||(tab !== "bookmarks" && tab !== "canvas" && tab !== "tasks")) && <SearchBox value={search} onChange={q=>{setSearch(q);setEditing(null);}} nodes={nodes} renderExtra={draft=><><button className="library-search-launch" onClick={()=>{setEditing(null);setLibrarySearch(true);}}>Search local library</button><MeaningSearch meaning={meaning} query={draft} onOpen={revealBullet}/></>} global={views.active.global} onGlobal={all=>{views.update(views.activePane,{global:all});if(all)setTab('notes');}}/>}
             {tab === "notes" && (scope || search.trim()) && <button className={`icon-button star-page ${(search.trim() ? savedSearches.includes(search.trim()) : starred.includes(scope!)) ? "is-starred" : ""}`} aria-label={search.trim() ? (savedSearches.includes(search.trim()) ? "Unstar search" : "Star search") : (starred.includes(scope!) ? "Unstar page" : "Star page")} title={search.trim() ? "Star this search" : "Star this page"} disabled={disabled} onClick={() => search.trim() ? toggleSearchStar() : toggleStar(scope!)}><Icon name="star" size={17} /></button>}
             <button
               className={`icon-button completed-toggle ${paneCompleted ? "is-active" : ""}`}
@@ -2546,6 +2548,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         </div>
       </OutlinePopover>}
       <GuidedTours key={cloudUser?.uid||'guest'} open={dialog==='help'} account={storageAccountKey()} signedIn={!!cloudUser} onOpenChange={open=>setDialog(open?'help':null)} onCloseMenus={()=>{setMenu(null);setViewMenu(false);}} onNavigate={async nextTab=>{await flush();if(failed.current)throw Error('Saving needs attention before changing views.');if(readerTarget)closeReader();setMenu(null);setViewMenu(false);setEditing(null);setTab(nextTab);if(nextTab==='notes'){setScope(null);setSearch('');}}} onBulletMenu={()=>{document.querySelector('[data-tour-active-bullet]')?.removeAttribute('data-tour-active-bullet');const row=[...document.querySelectorAll<HTMLElement>('.outline-row[data-node-id]')].find(el=>el.getClientRects().length>0&&docRef.current?.tables.bullets.some(n=>n.id===el.dataset.nodeId&&n.blockStyle!=='divider')),button=row&&[...row.querySelectorAll<HTMLButtonElement>('[aria-label="Bullet actions"]')].find(el=>el.getClientRects().length>0);if(!button)return false;button.setAttribute('data-tour-active-bullet','');return true;}}/>
+      {librarySearch&&doc&&<React.Suspense fallback={null}><LibrarySearch key={storageAccountKey()} doc={doc} owner={storageAccountKey()} uid={cloudUser?.uid} assets={assets} onClose={()=>setLibrarySearch(false)} onBook={openReader} onArticle={(id,snapshotHash,quote)=>{setEditing(null);setBookmarkTarget({id,snapshotHash,quote});setTab('bookmarks');}}/></React.Suspense>}
       {readerTarget&&<ReaderBoundary key={readerTarget.hash} onClose={closeReader}><React.Suspense fallback={<ReaderStartup onClose={closeReader}/>}><BookReader onHelp={()=>setDialog("help")} user={cloudUser} doc={doc} target={readerTarget} disabled={disabled||failed.current} onClose={closeReader} onAi={openReaderAi} onNote={id=>navigateTo(id)} renderNotes={()=> <React.Suspense fallback={<p role="status">Loading book notes…</p>}><ReaderBookNotes onCommit={()=>{if(viewTimer.current)publishView(true);}} doc={doc} hash={readerTarget.hash} assets={assets} disabled={disabled||failed.current} onText={changeEditorContent} readCurrentNode={readCurrentNode} onUndo={undo} canUndo={history.current.undo.length>0} canRedo={history.current.redo.length>0} onFullNotes={id=>{closeReader();navigateTo(id);}} onAdd={()=>{if(failed.current)throw Error('Saving is paused. Open Account settings to retry.');const current=docRef.current!,book=readingBook(current,readerTarget.hash),id=crypto.randomUUID();const next=addReadingNote(current,book,id);commit(withNodes(next,next.tables.bullets as Node[]));return id;}}/></React.Suspense>} onScreenshot={async(unit,blob)=>{
         if(cloudUser&&authenticatedUid()!==cloudUser.uid)throw Error('Your account changed. Open the book again to capture a page.');
         if(failed.current||working||!readerTarget)throw Error('Wait for saving to finish, then try again.');
