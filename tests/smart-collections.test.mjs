@@ -30,3 +30,7 @@ test('saved views retain independent sources, and malformed newer settings defau
 test('collection definitions and results stay account/workspace isolated across reload',async()=>{
  try{setStorageAccount('smart-account-a');await save(null,setTraitView(fixture(),'collection',{source:'workspace'}));setStorageAccount('smart-account-b');assert.equal(await load(),null);await save(null,withNodes(empty(),[bullet('collection',{text:'Other #views'})]));assert.equal(traitView(await load(),'collection').source,'children');assert.deepEqual(smartMembers(await load(),'collection'),[]);setStorageAccount('smart-account-a');const restored=await load();assert.equal(traitView(restored,'collection').source,'workspace');assert.ok(smartMembers(restored,'collection').some(n=>n.id==='book'));}finally{setStorageAccount(null);}
 });
+
+test('a mirrored collection queries and creates against its canonical source, never itself',()=>{
+ const doc=withNodes(empty(),[bullet('c',{text:'Collection #views'}),bullet('child',{parentId:'c',text:'Original child'}),bullet('m',{text:'',mirrorSourceId:'c',mirrorRootId:'m'})]);const wide=setTraitView(doc,'m',{source:'workspace'});assert.deepEqual(ids(smartMembers(wide,'m')),['child']);const created=newSmartCollectionItem(wide,'m',[],()=> 'created');assert.equal(created.doc.tables.bullets.find(n=>n.id==='created').parentId,'c');
+});

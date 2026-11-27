@@ -301,9 +301,10 @@ export function traitTotal(doc,nodes,key,op,idx=snapshotIndex(doc.tables.bullets
 export const TRAIT_RECIPES={book:['Author','Status','Rating','Cover'],movie:['Director','Year','Status','Rating','Cover'],project:['Status','Due','Owner']};
 /** Live canonical results. Never traverses another workspace or inserts result rows. */
 export function smartMembers(doc,collection,view=traitView(doc,collection)){
+ collection=ownerOf(doc,collection);
  const idx=snapshotIndex(doc.tables.bullets),hidden=traitBulletIds(doc.tables.bullets),skip=new Set([collection]);
  let parent=idx.byId.get(collection)?.parentId;while(parent&&!skip.has(parent)){skip.add(parent);parent=idx.byId.get(parent)?.parentId;}
- const root=view.source==='branch'?view.sourceBranch:collection;
+ const root=view.source==='branch'?ownerOf(doc,view.sourceBranch):collection;
  if(view.source!=='workspace'&&!idx.byId.has(root))return [];
  const branchIds=new Set(),pending=view.source==='branch'?[root]:[];
  while(pending.length){const id=pending.pop();if(branchIds.has(id))continue;branchIds.add(id);for(const child of idx.children.get(id)||[])pending.push(child.id);}
@@ -320,7 +321,8 @@ export function smartMembers(doc,collection,view=traitView(doc,collection)){
 export function sourcePath(doc,id){const idx=snapshotIndex(doc.tables.bullets),n=idx.byId.get(id),parts=[],seen=new Set();let at=n?.parentId;while(at&&!seen.has(at)){seen.add(at);const p=idx.byId.get(at);if(!p)break;parts.unshift((p.text||'Untitled').slice(0,120));at=p.parentId;if(parts.length===64){if(at)parts.unshift('…');break;}}return parts.join(' / ')||'My notes';}
 
 export function newSmartCollectionItem(doc,collection,names=[],make=uuid){
- const view=traitView(doc,collection),parent=view.source==='branch'?view.sourceBranch:collection;
+ collection=ownerOf(doc,collection);
+ const view=traitView(doc,collection),parent=view.source==='branch'?ownerOf(doc,view.sourceBranch):collection;
  if(!doc.tables.bullets.some(n=>n.id===collection)||!doc.tables.bullets.some(n=>n.id===parent))throw Error('The collection or source branch was removed.');
  const fields=view.recipe?TRAIT_RECIPES[view.recipe]:names;
  if(fields.length)return newCollectionItem(doc,parent,fields,make);
