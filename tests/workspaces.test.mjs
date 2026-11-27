@@ -17,8 +17,8 @@ test('device-only workspaces: create, choose, rename, ignore bad entries, delete
  localStorage.setItem('remo-local-workspaces',JSON.stringify([...w.localWorkspaces(),{id:'../evil',name:'x'},{id:'abcdefgh12',name:''}]));
  assert.deepEqual(w.localWorkspaces().map(x=>x.name),['Journal','Drafts'],'malformed entries are ignored');
  localStorage.setItem(w.workspaceStorageName(a)+':setting','1');
- globalThis.indexedDB={deleteDatabase(){const r={};setTimeout(()=>r.onsuccess?.());return r;}};
- await w.deleteLocalWorkspace(a.id);
+ const deletedDatabases=[];globalThis.indexedDB={deleteDatabase(name){deletedDatabases.push(name);const r={};setTimeout(()=>r.onsuccess?.());return r;}};
+ await w.deleteLocalWorkspace(a.id);assert.ok(deletedDatabases.includes(w.workspaceStorageName(a)+'-library-search'),'derived searchable text is deleted with the local workspace');
  assert.equal(w.activeLocalWorkspace(),null,'deleting the open workspace returns to the main one');
  assert.deepEqual(w.localWorkspaces().map(x=>x.name),['Drafts']);
  assert.equal(localStorage.getItem(w.workspaceStorageName(a)+':setting'),null,'its device settings are removed');

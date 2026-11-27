@@ -1,3 +1,5 @@
+import {repeatFieldInfo} from './task-repeat-fields.mjs';
+import {TASK_FIELDS,validTaskField} from './task-fields.mjs';
 import {roughPattern} from './rough-annotations.mjs';
 export function safeRandomUUID() {
   if (typeof crypto !== 'undefined') {
@@ -121,6 +123,10 @@ export function validate(nodes) {
       )
         throw Error("Invalid calendar date");
     }
+    const repeat=n.taskRepeatTemplate!=null||n.taskRepeatSeed!=null||n.taskRepeat&&n.taskRepeat!=='NONE'?repeatFieldInfo(n):null;
+    for(const key of TASK_FIELDS){const valid=repeat&&key==='taskRepeatTemplate'?repeat.templateValid:repeat&&key==='taskRepeatSeed'?repeat.seedValid:validTaskField(key,n[key]);if(!valid)throw Error('Invalid task planning metadata');}
+    if(n.taskRepeat&&n.taskRepeat!=='NONE'&&(!repeat?.pattern||repeat.mode!==n.taskRepeat||!n.scheduledDate))throw Error('Invalid recurring task pattern');
+    if(n.taskRepeatSeed&&repeat?.seedId!==n.id)throw Error('Invalid recurring task creation identity');
     const path = new Set();
     let id = n.id;
     while (id !== null && !complete.has(id)) {

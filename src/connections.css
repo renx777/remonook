@@ -19,3 +19,4 @@
 .connection-picker button span { overflow:hidden;text-overflow:ellipsis; }
 @media(max-width:760px){.backlinks-panel{margin:4px 16px 10px;}}
 .outline-row.is-mirror .bullet-outer-circle { stroke:var(--accent);stroke-width:1.2; }
+.backlinks-panel[open]{max-height:300px}.connection-aliases{line-height:1.5}.connection-alias-match{display:block;font-size:11px;font-style:normal;color:var(--muted)}.unlinked-mention{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}.unlinked-mention>button:first-child{flex:1;min-width:0}.unlinked-mention>button:last-child{width:auto;min-width:48px;min-height:48px;flex-shrink:0;color:var(--accent)}

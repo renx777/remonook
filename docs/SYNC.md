@@ -22,6 +22,13 @@ revision maps; the latest revision wins. NookTraits was removed from the app on 
 but its stored data (`web.nookTraits`, `web.noteProperties`) is kept and keeps syncing unchanged.
 No protocol migration or server deployment is required. See [TRAITS.md](TRAITS.md).
 
+Aliases are ordinary `Aliases: value, other name` Trait rows; reviewed unlinked
+mentions insert a normal internal link through the saved outline mutation path.
+They require no shared schema or transport change and survive existing sync and
+backups. The account/workspace-scoped `-library-search` IndexedDB database is a
+rebuildable, device-local extraction cache, excluded from shared state and backups.
+See [LIBRARY-DISCOVERY.md](LIBRARY-DISCOVERY.md).
+
 Concurrent rich-text insertions, deletions and formatting converge deterministically.
 A merge can retain both competing words; it cannot infer the writer's intended
 sentence. Node splits currently create/remove text across distinct node records;
@@ -33,6 +40,23 @@ notes. A concurrently edited deleted record is recovered; deleting after observi
 that edit removes it normally. Concurrent attachment/deck references recover their
 retained source note. Invalid shared data and quota failures are rejected without
 acknowledging the pending batch.
+
+## Recurring task initialization
+
+Recurring task successors use deterministic row IDs and version-one immutable
+creation records. On first insertion only, the CRDT writer integrates a frozen
+initial update under a reserved high-range actor (ordinary session actors remain
+uint32). Two offline completions therefore share initial character identities;
+subsequent user edits use normal rich-text operations. Known/deleted creation
+actors are never reseeded. This does not replace a workspace or existing text.
+Keep the version-one factory and writer stable across releases.
+
+Completion receipts at `web.taskRepeatReceipts[sourceId][patternId]` route to the
+source bullet's bucket. They prevent retries and intentional successor deletion
+from regenerating work. The v3 server reconciles old-client completions inside its
+ordinary atomic commit/journal before acknowledgement. Existing outbox, backup,
+undo, recovery and account isolation rules apply unchanged. See
+[RECURRING-TASKS.md](RECURRING-TASKS.md) for dates, copies, mirrors and compatibility.
 
 ## Durable local operations
 
@@ -279,3 +303,69 @@ an idempotent Inbox bullet; colliding content is also retained in recovery notes
 Neither a local widget action nor a local app save claims cloud acknowledgement.
 The broker archives evidence only after the existing durable save path succeeds.
 See [ANDROID-STUDY-WIDGET.md](ANDROID-STUDY-WIDGET.md) for the exchange details.
+
+## Optional task planning metadata
+
+Tasks adds optional bullet fields `scheduledDate`, `taskPlanning`, `taskPriority`
+and `taskDurationMinutes`; `dueDate` keeps its deadline meaning. Legacy absent or
+null values retain their defaults without a document-wide startup rewrite. They
+use the existing field-level CRDT/outbox paths, mirror propagation and note update
+timestamps. Dirty-field planning forms do not write stale task text or completion.
+Both v2 shared validation and v3 bucket projection validate these fields; malformed
+values use the existing recovery path, retaining originals in recovery notes.
+
+Full backups append optional columns only when used and retain sparse legacy
+rows. The legacy Android-format exporter refuses to silently omit this metadata.
+MCP supports planning changes with expected-version checks; legacy notes keep
+identical version hashes. Existing current native clients preserve unknown fields.
+No new SQL migration or snapshot replacement is required.
+
+The existing v3 server transports optional bullet fields without a whitelist, so
+web planning can be released independently after deployed cross-device checks.
+The prepared sync-server update adds strict field validation/recovery and cloud
+MCP planning controls; those server enhancements are not live until its separate
+deployment succeeds. Health then reports `taskPlanning: 1` alongside
+`syncProtocol: 3`. The separate manual CI staging-server job prepares an ignored
+config from the current example, checks it against live resources, retains live
+variables and secrets, then verifies bindings, schedules and enabled capabilities.
+The **Staging frontend** workflow still deploys only the frontend.
+
+## Calendar planning
+
+Task time blocks add optional taskStartTime/taskBlockMinutes fields through the
+existing task validation, backup, mirror, repair and MCP paths. Calendar series
+completion writes a date-keyed completions boolean map as well as retaining the
+legacy completed array. A map entry takes precedence over the old array; dates
+merge independently through ordinary root CRDT leaves. Two offline completions
+of the same date project one next occurrence of the single series, without
+creating another note or inserting duplicate text. Reopen/undo retain normal
+history. Browser delivery preferences/receipts are device/account-local and never
+acknowledge cloud operations. Health calendarPlanning: 1 identifies this server.
+
+
+## Calendar delivery and daily compatibility
+
+Daily Calendar reminders retain `repeat: none` and add `daily: true`. New forms
+write explicit false to turn it off. The v3 server preserves true if a legacy
+form omits that unknown field while leaving the same nonrepeating enum; deletion
+of the whole event and explicit false still apply normally. Dates, completion
+maps, timeline edits and daily metadata use normal incremental shared storage.
+
+Web Push subscriptions, VAPID private keys, device leases and delivery receipts
+live only in private per-account server storage, outside the shared document,
+MCP reads, ZIP exports and durable note outbox. They never acknowledge note edits.
+A scheduling change nudges an alarm only after its normal journal commit.
+Provider I/O runs outside the account's sync queue, and failed notification
+attempts do not discard or block pending notes. See CALENDAR-PLANNING.md.
+
+
+## Smart Collections
+
+Collection source, sourceBranch and recipe are additive settings in the existing
+append-only web.traitViews revisions and each saved view. They query the current
+workspace projection, never replace it. Result rows are original bullet identities;
+mirrors deduplicate to canonical sources and edits use normal source mutations.
+Recipes create ordinary Trait bullets only for explicitly created new notes.
+Full backups preserve the settings and previous revisions. No protocol migration,
+new Worker or durable-outbox change is required. Older apps preserve the metadata
+but display their existing direct-child views until updated.

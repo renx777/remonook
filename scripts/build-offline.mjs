@@ -1,3 +1,4 @@
+import {reminderServiceWorker} from './reminder-service-worker.mjs';
 import { readdir, writeFile, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import {publicPaths} from '../src/public-site.mjs';
@@ -16,12 +17,13 @@ const files = [
   ...(await readdir("dist/reminder-emojis")).map(f=>"/reminder-emojis/"+f),
   ...(await readdir("dist/assets")).filter(f=>!(/^(PdfPage|PdfDocument|book-cover|pdf-capture|pdf-|pdf\.|pdf-runtime|epub-worker|reader-|drawing-|guide-|Workday|workday-)/.test(f))).map((f) => "/assets/" + f),
 ];
-const hash=createHash('sha256');
+const hash=createHash('sha256');hash.update(reminderServiceWorker);
 for(const file of files){hash.update(file);hash.update(await readFile('dist'+(file==='/'?'/index.html':file.split('?')[0])));}
 const version=hash.digest('hex').slice(0,12);
 await writeFile(
   "dist/sw.js",
-  `const CACHE='remo-shell-${version}',FILES=${JSON.stringify(files)};
+  `${reminderServiceWorker}
+const CACHE='remo-shell-${version}',FILES=${JSON.stringify(files)};
 const READER='remo-reader-assets';
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('remo-shell-')&&k!==CACHE).map(k=>caches.delete(k))))));

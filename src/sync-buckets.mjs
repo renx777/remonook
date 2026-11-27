@@ -9,7 +9,7 @@ import {Y,pack,unpack,documentParts,documentLeaves,rowKey,applyParts,projectPart
 
 export const PROTOCOL_V3=3,ROW_BUCKETS=256,ROOT_BUCKETS=16,ASSET_BUCKET='a',TABLES_BUCKET='r0';
 /** Root maps with one entry per bullet. Their entries live with the bullet's row. */
-const PER_ROW={noteTimes:'bullets'};
+const PER_ROW={noteTimes:'bullets',taskRepeatReceipts:'bullets'};
 
 function fnv(text){let h=0x811c9dc5;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193);}return h>>>0;}
 export const rowBucket=key=>'b'+(fnv(key)%ROW_BUCKETS);

@@ -33,7 +33,7 @@ try {
     await page.goto(process.env.CANVAS_URL || "http://127.0.0.1:5197");
     await page.getByText("Try as a guest", { exact: true }).click();
     if (mobile)
-      await page.getByRole("button", { name: "Library", exact: true }).click();
+      await page.getByRole("button", { name: "More", exact: true }).click();
     await page
       .getByRole(mobile ? "menuitem" : "button", {
         name: "Canvas",
@@ -184,7 +184,7 @@ try {
     await page.waitForTimeout(500);
     await page.reload();
     if (mobile)
-      await page.getByRole("button", { name: "Library", exact: true }).click();
+      await page.getByRole("button", { name: "More", exact: true }).click();
     await page
       .getByRole(mobile ? "menuitem" : "button", {
         name: "Canvas",

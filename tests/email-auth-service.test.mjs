@@ -6,7 +6,7 @@ globalThis.__emailAuth={currentUser:{uid:'existing-google',email:'user@example.t
 globalThis.__emailCall=async(name,...args)=>{calls.push([name,...args]);if(name==='create')return {user:globalThis.__emailAuth.currentUser};if(name==='verify')await verification;};
 await build({entryPoints:['src/auth-service.ts'],bundle:true,packages:'external',outfile:'tests/.build/email-service.mjs',format:'esm',platform:'node',plugins:[{name:'firebase-fixture',setup(b){
  b.onResolve({filter:/^(firebase\/(app|auth)|\.\/cloud-config)$/},a=>({path:a.path,namespace:'fixture'}));
- b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./cloud-config'?`export const CLOUD_ENABLED=true,firebaseConfig={},APP_ENV='test';`:a.path==='firebase/app'?`export const initializeApp=()=>({});`:`
+ b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./cloud-config'?`export const CLOUD_ENABLED=true,CLOUD_API='',firebaseConfig={},APP_ENV='test';`:a.path==='firebase/app'?`export const initializeApp=()=>({});`:`
  export const browserLocalPersistence={},browserPopupRedirectResolver=()=>{};
  export const getAuth=()=>globalThis.__emailAuth,initializeAuth=getAuth;
  export class GoogleAuthProvider{setCustomParameters(){};}
