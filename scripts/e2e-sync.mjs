@@ -196,11 +196,11 @@ try{
   await openTasks(A);await taskView(A,'Anytime');
   const ar=A.page.locator(`[data-task-id="${task.id}"]`);await ar.getByRole('button',{name:'Plan',exact:true}).click();
   const date=await A.page.evaluate(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');});
-  await online(A,false);await A.page.getByLabel('Task scheduled date',{exact:true}).fill(date);await A.page.getByLabel('Task priority',{exact:true}).selectOption('3');await A.page.getByLabel('Task estimated minutes',{exact:true}).fill('25');await A.page.getByRole('button',{name:'Save task details',exact:true}).click();await sleep(800);
+  await online(A,false);await A.page.getByLabel('Task scheduled date',{exact:true}).fill(date);await A.page.getByLabel('Task priority',{exact:true}).selectOption('3');await A.page.getByText('More: effort estimate',{exact:true}).click();await A.page.getByLabel('Task estimated minutes',{exact:true}).fill('25');await A.page.getByRole('button',{name:'Save task details',exact:true}).click();await sleep(800);
   check('offline task planning remains pending',/sync pending/i.test(await status(A)));
   await online(A,true);await synced(A,30000);await openTasks(B);
-  const br=B.page.locator(`[data-task-id="${task.id}"]`);await br.getByText('25 min',{exact:true}).waitFor();await br.getByText('Scheduled '+date,{exact:true}).waitFor();
-  check('task planning reaches the other device without copies',await br.count()===1);
+  const br=B.page.locator(`[data-task-id="${task.id}"]`);await br.getByText('~25 min',{exact:true}).waitFor();await br.getByRole('button',{name:'Plan',exact:true}).click();const otherDate=await B.page.getByLabel('Task scheduled date',{exact:true}).inputValue();await B.page.keyboard.press('Escape');
+  check('task planning reaches the other device without copies',await br.count()===1&&otherDate===date);
   await br.getByRole('checkbox',{name:'Complete task '+task.text,exact:true}).click();await taskView(A,'Completed');await ar.waitFor();await synced(B,30000);
   const saved=(await server()).doc.tables.bullets.filter(n=>n.id===task.id);
   check('task completion and planning converge on the original',saved.length===1&&saved[0].taskState==='DONE'&&saved[0].scheduledDate===date&&saved[0].taskPriority===3&&saved[0].taskDurationMinutes===25);
