@@ -83,6 +83,11 @@ jobs:
           SMART_COLLECTIONS_URL: https://staging.remonook.com
         run: node scripts/e2e-smart-collections.mjs
 
+      - name: Verify collection emoji and calendar panel on deployed staging
+        env:
+          UI_FIX_URL: https://staging.remonook.com
+        run: node scripts/e2e-grid-calendar.mjs
+
       - name: Verify local library discovery on deployed staging
         env:
           LIBRARY_URL: https://staging.remonook.com

@@ -650,8 +650,15 @@
   gap: 0;
 }
 
-/* Phones stack the month and agenda under the day, so there is nothing to hide. */
-@media (max-width: 760px) { .cal2-aside-toggle { display: none; } .calendar-view.cal2.cal2-aside-hidden > .cal2-aside { display: contents; } }
+/* Keep the native hidden state authoritative, including mobile display:contents. */
+.calendar-view.cal2 > .cal2-aside[hidden] { display: none; }
+.cal2-aside-controls { display: flex; justify-content: flex-end; margin: -12px -10px -12px 0; }
+.cal2-aside-controls .icon-button { width: 44px; height: 44px; }
+.cal2-aside-controls svg, .cal2-aside-toggle svg { transform: rotate(180deg); }
+@media (max-width: 760px) {
+ .cal2-aside-controls { order: 0; margin: 0 8px; }
+ .cal2 .cal2-aside-toggle { display: inline-flex; min-width: 44px; min-height: 44px; }
+}
 
 /* Consistency pass: short date + week strip on phones, compact switches, quiet labels. */
 .cal2 .calendar-day-title .cal-short { display: none; }
