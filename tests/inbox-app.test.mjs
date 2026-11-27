@@ -1,0 +1,47 @@
+import {installOverlayGlobals} from './dom-overlays.mjs';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {JSDOM} from 'jsdom';
+import 'fake-indexeddb/auto';
+import {act} from 'react';
+import {empty,withNodes,save,load} from './.build/data.mjs';
+import {bullet} from '../src/domain.mjs';
+import {INBOX_ID} from '../src/inbox.mjs';
+const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost',pretendToBeVisual:true});
+for(const k of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Node','DOMParser','MutationObserver','getComputedStyle'])Object.defineProperty(globalThis,k,{value:k==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[k],configurable:true});
+installOverlayGlobals(dom);globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+globalThis.ResizeObserver=undefined;globalThis.requestAnimationFrame=window.requestAnimationFrame.bind(window);globalThis.cancelAnimationFrame=window.cancelAnimationFrame.bind(window);
+window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});HTMLElement.prototype.scrollTo=()=>{};
+window.Range.prototype.getClientRects=()=>[];window.Range.prototype.getBoundingClientRect=()=>({left:0,right:0,top:0,bottom:0,width:0,height:0});
+const wait=async check=>{for(let i=0;i<150;i++){if(await check())return;await act(()=>new Promise(r=>setTimeout(r,20)));}assert.fail('Inbox did not settle');};
+const click=async el=>{assert.ok(el);await act(async()=>el.click());};
+const button=(text,root=document)=>[...root.querySelectorAll('button')].find(b=>b.textContent.trim()===text);
+const item=()=>document.querySelector('[data-inbox-id="capture"]');
+const inbox=async()=>{await click([...document.querySelectorAll('.sidebar-nav button')].find(b=>b.textContent.trim().startsWith('Inbox')));await wait(()=>document.querySelector('.inbox-page'));};
+const undo=()=>click(document.querySelector('[aria-label="Undo Inbox action"]'));
+const chooseProject=async()=>{const label=[...document.querySelectorAll('.inbox-destinations label')].find(l=>l.querySelector('strong')?.textContent==='Project');await click(label.querySelector('input'));};
+test('Inbox actions use current notes, persist, and each undo restores exactly the previous state',async()=>{
+ await save(null,withNodes(empty(),[bullet(INBOX_ID,{text:'Inbox'}),bullet('capture',{parentId:INBOX_ID,text:'Read this https://example.com'}),bullet('child',{parentId:'capture',text:'Keep context'}),bullet('project',{position:1,text:'Project'}),bullet('existing',{parentId:'project',text:'Existing child'})]));let app;
+ try{
+  await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('.sidebar-nav'));await inbox();
+  await click(button('Make task',item()));await wait(async()=>(await load()).tables.bullets.find(n=>n.id==='capture').taskState==='TODO');
+  await undo();await wait(async()=>(await load()).tables.bullets.find(n=>n.id==='capture').taskState==='NONE');
+  await click(button('Link',item()));await chooseProject();await click(button('Add link'));
+  await wait(async()=>(await load()).tables.bullets.length===6);
+  await undo();await wait(async()=>(await load()).tables.bullets.length===5);
+  await click(button('Schedule',item()));await click(button('Save reminder'));
+  await wait(async()=>(await load()).web.calendarEvents?.length===1);
+  await undo();await wait(async()=>!(await load()).web.calendarEvents?.length);
+  await click(button('File',item()));await chooseProject();await click(button('File note'));
+  await wait(async()=>(await load()).tables.bullets.find(n=>n.id==='capture').parentId==='project');
+  assert.equal(item(),null);
+  await undo();await wait(()=>item());await wait(async()=>(await load()).tables.bullets.find(n=>n.id==='capture').parentId===INBOX_ID);
+  const state=await load();assert.equal(state.tables.bullets.find(n=>n.id==='child').parentId,'capture');assert.equal(state.tables.bullets.find(n=>n.id==='existing').parentId,'project');
+  await click(item().querySelector('[aria-label^="Move capture to Trash"]'));await wait(async()=>(await load()).tables.trash.length===1);
+  await undo();await wait(()=>item());await wait(async()=>(await load()).tables.trash.length===0);
+  await click(button('New capture'));await wait(()=>document.querySelector('.tiptap'));
+  await act(async()=>document.querySelector('.tiptap').editor.commands.insertContent('A captured thought'));
+  await wait(async()=>(await load()).tables.bullets.some(n=>n.text==='A captured thought'&&n.parentId===INBOX_ID));
+  await inbox();assert.match(document.querySelector('.inbox-page').textContent,/A captured thought/);
+ }finally{if(app)await act(async()=>app.appRoot.unmount());dom.window.close();}
+});

@@ -2,6 +2,68 @@
 
 ## Current state
 
+### Inbox processing: web staging — 26 November 2026
+
+Web staging runs `codex/inbox-processing` at
+`e3112a429d62bceec3614dbbcd2a7244ff43613d` (PR #109), release `2026-11-14.1`.
+Phase 0 fixes from PR #108 are included; neither PR has been merged to main.
+
+- Inbox is available in navigation, the command palette and its ordinary outline.
+  New capture uses the normal editor. Dashboard quick capture now joins desktop,
+  widget and Android note captures in the existing canonical Inbox.
+- File moves the original branch; Link appends a reference; Make task marks the
+  original bullet; Schedule creates/reschedules one linked Calendar reminder,
+  leaving the note's deadline unchanged. Content, children, attachments and
+  provenance stay with the original. Explicit Android bookmark captures stay in
+  Bookmarks. Undo/redo and Trash use normal outline history and persistence.
+- The final build and TypeScript check passed. The full local suite passed:
+  **700 tests, zero failures**, including account isolation, pending outbox
+  preservation, stale/failed-save UI behavior and concurrent offline file/text edits.
+- [Application CI](https://github.com/renx777/remonook/actions/runs/45803482446)
+  passed. [Staging frontend](https://github.com/renx777/remonook/actions/runs/45804078739)
+  passed, including deployed sync, link collections and the new Inbox acceptance
+  check. Desktop-light and phone-dark guest contexts passed offline processing,
+  filing/link/task/reminder actions, undo/redo, Trash recovery, focus and reload.
+- The published source marker matches the commit above. See [INBOX.md](INBOX.md)
+  for the tutorial, scope and owner device checks.
+
+Native apps, production and the sync backend were not released. There is no
+schema migration. The staging workflow publishes the frontend separately from
+the sync server. Real Android share/keyboard and native device checks remain
+pending before native rollout; Phase 2 has not started.
+
+
+### Editing reliability: web staging — 26 November 2026
+
+Web staging runs `codex/editing-reliability` at
+`dc8881e6e8aac6efa9f806acd3e04b8871d60274` (PR #108), release `2026-11-14.1`.
+This is the first increment of Phase 0 in [PKM-ROADMAP.md](PKM-ROADMAP.md).
+
+- The editor mounts, selects and focuses before paint, preventing a frame without
+  an input target after switching bullets and removing delayed focus stealing.
+- Android temporary paragraph splits survive flattened React echoes until the
+  existing repair converts them to a new bullet.
+- Staging checks no longer reference removed NookTraits tests; the new editor
+  focus/composition regression is included.
+- Local TypeScript/build and all **691 tests** passed. Four isolated 1k/10k-bullet
+  browser fixtures retained 120 rapid-entered bullets exactly after reload.
+  Ordinary typing p95 was 14.5–16.3 ms on the cloud VM; Enter transitions were
+  87–167 ms, measured separately. These are not physical Android measurements.
+- [CI](https://github.com/renx777/remonook/actions/runs/45784033336) passed.
+  [Staging frontend](https://github.com/renx777/remonook/actions/runs/45784514140)
+  passed, including deployed cross-device sync and link-collection checks.
+- The published `staging-source.json` matches the commit above. Fresh guest
+  sessions on the deployed build passed rapid typing, paragraph splitting and
+  reload in desktop/light and phone-emulation/dark, without page errors. The
+  local browser needed its test-only HTTPS error override for the environment's
+  certificate trust; normal curl verification and GitHub deployment checks passed.
+
+**Pending:** real Android IME/keyboard and second-device owner verification. The
+Phase 0 device gate remains open; Phase 1 has not started. Native apps, backend
+Workers and production were not released. The frontend workflow deploys separately
+from the sync backend; this change requires no server deployment or migration.
+
+
 ### iPad fixes; native staging Android 0.1.48, Windows/macOS 0.1.36, iPad 0.1.4 — 26 November 2026
 
 PR #106 merged as `b44273168446fde9181ddfda3f74f26245a101fc`. It contains three fixes:
