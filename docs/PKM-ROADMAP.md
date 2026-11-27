@@ -115,5 +115,9 @@ compatible with older clients. The completion branch adds daily Calendar reminde
 through an additive `daily` flag, a main-pane drag/resize timeline and explicit
 background Web Push through the existing account Durable Object. See
 [CALENDAR-PLANNING.md](CALENDAR-PLANNING.md) for usage and delivery limits. Web
-staging acceptance, physical-device delivery and native rollout are separate
-verification gates; a simulated push is not a physical delivery result.
+staging acceptance passed in PR #116 with 742 CI tests and 19 deployed signed-in
+sync checks. Desktop/phone-emulated pointer planning and a browser notification
+with zero app tabs passed. Physical external-provider delivery and native rollout
+remain separate verification gates; synthetic Chrome push is not a physical
+FCM/APNs result. The earlier sync-count anomaly remains unexplained and must not
+be described as fixed merely because subsequent preservation checks pass.

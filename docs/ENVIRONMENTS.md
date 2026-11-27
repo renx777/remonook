@@ -2,6 +2,64 @@
 
 ## Current state
 
+### Phase 2B completion: web staging — 27 November 2026
+
+Web staging runs `codex/calendar-completion` at
+`dfd9747a726ca7429d49bcf8dbd64255fdcf4153` (PR
+[#116](https://github.com/renx777/remonook/pull/116)), release `2026-11-14.1`.
+`staging-source.json` confirms the branch/commit/release. The branch starts from
+main `6d96cf0` and includes the earlier editing, Inbox, Tasks, Calendar and recurring
+task staging work; Smart Collections remains separate in PR #114.
+
+- Daily Calendar reminders use additive metadata and the existing repeat enum;
+  legacy forms cannot strip daily mode, and explicit false/deletion still apply.
+- Calendar's main Day plan offers List / Timeline. Original task blocks and timed
+  reminders support pointer/touch and keyboard moves, task resizing, precise
+  forms and one-step undo/redo. Collision lanes, first-item scrolling, narrow
+  layouts and completed-reminder states use the existing theme.
+- Signed-in browsers can opt into private background Web Push using the existing
+  account Durable Object and alarms. Push credentials stay outside note sync and
+  backups. Payloads have no titles. Leases, bounded devices, encrypted requests,
+  chunked receipts, provider retries/removal, IANA/DST, zone changes, permission
+  errors, sign-out and active-worker/guard acknowledgement are covered. Provider
+  I/O is outside the note-sync queue, and alarm failures cannot block note saves.
+  No paid push API, new binding, deployment secret or global minute cron was added.
+- [Final application CI](https://github.com/renx777/remonook/actions/runs/45970603951)
+  passed **742 tests** and the build. Local build/Worker dry-run passed; the local
+  full suite passed 740 before the final targeted frontend refinements, with
+  focused and browser checks for those refinements followed by the final full CI.
+- The separate [backend workflow](https://github.com/renx777/remonook/actions/runs/45969697115)
+  passed build/full-suite, live configuration comparison, dry-run, deployment and
+  preservation checks. Sync Worker version `f7d08c05-1447-4b1e-a3c7-ad908c3aa377`
+  was deployed from `3eee9e6e0d9dc8e903f5e9b3a45ff96bc2db2c41`. The following
+  frontend-only worker-readiness fix changes no backend code. Live variables,
+  secret names, resource bindings and cron schedules were verified retained.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45970593811)
+  passed every step. Frontend Worker version
+  `5cabfd42-5349-4187-9c61-f0aef94fbde3` published the source above. All **19**
+  signed-in sync checks passed, retaining all **1,610** earlier test-account
+  notes after each add, new-device sign-in and cleanup. Tasks, Inbox, collections
+  and the new day-planning checks passed on deployed desktop-light/phone-dark
+  browsers, including emulated touch drag, daily creation, undo/redo and reload.
+- A separate isolated Chromium run against staging displayed a synthetic push
+  notification with **zero app tabs open** and confirmed durable worker guard
+  acknowledgement. `scripts/e2e-reminder-worker.mjs` reproduces it without an
+  account, external subscription or server-note changes. This does not verify
+  external FCM/APNs/Firefox service delivery or physical OS notification behavior.
+- Health reports `syncProtocol: 3`, `workdaysSchema: 2`, `taskPlanning: 1`,
+  `calendarPlanning: 1`, `taskRecurrence: 1`, `calendarDaily: 1`,
+  `backgroundReminders: 1`, `aiEnabled: true`, `aiAssist: 1`, `aiImage: 1`,
+  `bookmarkReader: 1`, books, Google Tasks and MCP enabled.
+
+The earlier three-note discrepancy did not recur, but its original IDs/cause and
+recovery are still unconfirmed. Do not describe it as fixed or restored; retain
+strict preservation checks and review before main/production. Production, main
+and native apps are unchanged. Physical external-provider delivery and native
+notification integration remain device rollout gates. See
+[CALENDAR-PLANNING.md](CALENDAR-PLANNING.md) for usage and limits. A subsequent
+release-record/acceptance-script commit changes no deployed application source.
+
+
 ### Recurring task notes: web staging — 27 November 2026
 
 Web staging runs `codex/recurring-tasks` at

@@ -160,3 +160,15 @@ saw it. Push acceptance never completes a Calendar reminder or task.
 The browser checks the active service worker protocol and waits for its durable
 device-guard acknowledgement before claiming opt-in success. An older worker asks
 for Save & update instead of registering a subscription it cannot handle.
+
+
+The isolated browser acceptance script can also inject a synthetic Chrome push
+with zero app tabs and inspect the resulting browser notification:
+
+```sh
+REMINDER_WORKER_URL=https://staging.remonook.com node scripts/e2e-reminder-worker.mjs
+```
+
+It creates no account/subscription and edits no server notes. This tests the
+browser service-worker APIs against the built/deployed worker, not an external
+provider or physical OS notification. A separate real-device test is still needed.
