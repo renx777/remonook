@@ -2,6 +2,19 @@
 
 ## Current state
 
+### Design philosophy on web staging — 27 November 2026
+
+Web staging runs branch `ccr-641b18bf-2fe80f`, commit `3e013eeb7729d6175e4e4a7bdfd26bc9b98a6506`, release `2026-11-14.1`. The branch is Codex's `codex/library-discovery` (`2a880eb`) plus one commit. That commit applies docs/DESIGN.md:
+- warm light theme and meaning-only colours;
+- Newsreader page titles;
+- natural-language quick add and Plan;
+- relative dates;
+- one-row Inbox with keys and an Undo toast;
+- timeline-first Calendar with an Anytime tray and violet reminders;
+- a Collection scope sentence.
+
+Web only: no Worker, migration, native or production change. Local checks: 771 unit tests passed, and the staging build was clean. On deployed staging, the guest acceptance scripts for Tasks, Inbox, Calendar planning and Smart Collections passed on desktop (light) and phone (dark). Library discovery passed locally.
+
 
 ### Phase 4 library discovery: web staging — 27 November 2026
 
