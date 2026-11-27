@@ -2,13 +2,13 @@
 
 ## Current state
 
-### Recurring task notes: prepared for web staging — 27 November 2026
+### Recurring task notes: web staging — 27 November 2026
 
-PR [#115](https://github.com/renx777/remonook/pull/115), branch
-`codex/recurring-tasks`, application commit
-`c47e7a781a1564ea4ccda4585d332cf7d83a2648`, starts from main `6d96cf0` and
-carries forward editing, Inbox, Tasks and Calendar planning. Smart Collections
-remains separate in PR #114. **This entry is not a deployment record.**
+Web staging runs `codex/recurring-tasks` at
+`0f37bdbfef5d65cd65f904a1bec3fe30f8b40cc7` (PR
+[#115](https://github.com/renx777/remonook/pull/115)), release `2026-11-14.1`.
+The branch starts from main `6d96cf0` and carries forward editing, Inbox, Tasks
+and Calendar planning. Smart Collections remains separate in PR #114.
 
 - Tasks → Plan adds daily/weekly/monthly/yearly Repeat. Completion keeps the source
   note and generates one successor linked to its series context, with preserved
@@ -16,22 +16,48 @@ remains separate in PR #114. **This entry is not a deployment record.**
 - Deterministic version-one creation updates prevent two offline creators from
   duplicating initial text. Per-source receipts prevent retries or intentional
   deletion from recreating tasks. Old-client completion is reconciled inside the
-  v3 server's ordinary incremental commit. See [RECURRING-TASKS.md](RECURRING-TASKS.md).
+  v3 server's ordinary incremental commit. See [RECURRING-TASKS.md](RECURRING-TASKS.md)
+  and [SYNC.md](SYNC.md). There is no SQL migration or snapshot replacement.
 - TypeScript and application build passed; the full local suite passed **726 tests**.
   Desktop-light and phone-dark browser acceptance passed offline daily completion,
   undo/redo and reload. The targeted model/app/SQLite-backed server suite passed
-  23 cases. Physical devices and native releases have not been verified.
-- [Application CI](https://github.com/renx777/remonook/actions/runs/45942110749)
-  is tracked on the PR; its final result must be checked before deployment.
-- Deployment is pending staging coordination. On 27 November the live frontend
-  marker reported `a0e324fd90753469aabbb6f99dac15bddfff5fe8`, newer than the last
-  recorded workflow release. Do not overwrite that uncoordinated release.
-- When authorized, deploy the separately tested sync server first with the
-  dedicated staging secret, preserve live settings/bindings/secrets, and verify
-  `taskRecurrence: 1` plus existing capabilities. Then run Staging frontend on this
-  branch and its deployed acceptance checks. No production or native release is
-  included. Closed-app push, daily Calendar reminder enums and drag timeline are
-  still pending.
+  23 cases. [Application CI](https://github.com/renx777/remonook/actions/runs/45952403350)
+  passed for the deployed source.
+- The separately gated [backend release](https://github.com/renx777/remonook/actions/runs/45951183254)
+  passed its build/full suite, configuration comparison, dry-run, deployment and
+  post-deploy preservation checks. Worker version
+  `988a12fe-337b-4800-a667-64a6dc083498` is live on `remo-sync-staging`, deployed
+  from `29ebbeef0cfacd22c51fa0e20123503f32ad5934`. The later commit only changes
+  the browser acceptance script; backend/application code is identical.
+  Existing variables, bindings, secret names and cron schedules were retained.
+- Health reports `syncProtocol: 3`, `workdaysSchema: 2`, `taskPlanning: 1`,
+  `calendarPlanning: 1`, `taskRecurrence: 1`, `aiEnabled: true`, `aiAssist: 1`,
+  `aiImage: 1`, `bookmarkReader: 1`, book storage/reader, Google Tasks and MCP enabled.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45952398975)
+  passed every step. Frontend Worker version
+  `a59bdfde-29b2-4c33-b1c2-7e2e72edfbf0` published the source above. All **19**
+  signed-in sync checks passed, including the additional checkpoints after each
+  test note creation. The account retained all 1,610 earlier notes after new-device
+  sign-in and fixture cleanup. Tasks/Inbox/collections acceptance passed on the
+  deployed frontend; desktop-light and phone-dark Tasks checks include daily
+  recurrence, offline completion, undo/redo and reload.
+- **Unresolved observation:** the [first frontend attempt](https://github.com/renx777/remonook/actions/runs/45951677254)
+  deployed successfully but failed two note-preservation assertions (1,613 → 1,610).
+  Its other 14 signed-in checks passed. The failure did not recur after adding
+  per-add checkpoints and ID/structure-only missing-row diagnostics; no assertion
+  was disabled. The application and backend were unchanged between attempts.
+  The original three IDs were not logged by the old test, so their cause and any
+  recovery have not been established. Do not describe this as a fixed data-loss
+  bug or infer that the earlier notes were restored. Review before main/production.
+- `staging-source.json` confirms the deployed branch/commit/release. Use that
+  source marker to identify staging; `release.json.applicationBase` is the static
+  release baseline, not the deployed commit. This corrects the earlier prepared
+  record's interpretation of `a0e324f` as a newer live release.
+
+Production, main and native apps are unchanged. Physical devices and native
+releases have not been verified. Closed-app push, daily Calendar reminder enums
+and a visual drag timeline remain pending. A subsequent documentation-only commit
+records this deployment without changing the tested application source.
 
 
 ### Calendar planning increment: web staging — 26 November 2026

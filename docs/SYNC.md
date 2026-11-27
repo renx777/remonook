@@ -34,6 +34,23 @@ that edit removes it normally. Concurrent attachment/deck references recover the
 retained source note. Invalid shared data and quota failures are rejected without
 acknowledging the pending batch.
 
+## Recurring task initialization
+
+Recurring task successors use deterministic row IDs and version-one immutable
+creation records. On first insertion only, the CRDT writer integrates a frozen
+initial update under a reserved high-range actor (ordinary session actors remain
+uint32). Two offline completions therefore share initial character identities;
+subsequent user edits use normal rich-text operations. Known/deleted creation
+actors are never reseeded. This does not replace a workspace or existing text.
+Keep the version-one factory and writer stable across releases.
+
+Completion receipts at `web.taskRepeatReceipts[sourceId][patternId]` route to the
+source bullet's bucket. They prevent retries and intentional successor deletion
+from regenerating work. The v3 server reconciles old-client completions inside its
+ordinary atomic commit/journal before acknowledgement. Existing outbox, backup,
+undo, recovery and account isolation rules apply unchanged. See
+[RECURRING-TASKS.md](RECURRING-TASKS.md) for dates, copies, mirrors and compatibility.
+
 ## Durable local operations
 
 Each `save` transaction writes note records and their CRDT update into the same
