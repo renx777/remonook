@@ -2,6 +2,59 @@
 
 ## Current state
 
+
+### Phase 4 library discovery: web staging — 27 November 2026
+
+Web staging runs `codex/library-discovery` at
+`d23c365299db81fcd4dff74ec5da971a96ad3499` (PR
+[#118](https://github.com/renx777/remonook/pull/118)), release `2026-11-14.1`.
+`staging-source.json` confirms the exact branch/commit/release. Frontend Worker
+version: `a3d7c631-8f9b-43e9-83da-0392f4adeee4`.
+
+- Search → **Search local library** indexes cached PDF pages, EPUB passages and
+  saved articles on explicit opening. An account/workspace-scoped, content-hash
+  cache reuses extracted text. Worker matching/EPUB parsing and PDF.js's parser
+  worker keep extraction away from ordinary bullet typing. Missing originals,
+  unreadable/scanned files and budgets are visible; originals are not downloaded
+  automatically and no model or paid API is used.
+- Results open the existing reader at the page/passage or an unambiguous article
+  quote. Closing cancels work; deleted sources cannot project stale results.
+  Local workspace deletion also deletes its derived index. The PDF worker URL
+  uses Vite's asset transform, verified against real development/built/hosted PDFs.
+- **Aliases** are ordinary `Aliases: ML, Machine learning` Traits, used by `[[`
+  suggestions and the note chooser. **Unlinked mentions** live in the existing
+  Connections/backlinks panel. Explicit reviewed linking rechecks passage and
+  target, preserves formatting and uses one normal saved/undoable mutation.
+  No shared-schema, protocol or server migration is required.
+- The branch started from main `6d96cf0`, then carried forward the current Phase 3
+  staging work without rewriting another branch. No other phase was advanced.
+- Release build and **764 local tests** passed. [CI](https://github.com/renx777/remonook/actions/runs/45978821551)
+  independently passed the build and all **764 tests** on the deployed commit.
+  Desktop/light and phone/dark browser acceptance passed against development,
+  built and hosted apps, including aliases, reviewed link/undo, PDF/EPUB/article
+  navigation, cache reuse, workspace isolation and overflow checks.
+- The strict typing proxy passed all four 1,000/10,000-bullet scenarios. At 10,000
+  bullets, ordinary-typing p95 was **12.1 ms desktop / 12.8 ms phone emulation**;
+  structural Enter remained **155.9 / 163.7 ms**, reported separately. All 120 new
+  bullets survived reload. These are keyboard-to-frame proxies, not physical input.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/45978818261)
+  passed every step, including **19 signed-in sync checks** retaining all **1,610**
+  earlier test-account notes after additions, new-device sign-in and cleanup.
+  Link collections, Inbox, Tasks, Calendar and Smart Collections acceptance also
+  passed. These tests use dedicated/isolated data, not the owner's devices.
+- No backend redeployment occurred. Sync Worker retains its preceding documented
+  `f7d08c05-1447-4b1e-a3c7-ad908c3aa377` release. Live health still reports
+  syncProtocol 3, workdaysSchema 2, taskPlanning/calendarPlanning/taskRecurrence/
+  calendarDaily/backgroundReminders all 1, with AI enabled, books, article capture,
+  Google Tasks and MCP available. No live bindings, secrets or settings changed.
+
+Production, main and native apps are unchanged. Real-device/native gates remain
+separate. The earlier unexplained three-note discrepancy is not claimed resolved
+or restored by these preservation checks. Usage, limits and screenshots:
+[LIBRARY-DISCOVERY.md](LIBRARY-DISCOVERY.md). A following documentation-only commit
+changes no deployed application source.
+
+
 ### Phase 3 Smart Collections: web staging — 27 November 2026
 
 Web staging runs `codex/smart-collections-rollout` at

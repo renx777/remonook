@@ -85,3 +85,24 @@ stand in for real Android/native keyboard or signed-in device testing.
 
 [Desktop screenshot](screenshots/library-discovery-desktop.png) ·
 [Phone screenshot](screenshots/library-discovery-phone.png)
+
+## Local validation — 27 November 2026
+
+The release build and all **764 tests** passed. Desktop/light and phone/dark browser
+acceptance passed against both development and built-app servers. The latter uses
+the actual bundled PDF worker and ES assets, not reader mocks.
+
+The Phase 0 strict typing check also passed with all 120 new bullets preserved
+through reload and keyboard navigation. Keyboard-to-next-frame p95:
+
+| Viewport | Background bullets | Ordinary typing | Structural Enter |
+| --- | ---: | ---: | ---: |
+| Desktop | 1,000 | 16.0 ms | 93.4 ms |
+| Desktop | 10,000 | 12.1 ms | 155.9 ms |
+| Phone emulation | 1,000 | 16.3 ms | 95.8 ms |
+| Phone emulation | 10,000 | 12.8 ms | 163.7 ms |
+
+Ordinary typing satisfies the 50 ms desktop / 100 ms emulated-phone reference
+thresholds. Structural Enter remains slower and is reported separately. This is
+the same cloud VM/Chromium setup described in PKM-ROADMAP.md, not physical input
+timing or a claim of native-device verification.

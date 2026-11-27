@@ -22,6 +22,13 @@ revision maps; the latest revision wins. NookTraits was removed from the app on 
 but its stored data (`web.nookTraits`, `web.noteProperties`) is kept and keeps syncing unchanged.
 No protocol migration or server deployment is required. See [TRAITS.md](TRAITS.md).
 
+Aliases are ordinary `Aliases: value, other name` Trait rows; reviewed unlinked
+mentions insert a normal internal link through the saved outline mutation path.
+They require no shared schema or transport change and survive existing sync and
+backups. The account/workspace-scoped `-library-search` IndexedDB database is a
+rebuildable, device-local extraction cache, excluded from shared state and backups.
+See [LIBRARY-DISCOVERY.md](LIBRARY-DISCOVERY.md).
+
 Concurrent rich-text insertions, deletions and formatting converge deterministically.
 A merge can retain both competing words; it cannot infer the writer's intended
 sentence. Node splits currently create/remove text across distinct node records;
