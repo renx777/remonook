@@ -46,6 +46,20 @@ matches. Completing a Calendar task completes the original bullet. Time blocks a
 increment; see [CALENDAR-PLANNING.md](CALENDAR-PLANNING.md). Closed-app push remains
 future work.
 
+## Repeating tasks
+
+In **Plan**, choose a scheduled date, then set **Repeat** to Daily, Weekly,
+Monthly or Yearly. Completing the task keeps its note and creates one next task.
+Deadlines are cleared on the next task. The next task links to the original
+series context; attachments and child notes remain with their source.
+
+Dates advance one occurrence at a time, including missed dates. Month-end and
+leap-day anchors are preserved. Editing one occurrence does not change the frozen
+title of future tasks; select **Use this task’s current title as the future template**
+in Plan to refresh it. Open the next task to change a series already advanced.
+**Completed → Next task** finds that successor. Offline completion, save and
+undo use ordinary note storage. See [RECURRING-TASKS.md](RECURRING-TASKS.md).
+
 ## Google Tasks
 
 Choose the explicit **Google Tasks** source inside Tasks. It reuses the existing

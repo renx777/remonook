@@ -1,3 +1,4 @@
+import {hasPendingRepeat} from './recurring-tasks.mjs';
 import {ReminderDelivery} from './ReminderDelivery';
 import {addTraitsBlock,hasTraitsTag,traitsBlocks,isTraitsBlock} from './traits-block.mjs';
 import {NoteMetadataContext} from './NoteMetadataContext';
@@ -556,6 +557,13 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 180);
   };
+  useEffect(()=>{
+    if(!doc?.columns.bullets.includes('taskRepeat')||!hasPendingRepeat(doc))return;
+    const account=storageAccountKey(),timer=setInterval(()=>{
+      const current=docRef.current;if(account!==storageAccountKey()||!current||failed.current||dirty.current||working||cloudApplying.current||activeEditor?.view.composing)return;
+      if(hasPendingRepeat(current)){try{commit(withNodes(current,current.tables.bullets as Node[]),undefined,false);}catch(e){showError(e);}}
+    },500);return()=>clearInterval(timer);
+  },[doc?.tables.bullets,doc?.web.taskRepeatReceipts,working]);
   const nativeWidget=useStudyWidget({resurfaceCards:current=>meaningRef.current?.enabled?resurfacePresentations(current,(id:string)=>meaningRef.current.related(id)):[],resurface:current=>meaningRef.current?.enabled?resurfacePresentation(current,(id:string)=>meaningRef.current.related(id)):null,ready:!!doc&&!failed.current,revision:doc?.revision,getDoc:()=>docRef.current,canApply:()=>!dirty.current&&!failed.current&&!working&&!cloudApplying.current&&!activeEditor?.view.composing,apply:async next=>{if(failed.current)throw Error('Saving needs attention.');commit(next,undefined,false);await flush();if(failed.current)throw Error('Widget review could not be saved.');},onNotice:setNotice});
   useDesktop({ready:!!doc&&!failed.current,getDoc:()=>docRef.current,commit:next=>commit(next),flush,onError:message=>setError(message||null),onNotice:setNotice});
   useEmojiAssetRepair({emojis:doc?.tables.emojis||[],assets,ready:!!doc&&!failed.current,store:async(item,recovered)=>{

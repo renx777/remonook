@@ -1,3 +1,4 @@
+import {creationRow,creationActor} from './task-repeat-fields.mjs';
 import * as Y from 'yjs';
 import {diffChars} from 'diff';
 import {marks,encode,validate,bullet} from './domain.mjs';
@@ -101,7 +102,26 @@ export function applyParts(d,b,a,assetsBefore=[],assetsAfter=[],rebase=false){
   for(const name of new Set([...b.tables.keys(),...a.tables.keys()])){
    if(!tables.has(name))tables.set(name,true);
    const prior=b.tables.get(name)||new Map(),next=a.tables.get(name)||new Map();
-   for(const [id,n]of next){const old=prior.get(id);if(old===n||same(old,n))continue;
+   for(const [id,n]of next){let old=prior.get(id);
+    if(name==='bullets'&&!old&&n.taskRepeatSeed){
+     const seed=creationRow(n.taskRepeatSeed);if(!seed||seed.id!==n.id)throw Error('Invalid recurring task creation record');
+     const actor=creationActor(id,n.taskRepeatSeed);
+     if(!d.store.clients.has(actor)&&rows.get(id)!==true){
+      const initial=new Y.Doc();initial.clientID=actor;
+      const row={...seed,taskRepeatSeed:n.taskRepeatSeed};
+      // Frozen v1 writer: initial structs must remain byte-identical across app
+      // versions. Formatting starts in the existing lossless raw-format register;
+      // subsequent edits use the ordinary rich-text CRDT formatting path.
+      initial.transact(()=>{
+       const f=initial.getMap('fields');initial.getMap('tables').set('bullets',true);initial.getMap('rows').set(id,true);
+       for(const key of Object.keys(row).sort())if(!['text','formatting','collapsed','parentId','position'].includes(key))f.set(JSON.stringify(['row',id,key]),row[key]);
+       f.set(JSON.stringify(['row',id,'_syncLocation']),{parentId:row.parentId,position:row.position});
+       if(row.text)initial.getText('text:'+id).insert(0,row.text,{});
+       f.set(JSON.stringify(['row',id,'_syncLegacyFormatting']),{text:row.text,formatting:row.formatting});
+      });
+      Y.applyUpdate(d,Y.encodeStateAsUpdate(initial));initial.destroy();old=row;
+     }
+    }if(old===n||same(old,n))continue;
     if(rows.get(id)!==true)rows.set(id,true);
     for(const key of new Set([...Object.keys(old||{}),...Object.keys(n)])){
      if(name==='bullets'&&['text','formatting','collapsed','parentId','position'].includes(key))continue;

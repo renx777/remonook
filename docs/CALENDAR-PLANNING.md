@@ -17,9 +17,9 @@ devices completing the same occurrence produce one completed occurrence and one
 next occurrence, with no generated note/text duplication. Undo/reopen uses the
 same map and ordinary save/history. The old list is retained for compatibility;
 new map entries take precedence. All data uses the existing CRDT and outbox.
-Task bullets themselves do not automatically repeat: use a linked recurring
-Calendar reminder for a repeating action. A generated successor-task system is
-outside this increment and must not be claimed as complete.
+The recurring-task follow-up adds actual successor task notes with daily, weekly,
+monthly and yearly cadences; see [RECURRING-TASKS.md](RECURRING-TASKS.md). This is
+separate from Calendar reminder series and does not add a daily reminder enum.
 
 ## Browser delivery
 

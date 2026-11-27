@@ -109,6 +109,7 @@ Calendar planning adds task time blocks (local start time and reserved minutes,
 separate from estimates), safely merged recurrence occurrence completion and
 explicit opt-in browser delivery while the app is visible. See
 [CALENDAR-PLANNING.md](CALENDAR-PLANNING.md) for semantics and limits. Repetition
-uses existing Calendar series; automatic successor task-note generation and
-closed-app push delivery are not implemented in this increment. Native daily
-repeat compatibility must be resolved before offering a new daily enum.
+uses existing Calendar series. The [recurring-task follow-up](RECURRING-TASKS.md)
+adds actual successor notes, including daily tasks, through optional metadata
+compatible with older clients. Closed-app push delivery, a drag timeline and
+daily Calendar reminder enums remain pending; native rollout is separate.

@@ -43,7 +43,7 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID),ctx) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:env.SYNC_SPACE?3:2,workdaysSchema:2,taskPlanning:1,calendarPlanning:1,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiImage:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:env.SYNC_SPACE?3:2,workdaysSchema:2,taskPlanning:1,calendarPlanning:1,taskRecurrence:1,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiImage:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
   // Desktop app updates (public: the app checks before anyone signs in). Files are uploaded by
   // the Desktop app workflow to R2 under desktop/<channel>/; builds are signed, and the app only
   // installs updates whose signature matches the key built into it.

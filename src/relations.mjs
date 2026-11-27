@@ -1,7 +1,7 @@
 import {TASK_FIELDS} from './task-fields.mjs';
 import {namedTagColor} from './tags.mjs';
 import {bullet,index,descendants,move} from './domain.mjs';
-export const contentFields=[...TASK_FIELDS,'text','formatting','kind','autoHighlight','listType','codeLanguage','taskState','dueDate','blockStyle','dividerStyle','dividerColor','bulletColor'];
+export const contentFields=[...TASK_FIELDS.filter(k=>k!=='taskRepeatSeed'),'text','formatting','kind','autoHighlight','listType','codeLanguage','taskState','dueDate','blockStyle','dividerStyle','dividerColor','bulletColor'];
 export function sourceId(nodes,id){return nodes.find(n=>n.id===id)?.mirrorSourceId||id;}
 export function noteLinks(text){if(!text.includes('[['))return [];return [...text.matchAll(/\[\[([^\]\n|]*)\|([^\]\n|]+)\]\]/g)].map(m=>({start:m.index,end:m.index+m[0].length,label:m[1],id:m[2],raw:m[0]}));}
 export function internalLink(node){return `[[${(node.text||'Untitled').replace(/[\[\]|\n]/g,' ').slice(0,120)}|${node.id}]]`;}

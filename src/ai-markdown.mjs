@@ -176,7 +176,7 @@ export function outlineMarkdown(idx,rootId,{maxNodes=400,offset=0,maxDepth=20}={
     if(more)return;
     if(index++>=offset){
       if(emitted>=maxNodes){more=true;return;}emitted++;
-      const body=bulletMarkdown(n).split('\n'),pad='  '.repeat(depth),marker=n.listType==='ORDERED'?'1.':'-',tag=` <!-- id=${n.id} v=${bulletVersion(n)}${n.kind!=='NOTE'?' kind='+n.kind:''}${n.mindmap?' mindmap':''}${n.dueDate?' deadline='+n.dueDate:''}${TASK_FIELDS.filter(k=>n[k]!=null).map(k=>' '+k+'='+n[k]).join('')} -->`;
+      const body=bulletMarkdown(n).split('\n'),pad='  '.repeat(depth),marker=n.listType==='ORDERED'?'1.':'-',tag=` <!-- id=${n.id} v=${bulletVersion(n)}${n.kind!=='NOTE'?' kind='+n.kind:''}${n.mindmap?' mindmap':''}${n.dueDate?' deadline='+n.dueDate:''}${TASK_FIELDS.filter(k=>n[k]!=null&&!['taskRepeatTemplate','taskRepeatSeed'].includes(k)).map(k=>' '+k+'='+n[k]).join('')} -->`;
       lines.push(`${pad}${marker} ${body[0]}${body.length===1?tag:''}`);
       for(const extra of body.slice(1))lines.push(`${pad}  ${extra}`);
       if(body.length>1)lines.push(`${pad} ${tag}`);

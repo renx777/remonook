@@ -8,11 +8,11 @@ import {GoogleTasksWidget} from './GoogleTasksWidget';
 import {useReminderClock} from './CalendarReminders';
 import './tasks.css';
 type Props={doc:Workspace;disabled:boolean;canUndo:boolean;canRedo:boolean;onChange:(update:(doc:Workspace)=>Workspace)=>void;onOpen:(id:string)=>void;onNew:()=>void;onInbox:()=>void;onUndo:(redo?:boolean)=>void;storageKey:string};
-type Draft={scheduledDate:string;dueDate:string;taskPlanning:string;taskPriority:string;taskDurationMinutes:string;taskStartTime:string;taskBlockMinutes:string};
-function planDraft(n:Node):Draft{const p=taskPlan(n);return {scheduledDate:p.scheduledDate,dueDate:n.dueDate||'',taskPlanning:p.taskPlanning,taskPriority:String(p.taskPriority),taskDurationMinutes:p.taskDurationMinutes?String(p.taskDurationMinutes):'',taskStartTime:String(p.taskStartTime),taskBlockMinutes:p.taskBlockMinutes?String(p.taskBlockMinutes):''} as Draft;}
+type Draft={scheduledDate:string;dueDate:string;taskPlanning:string;taskPriority:string;taskDurationMinutes:string;taskStartTime:string;taskBlockMinutes:string;taskRepeat:string};
+function planDraft(n:Node):Draft{const p=taskPlan(n);return {scheduledDate:p.scheduledDate,dueDate:n.dueDate||'',taskPlanning:p.taskPlanning,taskPriority:String(p.taskPriority),taskDurationMinutes:p.taskDurationMinutes?String(p.taskDurationMinutes):'',taskStartTime:String(p.taskStartTime),taskBlockMinutes:p.taskBlockMinutes?String(p.taskBlockMinutes):'',taskRepeat:String(p.taskRepeat)} as Draft;}
 const priority=['No priority','Low','Medium','High'];
 function TaskDetails({node,disabled,onChange,onClose}:{node:Node;disabled:boolean;onChange:Props['onChange'];onClose:(saved?:boolean)=>void}){
- const [initial]=useState(()=>planDraft(node)),[draft,setDraft]=useState(initial),[error,setError]=useState('');
+ const [initial]=useState(()=>planDraft(node)),[draft,setDraft]=useState(initial),[error,setError]=useState(''),[refreshRepeat,setRefreshRepeat]=useState(false);
  const first=useRef<HTMLInputElement>(null);useLayoutEffect(()=>{first.current?.focus();},[]);
  const set=(key:keyof Draft,value:string)=>setDraft(d=>({...d,[key]:value}));
  return <form className="task-details" aria-label="Task details" onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();onClose();}}} onSubmit={e=>{
@@ -20,7 +20,7 @@ function TaskDetails({node,disabled,onChange,onClose}:{node:Node;disabled:boolea
   try{
    // Write only fields the user changed. Remote text, completion and other plan fields survive.
    const patch:Record<string,unknown>={};for(const key of [...TASK_FIELDS,'dueDate'] as (keyof Draft)[])if(draft[key]!==initial[key])patch[key]=key==='taskPriority'||key==='taskDurationMinutes'||key==='taskBlockMinutes'?Number(draft[key]):draft[key];
-   onChange(doc=>updateTask(doc,node.id,patch));onClose(true);
+   onChange(doc=>updateTask(doc,node.id,patch,{refreshRepeat}));onClose(true);
   }catch(e){setError(e instanceof Error?e.message:String(e));}
  }}>
   <h2 className="task-plan-title">{node.text||'Untitled task'}</h2><p>Plan this task. Its text, children and attachments stay in the original note.</p>
@@ -32,7 +32,9 @@ function TaskDetails({node,disabled,onChange,onClose}:{node:Node;disabled:boolea
    <label>Estimated minutes<input aria-label="Task estimated minutes" type="number" min="0" max="1440" step="1" placeholder="Optional" value={draft.taskDurationMinutes} onChange={e=>set('taskDurationMinutes',e.target.value)}/></label>
    <label>Start time<input aria-label="Task start time" type="time" value={draft.taskStartTime} onChange={e=>set('taskStartTime',e.target.value)}/><small>Local time on the scheduled date.</small></label>
    <label>Time block (minutes)<input aria-label="Task block minutes" type="number" min="0" max="1440" step="1" value={draft.taskBlockMinutes} onChange={e=>set('taskBlockMinutes',e.target.value)}/><small>Separate from your effort estimate. Overlaps remain allowed.</small></label>
+   <label>Repeat<select aria-label="Task repeat" value={draft.taskRepeat} onChange={e=>set('taskRepeat',e.target.value)}><option value="NONE">Does not repeat</option><option value="DAILY">Every day</option><option value="WEEKLY">Every week</option><option value="MONTHLY">Every month</option><option value="YEARLY">Every year</option></select><small>Completion creates the next task. Context stays linked; deadlines are not repeated.</small></label>
   </div>
+  {draft.taskRepeat!=='NONE'&&<label><input type="checkbox" checked={refreshRepeat} onChange={e=>setRefreshRepeat(e.target.checked)}/>Use this task’s current title as the future template</label>}
   {error&&<p role="alert">{error}</p>}
   <footer><button type="button" onClick={()=>onClose()}>Cancel</button><button className="task-primary" disabled={disabled}>Save task details</button></footer>
  </form>;
@@ -69,8 +71,8 @@ export function TasksView({doc,disabled,canUndo,canRedo,onChange,onOpen,onNew,on
    {!tasks.length?<div className="tasks-empty"><Icon name="check" size={28}/><h2>{search||project?'No matching tasks.':view==='today'?'A clear day.':`No ${TASK_VIEWS.find(([id])=>id===view)?.[1].toLowerCase()} tasks.`}</h2><p>{view==='today'?'Schedule a task, or choose Anytime to find your next action.':'Tasks are ordinary note bullets with a checkbox.'}</p>{view==='today'&&<button onClick={()=>setView('anytime')}>Browse Anytime</button>}</div>:<ol className="tasks-list">{tasks.slice(0,limit).map(t=>{
     const n=t.node,done=n.taskState==='DONE',p=t.plan;
     return <li key={n.id} data-task-id={n.id} className={done?'task-row is-completed':'task-row'}>
-     <div className="task-row-main"><input type="checkbox" aria-label={`${done?'Reopen':'Complete'} task ${n.text.slice(0,100)||'Untitled'}`} checked={done} disabled={disabled} onChange={()=>run(()=>{onChange(d=>updateTask(d,n.id,{taskState:done?'TODO':'DONE'}));searchInput.current?.focus();})}/><div className="task-copy"><div className="task-text"><RichRead node={n}/>{!n.text&&'Untitled task'}</div><div className="task-meta"><span>{t.path}</span>{p.taskStartTime&&<span>{String(p.taskStartTime)} · {String(p.taskBlockMinutes)} min block</span>}{p.scheduledDate&&<span>Scheduled {String(p.scheduledDate)}</span>}{t.deadline&&<span className={!done&&t.deadline<today?'is-overdue':''}>Due {t.deadline}</span>}{p.taskPlanning!=='ACTIVE'&&<span>{p.taskPlanning==='WAITING'?'Waiting':'Someday'}</span>}{Number(p.taskPriority)>0&&<span className={'priority-'+p.taskPriority}>{priority[Number(p.taskPriority)]}</span>}{Number(p.taskDurationMinutes)>0&&<span>{String(p.taskDurationMinutes)} min</span>}</div></div></div>
-     <div className="task-row-actions"><button onClick={()=>onOpen(n.id)}><Icon name="notes" size={14}/>Open note</button><button disabled={disabled} aria-expanded={editing===n.id} onClick={e=>{origin.current=e.currentTarget;setEditing(editing===n.id?null:n.id);}}><Icon name="sliders" size={14}/>Plan</button></div>
+     <div className="task-row-main"><input type="checkbox" aria-label={`${done?'Reopen':'Complete'} task ${n.text.slice(0,100)||'Untitled'}`} checked={done} disabled={disabled} onChange={()=>run(()=>{onChange(d=>updateTask(d,n.id,{taskState:done?'TODO':'DONE'}));searchInput.current?.focus();})}/><div className="task-copy"><div className="task-text"><RichRead node={n}/>{!n.text&&'Untitled task'}</div><div className="task-meta"><span>{t.path}</span>{p.taskRepeat!=='NONE'&&<span>Repeats {String(p.taskRepeat).toLowerCase()}</span>}{p.taskStartTime&&<span>{String(p.taskStartTime)} · {String(p.taskBlockMinutes)} min block</span>}{p.scheduledDate&&<span>Scheduled {String(p.scheduledDate)}</span>}{t.deadline&&<span className={!done&&t.deadline<today?'is-overdue':''}>Due {t.deadline}</span>}{p.taskPlanning!=='ACTIVE'&&<span>{p.taskPlanning==='WAITING'?'Waiting':'Someday'}</span>}{Number(p.taskPriority)>0&&<span className={'priority-'+p.taskPriority}>{priority[Number(p.taskPriority)]}</span>}{Number(p.taskDurationMinutes)>0&&<span>{String(p.taskDurationMinutes)} min</span>}</div></div></div>
+     <div className="task-row-actions">{done&&p.taskRepeat!=='NONE'&&Object.values(doc.web.taskRepeatReceipts?.[n.id]||{}).filter((r:any)=>doc.tables.bullets.some(b=>b.id===r.nextId)).map((r:any)=><button key={r.nextId} onClick={()=>onOpen(r.nextId)}>Next task · {r.date}</button>)}<button onClick={()=>onOpen(n.id)}><Icon name="notes" size={14}/>Open note</button><button disabled={disabled} aria-expanded={editing===n.id} onClick={e=>{origin.current=e.currentTarget;setEditing(editing===n.id?null:n.id);}}><Icon name="sliders" size={14}/>Plan</button></div>
     </li>;
    })}</ol>}
    {tasks.length>limit&&<button className="tasks-more" onClick={()=>setLimit(n=>n+40)}>Show more tasks ({tasks.length-limit} remaining)</button>}

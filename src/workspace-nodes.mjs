@@ -1,11 +1,14 @@
+import {advanceRecurringTasks} from './recurring-tasks.mjs';
 import {TASK_FIELDS} from './task-fields.mjs';
 import {syncMirrors} from './relations.mjs';
 import {validate,refreshCards,uuid} from './domain.mjs';
 
 /** Replaces a workspace's bullets: mirrors, note times, validation, media, decks and derived cards. */
 export function withNodes(doc, nodes) {
+  const original=doc;
   nodes = syncMirrors(doc.tables.bullets, nodes);
-  const oldNodes=new Map(doc.tables.bullets.map(n=>[n.id,n]));
+  const oldNodes=new Map(original.tables.bullets.map(n=>[n.id,n]));
+  doc=advanceRecurringTasks(doc,nodes,oldNodes);nodes=doc.tables.bullets;
   const noteTimes={...doc.web.noteTimes},now=Date.now();
   for(const n of nodes){const before=oldNodes.get(n.id);if(!before||[...TASK_FIELDS,'text','formatting','parentId','position','taskState','dueDate','kind','blockStyle','codeLanguage','dividerStyle','dividerColor','bulletColor'].some(k=>before[k]!==n[k]))noteTimes[n.id]={...noteTimes[n.id],...(!before?{createdAt:now}:{}),updatedAt:now};}
   doc={...doc,web:{...doc.web,noteTimes}};
@@ -15,7 +18,7 @@ export function withNodes(doc, nodes) {
 
   validate(nodes);
   const ids = new Set(nodes.map((n) => n.id)),
-    sourceIds = new Set([...doc.tables.bullets.map(node => node.id), ...ids]),
+    sourceIds = new Set([...original.tables.bullets.map(node => node.id), ...ids]),
     sourceCards = doc.tables.cards.filter(card => sourceIds.has(card.id)),
     independentCards = doc.tables.cards.filter(card => !sourceIds.has(card.id));
   const media = doc.tables.media.filter((m) => ids.has(m.bulletId)),

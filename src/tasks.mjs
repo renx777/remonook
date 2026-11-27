@@ -1,3 +1,4 @@
+import {configureTaskRepeat} from './recurring-tasks.mjs';
 import {index} from './domain.mjs';
 import {withNodes} from './workspace-nodes.mjs';
 import {TASK_FIELDS,taskPlan,validTaskField} from './task-fields.mjs';
@@ -28,7 +29,7 @@ export function taskCatalog(doc,today){
  });
  return {tasks,list,counts:Object.fromEntries(TASK_VIEWS.map(([id])=>[id,list(id).length]))};
 }
-export function updateTask(doc,id,patch){
+export function updateTask(doc,id,patch,options={}){
  const shown=doc.tables.bullets.find(n=>n.id===id),source=shown?.mirrorSourceId||id,node=doc.tables.bullets.find(n=>n.id===source);
  if(!node)throw Error('This task was removed. Your other notes are unchanged.');
  if(node.taskState==='NONE')throw Error('This bullet is no longer a task. Open its note to make it a task again.');
@@ -40,8 +41,8 @@ export function updateTask(doc,id,patch){
   else if(!validTaskField(key,value)||value==null)throw Error('Invalid task planning value.');
  }
  const planned=taskPlan({...node,...patch});if((planned.taskStartTime||planned.taskBlockMinutes)&&(!planned.scheduledDate||!planned.taskStartTime||!planned.taskBlockMinutes))throw Error('A time block needs a scheduled date, start time and duration.');
- if(Object.entries(patch).every(([k,v])=>node[k]===v))return doc;
- return withNodes(doc,doc.tables.bullets.map(n=>n.id===source?{...n,...patch}:n));
+ const updated=configureTaskRepeat(node,patch,{...options,doc});if(JSON.stringify(updated)===JSON.stringify(node))return doc;
+ return withNodes(doc,doc.tables.bullets.map(n=>n.id===source?updated:n));
 }
 export function startTask(doc,id){const result=startInboxCapture(doc,id);return {...result,doc:withNodes(result.doc,result.doc.tables.bullets.map(n=>n.id===result.id?{...n,taskState:'TODO'}:n))};}
 export function taskDateCounts(doc){
