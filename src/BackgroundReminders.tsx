@@ -1,0 +1,10 @@
+import * as Popover from '@radix-ui/react-popover';
+import {Icon} from './icons';
+import {useEffect,useState} from 'react';
+import {backgroundEnabled,enableBackgroundReminders,disableBackgroundReminders,renewBackgroundReminders} from './background-reminders';
+export function BackgroundReminders({signedIn,controls}:{signedIn:boolean;controls:boolean}){
+ const [enabled,setEnabled]=useState(backgroundEnabled),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ useEffect(()=>{if(!signedIn)return;const renew=()=>{setEnabled(backgroundEnabled());void renewBackgroundReminders().catch(e=>setMessage(e.message));};renew();window.addEventListener('focus',renew);return()=>window.removeEventListener('focus',renew);},[signedIn]);
+ if(!controls)return null;
+ return <Popover.Root><Popover.Trigger asChild><button className="icon-button" aria-label="Background reminder settings" title="Background reminders"><Icon name="bell" size={17}/></button></Popover.Trigger><Popover.Portal><Popover.Content align="end" sideOffset={8} collisionPadding={12} className="background-reminder-panel"><button type="button" disabled={busy||!signedIn} aria-pressed={enabled} onClick={async()=>{setBusy(true);try{if(enabled){await disableBackgroundReminders();setEnabled(false);setMessage('Background reminders disabled on this browser.');}else{await enableBackgroundReminders();setEnabled(true);setMessage('Enabled for this browser, including after closing the tab. Browser and OS delivery may be delayed.');}}catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}}>{busy?'Updating…':enabled?'Background reminders on':'Enable background reminders'}</button>{message&&<p role="status">{message}</p>}<small>{signedIn?'Requires internet and synced changes. Titles stay private. Device registration renews when you open RemoNook and expires after 30 days.':'Sign in to receive reminders after closing the tab. Open-app reminders work without an account.'}</small></Popover.Content></Popover.Portal></Popover.Root>;
+}

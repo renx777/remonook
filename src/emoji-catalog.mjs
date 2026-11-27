@@ -5,7 +5,7 @@ export const getCatalogEmoji=token=>getNotoEmoji(token)||getFluentEmoji(token);
 export const isCatalogEmoji=item=>isNotoEmoji(item)||isFluentEmoji(item);
 export const catalogPosterPath=item=>isFluentEmoji(item)?fluentPosterPath(item):notoPosterPath(item);
 export const catalogCreditPath=item=>isFluentEmoji(item)?FLUENT_CREDIT_PATH:NOTO_CREDIT_PATH;
-export const catalogAssetPaths=item=>['emoji/'+item.fileName,...(isCatalogEmoji(item)?[catalogPosterPath(item),catalogCreditPath(item)]:[])];
+export {catalogAssetPaths} from './emoji-asset-paths.mjs';
 export const downloadCatalogEmoji=(item,signal)=>isFluentEmoji(item)?downloadFluentEmoji(item,signal):downloadNotoEmoji(item,signal);
 export const catalogAssetUrl=(item,poster=false)=>isFluentEmoji(item)?fluentAssetUrl(item,poster):notoAssetUrl(item,poster);
 export const emojiCollection=item=>isFluentEmoji(item)?'fluent':isNotoEmoji(item)?'noto':'custom';

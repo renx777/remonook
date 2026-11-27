@@ -24,8 +24,9 @@ export function useCloudSync(options:Options){
  const setError=(error:string)=>{if(signal.get().error!==error)signal.set({...signal.get(),error});};
  async function request(path:string,init:RequestInit={}){
   const user=latest.current.user;if(!user||authenticatedUid()!==user.uid)throw Error('Sign in again to continue saving to your account.');
-  const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+await user.getIdToken());headers.set('X-Remo-Capabilities','workdays-v2');
-  const r=await fetch(CLOUD_API+path,{...init,headers,signal:AbortSignal.timeout(30000),cache:'no-store'});
+  const owner=storageAccountKey(),token=await user.getIdToken();const verify=()=>{if(storageAccountKey()!==owner||latest.current.user?.uid!==user.uid||authenticatedUid()!==user.uid)throw Object.assign(Error('Workspace changed.'),{deferred:true});};verify();
+  const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+token);headers.set('X-Remo-Capabilities','workdays-v2');
+  const r=await fetch(CLOUD_API+path,{...init,headers,signal:AbortSignal.timeout(30000),cache:'no-store'});verify();
   if(!r.ok&&r.status!==304){const data=await r.json().catch(()=>({}));throw Object.assign(Error(data.error||'Your changes are saved on this device. Reconnecting…'),{status:r.status,code:data.code});}return r;
  }
  async function manifest(files:Map<string,Blob>){const out:Asset[]=[];for(const [path,blob]of files){let hash=cache.current.get(blob);if(!hash){hash=await digest(await blob.arrayBuffer());cache.current.set(blob,hash);}out.push({path,hash,size:blob.size,type:blob.type});}return out.sort((a,b)=>a.path.localeCompare(b.path));}
@@ -48,12 +49,28 @@ export function useCloudSync(options:Options){
   if(!store)merged.updates=Object.fromEntries(Object.entries(merged.updates).map(([b,list]:any)=>[b,list.length===1?list[0]:mergeEncoded(list)]));
   return merged;
  }
+ async function retireObsolete(work:(op:string,args?:any)=>Promise<any>,account:string,uid:string,force=false){
+  const verify=()=>{if(account!==storageAccountKey()||latest.current.user?.uid!==uid||!alive.current)throw Object.assign(Error('Workspace changed.'),{deferred:true});};
+  verify();const retirement=await work('quota-retirement',{force});if(!retirement)return;const since=await work('since');verify();
+  const response=await(await request('/assets/reconcile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...retirement,since})})).json();
+  verify();await work('quota-retired',{response});if(response.more)await pullAll(work,response.revision,true);
+ }
+ async function progressWhileQuotaBlocked(work:(op:string,args?:any)=>Promise<any>,account:string,uid:string){
+  const verify=()=>{if(account!==storageAccountKey()||latest.current.user?.uid!==uid||!alive.current)throw Object.assign(Error('Workspace changed.'),{deferred:true});};
+  for(const mode of ['notes','removals']){
+   verify();const progress=await work('quota-progress',{mode});if(!progress)continue;const since=await work('since');verify();
+   const response=await(await request('/sync/v3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...progress,since})})).json();
+   verify();await work('quota-receive',{mode,response});if(response.more)await pullAll(work,response.revision,true);
+  }
+  await retireObsolete(work,account,uid,true);
+ }
  async function sync(){
   if(!alive.current||!latest.current.user||!latest.current.ready)return;
   if(busy.current){queued.current=true;return;}
   lastRun.current=Date.now();
   if(timer.current){clearTimeout(timer.current);timer.current=null;}queued.current=false;busy.current=true;
-  const account=storageAccountKey(),work=(operation:string,args:any={})=>syncOperation(operation,args,account);
+  const syncUid=latest.current.user?.uid;
+  const account=storageAccountKey(),verifyScope=()=>{if(account!==storageAccountKey()||latest.current.user?.uid!==syncUid||!alive.current)throw Object.assign(Error('Workspace changed.'),{deferred:true});},work=async(operation:string,args:any={})=>{verifyScope();const result=await syncOperation(operation,args,account);verifyScope();return result;},scopedRequest=(path:string,init:RequestInit={})=>{verifyScope();return request(path,init);};
   setError('');setStatus('Syncing…');
   
   try{
@@ -71,12 +88,13 @@ export function useCloudSync(options:Options){
    // Persist the same stable operation identity before sending it over the network.
    const network=await work('network');
    if(network.inflight){
-    for(const asset of network.assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!network.uploaded.includes(asset.hash)){await request('/assets/'+asset.hash,{method:'PUT',body:blob});await work('uploaded',{hash:asset.hash});}}
+    for(const asset of network.assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!network.uploaded.includes(asset.hash)){await scopedRequest('/assets/'+asset.hash,{method:'PUT',body:blob});await work('uploaded',{hash:asset.hash});}}
     
-    const response=await(await request('/sync/v3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,since:network.since})})).json();
+    const response=await(await scopedRequest('/sync/v3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,since:network.since})})).json();
     await work('receive',{response});
     if(response.more)await pullAll(work,response.revision,true);
    }else await pullAll(work,network.since,true);
+   try{await retireObsolete(work,account,syncUid!);}catch(e:any){if(e?.status!==404&&!e?.deferred)console.warn(JSON.stringify({event:'attachment_accounting_retry',status:e?.status||0}));}
    await latest.current.flush();
    const current=latest.current.get(),localAssets=await manifest(current.assets);
    const inspected=await work('inspect',{doc:current.doc,assets:localAssets});
@@ -100,6 +118,9 @@ export function useCloudSync(options:Options){
    if(remaining)queued.current=true;
   }catch(e:any){
    setStatus('Saved on device · sync pending');
+   if(['ATTACHMENT_QUOTA_FULL','ATTACHMENT_MANIFEST_FULL'].includes(e?.code)||e?.status===413&&/^(Attachment storage is full|Attachments exceed 20 MiB|Too many attachments)/.test(e.message)||e?.status===409&&e.message==='An attachment is still uploading.'){
+    try{await progressWhileQuotaBlocked(work,account,syncUid!);queued.current=true;}catch(recovery:any){if(recovery?.status&&![404,409].includes(recovery.status))setError(recovery.message);}
+   }
    if(e?.status===400&&e?.code==='SYNC_VALIDATION_FAILED'){
     // Repair with the server's own checks, keep originals readable, and send the edits again.
     try{

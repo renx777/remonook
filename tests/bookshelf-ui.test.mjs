@@ -11,10 +11,10 @@ test('bookshelf filters formats and progress, searches titles and opens an exist
  function Host(){const [doc,setDoc]=useState(()=>{const doc=registerBooks(empty(),books);for(const book of books){doc.web.readingBooks[book.id].totalUnits=3;doc.web.readingBooks[book.id].position=book.position;}return doc;});return React.createElement(Bookshelf,{user:{uid:'alice',getIdToken:async()=> 'token'},doc,disabled:false,onChange:fn=>setDoc(fn),onSignIn:async()=>{},onRead:hash=>{opened=hash;}});}
  const root=createRoot(document.querySelector('#root'));
  try{await act(async()=>root.render(React.createElement(Host)));await wait(()=>document.querySelectorAll('.bookshelf-book').length===3&&!document.querySelector('.bookshelf-add').disabled);
-  await click('EPUB');assert.equal(document.querySelectorAll('.bookshelf-book').length,1);assert.match(document.querySelector('.bookshelf-book').textContent,/Thinking Clearly/);
+  await act(async()=>document.querySelector('[aria-label="Filter and sort books"]').click());await click('EPUB');assert.equal(document.querySelectorAll('.bookshelf-book').length,1);assert.match(document.querySelector('.bookshelf-book').textContent,/Thinking Clearly/);
   await click('Finished');assert.equal(document.querySelectorAll('.bookshelf-book').length,1);assert.match(document.querySelector('.bookshelf-book').textContent,/A Finished Book/);
   await click('In progress');assert.equal(document.querySelectorAll('.bookshelf-book').length,1);assert.match(document.querySelector('.bookshelf-book').textContent,/Thinking Clearly/);
-  await click('All books');const input=document.querySelector('[type=search]');await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(input,'quiet');input.dispatchEvent(new window.Event('input',{bubbles:true}));});assert.equal(document.querySelectorAll('.bookshelf-book').length,1);
+  await click('All books');await act(async()=>document.querySelector('[aria-label="Find a book"]').click());const input=document.querySelector('[type=search]');await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(input,'quiet');input.dispatchEvent(new window.Event('input',{bubbles:true}));});assert.equal(document.querySelectorAll('.bookshelf-book').length,1);
   await act(async()=>document.querySelector('.bookshelf-open').click());assert.equal(opened,books[0].hash);assert.ok(calls.every(path=>['/storage','/books'].includes(path)));
  }finally{await act(async()=>root.unmount());globalThis.fetch=fetch;}
 });

@@ -1,0 +1,243 @@
+/* RemoNook visual language. See docs/DESIGN.md.
+   Warm paper, one blue accent, and colour that always means something:
+   amber = needs you (overdue, deadlines), violet = reminders, green = done. */
+@import "@fontsource-variable/newsreader/opsz.css";
+
+.app {
+  --title-font: "Newsreader Variable", Newsreader, Georgia, "Times New Roman", serif;
+  --reminder: #6a4fb8;
+  --reminder-soft: #f1edfb;
+  --reminder-line: #cdbff0;
+  --reminder-ink: #4a3590;
+  --deadline: #b45309;
+  --deadline-soft: #fff3e6;
+  --deadline-line: #f2cfa6;
+  --deadline-ink: #8a3b0c;
+  --done: #2f7d4f;
+  --block-soft: color-mix(in srgb, var(--accent) 16%, var(--bg));
+  --block-line: color-mix(in srgb, var(--accent) 42%, var(--bg));
+  --block-ink: color-mix(in srgb, var(--accent) 60%, var(--text));
+  --ease-out: cubic-bezier(.2, .7, .2, 1);
+  --toast-shadow: 0 10px 28px rgba(0, 0, 0, .14);
+}
+
+/* Light theme: warm paper instead of cold grey. Quiet ink meets 5.4:1 on paper. */
+.app:not([data-theme]),
+.app[data-theme="Light"] {
+  --bg: #fffefc;
+  --panel: #fffefc;
+  --sidebar: #f6f4f0;
+  --text: #2b2926;
+  --muted: #6b6862;
+  --accent: #2b6a8a;
+  --soft: #e6f0f5;
+  --hover: #efece7;
+  --line: #ebe8e2;
+}
+
+.app[data-theme="Dark"],
+.app[data-theme="Dracula"],
+.app[data-theme="Nord"],
+.app[data-theme="Gruvbox"],
+.app[data-theme="Catppuccin Mocha"] {
+  --reminder: #b4a2f0;
+  --reminder-soft: color-mix(in srgb, #8b74e0 20%, var(--bg));
+  --reminder-line: color-mix(in srgb, #8b74e0 48%, var(--bg));
+  --reminder-ink: #d4c9f7;
+  --deadline: #f0a35a;
+  --deadline-soft: color-mix(in srgb, #e08a3a 18%, var(--bg));
+  --deadline-line: color-mix(in srgb, #e08a3a 45%, var(--bg));
+  --deadline-ink: #f6c38f;
+  --done: #6cc08f;
+  --block-ink: color-mix(in srgb, var(--accent) 55%, var(--text));
+  --toast-shadow: 0 10px 28px rgba(0, 0, 0, .45);
+}
+
+/* Page titles use the serif display face; everything else stays Inter. */
+.app .inbox-heading h1,
+.app .tasks-heading h1,
+.app .calendar-day-title,
+.app .rn-page-title {
+  font-family: var(--title-font);
+  font-weight: 600;
+  letter-spacing: -.012em;
+}
+
+/* Undo toast shared by Inbox and Tasks. */
+.rn-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, calc(env(safe-area-inset-bottom) + 84px));
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(560px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 8px 8px 8px 14px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--toast-shadow);
+  font-size: 13.5px;
+  animation: rn-toast-in .18s var(--ease-out);
+}
+.rn-toast > .rn-toast-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  background: var(--done);
+  color: var(--bg);
+  display: grid;
+  place-items: center;
+}
+.rn-toast > .rn-toast-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rn-toast button {
+  flex: none;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rn-toast button kbd {
+  font: inherit;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 6px;
+}
+.rn-toast button.rn-toast-close {
+  background: transparent;
+  color: var(--muted);
+  padding: 0 8px;
+  font-weight: 400;
+}
+@keyframes rn-toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+/* Parsed natural-language chips, shared by quick add and Plan. */
+.rn-parse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 22px;
+}
+.rn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--hover);
+  color: var(--text);
+}
+.rn-chip.is-time { background: var(--block-soft); color: var(--block-ink); }
+.rn-chip.is-deadline,
+.rn-chip.is-high { background: var(--deadline-soft); color: var(--deadline-ink); }
+.rn-chip.is-reminder { background: var(--reminder-soft); color: var(--reminder-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rn-toast { animation: none; }
+}
+
+/* Calendar agenda: reminders read violet everywhere. */
+.app .cal2-row .cal2-time{color:var(--reminder-ink);font-weight:600}
+.app .cal2 .calendar-date-pill h1.calendar-day-title { font-family: var(--title-font); font-weight: 600; letter-spacing: -.012em; }
+@media (max-width: 760px) { .app .cal2 .calendar-date-pill h1.calendar-day-title { font-size: 22px; } }
+
+/* ── Consistency pass (canvas row 5): one type scale, one control height ── */
+.app {
+  --fs-display: 28px;   /* page title, Newsreader */
+  --fs-title: 15px;     /* section headings */
+  --fs-body: 16px;      /* rows and notes on phone */
+  --fs-meta: 13px;      /* secondary */
+  --fs-label: 11px;     /* caps group labels */
+  --fs-num: 22px;       /* stats */
+  --control: 36px;      /* icon buttons and buttons */
+  --control-sm: 30px;   /* tabs, segments, chips in rows */
+}
+@media (min-width: 761px) { .app { --fs-display: 32px; --fs-body: 15px; } }
+
+/* Top bar: "Outline" is an icon on desktop and a ⋯ menu item on phones. */
+.app .outline-view-toggle { border: 0; padding: 0; width: var(--control); min-width: var(--control); height: var(--control); min-height: var(--control); justify-content: center; border-radius: 10px; color: var(--muted); }
+.app .outline-view-toggle.is-active { background: var(--soft); color: var(--block-ink); }
+@media (max-width: 760px) { .app .topbar .outline-view-toggle, .app header .outline-view-toggle { display: none; } }
+@media (min-width: 761px) { .app .menu-outline-toggle { display: none !important; } }
+
+/* Phone workspace switcher: a small round avatar, no box, no caret. */
+@media (max-width: 760px) {
+  .app .mobile-workspace .workspace-current { width: 32px; height: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 99px; background: var(--hover); justify-content: center; box-shadow: none; }
+  .app .mobile-workspace .workspace-chevron { display: none; }
+  .app .mobile-workspace .workspace-icon { font-size: 16px; line-height: 1; }
+}
+
+/* Shared page header and empty state, used by every view. */
+.rn-head { display: flex; align-items: center; gap: 4px; margin: 0 0 14px; min-width: 0; }
+.rn-head h1, .rn-display { font-family: var(--title-font); font-weight: 600; font-size: var(--fs-display); line-height: 1.1; letter-spacing: -.012em; margin: 0; }
+.rn-head .rn-count { font-size: var(--fs-meta); color: var(--muted); margin: 6px 0 0 6px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rn-icon-btn { width: var(--control); height: var(--control); min-height: var(--control); padding: 0; border: 0; border-radius: 10px; display: inline-grid; place-items: center; background: transparent; color: var(--muted); cursor: pointer; flex: none; }
+.rn-icon-btn:hover { background: var(--hover); color: var(--text); }
+.rn-icon-btn[aria-pressed=true], .rn-icon-btn[aria-expanded=true], .rn-icon-btn.is-on { background: var(--soft); color: var(--block-ink); }
+.rn-icon-btn.is-primary { background: var(--text); color: var(--bg); }
+.rn-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; margin: 0 0 12px; }
+.rn-tabs::-webkit-scrollbar { display: none; }
+.rn-tabs button { height: var(--control-sm); min-height: var(--control-sm); padding: 0 11px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 500; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; flex: none; }
+.rn-tabs button[aria-current=page], .rn-tabs button[aria-pressed=true], .rn-tabs button[aria-selected=true] { background: var(--soft); color: var(--block-ink); }
+.rn-tabs button span { font-size: 12px; opacity: .75; }
+.rn-label { font-size: var(--fs-label); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.rn-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 9px; background: var(--hover); }
+.rn-seg button { height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.rn-seg button[aria-pressed=true] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.rn-fchip { height: var(--control-sm); padding: 0 11px; border: 1px solid var(--line); border-radius: 99px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.rn-fchip[aria-pressed=true] { border-color: var(--accent); background: var(--soft); color: var(--block-ink); }
+.rn-sheet-scrim { position: fixed; inset: 0; z-index: 85; background: rgba(20,18,16,.35); animation: rn-fade .18s var(--ease-out); }
+.rn-sheet { position: fixed; z-index: 86; background: var(--panel); color: var(--text); border: 1px solid var(--line); box-shadow: 0 18px 48px rgba(0,0,0,.22); padding: 14px 16px 18px; animation: rn-fade .18s var(--ease-out); }
+@media (max-width: 760px) { .rn-sheet { left: 0; right: 0; bottom: 0; border-radius: 20px 20px 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); max-height: 80dvh; overflow: auto; } .rn-sheet:before { content: ""; display: block; width: 36px; height: 4px; border-radius: 9px; background: var(--line); margin: -4px auto 12px; } }
+@media (min-width: 761px) { .rn-sheet { width: 340px; border-radius: 14px; } }
+.rn-sheet h2 { font-size: var(--fs-title); font-weight: 600; margin: 0; }
+.rn-sheet .rn-label { display: block; margin: 16px 0 8px; }
+.rn-sheet-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.rn-sheet-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; border-radius: 8px; }
+.rn-sheet-item:hover { background: var(--hover); }
+.rn-sheet-item[aria-current=page] { color: var(--block-ink); font-weight: 600; }
+.rn-sheet-item small { margin-left: auto; font-size: var(--fs-meta); color: var(--muted); font-weight: 400; }
+@keyframes rn-fade { from { opacity: 0; } }
+.rn-empty { text-align: center; padding: 56px 20px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); }
+.rn-empty h2, .rn-empty h3 { font-family: var(--title-font); font-size: 20px; font-weight: 600; color: var(--text); margin: 6px 0 0; letter-spacing: 0; }
+.rn-empty p { margin: 0 0 8px; font-size: 14px; line-height: 1.5; max-width: 300px; }
+@media (min-width: 761px) { .app .menu-history { display: none !important; } }
+.app .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Dashboard: date label, one greeting, "Edit" and "+". */
+.app .dash-page-heading h1.rn-display { font-size: var(--fs-display); letter-spacing: -.012em; margin: 4px 0 0; line-height: 1.1; }
+.app .dash-page-heading { align-items: flex-end; margin-bottom: 20px; flex-wrap: nowrap; }
+.app .dash-page-actions .dash-quiet { min-height: 36px; padding: 0 12px; border-radius: 10px; font-size: 14px; font-weight: 500; }
+/* Library pages: one serif title, one empty-state style. */
+.app .canvas-header h1.rn-display { font-family: var(--title-font); font-size: var(--fs-display); font-weight: 600; letter-spacing: -.012em; }
+.app .canvas-empty h2, .app .mindmap-library .empty h2, .app .mindmap-library h2, .app .bl-empty h2, .app .bookshelf-empty h2, .app .study-empty h2, .app .study-folder-empty h2, .app .tasks-empty h2, .app .inbox-empty h2 { font-family: var(--title-font); font-size: 20px; font-weight: 600; letter-spacing: 0; color: var(--text); }
+.app .canvas-empty p, .app .bl-empty p, .app .bookshelf-empty p, .app .study-empty p, .app .tasks-empty p, .app .inbox-empty p { font-size: 14px; line-height: 1.5; }
+.app .mindmap-library > header.rn-head h1 { font-family: var(--title-font); font-size: var(--fs-display); font-weight: 600; margin: 0; }
+.app .mindmap-library > header.rn-head > button { margin-left: auto; }
+.app .mindmap-library > header.rn-head { flex-direction: row !important; align-items: center !important; gap: 4px !important; }
+.app .mindmap-library > header.rn-head > button { min-height: 36px; }
+@media (max-width: 760px) { .app .mindmap-library > header.rn-head > button { font-size: 0; gap: 0; width: 36px; padding: 0; justify-content: center; } }
+.app .bookmark-library .bl-tools { flex-direction: row !important; align-items: center !important; }

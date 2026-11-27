@@ -4,6 +4,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      sync_staging:
+        description: Deploy the tested sync server to staging only
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -27,3 +32,37 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+  sync-staging:
+    if: github.event_name == 'workflow_dispatch' && inputs.sync_staging
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_SYNC_STAGING_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e9a5c70b0fbe2e2d493fc21de0bbb40f
+      WRANGLER_LOG_PATH: /tmp/remonook-sync-wrangler.log
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Require the staging sync deployment token
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Add CLOUDFLARE_SYNC_STAGING_API_TOKEN for remo-sync-staging. The frontend token cannot deploy this Worker."
+            exit 1
+          fi
+      - name: Preserve live staging configuration
+        run: node scripts/staging-sync-config.mjs prepare
+      - name: Validate staging server package
+        run: npx wrangler deploy --config cloud/config.staging.local.json --dry-run --outdir /tmp/remonook-sync-package
+      - name: Deploy staging sync server
+        run: npx wrangler deploy --config cloud/config.staging.local.json --message "Staging release from $GITHUB_SHA"
+      - name: Verify bindings variables secrets and health
+        run: node scripts/staging-sync-config.mjs verify

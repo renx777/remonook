@@ -100,7 +100,7 @@ test('dashboard widgets customize, save habits, survive timer suspension, captur
   assert.equal(state.tables.bullets.find(n=>n.id==='question').text,'A question');
   assert.equal(state.tables.bullets.find(n=>n.id==='answer').text,'An answer');
   assert.ok(state.web.calendarEvents.some(event=>event.title==='Workshop'));
-  await click(textButton('.dash-page-actions button','Edit layout'));assert.ok(document.querySelector('.dash-widget-drag'));await click(textButton('.dash-page-actions button','Done editing'));assert.equal(document.querySelector('.dash-widget-drag'),null);
+  await click(textButton('.dash-page-actions button','Edit'));assert.ok(document.querySelector('.dash-widget-drag'));await click(textButton('.dash-page-actions button','Done editing'));assert.equal(document.querySelector('.dash-widget-drag'),null);
   containerWidth=360;await click([...document.querySelectorAll('.sidebar nav button')].find(button=>button.textContent.trim().startsWith('Notes')));await openDashboard();await wait(()=>document.querySelector('.dash-mobile-stack'));
   for(const name of ['Walk outside','Stretch','Drink water']){await input('[aria-label="New habit"]',name);await act(async()=>document.querySelector('.dash-habit-add').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));}
   assert.equal(document.querySelectorAll('.dash-habit-today-row').length,4);

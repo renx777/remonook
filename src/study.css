@@ -529,3 +529,49 @@
 .study-action-dock .voice-result{min-width:0;max-width:100%}
 .study-action-dock .voice-result-head{flex-wrap:wrap}
 @media(max-width:600px){.study-dock-secondary{padding-inline:36px}.study-dock-secondary .study-voice-button{width:min(100%,240px)}}
+
+/* ── Consistency pass: header, stats strip, folder boxes, one-line deck footer. Notebook covers unchanged. ── */
+.study-head { margin: 0 0 16px; }
+.study-head h1 { font-size: var(--fs-display); }
+.study-head .study-new-folder { min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--text); gap: 6px; }
+.study-desk > .study-filter { margin: 0 0 14px; }
+.study-strip { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; padding: 14px 18px; margin: 0 0 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.study-strip-stats { display: flex; gap: 28px; }
+.study-strip-stats div { display: flex; flex-direction: column; gap: 2px; }
+.study-strip-stats strong { font-size: var(--fs-num); font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.study-strip-stats span { font-size: var(--fs-label); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.study-strip .study-mode-switch { margin-left: auto; }
+.study-strip .study-mode-switch button { border: 0; }
+.study-folder-section h2 { font-size: var(--fs-title); font-weight: 600; }
+.study-folder-section > span { font-size: var(--fs-meta); }
+.study-folders { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 18px; }
+.study-folder { border: 0; }
+.study-folder:hover { background: transparent; }
+.study-folder:hover .folder-box-body { transform: translateY(-2px); }
+.study-folder-open { padding: 0; align-items: stretch; }
+.study-folder .folder-options { position: absolute; right: 6px; top: 22px; z-index: 2; color: #fff; opacity: .8; }
+.folder-box { --box: color-mix(in srgb, var(--fc) 62%, #1f1d1a); position: relative; display: block; width: 100%; padding-top: 14px; color: #f4efe6; text-align: left; }
+.folder-box-tab { position: absolute; top: 0; left: 14px; width: 46%; height: 18px; border-radius: 8px 8px 0 0; background: var(--box); }
+.folder-box-body { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 4px 12px 12px 12px; background: var(--box); overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,.22); transition: transform .18s var(--ease-out); }
+.folder-box-spines { position: absolute; left: 10%; right: 10%; top: 9%; height: 34%; display: flex; gap: 4px; align-items: flex-end; }
+.folder-box-spines i { width: 16%; height: 100%; border-radius: 4px 4px 0 0; box-shadow: inset -2px 0 0 rgba(0,0,0,.15); }
+.folder-box-front { position: absolute; left: 0; right: 0; bottom: 0; height: 60%; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 10% 9%; background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.08)), var(--box); border-top: 1px solid rgba(255,255,255,.18); }
+.folder-box-front b { font: 400 19px/1.15 Georgia, "Times New Roman", serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-box-front small { font-size: 11.5px; opacity: .8; margin-top: 3px; }
+.folder-box-logo { position: absolute; right: 9%; top: 14%; opacity: .9; }
+.study-deck .deck-pin-row { grid-column: 1 / -1; grid-row: auto; justify-content: flex-start; align-items: center; gap: 4px; margin-top: 10px; color: var(--muted); }
+.study-deck .deck-pin-row .deck-name { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-title); font-weight: 600; color: var(--text); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.study-deck .deck-pin-row > div { display: flex; align-items: center; }
+.study-deck .deck-pin-row button { min-width: 28px; min-height: 28px; padding: 0; display: grid; place-items: center; }
+.study-deck .study-deck-actions { grid-column: 1 / -1; flex-wrap: nowrap; align-items: center; gap: 4px; margin-top: 2px; }
+.study-deck .deck-meta { flex: 1; min-width: 0; font-size: var(--fs-meta); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.study-deck .deck-meta > * > * + *::before, .study-deck .deck-meta .due-badge::before, .study-deck .deck-meta .deck-uptodate::before { content: " · "; color: var(--muted); font-weight: 400; }
+.study-deck .deck-meta .due-badge { background: none; padding: 0; color: var(--accent); font-weight: 600; font-size: inherit; }
+.study-deck .study-deck-actions .study-primary { font-size: 13px; font-weight: 600; padding: 0 4px; min-height: 28px; }
+.study-deck .deck-settings-button { min-width: 28px; min-height: 28px; padding: 0; color: var(--muted); }
+.study-deck .mcq-deck-badge { display: none; }
+@media (max-width: 760px) {
+  .study-head .study-new-folder { font-size: 0; gap: 0; width: 36px; padding: 0; justify-content: center; border: 0; }
+  .study-strip { gap: 14px 22px; padding: 12px 14px; }
+  .study-strip .study-mode-switch { margin-left: 0; }
+}

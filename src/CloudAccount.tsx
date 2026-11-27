@@ -29,7 +29,7 @@ function CloudAuthGate({children}:{children:(user:User|null)=>React.ReactNode}){
    lastUid.current=next?.uid;
    // Reload after an account transition to discard all in-memory editors, URLs,
    // undo stacks and folder handles before opening the new account's database.
-   if(initial.current){try{await prepareTransition();window.location.hash=next?'app':'home';location.reload();}catch(e){setError(e instanceof Error?e.message:String(e));}return;}
+   if(initial.current){try{const {disableBackgroundReminders}=await import('./background-reminders');await disableBackgroundReminders();await prepareTransition();window.location.hash=next?'app':'home';location.reload();}catch(e){setError(e instanceof Error?e.message:String(e));}return;}
    initial.current=true;setStorageAccount(next?.uid||null);const local=activeLocalWorkspace();if(local)setStorageName(workspaceStorageName(local));setUser(next);
  },e=>setError(e.message)),[]);
  if(user===undefined)return <div className="startup"><div className="brand"><RemoLogo/>RemoNook</div><p>{error||'Opening your workspace…'}</p>{error&&<button onClick={()=>location.reload()}>Retry</button>}</div>;

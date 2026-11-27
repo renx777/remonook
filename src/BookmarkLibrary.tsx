@@ -23,6 +23,7 @@ import { ActionMenu, ActionMenuItem } from "./ActionMenu";
 import { queryBookmarks } from "./bookmarks.mjs";
 import { progressLabel, savedLabel, siteTile } from "./bookmark-progress";
 import "./bookmark-library.css";
+import { Sheet } from "./Sheet";
 type Bookmark = {
   id: string;
   url: string;
@@ -87,7 +88,9 @@ export function BookmarkLibrary({
     [selected, setSelected] = useState<string[]>([]),
     [menu, setMenu] = useState<string | null>(null),
     [remove, setRemove] = useState<string[] | null>(null),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [sortOpen, setSortOpen] = useState(false),
+    sortButton = useRef<HTMLButtonElement>(null);
   const rows = useMemo(
     () => queryBookmarks(bookmarks, { query, filter, tag, sort }) as Bookmark[],
     [bookmarks, query, filter, tag, sort],
@@ -181,8 +184,8 @@ export function BookmarkLibrary({
     <div className="bookmark-library">
       <header className="bl-heading">
         <div>
-          <h1 className="page-title-hidden">Bookmarks</h1>
-          <p>
+          <h1 className="rn-display">Bookmarks</h1>
+          <p className="bl-count">
             {counts.all + counts.archived
               ? [
                   `${counts.all} saved`,
@@ -191,7 +194,7 @@ export function BookmarkLibrary({
                 ]
                   .filter(Boolean)
                   .join(" · ")
-              : "Your reading list, ready when you are"}
+              : ""}
           </p>
         </div>
         <form
@@ -278,33 +281,36 @@ export function BookmarkLibrary({
             </button>
           )}
         </label>
-        <div className="bl-organise">
-          <label className="bl-sort">
-            <ArrowUpDown size={15} />
-            <span className="bl-sr">Sort bookmarks</span>
-            <select value={sort} onChange={(e) => changeSort(e.target.value)}>
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-              <option value="title">Title A–Z</option>
-              <option value="domain">Website A–Z</option>
-            </select>
-          </label>
-          {tags.length > topTags.length && (
-            <label className="bl-tag-filter">
-              <Tag size={15} />
-              <span className="bl-sr">Filter by tag</span>
-              <select value={tag} onChange={(e) => setTag(e.target.value)}>
-                <option value="">More tags</option>
-                {tags.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
+        <button
+          ref={sortButton}
+          className={`rn-icon-btn ${sort !== "newest" || (tag && !topTags.some((t) => t.toLocaleLowerCase() === tag.toLocaleLowerCase())) ? "is-on" : ""}`}
+          aria-label="Sort and filter bookmarks"
+          aria-expanded={sortOpen}
+          onClick={() => setSortOpen((o) => !o)}
+        >
+          <ArrowUpDown size={17} />
+        </button>
       </div>
+      {sortOpen && (
+        <Sheet anchor={sortButton.current} label="Sort and filter bookmarks" onClose={() => setSortOpen(false)}>
+          <h2>Sort & filter</h2>
+          <span className="rn-label">Sort by</span>
+          <div className="rn-sheet-row" role="group" aria-label="Sort bookmarks">
+            {[["newest", "Newest"], ["oldest", "Oldest"], ["title", "Title"], ["domain", "Website"]].map(([value, label]) => (
+              <button key={value} className="rn-fchip" aria-pressed={sort === value} onClick={() => changeSort(value)}>{label}</button>
+            ))}
+          </div>
+          {tags.length > 0 && (<>
+            <span className="rn-label">Tag</span>
+            <div className="rn-sheet-row" role="group" aria-label="Filter by tag">
+              <button className="rn-fchip" aria-pressed={!tag} onClick={() => setTag("")}>Any</button>
+              {tags.map((t) => (
+                <button key={t} className="rn-fchip" aria-pressed={tag.toLocaleLowerCase() === t.toLocaleLowerCase()} onClick={() => setTag(tag.toLocaleLowerCase() === t.toLocaleLowerCase() ? "" : t)}>#{t}</button>
+              ))}
+            </div>
+          </>)}
+        </Sheet>
+      )}
       {topTags.length > 0 && (
         <div className="bl-tag-chips" role="group" aria-label="Filter by tag">
           <span aria-hidden="true">Tags</span>

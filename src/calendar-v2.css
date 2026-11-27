@@ -652,3 +652,25 @@
 
 /* Phones stack the month and agenda under the day, so there is nothing to hide. */
 @media (max-width: 760px) { .cal2-aside-toggle { display: none; } .calendar-view.cal2.cal2-aside-hidden > .cal2-aside { display: contents; } }
+
+/* Consistency pass: short date + week strip on phones, compact switches, quiet labels. */
+.cal2 .calendar-day-title .cal-short { display: none; }
+.cal2 .calendar-prefix { font-size: var(--fs-label, 11px); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.cal2 .cal-week { display: none; }
+.cal2 .cal-tasks h2 { font-size: var(--fs-title, 15px); font-weight: 600; }
+.cal2 .cal-plan-header [role=group] { padding: 2px; border-radius: 9px; }
+.cal2 .cal-plan-header [role=group] button { min-height: 28px; height: 28px; padding: 0 10px; font-size: 13px; }
+.cal2 .wd2-compact .wd2-switch { display: inline-flex; width: auto; padding: 2px; gap: 2px; border-radius: 9px; background: var(--hover); }
+.cal2 .wd2-compact .wd2-switch button { flex: none; min-height: 28px; height: 28px; padding: 0 12px; font-size: 13px; font-weight: 500; border-radius: 7px; }
+@media (max-width: 760px) {
+  .cal2 .calendar-day-title .cal-long { display: none; }
+  .cal2 .calendar-day-title .cal-short { display: inline; }
+  .cal2 .calendar-date-pill h1.calendar-day-title { font-size: var(--fs-display, 28px) !important; }
+  .cal2 .cal2-aside-toggle span { display: none; }
+  .cal2 .cal-week { display: flex; margin: 4px -4px 14px; }
+  .cal2 .cal-week button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0; min-height: 52px; border: 0; background: transparent; color: var(--text); cursor: pointer; }
+  .cal2 .cal-week button span { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; color: var(--muted); }
+  .cal2 .cal-week button b { width: 32px; height: 32px; border-radius: 99px; display: grid; place-items: center; font-size: 14px; font-weight: 500; }
+  .cal2 .cal-week button.is-today b { color: var(--accent); font-weight: 700; }
+  .cal2 .cal-week button[aria-pressed=true] b { background: var(--text); color: var(--bg); font-weight: 600; }
+}

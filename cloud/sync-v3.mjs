@@ -1,3 +1,8 @@
+import {attachmentReferences} from '../src/asset-references.mjs';
+import {reserveAttachment,FILE_LIMIT} from './attachment-storage.mjs';
+import {ReminderPush,reminderFieldsChanged} from './reminder-push.mjs';
+import {repeatTemplate,validateRepeatReceipts} from '../src/task-repeat-fields.mjs';
+import {advanceRecurringTasks} from '../src/recurring-tasks.mjs';
 // Sync protocol v3: one Durable Object per account holds the workspace as buckets.
 //
 // A push opens only the buckets it touches, checks the changed records and the root data
@@ -6,7 +11,7 @@
 // unchanged buckets are never decoded. Records (projected rows as JSON) serve the AI apps
 // connection and other server readers without opening any Yjs document.
 import {Y,pack,unpack,projectParts,assembleParts,applyParts,emptyShared} from '../src/sync-crdt.mjs';
-import {applyDocument,isBucket,readRepair,patchBuckets,diffPatch,emptyPatch,ASSET_BUCKET,PROTOCOL_V3} from '../src/sync-buckets.mjs';
+import {bulletBucket,leafBucket,applyDocument,isBucket,readRepair,patchBuckets,diffPatch,emptyPatch,ASSET_BUCKET,PROTOCOL_V3} from '../src/sync-buckets.mjs';
 import {checkRow,checkRoot,checkAssets} from '../src/sync-checks.mjs';
 
 const CHUNK=1_000_000,REQUEST_LIMIT=4*1024*1024,PULL_LIMIT=4*1024*1024,BUCKET_LIMIT=8*1024*1024,ACCOUNT_LIMIT=1024*1024*1024,JOURNAL_KEEP=5000,CACHE_LIMIT=24*1024*1024;
@@ -27,6 +32,10 @@ export class SyncSpace{
   this.sql.exec(`CREATE TABLE IF NOT EXISTS records(k TEXT PRIMARY KEY, tbl TEXT NOT NULL, bucket TEXT NOT NULL, body TEXT NOT NULL)`);
   // Children lookups for the AI apps connection read only the part of the outline they need.
   this.sql.exec(`CREATE INDEX IF NOT EXISTS records_parent ON records(tbl, json_extract(body,'$.parentId'))`);
+  this.sql.exec("CREATE INDEX IF NOT EXISTS records_timed ON records(k) WHERE tbl='bullets' AND json_extract(body,'$.taskState')='TODO' AND json_extract(body,'$.taskStartTime')!=''");
+  this.sql.exec('CREATE TABLE IF NOT EXISTS asset_paths(hash TEXT NOT NULL,path TEXT NOT NULL,PRIMARY KEY(hash,path))');
+  this.sql.exec('CREATE TABLE IF NOT EXISTS asset_uploads(token TEXT PRIMARY KEY,hash TEXT NOT NULL,expires INTEGER NOT NULL,completed INTEGER NOT NULL DEFAULT 0)');
+  this.reminders=new ReminderPush(this);
  }
  // ---- storage helpers
  meta(k){return this.sql.exec('SELECT v FROM meta WHERE k=?',k).toArray()[0]?.v;}
@@ -64,6 +73,7 @@ export class SyncSpace{
    this.ctx.storage.transactionSync(()=>{
     for(const [id,state] of states){const bytes=unpack(state);this.writeBlob('b:'+id,bytes);this.sql.exec('INSERT INTO buckets(id,rev,size) VALUES(?,?,?)',id,1,bytes.length);}
     for(const id of states.keys())this.indexRecords(id,{rows:[],rootFields:[]},this.load(id).parts);
+    this.rememberAssetPaths(seed.assets||[]);
     this.setMeta('revision',1);
    });
   }
@@ -81,6 +91,39 @@ export class SyncSpace{
   for(const [k,v] of al)if(JSON.stringify(bl.get(k))!==JSON.stringify(v))this.sql.exec('INSERT INTO records(k,tbl,bucket,body) VALUES(?,?,?,?) ON CONFLICT(k) DO UPDATE SET body=excluded.body','leaf:'+k,'$leaf',bucket,JSON.stringify(v));
  }
 
+ rememberAssetPaths(assets){for(const a of assets)this.sql.exec('INSERT OR IGNORE INTO asset_paths(hash,path) VALUES(?,?)',a.hash,a.path);}
+ async reserveFile({hash,size}){
+  if(!/^[a-f0-9]{64}$/.test(hash)||!Number.isSafeInteger(size)||size<0||size>FILE_LIMIT)error('Invalid attachment',400);
+  await reserveAttachment(this.env,this.meta('uid'),hash,size);const token=crypto.randomUUID();
+  this.sql.exec('INSERT INTO asset_uploads(token,hash,expires) VALUES(?,?,?)',token,hash,Date.now()+15*60000);return {token};
+ }
+ async reconcileAssets(input){
+  if(!input||typeof input.operationId!=='string'||!/^[a-f0-9-]{36}$/.test(input.operationId)||!Array.isArray(input.hashes)||input.hashes.length>2000||input.hashes.some(h=>typeof h!=='string'||!/^[a-f0-9]{64}$/.test(h)))error('Invalid attachment reconciliation');
+  const domains=new Set(['studyFolders','quizReactions','deckDesigns']),roots=new Set([...domains].map(key=>leafBucket(JSON.stringify(['web',key]))));
+  const rootFields=[...roots].flatMap(bucket=>this.load(bucket).parts.rootFields.filter(f=>f.path[0]==='web'&&domains.has(f.path[1])));
+  const rows=this.sql.exec("SELECT k,tbl,body FROM records WHERE tbl IN ('media','emojis','trash')").toArray().map(r=>({key:r.k,table:r.tbl,row:JSON.parse(r.body)}));
+  const doc=assembleParts([{rootFields,rows,tables:['media','emojis','trash'],assets:[]}]).doc;
+  const refs=attachmentReferences(doc),protectedHashes=new Set(this.load(ASSET_BUCKET).parts.assets.map(a=>a.hash));
+  // Fail closed on malformed Trash; retain historical path associations for offline edits.
+  for(const row of this.sql.exec('SELECT hash,path FROM asset_paths').toArray())if(refs.has(row.path))protectedHashes.add(row.hash);
+  const explicit=new Set(input.hashes);for(const lease of this.sql.exec('SELECT hash,completed FROM asset_uploads WHERE expires>?',Date.now()).toArray())if(!lease.completed||!explicit.has(lease.hash))protectedHashes.add(lease.hash);
+  const candidates=new Set(input.hashes),expired=this.sql.exec('SELECT token,hash FROM asset_uploads WHERE expires<=? LIMIT ?',Date.now(),2000-candidates.size).toArray();
+  for(const lease of expired)if(candidates.size<2000)candidates.add(lease.hash);
+  // Legacy rows have no creation timestamp. Reclaim their allocation only; retaining
+  // bytes plus serialized current references/leases makes old offline restoration safe.
+  const excluded=JSON.stringify([...new Set([...protectedHashes,...candidates])]);
+  if(candidates.size<2000&&excluded.length<=1024*1024){const orphaned=await this.env.DB.prepare('SELECT hash FROM assets WHERE uid=? AND hash NOT IN (SELECT value FROM json_each(?)) LIMIT ?').bind(this.meta('uid'),excluded,2000-candidates.size).all();for(const row of orphaned.results)candidates.add(row.hash);}
+  const retired=[...candidates].filter(hash=>!protectedHashes.has(hash));let freed=0;
+  // <= 46 bounded D1 queries at the 2,000-hash request limit; never one round trip per file.
+  for(let i=0;i<retired.length;i+=90){const batch=retired.slice(i,i+90),slots=batch.map(()=>'?').join(',');
+   const rows=await this.env.DB.prepare('SELECT hash,size FROM assets WHERE uid=? AND hash IN ('+slots+')').bind(this.meta('uid'),...batch).all();
+   if(rows.results.length){await this.env.DB.prepare('DELETE FROM assets WHERE uid=? AND hash IN ('+slots+')').bind(this.meta('uid'),...batch).run();freed+=rows.results.reduce((n,r)=>n+r.size,0);}
+  }
+  // Only accounting is retired. Every immutable R2 original remains recoverable.
+  for(const lease of expired)this.sql.exec('DELETE FROM asset_uploads WHERE token=?',lease.token);
+  return {operationId:input.operationId,retired,freed,...this.pull(Number(input.since)||0)};
+ }
+
  // ---- commit: mutate touched buckets, check what changed, persist atomically
  async commit({operationId,requestHash},mutate){
   const prior=this.sql.exec('SELECT rev,hash FROM journal WHERE op=?',operationId).toArray()[0];
@@ -89,12 +132,32 @@ export class SyncSpace{
   const open=id=>{if(!touched.has(id)){const hit=this.load(id);touched.set(id,{hit,vector:Y.encodeStateVector(hit.doc),before:hit.parts});}return touched.get(id).hit.doc;};
   try{
    mutate(open);
+   // Old forms omit unknown daily metadata. New forms explicitly write false.
+   for(const [,t] of touched){const after=projectParts(t.hit.doc),fields=t.hit.doc.getMap('fields');
+    for(const f of t.before.rootFields)if(f.path[0]==='web'&&f.path[1]==='calendarEvents'&&f.path[3]==='daily'&&f.value===true){
+     const rest=after.rootFields.filter(a=>a.path[0]==='web'&&a.path[1]==='calendarEvents'&&a.path[2]===f.path[2]);
+     if(rest.some(a=>a.path[3]==='id')&&rest.some(a=>a.path[3]==='repeat'&&a.value==='none')&&!rest.some(a=>a.path[3]==='daily'))fields.set(JSON.stringify(f.path),true);
+    }
+   }
+   // Reconcile legacy-client completions before validation/journalling. Only a
+   // changed completed repeating row opens this indexed projection path.
+   const recurring=[];let generated=false;const overrides=new Map();
+   for(const [id,t] of touched){const after=projectParts(t.hit.doc);overrides.set(id,after);const before=rowMap(t.before);for(const r of after.rows)if(r.table==='bullets'&&!r.row.mirrorSourceId&&r.row.taskState==='DONE'&&r.row.taskRepeat&&r.row.taskRepeat!=='NONE'&&JSON.stringify(before.get(r.key)?.row)!==JSON.stringify(r.row))recurring.push(r.row);}
+   let needsRepeat=false;
+   if(recurring.length){
+    needsRepeat=recurring.some(n=>{const t=repeatTemplate(n.taskRepeatTemplate);if(!t)return false;const parts=overrides.get(bulletBucket(n.id))||this.load(bulletBucket(n.id)).parts;
+     return !parts.rootFields.some(f=>f.path[0]==='web'&&f.path[1]==='taskRepeatReceipts'&&f.path[2]===n.id&&f.path[3]===t.id);
+    });
+   }
+   if(needsRepeat){const current=this.read(overrides).doc;let next;try{next=advanceRecurringTasks(current);}catch(e){error('Recurring tasks: '+e.message,400,'SYNC_VALIDATION_FAILED');}if(next!==current){generated=true;for(const [id,[b,a]] of patchBuckets(diffPatch(current,next)))applyParts(open(id),b,a,[],[],true);}}
    const updates={},changed=[];
    let rootTouched=false,assetsTouched=false;
    for(const [id,t] of touched){
     const update=Y.encodeStateAsUpdate(t.hit.doc,t.vector);if(update.length<=2)continue;
     updates[id]=pack(update);
-    t.after=projectParts(t.hit.doc);
+    t.after=!generated&&overrides.has(id)?overrides.get(id):projectParts(t.hit.doc);
+    const receiptFields=t.after.rootFields.filter(f=>f.path[0]==='web'&&f.path[1]==='taskRepeatReceipts');
+    if(receiptFields.length)try{validateRepeatReceipts(assembleParts([{rootFields:receiptFields,rows:[],tables:[],assets:[]}]).doc.web.taskRepeatReceipts);}catch(e){error(e.message,400,'SYNC_VALIDATION_FAILED');}
     const b=rowMap(t.before);
     for(const [key,r] of rowMap(t.after))if(JSON.stringify(b.get(key)?.row)!==JSON.stringify(r.row))try{checkRow(r.table,r.row);}catch(e){error(`Invalid shared document: ${r.table} record: ${e.message}`,400,'SYNC_VALIDATION_FAILED');}
     if(id.startsWith('r'))rootTouched=true;if(id===ASSET_BUCKET)assetsTouched=true;
@@ -108,9 +171,9 @@ export class SyncSpace{
     try{checkRoot(doc.web||{});}catch(e){error(`Invalid shared document: ${e.message}`,400,'SYNC_VALIDATION_FAILED');}
    }
    if(assetsTouched){
-    const assets=touched.get(ASSET_BUCKET).after.assets;try{checkAssets(assets);}catch(e){error(e.status===413?e.message:`Invalid shared document: ${e.message}`,e.status||400,e.status===413?undefined:'SYNC_VALIDATION_FAILED');}
+    const assets=touched.get(ASSET_BUCKET).after.assets;try{checkAssets(assets);}catch(e){error(e.status===413?e.message:`Invalid shared document: ${e.message}`,e.status||400,e.status===413?'ATTACHMENT_MANIFEST_FULL':'SYNC_VALIDATION_FAILED');}
     const before=new Set(touched.get(ASSET_BUCKET).before.assets.map(a=>a.hash+':'+a.size));
-    for(const a of assets)if(!before.has(a.hash+':'+a.size)){const file=this.env.DB&&await this.env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(this.meta('uid'),a.hash).first();if(this.env.DB&&(!file||file.size!==a.size))error('An attachment is still uploading.',409);}
+    for(const a of assets)if(!before.has(a.hash+':'+a.size)){const file=this.env.DB&&await this.env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(this.meta('uid'),a.hash).first();if(this.env.DB&&(!file||file.size!==a.size)){const retained=await this.env.FILES?.head?.(this.meta('uid')+'/'+a.hash);if(retained?.size===a.size)await reserveAttachment(this.env,this.meta('uid'),a.hash,a.size);else error('An attachment is still uploading.',409);}}
    }
    const states=new Map(changed.map(id=>[id,Y.encodeStateAsUpdate(touched.get(id).hit.doc)]));
    for(const [id,bytes] of states)if(bytes.length>BUCKET_LIMIT)error(`Your workspace is full: one storage part would be ${(bytes.length/1048576).toFixed(1)} MB. Nothing was saved.`,413);
@@ -118,7 +181,7 @@ export class SyncSpace{
    if(total>ACCOUNT_LIMIT)error('Your workspace is full. Nothing was saved.',413);
    const next=this.revision()+1;
    this.ctx.storage.transactionSync(()=>{
-    for(const [id,bytes] of states){this.writeBlob('b:'+id,bytes);this.sql.exec('INSERT INTO buckets(id,rev,size) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET rev=excluded.rev,size=excluded.size',id,next,bytes.length);this.indexRecords(id,touched.get(id).before,touched.get(id).after);}
+    for(const [id,bytes] of states){this.writeBlob('b:'+id,bytes);this.sql.exec('INSERT INTO buckets(id,rev,size) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET rev=excluded.rev,size=excluded.size',id,next,bytes.length);this.indexRecords(id,touched.get(id).before,touched.get(id).after);if(id===ASSET_BUCKET){this.rememberAssetPaths([...touched.get(id).before.assets,...touched.get(id).after.assets]);this.sql.exec('DELETE FROM asset_uploads WHERE hash IN (SELECT value FROM json_each(?))',JSON.stringify(touched.get(id).after.assets.map(a=>a.hash)));}}
     this.sql.exec('INSERT INTO journal(rev,op,hash,created) VALUES(?,?,?,?)',next,operationId,requestHash,Date.now());
     this.writeBlob('j:'+next,new TextEncoder().encode(JSON.stringify(updates)));
     this.setMeta('revision',next);
@@ -127,6 +190,7 @@ export class SyncSpace{
    });
    for(const id of changed){const t=touched.get(id);t.hit.parts=t.after;const size=states.get(id).length;this.cacheBytes+=size-t.hit.size;t.hit.size=size;}
    this.notify(next);
+   if([...touched.values()].some(t=>t.after&&reminderFieldsChanged(t.before,t.after)))try{await this.reminders.nudge();}catch{console.error(JSON.stringify({event:'reminder_alarm_retry'}));}
    return {revision:next};
   }catch(e){this.evict(touched.keys());throw e;}
  }
@@ -156,11 +220,11 @@ export class SyncSpace{
  }
 
  /** The whole document from projected records; no Yjs documents are opened for rows. */
- read(){
-  const rows=this.sql.exec("SELECT k,tbl,body FROM records WHERE tbl!='$leaf'").toArray().map(r=>({key:r.k,table:r.tbl,row:JSON.parse(r.body)}));
-  const leaves=this.sql.exec("SELECT k,body FROM records WHERE tbl='$leaf'").toArray().map(r=>({path:JSON.parse(r.k.slice(5)),value:JSON.parse(r.body)}));
-  const roots=this.rootIds().map(id=>this.load(id).parts),assets=this.bucketIds().includes(ASSET_BUCKET)?this.load(ASSET_BUCKET).parts.assets:[];
-  const value=assembleParts([...roots,{rootFields:leaves,rows,tables:[],assets}]);
+ read(overrides=new Map()){
+  const rows=this.sql.exec("SELECT k,tbl,body,bucket FROM records WHERE tbl!='$leaf'").toArray().filter(r=>!overrides.has(r.bucket)).map(r=>({key:r.k,table:r.tbl,row:JSON.parse(r.body)}));
+  const leaves=this.sql.exec("SELECT k,body,bucket FROM records WHERE tbl='$leaf'").toArray().filter(r=>!overrides.has(r.bucket)).map(r=>({path:JSON.parse(r.k.slice(5)),value:JSON.parse(r.body)}));
+  const roots=this.rootIds().filter(id=>!overrides.has(id)).map(id=>this.load(id).parts),assets=overrides.has(ASSET_BUCKET)?[]:this.bucketIds().includes(ASSET_BUCKET)?this.load(ASSET_BUCKET).parts.assets:[];
+  const value=assembleParts([...roots,...overrides.values(),{rootFields:leaves,rows,tables:[],assets}]);
   readRepair(value.doc);
   return {...value,revision:this.revision()};
  }
@@ -191,11 +255,13 @@ export class SyncSpace{
  webSocketMessage(ws,message){if(message==='ping')ws.send(JSON.stringify({revision:this.revision()}));}
  webSocketClose(ws,code){try{ws.close(code);}catch{}}
 
+ async alarm(){return this.reminders.alarm();}
  async fetch(request){
   const url=new URL(request.url),uid=request.headers.get('X-Remo-Uid');
   if(!uid)return json({error:'Missing account'},400);
   try{
    await this.serial(()=>this.ensure(uid));
+   if(this.meta('reminder_dirty')==='1')try{await this.serial(()=>this.reminders.nudge());}catch{console.error(JSON.stringify({event:'reminder_alarm_retry'}));}
    if(url.pathname==='/ws'){
     if(request.headers.get('Upgrade')!=='websocket')return json({error:'Expected WebSocket'},426);
     const pair=new WebSocketPair();this.ctx.acceptWebSocket(pair[1]);pair[1].send(JSON.stringify({revision:this.revision()}));
@@ -205,6 +271,10 @@ export class SyncSpace{
    if(url.pathname==='/read')return json(this.read());
    if(url.pathname==='/subset')return json(this.subset(await request.json()));
    const body=await request.json();
+   if(url.pathname==='/asset-reserve')return json(await this.serial(()=>this.reserveFile(body)));
+   if(url.pathname==='/asset-finish'){await this.serial(async()=>{const lease=this.sql.exec('SELECT hash FROM asset_uploads WHERE token=?',body.token).toArray()[0];if(body.failed){this.sql.exec('DELETE FROM asset_uploads WHERE token=?',body.token);if(lease)await this.reconcileAssets({operationId:crypto.randomUUID(),hashes:[lease.hash]});}else this.sql.exec('UPDATE asset_uploads SET completed=1 WHERE token=?',body.token);});return json({ok:true});}
+   if(url.pathname==='/asset-reconcile')return json(await this.serial(()=>this.reconcileAssets(body)));
+   if(url.pathname==='/reminders')return json(await this.serial(()=>this.reminders.request(body)));
    if(url.pathname==='/push')return json(await this.serial(()=>this.push(body)));
    if(url.pathname==='/patch')return json(await this.serial(()=>this.patch(body)));
    return json({error:'Not found'},404);
@@ -238,6 +308,7 @@ export async function isV3Account(env,uid){if(!env.SYNC_SPACE||!env.DB)return fa
 export async function syncV3(request,env,uid,{readLimited}){
  if(!env.SYNC_SPACE)error('Sync v3 is not available on this server.',404);
  const url=new URL(request.url);
+ if(url.pathname==='/assets/reconcile'&&request.method!=='POST')error('Method not allowed',405);
  if(url.pathname==='/sync/v3/ws'){
   if(request.headers.get('Upgrade')!=='websocket')error('Expected WebSocket',426);
   const headers=new Headers(request.headers);headers.set('X-Remo-Uid',uid);
@@ -245,8 +316,8 @@ export async function syncV3(request,env,uid,{readLimited}){
  }
  if(request.method==='GET'){const q=k=>encodeURIComponent(url.searchParams.get(k)||'');return json(await call(env,uid,`/pull?since=${q('since')}&after=${q('after')}&target=${q('target')}`));}
  if(request.method!=='POST')error('Method not allowed',405);
- let input;try{input=JSON.parse(new TextDecoder().decode(await readLimited(request,REQUEST_LIMIT)));}catch(e){if(e.status)throw e;error('Invalid sync request');}
- return json(await call(env,uid,'/push',input));
+ let input;try{input=JSON.parse(new TextDecoder().decode(await readLimited(request,url.pathname==='/assets/reconcile'?256*1024:REQUEST_LIMIT)));}catch(e){if(e.status)throw e;error('Invalid sync request');}
+ return json(await call(env,uid,url.pathname==='/assets/reconcile'?'/asset-reconcile':'/push',input));
 }
 /** Part of the outline for AI app reads; see SyncSpace.subset. */
 export async function readSubsetV3(env,uid,query){return call(env,uid,'/subset',query);}
@@ -260,3 +331,6 @@ export async function commitChangeV3(env,uid,{operationId,requestHash,change}){
  const r=await call(env,uid,'/patch',{operationId,requestHash,patch,assetsBefore:assets,assetsAfter:assets});
  return {revision:r.revision,replayed:r.replayed,result:r.replayed?null:out.result};
 }
+
+export const reserveV3Attachment=(env,uid,hash,size)=>call(env,uid,'/asset-reserve',{hash,size});
+export const finishV3Attachment=(env,uid,token,failed=false)=>call(env,uid,'/asset-finish',{token,failed});
