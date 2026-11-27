@@ -1,8 +1,9 @@
+import {taskDateCounts} from './tasks.mjs';
 import { useEffect, useMemo, useState } from "react";
 import type { Workspace } from "./data";
 import { Icon } from "./icons";
 import {
-  calendarEvents,
+  calendarEvents,occurrenceComplete,
   eventKinds,
   eventsOnDate,
   upcomingEvents,
@@ -52,6 +53,7 @@ export function MiniMonth({
 }) {
   const [view, setView] = useState(date.slice(0, 7) + "-01");
   useEffect(() => setView(date.slice(0, 7) + "-01"), [date.slice(0, 7)]);
+  const taskDates=useMemo(()=>taskDateCounts(doc),[doc.tables.bullets]);
   const events = calendarEvents(doc),
     w = useMemo(() => workdaysV2(doc, date), [doc.web.workdays]),
     month = periodRange(view, "month"),
@@ -76,6 +78,7 @@ export function MiniMonth({
         {monthGrid(view).map((d) => {
           const inMonth = d.slice(0, 7) === view.slice(0, 7),
             count = eventsOnDate(events, d).length,
+            taskCount=taskDates.get(d)||0,
             info = workdays ? dayInfo(w, d, today) : null,
             set = !!info?.modes.some(Boolean),
             [a, b] = info?.modes || [];
@@ -87,6 +90,7 @@ export function MiniMonth({
               aria-label={
                 longDate(d, { weekday: "long", day: "numeric", month: "long" }) +
                 (count ? `, ${count} reminder${count === 1 ? "" : "s"}` : "") +
+                (taskCount ? `, ${taskCount} task${taskCount===1?"":"s"}` : "") +
                 (info && (set || info.holiday) ? `, ${info.label}` : "")
               }
               className={[
@@ -102,7 +106,7 @@ export function MiniMonth({
             >
               <span className="cal2-num">
                 {+d.slice(8)}
-                {count > 0 && <i className="cal2-dot" aria-hidden="true" />}
+                {(count > 0 || taskCount > 0) && <i className="cal2-dot" aria-hidden="true" />}
               </span>
               <span
                 aria-hidden="true"
@@ -281,7 +285,7 @@ export function CalendarAgenda({ doc, date, disabled, onSelectDate, onChange, on
               </>
             )}
             {day.map((e, i) => {
-              const done = e.completed.includes(date);
+              const done = occurrenceComplete(e,date);
               return [
                 i === nowIndex && nowAt ? nowLine : null,
                 <div className={"cal2-row" + (done ? " is-complete" : "")} key={e.id}>

@@ -1,3 +1,5 @@
+import {repeatTemplate,validateRepeatReceipts} from '../src/task-repeat-fields.mjs';
+import {advanceRecurringTasks} from '../src/recurring-tasks.mjs';
 // Sync protocol v3: one Durable Object per account holds the workspace as buckets.
 //
 // A push opens only the buckets it touches, checks the changed records and the root data
@@ -6,7 +8,7 @@
 // unchanged buckets are never decoded. Records (projected rows as JSON) serve the AI apps
 // connection and other server readers without opening any Yjs document.
 import {Y,pack,unpack,projectParts,assembleParts,applyParts,emptyShared} from '../src/sync-crdt.mjs';
-import {applyDocument,isBucket,readRepair,patchBuckets,diffPatch,emptyPatch,ASSET_BUCKET,PROTOCOL_V3} from '../src/sync-buckets.mjs';
+import {bulletBucket,applyDocument,isBucket,readRepair,patchBuckets,diffPatch,emptyPatch,ASSET_BUCKET,PROTOCOL_V3} from '../src/sync-buckets.mjs';
 import {checkRow,checkRoot,checkAssets} from '../src/sync-checks.mjs';
 
 const CHUNK=1_000_000,REQUEST_LIMIT=4*1024*1024,PULL_LIMIT=4*1024*1024,BUCKET_LIMIT=8*1024*1024,ACCOUNT_LIMIT=1024*1024*1024,JOURNAL_KEEP=5000,CACHE_LIMIT=24*1024*1024;
@@ -89,12 +91,25 @@ export class SyncSpace{
   const open=id=>{if(!touched.has(id)){const hit=this.load(id);touched.set(id,{hit,vector:Y.encodeStateVector(hit.doc),before:hit.parts});}return touched.get(id).hit.doc;};
   try{
    mutate(open);
+   // Reconcile legacy-client completions before validation/journalling. Only a
+   // changed completed repeating row opens this indexed projection path.
+   const recurring=[];let generated=false;const overrides=new Map();
+   for(const [id,t] of touched){const after=projectParts(t.hit.doc);overrides.set(id,after);const before=rowMap(t.before);for(const r of after.rows)if(r.table==='bullets'&&!r.row.mirrorSourceId&&r.row.taskState==='DONE'&&r.row.taskRepeat&&r.row.taskRepeat!=='NONE'&&JSON.stringify(before.get(r.key)?.row)!==JSON.stringify(r.row))recurring.push(r.row);}
+   let needsRepeat=false;
+   if(recurring.length){
+    needsRepeat=recurring.some(n=>{const t=repeatTemplate(n.taskRepeatTemplate);if(!t)return false;const parts=overrides.get(bulletBucket(n.id))||this.load(bulletBucket(n.id)).parts;
+     return !parts.rootFields.some(f=>f.path[0]==='web'&&f.path[1]==='taskRepeatReceipts'&&f.path[2]===n.id&&f.path[3]===t.id);
+    });
+   }
+   if(needsRepeat){const current=this.read(overrides).doc;let next;try{next=advanceRecurringTasks(current);}catch(e){error('Recurring tasks: '+e.message,400,'SYNC_VALIDATION_FAILED');}if(next!==current){generated=true;for(const [id,[b,a]] of patchBuckets(diffPatch(current,next)))applyParts(open(id),b,a,[],[],true);}}
    const updates={},changed=[];
    let rootTouched=false,assetsTouched=false;
    for(const [id,t] of touched){
     const update=Y.encodeStateAsUpdate(t.hit.doc,t.vector);if(update.length<=2)continue;
     updates[id]=pack(update);
-    t.after=projectParts(t.hit.doc);
+    t.after=!generated&&overrides.has(id)?overrides.get(id):projectParts(t.hit.doc);
+    const receiptFields=t.after.rootFields.filter(f=>f.path[0]==='web'&&f.path[1]==='taskRepeatReceipts');
+    if(receiptFields.length)try{validateRepeatReceipts(assembleParts([{rootFields:receiptFields,rows:[],tables:[],assets:[]}]).doc.web.taskRepeatReceipts);}catch(e){error(e.message,400,'SYNC_VALIDATION_FAILED');}
     const b=rowMap(t.before);
     for(const [key,r] of rowMap(t.after))if(JSON.stringify(b.get(key)?.row)!==JSON.stringify(r.row))try{checkRow(r.table,r.row);}catch(e){error(`Invalid shared document: ${r.table} record: ${e.message}`,400,'SYNC_VALIDATION_FAILED');}
     if(id.startsWith('r'))rootTouched=true;if(id===ASSET_BUCKET)assetsTouched=true;
@@ -156,11 +171,11 @@ export class SyncSpace{
  }
 
  /** The whole document from projected records; no Yjs documents are opened for rows. */
- read(){
-  const rows=this.sql.exec("SELECT k,tbl,body FROM records WHERE tbl!='$leaf'").toArray().map(r=>({key:r.k,table:r.tbl,row:JSON.parse(r.body)}));
-  const leaves=this.sql.exec("SELECT k,body FROM records WHERE tbl='$leaf'").toArray().map(r=>({path:JSON.parse(r.k.slice(5)),value:JSON.parse(r.body)}));
-  const roots=this.rootIds().map(id=>this.load(id).parts),assets=this.bucketIds().includes(ASSET_BUCKET)?this.load(ASSET_BUCKET).parts.assets:[];
-  const value=assembleParts([...roots,{rootFields:leaves,rows,tables:[],assets}]);
+ read(overrides=new Map()){
+  const rows=this.sql.exec("SELECT k,tbl,body,bucket FROM records WHERE tbl!='$leaf'").toArray().filter(r=>!overrides.has(r.bucket)).map(r=>({key:r.k,table:r.tbl,row:JSON.parse(r.body)}));
+  const leaves=this.sql.exec("SELECT k,body,bucket FROM records WHERE tbl='$leaf'").toArray().filter(r=>!overrides.has(r.bucket)).map(r=>({path:JSON.parse(r.k.slice(5)),value:JSON.parse(r.body)}));
+  const roots=this.rootIds().filter(id=>!overrides.has(id)).map(id=>this.load(id).parts),assets=overrides.has(ASSET_BUCKET)?[]:this.bucketIds().includes(ASSET_BUCKET)?this.load(ASSET_BUCKET).parts.assets:[];
+  const value=assembleParts([...roots,...overrides.values(),{rootFields:leaves,rows,tables:[],assets}]);
   readRepair(value.doc);
   return {...value,revision:this.revision()};
  }
