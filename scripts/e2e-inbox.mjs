@@ -17,6 +17,7 @@ try{
   await page.getByRole('button',{name:'Process Inbox',exact:true}).click();
   const item=page.locator('.inbox-item').filter({hasText:'Plan weekly review'});
   await item.getByText('1 child note',{exact:true}).waitFor();
+  if(mobile)await item.locator('.inbox-item-text').click(); // phone: tap a capture to show its actions
   await context.setOffline(true);
   await item.getByRole('button',{name:'Link',exact:true}).click();
   await page.getByRole('radio',{name:/^Ideas/}).check();await page.getByRole('button',{name:'Add link',exact:true}).click();
@@ -39,7 +40,7 @@ try{
   await page.reload();await page.locator('.app').waitFor();
   if(mobile)await page.getByRole('button',{name:'Open navigation',exact:true}).click();
   await page.locator('.sidebar-nav').filter({visible:true}).getByRole('button',{name:/^Inbox/}).click();
-  const reloaded=page.locator('.inbox-item').filter({hasText:'Plan weekly review'});await reloaded.getByText('2 child notes',{exact:true}).waitFor();await reloaded.getByRole('button',{name:'Reschedule',exact:true}).waitFor();
+  const reloaded=page.locator('.inbox-item').filter({hasText:'Plan weekly review'});await reloaded.getByText('2 child notes',{exact:true}).waitFor();if(mobile)await reloaded.locator('.inbox-item-text').click();await reloaded.getByRole('button',{name:'Reschedule',exact:true}).waitFor();
   assert.deepEqual(errors,[]);console.log(`Inbox ${mobile?'phone dark':'desktop light'}: offline processing, file/link/task/reminder, undo/redo, trash recovery, focus and reload passed`);
   await context.close();
  }

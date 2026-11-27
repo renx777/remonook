@@ -107,3 +107,11 @@ uses a signed-in person's data. The staging workflow runs it after deployment.
 This increment is **web staging only**. Before native rollout, check real Android
 keyboard/date controls, phone navigation, full backup import and signed-in
 cross-device task propagation. Emulation is not a physical-device test.
+
+## Design update (November 2026)
+
+Tasks follows the design philosophy in docs/DESIGN.md:
+- The view name is the title.
+- Quick add reads dates and times as you type ("call mom tomorrow 6pm #home"), and Plan has a "Type when" line.
+- Dates are relative ("Tomorrow", "2 days late").
+- Completing a task animates and offers Undo.

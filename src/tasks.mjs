@@ -4,6 +4,7 @@ import {withNodes} from './workspace-nodes.mjs';
 import {TASK_FIELDS,taskPlan,validTaskField} from './task-fields.mjs';
 import {traitBulletIds} from './traits-block.mjs';
 import {INBOX_ID,startInboxCapture} from './inbox.mjs';
+import {parseQuickTask} from './natural-date.mjs';
 export {taskPlan};
 export const TASK_VIEWS=[['inbox','Inbox'],['today','Today'],['upcoming','Upcoming'],['anytime','Anytime'],['someday','Someday'],['waiting','Waiting'],['completed','Completed']];
 export function taskCatalog(doc,today){
@@ -49,4 +50,14 @@ export function taskDateCounts(doc){
  const dates=new Map();
  for(const t of taskCatalog(doc,'').tasks)if(t.node.taskState==='TODO')for(const date of new Set([t.deadline,t.plan.scheduledDate].filter(Boolean))){if(!dates.has(date))dates.set(date,new Set());dates.get(date).add(t.node.id);}
  return new Map([...dates].map(([date,ids])=>[date,ids.size]));
+}
+/** Quick add: "Call mom tomorrow 6pm #home" becomes an Inbox task with its plan filled in. Missing parts stay unset. */
+export function quickAddTask(doc,input,today,{id=crypto.randomUUID(),defaults={}}={}){
+ const parsed=parseQuickTask(input,today);
+ if(!parsed.title)throw Error('Type what the task is, then when.');
+ const result=startInboxCapture(doc,id,parsed.title);
+ let next=withNodes(result.doc,result.doc.tables.bullets.map(n=>n.id===result.id?{...n,taskState:'TODO'}:n));
+ const patch={...defaults};for(const key of ['scheduledDate','dueDate','taskStartTime','taskBlockMinutes','taskPriority','taskRepeat'])if(parsed[key]!==undefined)patch[key]=parsed[key];
+ if(Object.keys(patch).length)next=updateTask(next,result.id,patch);
+ return {doc:next,id:result.id,parsed};
 }

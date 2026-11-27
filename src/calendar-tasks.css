@@ -5,3 +5,21 @@
 .cal-tasks .timeline-title{display:flex;flex-direction:column;align-items:flex-start;justify-content:center}.cal-tasks .timeline-block button{border:0;border-radius:0;box-shadow:none;background:transparent}.cal-tasks .timeline-block button:hover{background:var(--hover)}
 
 .timeline-block.is-complete{opacity:.55}.timeline-block.is-complete .timeline-title>span{text-decoration:line-through}@media(max-width:760px){.cal2-page>.cal-tasks{margin-left:16px;margin-right:16px;width:calc(100% - 32px)}}
+
+/* One day, one timeline: blue task blocks, violet reminders, untimed tasks in a tray above. */
+.timeline-block.task{background:var(--block-soft);border-color:var(--block-line);border-left:3px solid var(--accent);color:var(--block-ink)}
+.timeline-block.event{background:var(--reminder-soft);border-color:var(--reminder-line);border-left:3px solid var(--reminder);color:var(--reminder-ink)}
+.timeline-block .timeline-title>span{display:flex;align-items:center;gap:5px;font-weight:600}
+.timeline-block .timeline-title small{color:inherit;opacity:.8}
+.timeline-bell{flex:none}
+.cal-tray-label{margin:4px 0 6px;font-size:11px!important;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--muted)}
+.cal-tasks ul.cal-tray{display:flex;flex-wrap:wrap;gap:8px;padding:10px;margin:0 0 12px;background:color-mix(in srgb,var(--sidebar) 70%,var(--bg));border:1px solid var(--line);border-radius:12px}
+.cal-tasks ul.cal-tray li{align-items:center;gap:8px;padding:0 4px 0 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);max-width:100%}
+.cal-tasks ul.cal-tray li.is-due{border-color:var(--deadline-line);background:var(--deadline-soft)}
+.cal-tasks ul.cal-tray li.is-due small{color:var(--deadline-ink)}
+.cal-tasks ul.cal-tray input{margin:0}
+.cal-tasks ul.cal-tray button{min-height:40px;padding:4px 0}
+.cal-tasks ul.cal-tray small{margin-top:1px}
+.cal-tasks .cal-time-it{flex:none;min-height:30px!important;padding:3px 9px!important;border:1px solid var(--block-line);border-radius:7px;color:var(--block-ink)!important;font-size:12px!important;font-weight:600;background:var(--block-soft)!important}
+.timeline-block .timeline-check{flex:none;align-self:flex-start;margin:9px 0 0 8px;width:16px;height:16px;accent-color:var(--done);cursor:pointer}
+.cal-tasks ul.cal-tray li>button:not(.cal-time-it){border:0!important;background:transparent!important;box-shadow:none!important}

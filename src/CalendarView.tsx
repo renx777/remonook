@@ -414,7 +414,7 @@ export function CalendarView(props: CalendarViewProps) {
             aria-label={`${longHeading} · choose a date`}
             aria-expanded={popoverOpen}
           >
-            <h1>{longHeading}</h1>
+            <h1 className="calendar-day-title">{longHeading}</h1>
           </button></Popover.Trigger>
         </div>
         <div className="cal2-day-nav">

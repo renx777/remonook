@@ -72,3 +72,10 @@ Browser coverage: empty Inbox, capture and child creation, offline processing,
 link/task/reminder creation, filing, undo/redo, Trash recovery, Escape/focus return,
 viewport overflow and durable reload. Physical Android sharing/IME checks remain
 owner device tests before native rollout.
+
+## Design update (November 2026)
+
+Inbox follows the design philosophy in docs/DESIGN.md:
+- One row per capture; its actions show on the focused or hovered row (on a phone, tap the capture).
+- Keys: J/K move between captures; F, L, T, S and O file, link, make a task, schedule and open.
+- Each action shows a toast with Undo (Z).
