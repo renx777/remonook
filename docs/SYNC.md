@@ -317,3 +317,14 @@ of the same date project one next occurrence of the single series, without
 creating another note or inserting duplicate text. Reopen/undo retain normal
 history. Browser delivery preferences/receipts are device/account-local and never
 acknowledge cloud operations. Health calendarPlanning: 1 identifies this server.
+
+## Smart Collections
+
+Collection source, sourceBranch and recipe are additive settings in the existing
+append-only web.traitViews revisions and each saved view. They query the current
+workspace projection, never replace it. Result rows are original bullet identities;
+mirrors deduplicate to canonical sources and edits use normal source mutations.
+Recipes create ordinary Trait bullets only for explicitly created new notes.
+Full backups preserve the settings and previous revisions. No protocol migration,
+new Worker or durable-outbox change is required. Older apps preserve the metadata
+but display their existing direct-child views until updated.

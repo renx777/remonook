@@ -112,3 +112,10 @@ explicit opt-in browser delivery while the app is visible. See
 uses existing Calendar series; automatic successor task-note generation and
 closed-app push delivery are not implemented in this increment. Native daily
 repeat compatibility must be resolved before offering a new daily enum.
+
+## Phase 3 implementation
+
+Smart Collections extends existing #views with current-workspace and branch
+sources, canonical mirror-deduplicated results, source paths and optional Trait
+recipes. Existing filtering, grouping, saved views and table edits are reused.
+See [SMART-COLLECTIONS.md](SMART-COLLECTIONS.md). Phase 4 has not started.
