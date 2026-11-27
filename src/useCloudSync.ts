@@ -24,8 +24,9 @@ export function useCloudSync(options:Options){
  const setError=(error:string)=>{if(signal.get().error!==error)signal.set({...signal.get(),error});};
  async function request(path:string,init:RequestInit={}){
   const user=latest.current.user;if(!user||authenticatedUid()!==user.uid)throw Error('Sign in again to continue saving to your account.');
-  const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+await user.getIdToken());headers.set('X-Remo-Capabilities','workdays-v2');
-  const r=await fetch(CLOUD_API+path,{...init,headers,signal:AbortSignal.timeout(30000),cache:'no-store'});
+  const owner=storageAccountKey(),token=await user.getIdToken();const verify=()=>{if(storageAccountKey()!==owner||latest.current.user?.uid!==user.uid||authenticatedUid()!==user.uid)throw Object.assign(Error('Workspace changed.'),{deferred:true});};verify();
+  const headers=new Headers(init.headers);headers.set('Authorization','Bearer '+token);headers.set('X-Remo-Capabilities','workdays-v2');
+  const r=await fetch(CLOUD_API+path,{...init,headers,signal:AbortSignal.timeout(30000),cache:'no-store'});verify();
   if(!r.ok&&r.status!==304){const data=await r.json().catch(()=>({}));throw Object.assign(Error(data.error||'Your changes are saved on this device. Reconnecting…'),{status:r.status,code:data.code});}return r;
  }
  async function manifest(files:Map<string,Blob>){const out:Asset[]=[];for(const [path,blob]of files){let hash=cache.current.get(blob);if(!hash){hash=await digest(await blob.arrayBuffer());cache.current.set(blob,hash);}out.push({path,hash,size:blob.size,type:blob.type});}return out.sort((a,b)=>a.path.localeCompare(b.path));}
@@ -50,15 +51,15 @@ export function useCloudSync(options:Options){
  }
  async function retireObsolete(work:(op:string,args?:any)=>Promise<any>,account:string,uid:string,force=false){
   const verify=()=>{if(account!==storageAccountKey()||latest.current.user?.uid!==uid||!alive.current)throw Object.assign(Error('Workspace changed.'),{deferred:true});};
-  verify();const retirement=await work('quota-retirement',{force});if(!retirement)return;verify();
-  const response=await(await request('/assets/reconcile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...retirement,since:await work('since')})})).json();
+  verify();const retirement=await work('quota-retirement',{force});if(!retirement)return;const since=await work('since');verify();
+  const response=await(await request('/assets/reconcile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...retirement,since})})).json();
   verify();await work('quota-retired',{response});if(response.more)await pullAll(work,response.revision,true);
  }
  async function progressWhileQuotaBlocked(work:(op:string,args?:any)=>Promise<any>,account:string,uid:string){
   const verify=()=>{if(account!==storageAccountKey()||latest.current.user?.uid!==uid||!alive.current)throw Object.assign(Error('Workspace changed.'),{deferred:true});};
   for(const mode of ['notes','removals']){
-   verify();const progress=await work('quota-progress',{mode});if(!progress)continue;verify();
-   const response=await(await request('/sync/v3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...progress,since:await work('since')})})).json();
+   verify();const progress=await work('quota-progress',{mode});if(!progress)continue;const since=await work('since');verify();
+   const response=await(await request('/sync/v3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...progress,since})})).json();
    verify();await work('quota-receive',{mode,response});if(response.more)await pullAll(work,response.revision,true);
   }
   await retireObsolete(work,account,uid,true);
@@ -69,7 +70,7 @@ export function useCloudSync(options:Options){
   lastRun.current=Date.now();
   if(timer.current){clearTimeout(timer.current);timer.current=null;}queued.current=false;busy.current=true;
   const syncUid=latest.current.user?.uid;
-  const account=storageAccountKey(),work=(operation:string,args:any={})=>syncOperation(operation,args,account);
+  const account=storageAccountKey(),verifyScope=()=>{if(account!==storageAccountKey()||latest.current.user?.uid!==syncUid||!alive.current)throw Object.assign(Error('Workspace changed.'),{deferred:true});},work=async(operation:string,args:any={})=>{verifyScope();const result=await syncOperation(operation,args,account);verifyScope();return result;},scopedRequest=(path:string,init:RequestInit={})=>{verifyScope();return request(path,init);};
   setError('');setStatus('Syncing…');
   
   try{
@@ -87,9 +88,9 @@ export function useCloudSync(options:Options){
    // Persist the same stable operation identity before sending it over the network.
    const network=await work('network');
    if(network.inflight){
-    for(const asset of network.assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!network.uploaded.includes(asset.hash)){await request('/assets/'+asset.hash,{method:'PUT',body:blob});await work('uploaded',{hash:asset.hash});}}
+    for(const asset of network.assets){const blob=latest.current.get().assets.get(asset.path);if(blob&&cache.current.get(blob)===asset.hash&&!network.uploaded.includes(asset.hash)){await scopedRequest('/assets/'+asset.hash,{method:'PUT',body:blob});await work('uploaded',{hash:asset.hash});}}
     
-    const response=await(await request('/sync/v3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,since:network.since})})).json();
+    const response=await(await scopedRequest('/sync/v3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...network.inflight,since:network.since})})).json();
     await work('receive',{response});
     if(response.more)await pullAll(work,response.revision,true);
    }else await pullAll(work,network.since,true);
