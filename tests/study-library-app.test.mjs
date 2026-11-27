@@ -35,7 +35,7 @@ test('folder shelf supports creation, drag moves, accessible moves and both dele
  await textClick('New folder');await input('[aria-label="Folder name"]','Learning');await click('[aria-label="Teal folder"]');await input('[aria-label="Find a subject logo"]','phys');await click('[aria-label="Physics logo"]');
  await act(async()=>document.querySelector('.study-library-dialog form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));
  assert.ok(document.querySelector('[aria-label="Open Learning folder"]'));
- const folder=(await stored()).web.studyFolders[0];assert.equal(folder.color,'teal');assert.equal(folder.logo,'physics');assert.ok(document.querySelector('.study-folder-art svg svg path'));
+ const folder=(await stored()).web.studyFolders[0];assert.equal(folder.color,'teal');assert.equal(folder.logo,'physics');assert.ok(document.querySelector('.folder-box-logo svg path'));
  // Exercise native drag handlers with the browser's DataTransfer contract.
  const data=new Map(),transfer={effectAllowed:'',dropEffect:'',setData:(k,v)=>data.set(k,v),getData:k=>data.get(k)||''};
  const drag=async(target,type)=>act(async()=>{const event=new window.Event(type,{bubbles:true,cancelable:true});Object.defineProperty(event,'dataTransfer',{value:transfer});target.dispatchEvent(event);});

@@ -489,6 +489,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   assert.ok(!sidebar.inert);
   await click(document.querySelector('.session-controls > button'));
   assert.ok(document.querySelector('.study-desk'));
+  await click(document.querySelector('[aria-label="Study Desk options"]'));
   await click(document.querySelector('.immersive-preference input'));
   HTMLElement.prototype.requestFullscreen = async function () {
     fullscreenElement = this;

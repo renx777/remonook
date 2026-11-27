@@ -95,7 +95,7 @@ test("configure a four-child MCQ, study choices, resume feedback, practice misse
   await click(document.querySelector('[data-mcq-continue]'));
   assert.equal(document.querySelector('.mcq-score > strong').textContent, '1 / 1');
   await click(button('Back to Study Desk'));
-  await click(button('Quiz reactions'));
+  await click(document.querySelector('[aria-label="Study Desk options"]'));await click(button('Quiz reactions'));
   await wait(() => document.querySelector('.quiz-settings[open]'));
   const gif = await readFile(new URL('../src/assets/reactions/victory-wiggle.gif', import.meta.url));
   const upload = document.querySelector('.quiz-settings input[type="file"]');
@@ -125,7 +125,7 @@ test("configure a four-child MCQ, study choices, resume feedback, practice misse
   assert.ok([...document.querySelectorAll('.study-deck h2')].some(heading => heading.textContent === 'All MCQs'));
   await click(button('Cram'));
   const allMcqs = [...document.querySelectorAll('.study-deck')].find(article => article.querySelector('h2').textContent === 'All MCQs');
-  assert.match(allMcqs.querySelector('.study-deck-counts').textContent, /2 cards/);
+  assert.match(allMcqs.querySelector('.deck-meta').textContent, /2 questions/);
   await click([...allMcqs.querySelectorAll('button')].find(element => element.textContent === 'Review settings'));
   assert.equal(document.querySelectorAll('.study-limits').length, 1, 'Only the selected default notebook opens its limits panel');
   assert.equal(allMcqs.querySelector('[title="Open deck source"]'), null, 'Default MCQ deck has no fake source link');

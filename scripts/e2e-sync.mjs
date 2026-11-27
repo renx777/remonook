@@ -191,7 +191,7 @@ try{
   const {updates}=applyDocument(base.states,base.doc,next,{clientID:Math.floor(Math.random()*2**31)});
   const response=await fetch(`${API}/sync/v3`,{method:'POST',headers:{Authorization:token,Origin:APP,'Content-Type':'application/json'},body:JSON.stringify({operationId:crypto.randomUUID(),updates,since:base.revision})});
   if(!response.ok)throw Error('Task fixture was refused: '+response.status);
-  const openTasks=async d=>{await d.page.locator('.sidebar-nav').getByRole('button',{name:'Tasks',exact:true}).click();await d.page.getByLabel('Search tasks',{exact:true}).fill(RUN);};
+  const openTasks=async d=>{await d.page.locator('.sidebar-nav').getByRole('button',{name:'Tasks',exact:true}).click();await d.page.getByRole('button',{name:'Search tasks'}).click();await d.page.getByLabel('Find tasks',{exact:true}).fill(RUN);};
   const taskView=async(d,label)=>d.page.getByRole('navigation',{name:'Task views'}).getByRole('button',{name:new RegExp('^'+label+'\\b')}).click();
   await openTasks(A);await taskView(A,'Anytime');
   const ar=A.page.locator(`[data-task-id="${task.id}"]`);await ar.getByRole('button',{name:'Plan',exact:true}).click();

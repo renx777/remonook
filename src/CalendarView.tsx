@@ -359,6 +359,10 @@ export function CalendarView(props: CalendarViewProps) {
   };
 
   const longHeading = parseLocalDate(selectedDate).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", ...(selectedDate.slice(0, 4) === getLocalDateString().slice(0, 4) ? {} : { year: "numeric" }) });
+  const shortHeading = parseLocalDate(selectedDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  // A week strip for phones: the week that holds the selected day, Sunday first.
+  const weekStart = addDays(selectedDate, -parseLocalDate(selectedDate).getDay());
+  const week = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const notesSection = (
       <div className="calendar-notes-section">
         <div className="calendar-notes-label">Daily notes</div>
@@ -414,7 +418,7 @@ export function CalendarView(props: CalendarViewProps) {
             aria-label={`${longHeading} · choose a date`}
             aria-expanded={popoverOpen}
           >
-            <h1 className="calendar-day-title">{longHeading}</h1>
+            <h1 className="calendar-day-title"><span className="cal-long">{longHeading}</span><span className="cal-short">{shortHeading}</span></h1>
           </button></Popover.Trigger>
         </div>
         <div className="cal2-day-nav">
@@ -424,6 +428,7 @@ export function CalendarView(props: CalendarViewProps) {
         </div>
         {props.headerExtra}
       </div>
+      <div className="cal-week" role="group" aria-label="This week">{week.map(day=>{const d=parseLocalDate(day);return <button key={day} aria-pressed={day===selectedDate} aria-label={d.toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})} className={day===getLocalDateString()?'is-today':''} onClick={()=>onSelectDate(day)}><span>{d.toLocaleDateString(undefined,{weekday:"narrow"})}</span><b>{d.getDate()}</b></button>;})}</div>
       {props.trackers}
       {props.dayPlan}
       {notesSection}

@@ -38,3 +38,32 @@ The mockups and the reasoning are on the design canvas "RemoNook planning UX rev
 - **Calendar:** Timeline is the default day layout. Untimed tasks wait in an "Anytime" tray with **Time it**, which books the next free slot. Task blocks are blue; reminders are violet with a bell (also in the agenda).
 - **Collections:** a scope sentence ("12 results from the whole workspace where Author is not empty") whose parts open Configure or Filter.
 - **Connections:** the summary says how many backlinks there are and offers unlinked mentions.
+
+## Consistency pass (canvas row 5)
+
+**Six text styles**, defined as `--fs-*` tokens in `src/design-tokens.css`:
+
+| Style | Font and size |
+|---|---|
+| Display | Newsreader 600; 28 phone / 32 desktop; one per page |
+| Title | Inter 600 15 |
+| Body | 16 phone / 15 desktop |
+| Meta | 13 |
+| Label | 11 caps |
+| Number | 22 tabular |
+
+**Controls:** 36 px; tabs and segments 30 px.
+
+**Page header** (`.rn-head`): title + count, then at most three icons (search, filter, add), then slim tabs (`.rn-tabs`).
+- Filters and sort open a `Sheet` (`src/Sheet.tsx`): a bottom sheet on phones and a popover on desktop. An active filter shows as a removable chip.
+- Secondary actions go in ⋯. On phones, the Outline toggle and Undo/Redo are in the ⋯ menu. No taglines and no help text.
+
+**Applied:**
+- **Tasks:** "Today ▾" view menu with Google Tasks; filter sheet; search icon.
+- **Calendar:** short date and week strip on phones; compact Home/Office/Leave.
+- **Study Desk:** stats strip; folder boxes showing the spines of their decks; one-line deck footer. Notebook covers are unchanged.
+- **Dashboard:** date label, greeting, Edit and +.
+- **Bookshelf:** format and sort in a sheet.
+- **Bookmarks:** sort and tags in a sheet.
+- **Canvas and Mindmaps:** plain titles.
+- **Empty states:** one style everywhere.

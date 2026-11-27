@@ -2406,10 +2406,7 @@ export default function CanvasStudio(p: Props) {
             />
           ) : (
             <>
-              <h1>Room for connections.</h1>
-              <p>
-                Arrange thoughts, link your notes, and see the bigger picture.
-              </p>
+              <h1 className="rn-display">Canvas</h1>
             </>
           )}
         </div>
@@ -2573,15 +2570,7 @@ export default function CanvasStudio(p: Props) {
           {!boards.length && (
             <div className="canvas-empty">
               <h2>A thought doesn’t have to stay in a line.</h2>
-              <p>
-                Create your first canvas, add a text card or link an existing
-                note, then drag handles to connect ideas.
-              </p>
-              <p>
-                Imports and exports use the open JSON Canvas 1.0 format. File
-                references keep their original paths; external files are not
-                uploaded or fetched.
-              </p>
+              <p>Lay out cards, link notes and draw connections.</p>
             </div>
           )}
         </div>

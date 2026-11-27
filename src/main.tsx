@@ -443,6 +443,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
     setError(e instanceof Error ? e.message : String(e));
   const [mobileSidebar,setMobileSidebar]=useState(false);
   useEffect(()=>{const media=window.matchMedia("(max-width:760px)");const changed=()=>{if(!media.matches)setMobileSidebar(false);};media.addEventListener?.("change",changed);return()=>media.removeEventListener?.("change",changed);},[]);
+  const toggleOutlineView=async()=>{await flush();if(failed.current)return;setEditing(null);setSearch('');if(!viewOutlines[tab])setOutlineScopes(value=>({...value,[tab]:null}));setViewOutlines(value=>({...value,[tab]:!value[tab]}));};
   const toggleSidebar = () => {
     sidebarMotion.capture();
     if (readerFocus && tab === "bookmarks" && sidebarOpen) {
@@ -2062,7 +2063,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
               <Icon name="redo" />
             </button>
             <button className="icon-button" aria-label="Commands & notes" title={`Commands & notes (${modLabel()} K)`} onClick={()=>{if(viewTimer.current)publishView(true);setMenu(null);setViewMenu(false);setDialog("jump");}}><Icon name="commands" size={17}/></button>
-            {dedicatedKind&&<button className={`outline-view-toggle ${dedicatedOutline?'is-active':''}`} aria-pressed={dedicatedOutline} onClick={async()=>{await flush();if(failed.current)return;setEditing(null);setSearch('');if(!viewOutlines[tab])setOutlineScopes(value=>({...value,[tab]:null}));setViewOutlines(value=>({...value,[tab]:!value[tab]}));}}><Icon name="notes" size={16}/>Outline</button>}
+            {dedicatedKind&&<button className={`icon-button outline-view-toggle ${dedicatedOutline?'is-active':''}`} aria-pressed={dedicatedOutline} aria-label="Outline view" title={dedicatedOutline?'Back to the page view':'Show as outline'} onClick={()=>void toggleOutlineView()}><Icon name="notes" size={17}/></button>}
             {doc&&<ViewStats doc={doc} tab={tab} scope={scope} scopeTitle={String(current?.text||'').replace(/<[^>]*>/g,'').trim()} calendarDate={calendarDate} counts={notesFilterCounts} kinds={NOTE_FILTERS as any}/>}
             <button data-guide-help className="icon-button" aria-label="Show me how" title="Show me how" onClick={()=>{setViewMenu(false);setMenu(null);setDialog("help");}}><Icon name="help" size={17}/></button>
             <CloudDeviceSaveIndicator signal={deviceStatus} isPending={()=>!!cloudUser&&(dirty.current||persisted.current?.revision!==cloud.acknowledgedRevision)} cloudSignal={cloud.signal} connected={!!cloudUser} onOpen={()=>{setSettingsPanel('account');setDialog('settings');}}/>
@@ -2536,6 +2537,9 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       }}><label className="field-label">Share URL or embed code<input data-autofocus aria-label="Media share URL" placeholder="Paste a YouTube, Instagram or image link" value={embedValue} onChange={event => setEmbedValue(event.target.value)} /></label><p className="dialog-muted">Supported share links become players in your notes and flashcards. Players load when you choose to open them.</p><button className="study-primary" type="submit" disabled={disabled || !embedValue.trim()}>Insert link</button></form></Dialog>}
       {viewMenu && <OutlinePopover title="Outline options" anchor={viewAnchor.current} onClose={() => setViewMenu(false)}>
         <div className="popover-quick-actions">
+          <button className="menu-history" aria-label="Undo last change" disabled={!history.current.undo.length||disabled} onClick={()=>{setViewMenu(false);undo();}}><Icon name="undo" size={16}/><span>Undo</span></button>
+          <button className="menu-history" aria-label="Redo last change" disabled={!history.current.redo.length||disabled} onClick={()=>{setViewMenu(false);undo(true);}}><Icon name="redo" size={16}/><span>Redo</span></button>
+          {dedicatedKind&&<button className="menu-outline-toggle" onClick={()=>{setViewMenu(false);void toggleOutlineView();}}><Icon name="notes" size={16}/><span>{dedicatedOutline?'Back to the page view':'Show as outline'}</span></button>}
           <button disabled={!research.state} onClick={()=>{setViewMenu(false);setResearchTarget('');}}>AI drafts</button>
           <button disabled={disabled} onClick={() => editorPrefs("showCompleted", !showCompleted)}><Icon name="check" size={16} /><span>{showCompleted ? "Hide completed" : "Show completed"}</span></button>
           {[false, true].map(collapsed => <button key={String(collapsed)} disabled={disabled} onClick={() => { mutate(ns => { const ids = new Set(rows(ns, scope, true).map((row: any) => row.bullet.id)); return ns.map(n => ids.has(n.id) ? { ...n, collapsed } : n); }); setViewMenu(false); }}><Icon name={collapsed ? "collapse" : "expand"} size={16} /><span>{collapsed ? "Collapse all" : "Expand all"}</span></button>)}

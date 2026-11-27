@@ -997,3 +997,11 @@
   height: 18px;
   color: var(--muted);
 }
+/* Consistency pass: visible serif title, counts only, slim tabs, sort and tag in a sheet. */
+.bookmark-library .bl-heading h1.rn-display{font-family:var(--title-font);font-weight:600;font-size:var(--fs-display);letter-spacing:-.012em;margin:0;line-height:1.1}
+.bookmark-library .bl-heading .bl-count{font-size:var(--fs-meta);color:var(--muted);margin:4px 0 0}
+.bookmark-library .bl-heading .bl-count:empty{display:none}
+.bookmark-library .bl-view-tabs button{height:30px;min-height:30px;padding:0 11px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:13.5px;font-weight:500}
+.bookmark-library .bl-view-tabs button[aria-pressed=true]{background:var(--soft);color:var(--block-ink)}
+.bookmark-library .bl-tools{display:flex;align-items:center;gap:6px}
+.bookmark-library .bl-tools .bl-search{flex:1;min-width:0}

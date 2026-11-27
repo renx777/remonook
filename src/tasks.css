@@ -52,3 +52,23 @@
 @media(max-width:650px){.tasks-heading h1{font-size:28px}.task-row-actions{opacity:1}.task-row-actions{gap:0}.tasks-page .task-row-actions button{font-size:0;gap:0;min-width:44px;min-height:44px;padding:0}.task-quick-add input{font-size:16px}.tasks-page .tasks-new{font-size:0;gap:0;min-width:44px}}
 @media(hover:none){.task-row-actions{opacity:1}}
 @media(prefers-reduced-motion:reduce){.task-leaving{animation:task-fade .3s linear forwards}@keyframes task-fade{to{opacity:0}}}
+
+/* Consistency pass: title + count + three icons; views under the title on phones, slim tabs on desktop. */
+.tasks-page .tasks-heading{margin:0 0 12px;align-items:center}
+.tasks-page .tasks-title{display:inline-flex;align-items:center;gap:4px;padding:0;min-height:0;border:0;background:transparent;color:var(--text);cursor:pointer}
+.tasks-page .tasks-title:hover:not(:disabled){background:transparent}
+.tasks-page .tasks-title h1{font-size:var(--fs-display);margin:0}
+.tasks-page .tasks-title svg{color:var(--muted);margin-top:4px}
+.tasks-page .tasks-heading .rn-icon-btn{min-height:var(--control);padding:0}
+.tasks-page .tasks-heading .tasks-new{margin-left:0;font-size:inherit}
+.tasks-page .task-views{padding:0;border:0;margin-bottom:10px}
+.tasks-page .task-views button{min-height:30px;height:30px;padding:0 11px}
+.tasks-page .task-views-google{margin-left:auto!important}
+.tasks-page .task-views-google svg{opacity:.6}
+.tasks-search{margin:6px 0 2px}
+.tasks-search input{border-bottom:1px solid var(--line)!important}
+.tasks-active-filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+.tasks-sheet-done{width:100%;justify-content:center;margin-top:18px;min-height:44px}
+.tasks-google>p{margin-top:0}
+@media(min-width:761px){.tasks-page .tasks-title svg{display:none}.tasks-page .tasks-title{pointer-events:none}}
+@media(max-width:760px){.tasks-page .task-views{display:none}}
