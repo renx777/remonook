@@ -27,17 +27,18 @@ async function until(check){for(let i=0;i<250;i++){if(check())return;await act((
 async function fixture(){
  const dom=new JSDOM('<div id="root"></div>',{url:'https://remonook.com',pretendToBeVisual:true});
  for(const k of ['window','document','navigator'])Object.defineProperty(globalThis,k,{value:dom.window[k],configurable:true});
- globalThis.IS_REACT_ACT_ENVIRONMENT=true;let online=true;Object.defineProperty(navigator,'onLine',{get:()=>online,configurable:true});
+ globalThis.IS_REACT_ACT_ENVIRONMENT=true;let online=true,quotaFull=false;Object.defineProperty(navigator,'onLine',{get:()=>online,configurable:true});
  setStorageAccount('v2-runtime-'+crypto.randomUUID());
  const base=empty();base.tables.bullets=[bullet('a',{text:'Learn SQL.'}),bullet('b',{text:'Other',position:1})];
  const sqlite=new DatabaseSync(':memory:');sqlite.exec(readFileSync('cloud/schema.sql','utf8'));
- const env={DB:{prepare(sql){let args=[];return{bind(...a){args=a;return this;},async first(){return sqlite.prepare(sql).get(...args)||null;},run(){const r=sqlite.prepare(sql).run(...args);return{success:true,meta:{changes:r.changes}};}};},async batch(statements){sqlite.exec('BEGIN');try{const out=[];for(const s of statements)out.push(s.run());sqlite.exec('COMMIT');return out;}catch(e){sqlite.exec('ROLLBACK');throw e;}}}};
+ const env={DB:{prepare(sql){let args=[];return{bind(...a){args=a;return this;},async first(){return sqlite.prepare(sql).get(...args)||null;},async all(){return {results:sqlite.prepare(sql).all(...args)};},run(){const r=sqlite.prepare(sql).run(...args);return{success:true,meta:{changes:r.changes}};}};},async batch(statements){sqlite.exec('BEGIN');try{const out=[];for(const s of statements)out.push(s.run());sqlite.exec('COMMIT');return out;}catch(e){sqlite.exec('ROLLBACK');throw e;}}}};
  const send=(method,path,body,headers={})=>route(new Request('https://sync.test'+path,{method,headers:new Headers(Object.keys(headers).length?headers:{Authorization:'Bearer alice'}),...(body?{body:body instanceof Blob?body:JSON.stringify(body)}:{})}),env,async()=> 'alice');
  await send('PUT','/workspace',{baseRevision:0,doc:cloudDocument(base),assets:[]});
  let local=await save(null,base,'initial');await cloudCheckpoint({revision:1,key:JSON.stringify(cloudDocument(base))});
  let files=new Map(),uploads=0;env.FILES={async put(key,bytes){},async get(key){return null;}};env.SYNC_SPACE=syncSpaces(env);
  const originalFetch=globalThis.fetch;let intercept=null,posts=0,fetches=0;
  globalThis.fetch=async(url,init={})=>{
+  if(quotaFull&&init.method==='PUT'&&new URL(url).pathname.startsWith('/assets/'))return Response.json({error:'Attachment storage is full (20 MiB), or combined storage exceeds 100 MiB.',code:'ATTACHMENT_QUOTA_FULL'},{status:413});
   fetches++;if(init.method==='POST')posts++;if(init.method==='PUT'&&new URL(url).pathname.startsWith('/assets/'))uploads++;
   try{const perform=()=>send(init.method||'GET',new URL(url).pathname,typeof init.body==='string'?JSON.parse(init.body):init.body,Object.fromEntries(new Headers(init.headers)));
    if(intercept){const f=intercept;intercept=null;return await f(perform,init);}
@@ -47,7 +48,7 @@ async function fixture(){
  let result,root,canApply=true,renders=0;const notices=[];
  function Harness(){renders++;result=useCloudSync({onNotice:message=>notices.push(message),user:{uid:'alice',getIdToken:async()=> 'token'},ready:true,revision:local.revision,get:()=>({doc:local,assets:files}),flush:async()=>{},canApply:()=>canApply,apply:async(doc,assets,sync)=>{local=await save(local,{...doc,web:{...doc.web,deviceId:local.web.deviceId}},'cloud download',assets,true,[],sync?.state);files=assets;}});return null;}
  const mount=async()=>{root=createRoot(document.getElementById('root'));await act(async()=>root.render(React.createElement(Harness)));};await mount();
- return {base,sqlite,send,notices,get renders(){return renders;},get doc(){return local;},get result(){return result;},get posts(){return posts;},get fetches(){return fetches;},get uploads(){return uploads;},get files(){return files;},async cacheFile(){files=new Map([...files,['emoji/recovered.webp',new Blob(['recovered'],{type:'image/webp'})]]);await act(async()=>{local=await save(local,local,'recovered file',files);root.render(React.createElement(Harness));});},async attach(){const d=copy(local);d.tables.media.push({id:'file',bulletId:'a',fileName:'x.bin',mimeType:'application/octet-stream',sourceUrl:'',credit:'',licenseUrl:''});files=new Map([['media/x.bin',new Blob(['attachment'],{type:'application/octet-stream'})]]);await act(async()=>{local=await save(local,d,'attachment',files);root.render(React.createElement(Harness));});},set intercept(f){intercept=f;},set online(value){online=value;},set canApply(value){canApply=value;},async sync(){await act(async()=>result.sync());},async edit(fn){const d=copy(local);fn(d);await act(async()=>{local=await save(local,d,'edit');root.render(React.createElement(Harness));});},async reload(){await act(async()=>root.unmount());local=await load();await mount();},async close(){await act(async()=>root.unmount());globalThis.fetch=originalFetch;setStorageAccount(null);sqlite.close();dom.window.close();}};
+ return {base,sqlite,send,notices,get renders(){return renders;},get doc(){return local;},get result(){return result;},get posts(){return posts;},get fetches(){return fetches;},get uploads(){return uploads;},get files(){return files;},set quotaFull(value){quotaFull=value;},async deleteAttachment(){const d=copy(local);d.tables.media=[];files=new Map();await act(async()=>{local=await save(local,d,'delete attachment',undefined,false,['media/x.bin']);root.render(React.createElement(Harness));});},async cacheFile(){files=new Map([...files,['emoji/recovered.webp',new Blob(['recovered'],{type:'image/webp'})]]);await act(async()=>{local=await save(local,local,'recovered file',files);root.render(React.createElement(Harness));});},async attach(){const d=copy(local);d.tables.media.push({id:'file',bulletId:'a',fileName:'x.bin',mimeType:'application/octet-stream',sourceUrl:'',credit:'',licenseUrl:''});files=new Map([['media/x.bin',new Blob(['attachment'],{type:'application/octet-stream'})]]);await act(async()=>{local=await save(local,d,'attachment',files);root.render(React.createElement(Harness));});},set intercept(f){intercept=f;},set online(value){online=value;},set canApply(value){canApply=value;},async sync(){await act(async()=>result.sync());},async edit(fn){const d=copy(local);fn(d);await act(async()=>{local=await save(local,d,'edit');root.render(React.createElement(Harness));});},async reload(){await act(async()=>root.unmount());local=await load();await mount();},async close(){await act(async()=>root.unmount());globalThis.fetch=originalFetch;setStorageAccount(null);sqlite.close();dom.window.close();}};
 }
 async function serverStates(f){let states=new Map(),since=0,after='',target='';for(;;){const r=await(await f.send('GET',`/sync/v3?since=${since}&after=${after}&target=${target}`)).json();states=mergeUpdates(states,r.updates);if(!r.more)return states;after=r.after||'';target=r.target||'';if(!r.after)since=r.revision;}}
 async function serverValue(f){return projectBuckets(await serverStates(f));}
@@ -163,5 +164,20 @@ test('network, auth, quota and non-validation 400 errors never quarantine or ack
    const m=await syncMetadata();assert.ok(m.pending.length);assert.ok(m.inflight);assert.equal(m.recoveries,undefined);assert.match(f.result.status,/pending/);
   }
   assert.equal(f.notices.length,0);
+ }finally{await f.close();}
+});
+
+test('quota-blocked uploads let later text reach the server, remain pending, and recover after removing the attachment',async()=>{
+ const f=await fixture();try{
+  await f.sync();f.quotaFull=true;await f.attach();await f.edit(d=>d.tables.bullets[0].text='Text still reaches the other device');await f.sync();
+  assert.notEqual(f.result.status,'Synced');assert.match(f.result.error,/storage is full/);assert.equal((await serverValue(f)).doc.tables.bullets[0].text,'Text still reaches the other device');
+  const original=JSON.stringify((await syncMetadata()).inflight);assert.ok((await syncMetadata()).pending.length);await f.reload();assert.equal(JSON.stringify((await syncMetadata()).inflight),original);
+  await f.deleteAttachment();for(let i=0;i<5;i++)await f.sync();await until(()=>f.result.status==='Synced');assert.equal(f.result.error,'');assert.equal((await syncMetadata()).pending.length,0);assert.equal((await serverValue(f)).assets.length,0);assert.equal((await serverValue(f)).doc.tables.bullets[0].text,'Text still reaches the other device');
+ }finally{await f.close();}
+});
+test('ordinary attachment deletion automatically releases server quota after its removal is acknowledged',async()=>{
+ const f=await fixture();try{
+  await f.sync();await f.attach();await f.sync();await until(()=>f.result.status==='Synced');assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM assets').get().n,1);
+  await f.deleteAttachment();for(let i=0;i<3;i++)await f.sync();await until(()=>f.result.status==='Synced');assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM assets').get().n,0);assert.equal((await serverValue(f)).assets.length,0);
  }finally{await f.close();}
 });

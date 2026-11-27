@@ -63,6 +63,6 @@ jobs:
       - name: Validate staging server package
         run: npx wrangler deploy --config cloud/config.staging.local.json --dry-run --outdir /tmp/remonook-sync-package
       - name: Deploy staging sync server
-        run: npx wrangler deploy --config cloud/config.staging.local.json --message "Task planning staging release"
+        run: npx wrangler deploy --config cloud/config.staging.local.json --message "Staging release from $GITHUB_SHA"
       - name: Verify bindings variables secrets and health
         run: node scripts/staging-sync-config.mjs verify

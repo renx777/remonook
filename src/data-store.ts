@@ -1,3 +1,4 @@
+import {attachmentReferences} from './asset-references.mjs';
 import {TASK_FIELDS} from './task-fields.mjs';
 import {localBookFiles,localBookManifest,isBookPath} from './local-books';
 import {cachedArticle,cacheArticle} from './article-cache.mjs';
@@ -9,7 +10,7 @@ import {project,openShared,vector,Y,emptyShared,unpack,applyIntent} from './sync
 import {sharedSnapshotProblem} from './sync-validate.mjs';
 import {workdaysLegacyIntent,upgradeWorkdaysIntent} from '../cloud/workdays-upgrade.mjs';
 import {cloudDocument,contentKey,recoverCheckpoint,hasDeviceContent} from './cloud-model.mjs';
-import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox,receivedProjection,adopt,mapSelection,bucketAssets,recoverRefused} from './sync-outbox-v3.mjs';
+import {recordLocal,initializeOutbox,stageAssets,claimOutbox,receiveOutbox,receivedProjection,adopt,mapSelection,bucketAssets,recoverRefused,claimQuotaProgress,receiveQuotaProgress} from './sync-outbox-v3.mjs';
 /** IndexedDB key of the sync v3 outbox. v2 metadata under 'sync-v2' is no longer used. */
 const SYNC_KEY='sync-v3';
 import {leafBucket,openBucket,projectParts,assembleParts,projectBuckets,mergeChanged} from './sync-buckets.mjs';
@@ -441,24 +442,8 @@ export const digest = async (bytes: ArrayBuffer) => {
   }
   return sha256Fallback(bytes);
 };
-export function references(doc: Workspace) {
-  const paths = new Set<string>();
-  for(const folder of studyFolders(doc))if(folder.image)paths.add(folder.image);
-  for (const kind of ["correct", "wrong"])
-    for (const reaction of doc.web.quizReactions?.[kind] || [])
-      if (typeof reaction.path === "string") paths.add(reaction.path);
-  for (const design of Object.values(doc.web.deckDesigns || {}) as RecordData[])
-    if (design && typeof design.image === "string" && design.image) paths.add(design.image);
-  for (const m of doc.tables.media) paths.add("media/" + m.fileName);
-  for (const e of doc.tables.emojis) {
-    for (const path of catalogAssetPaths(e)) paths.add(path);
-  }
-  for (const t of doc.tables.trash) {
-    const p = JSON.parse(t.payload);
-    for (const m of p.media || []) paths.add("media/" + m.fileName);
-  }
-  return paths;
-}
+export const references=attachmentReferences;
+
 const safe = (p: string) =>
   (/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(p)||/^articles\/[a-f0-9]{64}\.json$/.test(p)||isBookPath(p)) &&
   ![".", ".."].includes(p.split("/")[1]);
@@ -803,6 +788,14 @@ export async function syncOperation(operation:string,args:any={},account=storage
   const m=await change(claimOutbox);
   return {inflight:m.inflight,since:m.since,uploaded:m.uploaded||[],assets:m.inflight?await readIO((_m,io)=>bucketAssets(io,'L')):[]};
  }
+ if(operation==='quota-progress'){
+  const m=await change(m=>claimQuotaProgress(m,args.mode));return m.quotaProgress?.[args.mode]||null;
+ }
+ if(operation==='quota-receive'){await changeIO((m,io)=>receiveQuotaProgress(m,args.response,io,args.mode));return;}
+ if(operation==='quota-retirement'){
+  const m=await change(m=>{if(!m.retirement){const active=new Set(m.assets.map((a:any)=>a.hash)),hashes=[...new Set(m.uploaded||[])].filter(h=>!active.has(h)).sort().slice(0,2000);if(hashes.length||args.force)m.retirement={operationId:crypto.randomUUID(),hashes};}return m;});return m.retirement||null;
+ }
+ if(operation==='quota-retired'){await changeIO(async(m,io)=>{if(!m.retirement||args.response.operationId!==m.retirement.operationId)throw Error('Unexpected attachment retirement acknowledgement');await receiveOutbox(m,{...args.response,acked:undefined},io);const retired=new Set(args.response.retired||[]);m.uploaded=(m.uploaded||[]).filter((h:string)=>!retired.has(h));m.retirement=null;return m;});return;}
  if(operation==='uploaded'){await change(m=>{m.uploaded=[...new Set([...(m.uploaded||[]),args.hash])];return m;});return;}
  if(operation==='receive'){await changeIO((m,io)=>receiveOutbox(m,args.response,io));return;}
  if(operation==='since')return (await read())?.since??0;

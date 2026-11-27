@@ -49,7 +49,7 @@ export async function run(mode){
   for(const key of ['bindings','varsDigest','secrets'])if(JSON.stringify(before[key])!==JSON.stringify(now[key]))throw Error('Staging '+key+' changed unexpectedly.');
   if(JSON.stringify(before.crons)!==JSON.stringify(cronList(schedules)))throw Error('Staging cleanup schedules changed.');
   for(const key of ['aiEnabled','aiAssist','aiImage','bookmarkReader','bookmarkCapture','bookStorage','bookReader','googleTasksConfigured','mcp','mcpOAuth'])if(h[key]!==before.health[key])throw Error('Staging capability changed: '+key);
-  if(h.taskPlanning!==1)throw Error('Task planning validation is not deployed.');console.log('Staging sync verified:',JSON.stringify(h));
+  if(h.taskPlanning!==1||h.attachmentRecovery!==1)throw Error('Task planning / attachment quota recovery is not deployed.');console.log('Staging sync verified:',JSON.stringify(h));
  }else throw Error('Use prepare or verify.');
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1])await run(process.argv[2]);

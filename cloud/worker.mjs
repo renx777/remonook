@@ -1,3 +1,5 @@
+import {reserveAttachment,FILE_LIMIT,ACCOUNT_LIMIT} from './attachment-storage.mjs';
+export {FILE_LIMIT,ACCOUNT_LIMIT};
 import {reminderPushRoute} from './reminder-push.mjs';
 import {aiRoute,aiEnabled} from './ai.mjs';
 import {cleanupArticles} from './article-storage.mjs';
@@ -8,14 +10,14 @@ import {booksRoute,cleanupBooks} from './books.mjs';
 import {STORAGE_LIMIT,validateReadingBooks} from '../src/book-storage.mjs';
 import {googleTasksPublic,googleTasksRoute,googleTasksConfigured,cleanupGoogleTasks} from './google-tasks.mjs';
 import {syncV2,loadStored} from './sync-v2.mjs';
-import {syncV3,SyncSpace} from './sync-v3.mjs';
+import {syncV3,SyncSpace,reserveV3Attachment,finishV3Attachment,isV3Account} from './sync-v3.mjs';
 export {SyncSpace};
 import {mcpEndpoint,mcpManage} from './mcp.mjs';
 import {oauthPublic,oauthConsent,cleanupOAuth} from './mcp-oauth.mjs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 // This cache contains only Google's public verification keys, never user data.
 const keys = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
-export const FILE_LIMIT = 2 * 1024 * 1024, ACCOUNT_LIMIT = 20 * 1024 * 1024, NOTE_LIMIT = 900 * 1024;
+export const NOTE_LIMIT = 900 * 1024;
 const json = (body, status=200) => Response.json(body, {status});
 const fail = (message, status) => { throw Object.assign(new Error(message), {status}); };
 export async function readLimited(request, limit) {
@@ -44,7 +46,7 @@ export function validatePayload(value) {
 export async function route(request, env, authenticate=(token)=>verifyUser(token,env.FIREBASE_PROJECT_ID),ctx) {
   const url=new URL(request.url);
   if(request.method==='OPTIONS')return new Response(null,{status:204});
-  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,syncProtocol:env.SYNC_SPACE?3:2,workdaysSchema:2,taskPlanning:1,calendarPlanning:1,taskRecurrence:1,calendarDaily:1,backgroundReminders:1,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiImage:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
+  if(url.pathname==='/health'&&request.method==='GET')return json({ok:true,attachments:!!env.FILES,attachmentRecovery:1,syncProtocol:env.SYNC_SPACE?3:2,workdaysSchema:2,taskPlanning:1,calendarPlanning:1,taskRecurrence:1,calendarDaily:1,backgroundReminders:1,authProviders:['google.com','password'],bookStorage:1,bookReader:1,aiAssist:1,aiImage:1,aiEnabled:aiEnabled(env),bookmarkReader:1,mcp:1,mcpOAuth:1,bookmarkCapture:!!env.ARTICLE_CAPTURE&&!!env.ARTICLE_RATE_LIMITER,googleTasksConfigured:googleTasksConfigured(env)});
   // Desktop app updates (public: the app checks before anyone signs in). Files are uploaded by
   // the Desktop app workflow to R2 under desktop/<channel>/; builds are signed, and the app only
   // installs updates whose signature matches the key built into it.
@@ -70,6 +72,7 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
   if(url.pathname.startsWith('/mcp/'))return mcpManage(request,env,uid,{readLimited});
   if(url.pathname.startsWith('/oauth/requests/')){const r=await oauthConsent(request,env,uid,{readLimited});if(r)return r;}
   if(url.pathname==='/sync/v2')return syncV2(request,env,uid,{readLimited,validatePayload,NOTE_LIMIT});
+  if(url.pathname==='/assets/reconcile')return syncV3(request,env,uid,{readLimited});
   if(url.pathname==='/sync/v3'||url.pathname==='/sync/v3/ws')return syncV3(request,env,uid,{readLimited});
   if(url.pathname==='/workspace'){
     if(request.method==='GET'){
@@ -105,9 +108,10 @@ export async function route(request, env, authenticate=(token)=>verifyUser(token
     if(request.method==='PUT'){
       const bytes=await readLimited(request,FILE_LIMIT);
       const actual=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');if(actual!==hash)fail('Attachment checksum mismatch.',400);
-      await env.DB.prepare('INSERT OR IGNORE INTO assets(uid,hash,size) SELECT ?,?,? WHERE (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?) + ? <= ? AND (SELECT COALESCE(SUM(size),0) FROM assets WHERE uid=?) + (SELECT COALESCE(SUM(size),0) FROM books WHERE uid=? AND state!=\'deleted\') + (SELECT COALESCE(SUM(size),0) FROM article_snapshots WHERE uid=? AND state!=\'deleted\') + ? <= ?').bind(uid,hash,bytes.length,uid,bytes.length,ACCOUNT_LIMIT,uid,uid,uid,bytes.length,STORAGE_LIMIT).run();
-      const reserved=await env.DB.prepare('SELECT size FROM assets WHERE uid=? AND hash=?').bind(uid,hash).first();if(!reserved||reserved.size!==bytes.length)fail('Attachment storage is full (20 MiB), or combined book and attachment storage exceeds 100 MiB.',413);
-      await env.FILES.put(key,bytes,{httpMetadata:{contentType:'application/octet-stream'}});
+      const v3=await isV3Account(env,uid),lease=v3?await reserveV3Attachment(env,uid,hash,bytes.length):null;
+      if(!v3)await reserveAttachment(env,uid,hash,bytes.length);
+      let stored=false;try{await env.FILES.put(key,bytes,{httpMetadata:{contentType:'application/octet-stream'}});stored=true;}
+      finally{if(lease)try{await finishV3Attachment(env,uid,lease.token,!stored);}catch{console.warn(JSON.stringify({event:'attachment_lease_release_retry'}));}}
       return json({ok:true});
     }
   }

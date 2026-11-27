@@ -369,3 +369,42 @@ Recipes create ordinary Trait bullets only for explicitly created new notes.
 Full backups preserve the settings and previous revisions. No protocol migration,
 new Worker or durable-outbox change is required. Older apps preserve the metadata
 but display their existing direct-child views until updated.
+
+## Attachment quota recovery
+
+Design recorded before implementation; staging rollout only.
+
+A 413 from attachment upload must not trap later text edits and explicit removals
+behind an immutable in-flight request. A separate durable progress operation sends
+only non-attachment buckets from the pending outbox. Its acknowledgement records
+which bucket fragments progressed, but does not remove or rewrite the original
+pending entries or claimed operation. Original batches replay normally after
+capacity recovers. Until every original entry is acknowledged, status stays pending.
+Progress operations retain their own stable identity and exact bytes across retries.
+
+On a quota failure, a second durable progress lane sends only Yjs delete sets
+from pending attachment operations. No new attachment structs are sent. These are
+the device's already-recorded removals, including deletions of additions in an older
+blocked batch; they are normal incremental CRDT updates, not a replacement manifest.
+The client proposes obsolete hashes from known uploads absent from its staged
+manifest. An authenticated v3 maintenance request runs in the account's serialized
+Durable Object. It checks the latest manifest plus media, Trash, emoji/catalog,
+study covers and reactions against retained path/hash associations. Active upload
+leases protect reservations through manifest acknowledgement; a completed upload
+can also be retired on an explicit device removal. Only unreferenced allocation records are retired, including legacy orphan
+allocations discovered from the account-scoped storage index. Failed uploads
+release unreferenced reservations; expired leases are recovered on quota retry.
+Other devices' live references take precedence; no arbitrary document is adopted.
+
+Stored R2 bytes are retained for recovery; this change does not hard-delete any
+binary. Reusing a retained blob recreates its allocation under the normal quota
+checks before accepting a new manifest reference. This makes accounting match
+active retained attachments without destroying older/offline recoverability.
+Physical retention/garbage collection remains a separate policy, not a sync fix.
+
+Normal retries then replay the original immutable request. The server can apply
+previously delivered deletion sets to the older attachment structs, so an addition
+removed before upload does not block the account. No validation/network/auth error
+is silently acknowledged, no outbox is discarded, and no force-overwrite/snapshot
+replacement or user conflict choice is introduced. Existing limits stay enforced;
+a genuinely full active library stays pending with an honest quota message.

@@ -89,7 +89,7 @@ export async function receiveOutbox(meta,response,io){
  const buckets=Object.keys(response.updates||{});
  if(buckets.length){const received=await io.load('R',buckets);put(meta,io,'R',mergeChanged(b=>received.get(b),response.updates));for(const b of buckets)meta.unsynced[b]=true;meta.receivedVersion=(meta.receivedVersion||0)+1;meta.dirty=true;}
  meta.since=Math.max(meta.since,response.revision);
- if(response.acked){if(response.acked!==meta.inflight?.operationId)throw Error('Unexpected sync acknowledgement');const ids=new Set(meta.inflight.ids);meta.pending=meta.pending.filter(x=>!ids.has(x.id));meta.inflight=null;}
+ if(response.acked){if(response.acked!==meta.inflight?.operationId)throw Error('Unexpected sync acknowledgement');const ids=new Set(meta.inflight.ids);meta.pending=meta.pending.filter(x=>!ids.has(x.id));meta.inflight=null;const live=new Set(meta.pending.map(e=>e.id));for(const mode of Object.keys(meta.quotaDone||{}))meta.quotaDone[mode]=meta.quotaDone[mode].filter(t=>live.has(t.slice(0,t.lastIndexOf(':'))));for(const [mode,p] of Object.entries(meta.quotaProgress||{}))if(p.tokens.every(t=>!live.has(t.slice(0,t.lastIndexOf(':')))))delete meta.quotaProgress[mode];}
  return meta;
 }
 /** Adopts the received state as this device's own (after the app applied it). */
@@ -126,4 +126,28 @@ export async function recoverRefused(meta,io,account=''){
  meta.receivedVersion=(meta.receivedVersion||0)+1;meta.dirty=true;meta.inflight=null;
  meta.recoveries=[...(meta.recoveries||[]).slice(-19),{at:Date.now(),items:fix.recovered.length}];
  return {items:fix.recovered.length};
+}
+
+// Independent, durable retries of already queued fragments. Originals remain immutable.
+export function claimQuotaProgress(meta,mode){
+ if(!['notes','removals'].includes(mode))throw Error('Invalid quota progress mode');
+ meta.quotaProgress||={};meta.quotaDone||={};if(meta.quotaProgress[mode])return meta;
+ const done=new Set(meta.quotaDone[mode]||[]),lists={},tokens=[];let size=0;
+ for(const entry of meta.pending){for(const [bucket,update] of Object.entries(entry.updates)){
+  const token=entry.id+':'+bucket;if(done.has(token)||(mode==='notes'?bucket===ASSET_BUCKET:bucket!==ASSET_BUCKET))continue;
+  // Deletion sets are independent of new structs. Include ALL pending asset deletions,
+  // including later removal of an addition in the immutable blocked request.
+  if(mode==='notes'&&tokens.length&&size+update.length>BATCH_BYTES)break;
+  (lists[bucket]||=[]).push(unpack(update));tokens.push(token);size+=update.length;
+ }if(mode==='notes'&&size>=BATCH_BYTES)break;}
+ if(!tokens.length)return meta;
+ const updates={};for(const [bucket,list] of Object.entries(lists)){let u=Y.mergeUpdates(list);if(mode==='removals')u=Y.diffUpdate(u,Y.encodeStateVectorFromUpdate(u));if(u.length>2)updates[bucket]=pack(u);}
+ if(!Object.keys(updates).length){meta.quotaDone[mode]=[...done,...tokens];return meta;}
+ if(JSON.stringify(updates).length>4*1024*1024-2048)throw Error('Attachment recovery batch is too large. Your pending data is kept.');
+ meta.quotaProgress[mode]={operationId:crypto.randomUUID(),updates,tokens};return meta;
+}
+export async function receiveQuotaProgress(meta,response,io,mode){
+ const progress=meta.quotaProgress?.[mode];if(!progress||response.acked!==progress.operationId)throw Error('Unexpected quota progress acknowledgement');
+ await receiveOutbox(meta,{...response,acked:undefined},io);
+ meta.quotaDone||={};meta.quotaDone[mode]=[...new Set([...(meta.quotaDone[mode]||[]),...progress.tokens])];delete meta.quotaProgress[mode];return meta;
 }
