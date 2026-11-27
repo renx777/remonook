@@ -132,6 +132,7 @@ function missingDetail(snapshot){
   }finally{d.destroy();}
  }));
 }
+async function preserved(stage){const snapshot=await server(),ids=new Set(snapshot.doc.tables.bullets.map(n=>n.id));const count=before.filter(id=>ids.has(id)).length;check(stage+' preserves earlier notes',count===before.length,`${count}/${before.length}, revision ${snapshot.revision}, ${snapshot.states.size} buckets`+(count===before.length?'':' missing='+missingDetail(snapshot)));}
 try{
  // Device A signs in, but sends nothing until the account has been recorded: a first sync that
  // deletes or reverts notes must be visible to the checks below.
@@ -182,6 +183,8 @@ try{
  const C=await device(browser,'C'),c=(await texts(C)).filter(t=>t.startsWith(RUN)).sort(),b=(await texts(B)).filter(t=>t.startsWith(RUN)).sort();
  check('a third new device sees the same notes',c.length===4&&JSON.stringify(c)===JSON.stringify(b),`${c.length}/4`);
 
+ await preserved('before task planning');
+
  // Task planning is gated to the new staging frontend. Reuse this run's own n4
  // rather than creating an Inbox/system root or touching anyone else's notes.
  if(process.env.E2E_TASK_PLANNING==='true'){
@@ -207,6 +210,8 @@ try{
   for(const d of [A,B])await d.page.locator('.sidebar-nav').getByRole('button',{name:/^Notes/}).click();
  }
 
+ await preserved('after task planning');
+
  // 6. A device-only workspace never sends anything: its note text must not appear in any request,
  // and the main workspace must not show it. The workspace is deleted afterwards.
  if(await C.page.$('.workspace-current')){
@@ -221,6 +226,7 @@ try{
   await reload(()=>C.page.getByRole('button',{name:'Delete permanently'}).click());open=false;await synced(C,60000);
   await search(C,secret);check('the main workspace never shows device-only notes',!(await rows(C)).some(t=>t.includes(secret))&&!(await server()).doc.tables.bullets.some(n=>n.text.includes(secret)));
  }
+ await preserved('after workspace isolation');
  const errors=[A,B,C].flatMap(d=>d.errors.map(e=>`${d.name}: ${e}`));
  check('no app errors on any device',!errors.length,errors.slice(0,3).join(' | '));
 }catch(e){check('check completed',false,String(e?.message||e).slice(0,300));try{for(const pg of browser.contexts().flatMap(c=>c.pages()))await pg.screenshot({path:`e2e-failure-${browser.contexts().indexOf(pg.context())}.png`});}catch{}}
@@ -228,7 +234,7 @@ finally{
  try{
   if(token){const removed=await cleanup();const after=(await server()).doc.tables.bullets.filter(n=>!n.text.startsWith(MARK)||before?.includes(n.id)).map(n=>n.id).sort();
    console.log(`cleanup removed ${removed} test bullets`);
-   if(before)check('the account holds exactly its earlier notes afterwards',JSON.stringify(after)===JSON.stringify(before),`${after.length} of ${before.length} notes`);}
+   if(before){check('the account holds exactly its earlier notes afterwards',JSON.stringify(after)===JSON.stringify(before),`${after.length} of ${before.length} notes`);if(JSON.stringify(after)!==JSON.stringify(before)){await preserved('after cleanup');await preserved('independent repeat pull after cleanup');}}}
  }catch(e){check('cleanup',false,String(e?.message||e).slice(0,200));}
  await browser.close();
 }
