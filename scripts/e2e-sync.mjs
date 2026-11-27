@@ -11,7 +11,7 @@
 //
 // Credentials come only from the environment (GitHub secrets in CI). Nothing is written to disk.
 import {chromium} from 'playwright';
-import {applyDocument,mergeUpdates,projectBuckets} from '../src/sync-buckets.mjs';
+import {applyDocument,mergeUpdates,projectBuckets,openBucket,bulletBucket} from '../src/sync-buckets.mjs';
 import {bullet} from '../src/domain.mjs';
 
 const APP=process.env.E2E_URL||'https://staging.remonook.com';
@@ -121,7 +121,17 @@ async function append(d,match,text){await search(d,RUN);const row=d.page.locator
 async function online(d,on){await d.ctx.setOffline(!on);if(on)await d.page.evaluate(()=>window.dispatchEvent(new Event('online')));}
 
 const browser=await chromium.launch(process.env.E2E_CHROMIUM?{executablePath:process.env.E2E_CHROMIUM}:{});
-let before=null;
+let before=null,baselineRows=new Map();
+// IDs/structure only: never log account note text or a workspace snapshot.
+function missingDetail(snapshot){
+ const present=new Set(snapshot.doc.tables.bullets.map(n=>n.id)),missing=before.filter(id=>!present.has(id));
+ return JSON.stringify(missing.slice(0,20).map(id=>{
+  const prior=baselineRows.get(id),d=openBucket(snapshot.states.get(bulletBucket(id))),key=JSON.stringify(['bullets',id]);
+  try{const deleted=d.getMap('fields').get(JSON.stringify(['row',key,'_syncDeletedValue']));
+   return {id,parentId:prior?.parentId,mirror:!!prior?.mirrorSourceId,textLength:prior?.text?.length,existsFlag:d.getMap('rows').get(key)??null,deletionRecord:!!deleted,deletedFields:deleted?Object.keys(deleted).filter(k=>JSON.stringify(deleted[k])!==JSON.stringify(prior?.[k])):[]};
+  }finally{d.destroy();}
+ }));
+}
 try{
  // Device A signs in, but sends nothing until the account has been recorded: a first sync that
  // deletes or reverts notes must be visible to the checks below.
@@ -131,7 +141,7 @@ try{
  for(let i=0;i<900&&!token&&!signInError;i++)await sleep(100);
  if(!token)throw signInError||Error('device A did not reach the sync server within 90 s');
  if(APP==='https://staging.remonook.com' && API==='https://remo-sync-staging.remo-978fb.workers.dev') await removeLegacyBaseline();
- before=(await server()).doc.tables.bullets.filter(n=>!n.text.startsWith(MARK)).map(n=>n.id).sort();
+ const baseline=(await server()).doc.tables.bullets.filter(n=>!n.text.startsWith(MARK));baselineRows=new Map(baseline.map(n=>[n.id,n]));before=baseline.map(n=>n.id).sort();
  console.log(`account has ${before.length} notes`);
  release();const A=await signingIn;
  const leftovers=await cleanup();if(leftovers)console.log(`removed ${leftovers} bullets left by an earlier check`);
@@ -139,12 +149,12 @@ try{
  check('the first device\'s sign-in deletes nothing',before.every(id=>afterA.some(n=>n.id===id)),`${before.filter(id=>afterA.some(n=>n.id===id)).length}/${before.length} notes`);
 
  // 1. A creates notes; a brand-new device B receives all of them and deletes nothing.
- for(const k of [1,2,3])await add(A,`${RUN} n${k}`);await synced(A,30000);
+ for(const k of [1,2,3]){await add(A,`${RUN} n${k}`);await synced(A,30000);const snapshot=await server();const count=before.filter(id=>snapshot.doc.tables.bullets.some(n=>n.id===id)).length;check(`adding note ${k} preserves earlier notes`,count===before.length,`${count}/${before.length}`+(count===before.length?'':' missing='+missingDetail(snapshot)));}
  const B=await device(browser,'B');
  const seen=(await texts(B)).filter(t=>t.startsWith(RUN)).length;
- const afterB=(await server()).doc.tables.bullets;
+ const afterBSnapshot=await server(),afterB=afterBSnapshot.doc.tables.bullets;
  check('a new device receives every note',seen===3,`${seen}/3 new notes shown`);
- check('a new device deletes nothing',before.every(id=>afterB.some(n=>n.id===id)),`${before.filter(id=>afterB.some(n=>n.id===id)).length}/${before.length} earlier notes on the server`);
+ check('a new device deletes nothing',before.every(id=>afterB.some(n=>n.id===id)),`${before.filter(id=>afterB.some(n=>n.id===id)).length}/${before.length} earlier notes on the server`+(before.every(id=>afterB.some(n=>n.id===id))?'':' missing='+missingDetail(afterBSnapshot)));
 
  // 2. Live edits both ways, without reloading.
  await append(B,`${RUN} n1`,' edited on B');let ms=await waitFor(A,t=>t.some(x=>x.includes('edited on B')));
