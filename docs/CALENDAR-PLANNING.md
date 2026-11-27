@@ -156,3 +156,7 @@ physical phone or a native release. Those remain explicit device rollout gates.
 
 A push receipt means the provider accepted the encrypted request, not that a person
 saw it. Push acceptance never completes a Calendar reminder or task.
+
+The browser checks the active service worker protocol and waits for its durable
+device-guard acknowledgement before claiming opt-in success. An older worker asks
+for Save & update instead of registering a subscription it cannot handle.

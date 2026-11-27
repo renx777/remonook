@@ -1,9 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {build} from 'esbuild';
-const storage=new Map(),messages=[],calls=[];let permissionCalls=0,sub=null,subscriptions=0,unsubscribes=0;
+const storage=new Map(),messages=[],calls=[];let permissionCalls=0,sub=null,subscriptions=0,unsubscribes=0,workerReady=true;
 globalThis.localStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
 globalThis.__pushAuth={currentUser:{uid:'alice',getIdToken:async()=> 'fixture-token'}};
 globalThis.window={PushManager:class{}};globalThis.Notification=class{static permission='granted';static async requestPermission(){permissionCalls++;return this.permission;}};
-const reg={active:{postMessage:m=>messages.push(m)},pushManager:{async getSubscription(){return sub;},async subscribe(){subscriptions++;sub={toJSON:()=>({endpoint:'https://fcm.googleapis.com/a',keys:{}}),async unsubscribe(){unsubscribes++;sub=null;return true;}};return sub;}}};
+const reg={active:{postMessage:(m,ports)=>{messages.push(m);if(workerReady)ports?.[0]?.postMessage({protocol:1,ok:true});}},pushManager:{async getSubscription(){return sub;},async subscribe(){subscriptions++;sub={toJSON:()=>({endpoint:'https://fcm.googleapis.com/a',keys:{}}),async unsubscribe(){unsubscribes++;sub=null;return true;}};return sub;}}};
 Object.defineProperty(globalThis,'navigator',{value:{serviceWorker:{ready:Promise.resolve(reg),getRegistration:async()=>reg}},configurable:true});
 globalThis.fetch=async(url,init)=>{const body=JSON.parse(init.body);calls.push(body);return Response.json(body.action==='key'?{publicKey:'A'.repeat(87)}:{enabled:true});};
 await build({entryPoints:['src/background-reminders.ts'],bundle:true,packages:'external',outfile:'tests/.build/background-client-fixture.mjs',format:'esm',platform:'node',plugins:[{name:'fixture',setup(b){b.onResolve({filter:/^\.\/(auth-service|cloud-config|data)$/},a=>({path:a.path,namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='./auth-service'?'export const auth=globalThis.__pushAuth;':a.path==='./cloud-config'?`export const CLOUD_API='https://api.example.test';`:`export const accountLocalKey=k=>globalThis.__pushAuth.currentUser.uid+':'+k;`}));}}]});
@@ -22,4 +22,7 @@ test('travel updates the registered zone on focus renewal without another permis
  Notification.permission='granted';await client.enableBackgroundReminders();const permissionBefore=permissionCalls,Original=Intl.DateTimeFormat;
  try{Intl.DateTimeFormat=function(...args){const f=new Original(...args);f.resolvedOptions=()=>({timeZone:'Asia/Kolkata'});return f;};await client.renewBackgroundReminders();assert.equal(calls.at(-1).zone,'Asia/Kolkata');assert.equal(permissionCalls,permissionBefore);}
  finally{Intl.DateTimeFormat=Original;await client.disableBackgroundReminders();}
+});
+test('an old active service worker cannot claim enabled delivery or create a subscription',async()=>{
+ const before=subscriptions;workerReady=false;try{await assert.rejects(client.enableBackgroundReminders(),/Save & update/);assert.equal(subscriptions,before);assert.equal(client.backgroundEnabled(),false);}finally{workerReady=true;}
 });
