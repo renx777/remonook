@@ -469,17 +469,6 @@ export async function preparePortable(
     warnings.push(
       missingParents.length + " missing parents attached to import root.",
     );
-  const transport = applyDocument(new Map(), null, {
-    tables: { bullets: [root, ...newNodes], media: newMedia, emojis },
-    web: {},
-  });
-  if (
-    new TextEncoder().encode(JSON.stringify(transport.updates)).length >
-    2 * 1024 * 1024
-  )
-    throw Error(
-      "This import is too large for one safe sync operation. Split the notes into smaller files.",
-    );
   const report = bullet(make(), {
     parentId: root.id,
     position:
@@ -501,6 +490,18 @@ export async function preparePortable(
       bullet(make(), { parentId: report.id, position: i + 1, text }),
     ),
   ];
+  if(newNodes.length+reportRows.length+2>MAX_NOTES)throw Error("Notes and import report exceed 10,000 bullets. Split the file.");
+  const transport = applyDocument(new Map(), null, {
+    tables: { bullets: [root, ...newNodes, report, ...reportRows], media: newMedia, emojis },
+    web: {},
+  });
+  if (
+    new TextEncoder().encode(JSON.stringify(transport.updates)).length >
+    2 * 1024 * 1024
+  )
+    throw Error(
+      "This import is too large for one safe sync operation. Split the notes into smaller files.",
+    );
   return {
     id: root.id,
     nodes: [root, ...newNodes, report, ...reportRows],
