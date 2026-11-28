@@ -2,6 +2,7 @@ import {useContext,useEffect,useMemo,useRef,useState} from 'react';
 import {NoteMetadataContext} from './NoteMetadataContext';
 import {Sheet} from './Sheet';
 import {Icon} from './icons';
+import {Clapperboard} from 'lucide-react';
 import {traitView} from './traits-block.mjs';
 import {movieSearchEnabled,movieQuery,movieTargets,searchMovies,movieDetails,bestMatch,normTitle,planMovieTraits,applyMoviePlans,createMovieNote,savedMovieId,MOVIE_FIELDS,DEFAULT_MOVIE_FIELDS} from './movie-search.mjs';
 import {movieKey,useMovieKeys,movieFieldPrefs,saveMovieFieldPrefs,type MovieProvider} from './movie-keys';
@@ -21,7 +22,7 @@ function FieldChips({fields,onChange}:{fields:string[];onChange:(v:string[])=>vo
 const changeLine=(c:Change)=><li key={c.key}><b>{c.key}</b>{c.before?<><s>{c.before.length>40?c.before.slice(0,40)+'…':c.before}</s> → </>:' '}<span>{/^https:/.test(c.after)&&c.key!=='TMDB'&&c.key!=='IMDb'?'new image':c.after}</span></li>;
 
 /** Movie lookups for a collection (Add movie, Update from TMDB) or one movie note (Match on TMDB). */
-export function MovieSearch({id}:{id:string}){
+export function MovieSearch({id,compact=false}:{id:string;compact?:boolean}){
  const ctx=useContext(NoteMetadataContext),keys=useMovieKeys(),provider=keys.provider;
  const [sheet,setSheet]=useState<'add'|'update'|'match'|null>(null),anchor=useRef<HTMLButtonElement>(null);
  const node=ctx?.doc.tables.bullets.find(n=>n.id===id);
@@ -33,12 +34,12 @@ export function MovieSearch({id}:{id:string}){
  const collection=recipe==='movie'||(tagged&&!underMovies),single=!collection&&(tagged||underMovies);
  if(!collection&&!single)return null;
  const off=!!ctx.disabled||!ctx.save;
- return <section className="movie-bar" aria-label="Movie lookups">
+ return <section className={compact?"movie-bar is-compact":"movie-bar"} aria-label="Movie lookups">
   {collection?<>
-   <button className="movie-btn" disabled={off} onClick={e=>{anchor.current=e.currentTarget;setSheet('add');}}><Icon name="plus" size={15}/>Add movie</button>
-   <button className="movie-btn" disabled={off||!children} onClick={e=>{anchor.current=e.currentTarget;setSheet('update');}}><Icon name="refresh" size={15}/>Update from {provider?NAME[provider]:'TMDB'}</button>
+   <button className="movie-btn movie-add" aria-label="Add movie" title="Add a movie from search" disabled={off} onClick={e=>{anchor.current=e.currentTarget;setSheet('add');}}>{compact?<Clapperboard size={15}/>:<Icon name="plus" size={15}/>}<span>Add movie</span></button>
+   <button className="movie-btn movie-update" title={`Update from ${provider?NAME[provider]:'TMDB'}`} disabled={off||!children} onClick={e=>{anchor.current=e.currentTarget;setSheet('update');}}><Icon name="refresh" size={15}/>{compact?<span className="sr-only">Update from {provider?NAME[provider]:'TMDB'}</span>:<>Update from {provider?NAME[provider]:'TMDB'}</>}</button>
   </>:<button className="movie-btn" disabled={off} onClick={e=>{anchor.current=e.currentTarget;setSheet('match');}}><Icon name="search" size={15}/>Match on {provider?NAME[provider]:'TMDB'}</button>}
-  {!provider&&<button className="movie-link" onClick={openConnections}>Connect a movie database</button>}
+  {!provider&&!compact&&<button className="movie-link" onClick={openConnections}>Connect a movie database</button>}
   {sheet==='add'&&<Sheet wide anchor={anchor.current} label="Add movie" onClose={()=>setSheet(null)}><div className="movie-sheet">{provider?<AddMovie id={id} provider={provider}/>:<ConnectFirst/>}</div></Sheet>}
   {sheet==='update'&&<Sheet wide anchor={anchor.current} label="Update movies" onClose={()=>setSheet(null)}><div className="movie-sheet">{provider?<UpdateMovies id={id} provider={provider} onDone={()=>setSheet(null)}/>:<ConnectFirst/>}</div></Sheet>}
   {sheet==='match'&&<Sheet wide anchor={anchor.current} label="Match movie" onClose={()=>setSheet(null)}><div className="movie-sheet">{provider?<MatchMovie id={id} provider={provider} onDone={()=>setSheet(null)}/>:<ConnectFirst/>}</div></Sheet>}

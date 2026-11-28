@@ -61,3 +61,5 @@
 .movie-connection form .movie-remember{margin:0}
 .movie-connection-actions{display:flex;flex-wrap:wrap;gap:6px}
 @media(max-width:760px){.movie-changes{margin-left:0}.movie-candidates{margin-left:0}}
+.movie-place-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);flex-basis:100%;margin:4px 0}
+.movie-connection-actions{margin-top:8px}

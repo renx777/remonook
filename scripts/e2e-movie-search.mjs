@@ -17,7 +17,10 @@ try{for(const mobile of [false,true]){
  // Connect once in Settings → Connections.
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('remo-open-settings',{detail:'connections'})));
  await page.getByLabel('TMDB key',{exact:true}).fill(KEY);await page.getByRole('group',{name:'TMDB connection'}).getByRole('button',{name:'Connect',exact:true}).click();
- await page.getByRole('group',{name:'TMDB connection'}).getByText(/Connected · remembered on this device/).waitFor();await page.keyboard.press('Escape');
+ await page.getByRole('group',{name:'TMDB connection'}).getByText(/Connected · remembered on this device/).waitFor();
+ // Move the key to all signed-in devices: it leaves this device's storage and rides with the account.
+ await page.getByRole('group',{name:'TMDB key location'}).getByRole('button',{name:'All my devices'}).click();await page.getByRole('group',{name:'TMDB connection'}).getByText(/Connected · synced to your devices/).waitFor();
+ assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.includes('remo-movie-key')&&localStorage.getItem(k)).length),0);await page.keyboard.press('Escape');
  // Update the shelf: both movies match exactly and get Traits.
  await page.locator('[data-node-id="shelf"] [aria-label="Zoom into bullet"]').click();
  await page.getByRole('button',{name:'Update from TMDB'}).click();await page.getByRole('button',{name:'Check 2 movies'}).click();
@@ -29,7 +32,7 @@ try{for(const mobile of [false,true]){
  await page.locator('[data-node-id="alien"] [aria-label="Zoom into bullet"]').first().click();await page.getByRole('button',{name:'Match on TMDB'}).waitFor();
  await page.evaluate(fixture);const doc=await page.evaluate(async()=>globalThis.fixture.data.load());const texts=doc.tables.bullets.map(n=>n.text);
  for(const t of ['Director: John Carpenter','Director: Ridley Scott','Runtime: 117 min','TMDB: https://www.themoviedb.org/movie/2','Cover: https://image.tmdb.org/t/p/w500/alien.jpg','Dune','Director: Denis Villeneuve'])assert.ok(texts.includes(t),'missing '+t);
- assert.ok(!JSON.stringify(doc).includes(KEY),'the key never enters notes');
+ assert.ok(!JSON.stringify(doc.tables).includes(KEY),'the key never enters notes');assert.equal(doc.web.providerKeys.tmdb.key,KEY,'synced setting holds the key');
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no page overflow');assert.deepEqual(errors,[]);
  console.log(`MovieSearch v2 ${mobile?'phone':'desktop'}: connect + remember, shelf update with review, add from search, match entry, key kept out of notes passed`);await context.close();
 }}finally{await browser.close();}

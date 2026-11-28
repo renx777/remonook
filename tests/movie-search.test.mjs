@@ -42,3 +42,24 @@ test('v2: a v4 read token is sent as a bearer header, never in the URL',async()=
   const m=await movieDetails('tmdb',token,'1');assert.equal(m.director,'Ridley Scott');assert.equal(m.runtime,'117 min');assert.equal(m.rating,'8.2');
  }finally{globalThis.fetch=original;}
 });
+
+test('collections sort by date created and last edited, and search titles and Trait values',async()=>{
+ const {arrangeCollection,searchCollection,noteModified}=await import('../src/traits-block.mjs');const {index}=await import('../src/domain.mjs');
+ const d=empty();d.tables.bullets=[bullet('s',{text:'Movies #views'}),bullet('a',{parentId:'s',text:'Alien'}),bullet('ta',{parentId:'a',text:'Traits',traitsBlock:true}),bullet('da',{parentId:'ta',text:'Director: Ridley Scott'}),bullet('b',{parentId:'s',position:1,text:'Brazil'}),bullet('c',{parentId:'s',position:2,text:'Clue'})];
+ d.web.noteTimes={a:{createdAt:300,updatedAt:300},b:{createdAt:100,updatedAt:900},c:{createdAt:200,updatedAt:200},da:{createdAt:300,updatedAt:1000}};
+ const kids=d.tables.bullets.filter(n=>n.parentId==='s'),view=v=>({filter:'',conditions:[],match:'all',sort:'',dir:'asc',...v});
+ assert.deepEqual(arrangeCollection(d,kids,view({sort:'__created',dir:'desc'})).map(n=>n.id),['a','c','b']);
+ assert.equal(noteModified(d,'a',index(d.tables.bullets)),1000,'a Trait edit counts as editing the movie');
+ assert.deepEqual(arrangeCollection(d,kids,view({sort:'__modified',dir:'desc'})).map(n=>n.id),['a','b','c']);
+ assert.deepEqual(searchCollection(d,kids,'ridley').map(n=>n.id),['a']);assert.deepEqual(searchCollection(d,kids,'BRA').map(n=>n.id),['b']);assert.equal(searchCollection(d,kids,'  ').length,3);
+});
+
+test('a synced provider key travels with sync but never into a backup file',async()=>{
+ const {setSyncedKey,syncedMovieKeys}=await import('./.build/movie-keys.mjs').catch(()=>({}));
+ const {archive,parseArchive,withNodes}=await import('./.build/data.mjs');const {projectBuckets,applyDocument}=await import('../src/sync-buckets.mjs');
+ let d=withNodes(empty(),[bullet('n',{text:'Note'})]);d={...d,web:{...d.web,providerKeys:{tmdb:{key:'synced-secret-key',updatedAt:1}}}};
+ const blob=await archive(d,new Map());assert.ok(!(await blob.text()).includes('synced-secret-key'),'not in the backup zip');
+ const zip=await (await import('jszip')).default.loadAsync(await blob.arrayBuffer());assert.ok(!(await zip.file('remo.json').async('string')).includes('synced-secret-key'));
+ const {repairDocument}=await import('../src/sync-checks.mjs');const repaired=repairDocument(structuredClone(d));assert.ok(!repaired||repaired.doc?.web?.providerKeys?.tmdb?.key==='synced-secret-key','sync validation keeps it');
+ if(setSyncedKey){const cleared=setSyncedKey(d,'tmdb','');assert.deepEqual(syncedMovieKeys(cleared),{});}
+});

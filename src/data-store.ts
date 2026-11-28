@@ -491,7 +491,7 @@ export async function archive(
     tables: tableManifest(doc),
     preferences: doc.preferences,
     assets: declared,
-    ...(!android ? { web: {...doc.web,bookmarkBackupMissing:missingSnapshots,bookBackupMissing:missingBooks} } : {}),
+    ...(!android ? { web: {...doc.web,providerKeys:undefined,bookmarkBackupMissing:missingSnapshots,bookBackupMissing:missingBooks} } : {}), // synced provider keys never go into backup files
   };
   const json = JSON.stringify(manifest);
   if (new TextEncoder().encode(json).length > 64 * 1024 * 1024)

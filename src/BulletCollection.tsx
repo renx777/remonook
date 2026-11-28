@@ -3,7 +3,8 @@ import {CardDetailsButton} from './CardDetailsDialog';
 import {cardDetails} from './card-details.mjs';
 import {useContext,useEffect,useMemo,useRef,useState} from 'react';
 import {NoteMetadataContext,type MetadataContext} from './NoteMetadataContext';
-import {LayoutGrid,List,ListTree,Table2,ExternalLink,ArrowUpRight,Plus,ArrowUpDown,Filter,ListChecks,Settings2,Rows3,ChevronDown,Pencil,Trash2,X,Link2,Columns3,CalendarDays,ChevronLeft,ChevronRight} from 'lucide-react';
+import {LayoutGrid,List,ListTree,Table2,ExternalLink,ArrowUpRight,Plus,ArrowUpDown,Filter,ListChecks,Settings2,Rows3,ChevronDown,Pencil,Trash2,X,Link2,Columns3,CalendarDays,ChevronLeft,ChevronRight,Search,Check} from 'lucide-react';
+import type {ReactNode} from 'react';
 import {mediaLinks} from './media.mjs';
 import {snapshotIndex} from './outline-snapshot.mjs';
 import {useImageUrl} from './ImageTools';
@@ -12,12 +13,12 @@ import {previewPrice} from './link-preview-client';
 import './traits-block.css';
 import {loadLinkPreview} from './link-preview-client';
 import {newSmartCollectionItem,smartMembers,traitBulletIds,sourcePath,dateTraitKeys,dateOf,calendarMonth,monthGrid,shiftMonth,boardColumns,TOTALS,traitTotal} from './traits-block.mjs';
-import {traitImageRow,FILTER_OPS,setNoteTrait,itemLink,applyPreviewTraits,switchTraitTab,addTraitTab,renameTraitTab,deleteTraitTab,imageTraitNames,noteTraits,ratingOf,ratingText,setTraitValue,groupCollection,collectionTraitKeys,noteTrait,traitCover,isTraitsBlock,isUrl,traitView,setTraitView,arrangeCollection,shownTraits} from './traits-block.mjs';
+import {TIME_SORTS,searchCollection,traitImageRow,FILTER_OPS,setNoteTrait,itemLink,applyPreviewTraits,switchTraitTab,addTraitTab,renameTraitTab,deleteTraitTab,imageTraitNames,noteTraits,ratingOf,ratingText,setTraitValue,groupCollection,collectionTraitKeys,noteTrait,traitCover,isTraitsBlock,isUrl,traitView,setTraitView,arrangeCollection,shownTraits} from './traits-block.mjs';
 import type {Node,Workspace} from './data';
 import './bullet-collection.css';
 const VIEWS=[['outline','Outline',ListTree],['grid','Grid',LayoutGrid],['list','Compact list',List],['table','Table',Table2]] as const;// Board and Calendar layouts are held back from this release.
-export function BulletViewSwitch({value,onChange,disabled=false}:{value:string;onChange:(view:string)=>void;disabled?:boolean}){
- return <div className="bullet-view-switch" role="group" aria-label="Child bullet view">{VIEWS.map(([key,label,Icon])=><button type="button" key={key} aria-pressed={value===key} aria-label={label+' view'} title={label} disabled={disabled} onClick={()=>onChange(key)}><Icon size={14}/><span>{label}</span></button>)}</div>;
+export function BulletViewSwitch({value,onChange,disabled=false,compact=false}:{value:string;onChange:(view:string)=>void;disabled?:boolean;compact?:boolean}){
+ return <div className={'bullet-view-switch'+(compact?' is-compact':'')} role="group" aria-label="Child bullet view">{VIEWS.map(([key,label,Icon])=><button type="button" key={key} aria-pressed={value===key} aria-label={label+' view'} title={label} disabled={disabled} onClick={()=>onChange(key)}><Icon size={compact?15:14}/>{!compact&&<span>{label}</span>}</button>)}</div>;
 }
 function useItem(doc:Workspace,node:Node,assets:Map<string,Blob>,cover='auto'){
  const link=useMemo(()=>mediaLinks(node.text)[0]||null,[node.text]),url=link?.href||null;
@@ -72,19 +73,21 @@ function CollectionTableRow({doc,node,assets,onOpen,traitKeys,links,cover,source
 async function addCollectionNote(ctx:MetadataContext|null,parent:string,names:string[],onOpen:(id:string)=>void){
  if(!ctx?.save||ctx.disabled)return;let id='';await ctx.save(d=>{const r=newSmartCollectionItem(d,parent,names);id=r.id;return r.doc;});if(id)onOpen(id);
 }
-export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentId}:{doc:Workspace;parentId?:string;nodes:Node[];mode:string;assets:Map<string,Blob>;onOpen:(id:string)=>void;onAdd?:()=>void}){
+export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentId,extras}:{doc:Workspace;parentId?:string;nodes:Node[];mode:string;assets:Map<string,Blob>;onOpen:(id:string)=>void;onAdd?:()=>void;extras?:ReactNode}){
+ const [search,setSearch]=useState('');
  const metadata=useContext(NoteMetadataContext),[addError,setAddError]=useState('');
  const [paging,setPaging]=useState({key:'',limit:24}),idx=useMemo(()=>snapshotIndex(doc.tables.bullets),[doc.tables.bullets]);
  // A Traits block describes the collection itself, so it is not one of its items.
  const parent=parentId||all[0]?.parentId||'';
  const view=(parent?traitView(doc,parent):traitView(doc,'')) as unknown as View;
- const pageKey=JSON.stringify([parent,mode,view.active,view.source,view.sourceBranch,view.filterKey,view.filter,view.conditions,view.match]),limit=paging.key===pageKey?paging.limit:24;
+ const pageKey=JSON.stringify([parent,mode,view.active,view.source,view.sourceBranch,view.filterKey,view.filter,view.conditions,view.match,search]),limit=paging.key===pageKey?paging.limit:24;
  const members=useMemo(()=>parentId?smartMembers(doc,parentId,view):all.filter(n=>!isTraitsBlock(n)),[doc.tables.bullets,doc.tables.media,parentId,all,view.source,view.sourceBranch]);
  const available=useMemo(()=>collectionTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
  const imageNames=useMemo(()=>imageTraitNames(doc,members.map(n=>n.mirrorSourceId||n.id),idx).filter((k:string)=>!available.some(a=>a.toLocaleLowerCase()===k.toLocaleLowerCase())),[doc,members,idx,available]);
  const [closed,setClosed]=useState<Set<string>>(new Set());
 
- const nodes:Node[]=useMemo(()=>arrangeCollection(doc,members,view,idx) as Node[],[doc,members,idx,JSON.stringify(view)]);
+ const arranged:Node[]=useMemo(()=>arrangeCollection(doc,members,view,idx) as Node[],[doc,members,idx,JSON.stringify(view)]);
+ const nodes:Node[]=useMemo(()=>searchCollection(doc,arranged,search,idx) as Node[],[doc,arranged,search,idx]);
  const traitKeys:string[]=shownTraits(view,available);
  const smartAdd=!!parentId&&(view.source!=='children'||!!view.recipe||available.length>0),add=smartAdd?()=>{setAddError('');void addCollectionNote(metadata,parent,available,onOpen).catch(e=>setAddError(e.message));}:onAdd;
  const sourceUnavailable=view.source==='branch'&&(!idx.byId.has(view.sourceBranch)||traitBulletIds(doc.tables.bullets).has(idx.byId.get(view.sourceBranch)?.mirrorSourceId||view.sourceBranch));
@@ -97,8 +100,9 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
   :mode==='grid'&&available.length>0?<div className="poster-grid" style={{'--card':view.cardSize+'px','--ratio':String(view.ratio),'--fit':view.fit} as React.CSSProperties}>{list.map(node=><PosterCard key={node.id} {...props(node)}/>)}</div>
   :<div className="collection-items">{list.map(node=><CollectionCard key={node.id} {...props(node)}/>)}</div>;
  return <div className={'bullet-collection collection-'+mode}>
-  {parent&&(parentId||available.length>0)?<CollectionBar parent={parent} view={view} available={available} imageNames={imageNames} dateKeys={dateKeys} mode={mode} count={nodes.length} total={members.length} onAdd={onAdd} onOpen={onOpen} items={members}/>
+  {parent&&(parentId||available.length>0)?<CollectionBar parent={parent} view={view} available={available} imageNames={imageNames} dateKeys={dateKeys} mode={mode} count={nodes.length} total={members.length} onAdd={onAdd} onOpen={onOpen} items={members} search={search} onSearch={setSearch} extras={extras}/>
   :<div className="collection-toolbar"><span>{members.length} {members.length===1?'item':'items'}</span>{onAdd&&<button type="button" onClick={onAdd}><Plus size={14}/>Add note or link</button>}</div>}
+  {search&&!nodes.length&&<p className="collection-empty-search" role="status">Nothing matches “{search}”. <button type="button" onClick={()=>setSearch('')}>Clear search</button></p>}
   {sourceUnavailable&&<p role="status">Choose an ordinary source branch in Configure. This view has no results until then.</p>}{addError&&<p role="alert">{addError}</p>}
   {members.length>0&&nodes.length===0&&<p role="status">No notes match this view. Adjust its filters or fill the new item’s Traits.</p>}
   {!members.length&&<div className="collection-empty"><LayoutGrid size={25}/><p>A little room for a collection.</p><small>Add child notes or paste website links, then choose how to see them.</small>{add&&<button type="button" disabled={!!metadata?.disabled||smartAdd&&!metadata?.save} onClick={add}>Add your first item</button>}</div>}
@@ -113,7 +117,7 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
 type Tab={id:string;name:string;settings:any};type Cond={key:string;op:string;value:string};
 type View=Omit<ReturnType<typeof traitView>,"tabs"|"conditions"|"match">&{tabs:Tab[];conditions:Cond[];match:"all"|"any";active:string};
 /** Obsidian-style bar: result count, then Sort, Filter, Properties, Configure and New, each a small panel. */
-function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,total,onAdd,onOpen,items}:{parent:string;view:View;available:string[];imageNames:string[];dateKeys:string[];mode:string;count:number;total:number;onAdd?:()=>void;onOpen:(id:string)=>void;items:Node[]}){
+function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,total,onAdd,onOpen,items,search,onSearch,extras}:{parent:string;view:View;available:string[];imageNames:string[];dateKeys:string[];mode:string;count:number;total:number;onAdd?:()=>void;onOpen:(id:string)=>void;items:Node[];search:string;onSearch:(v:string)=>void;extras?:ReactNode}){
  const ctx=useContext(NoteMetadataContext),[open,setOpen]=useState(''),[error,setError]=useState(''),[filter,setFilter]=useState(view.filter),root=useRef<HTMLDivElement>(null);
  useEffect(()=>setFilter(view.filter),[view.filter]);
  useEffect(()=>{if(!open)return;const close=(e:PointerEvent)=>{if(!root.current?.contains(e.target as globalThis.Node))setOpen('');};const esc=(e:KeyboardEvent)=>{if(e.key==='Escape')setOpen('');};document.addEventListener('pointerdown',close);document.addEventListener('keydown',esc);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',esc);};},[open]);
@@ -136,7 +140,12 @@ function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,tot
  const [draft,setDraft]=useState<{cardSize?:number;ratio?:number}>({});useEffect(()=>setDraft({}),[view.cardSize,view.ratio]);
  const shown:string[]=shownTraits(view,available),off=!ctx?.save||ctx.disabled,same=(a:string,b:string)=>a.toLocaleLowerCase()===b.toLocaleLowerCase();
  const toggle=(k:string)=>set({fields:shown.some(x=>same(x,k))?shown.filter(x=>!same(x,k)):[...shown,k]});
- const tab=(key:string,label:string,Icon:any,active=false)=><button type="button" className={active?'is-active':''} aria-label={label} title={label} aria-expanded={open===key} onClick={()=>setOpen(open===key?'':key)}><Icon size={14}/><span>{label}</span></button>;
+ const tab=(key:string,label:string,Icon:any,active=false,iconOnly=false,badge=0)=><button type="button" className={(active?'is-active':'')+(iconOnly?' is-icon':'')} aria-label={label} title={label} aria-expanded={open===key} onClick={()=>setOpen(open===key?'':key)}><Icon size={15}/>{!iconOnly&&<span>{label}</span>}{badge>0&&<i className="collection-badge">{badge}</i>}</button>;
+ // Sort reads as what it does: "Year ↓", "Last edited ↓". Time sorts start newest first.
+ const sortName=(k:string)=>k==='title'?'Title':(TIME_SORTS as string[][]).find(([id])=>id===k)?.[1]||k;
+ const timeSort=view.sort.startsWith('__');
+ const searchBox=useRef<HTMLInputElement>(null);
+ const filterCount=conds.filter(c=>c.key&&(c.op==='empty'||c.op==='notempty'||c.value.trim())).length+(view.filter?1:0);
  const options=available.map(k=><option key={k} value={k}>{k}</option>);
  return <div className="collection-bar" ref={root}>
   <div className="collection-bar-left"><button type="button" className="collection-tab-button" aria-expanded={open==='views'} aria-label={'View: '+(view.tabs.find(t=>t.id===view.active)?.name||'All')} onClick={()=>setOpen(open==='views'?'':'views')}><LayoutGrid size={14}/><span>{view.tabs.find(t=>t.id===view.active)?.name||'All'}</span><ChevronDown size={13}/></button>
@@ -144,8 +153,12 @@ function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,tot
    {conds.length>0&&<> where {conds.slice(0,2).map((c,i)=><span key={i}>{i>0&&(view.match==='any'?' or ':' and ')}<button type="button" className="scope-chip" onClick={()=>setOpen(open==='filter'?'':'filter')}>{c.key==='title'?'Title':c.key} {(FILTER_OPS.find(([k])=>k===c.op)?.[1]||c.op)}{c.op!=='empty'&&c.op!=='notempty'&&c.value?` “${String(c.value).slice(0,24)}”`:''}</button></span>)}{conds.length>2&&<button type="button" className="scope-chip" onClick={()=>setOpen('filter')}>+{conds.length-2} more</button>}</>}
    {view.filter&&<> matching <button type="button" className="scope-chip" onClick={()=>setOpen('filter')}>“{view.filter.slice(0,24)}”</button></>}</p></div>
   <div className="collection-bar-actions">
-   {tab('sort','Sort',ArrowUpDown,!!view.sort)}{tab('group','Group',Rows3,!!view.group)}{tab('filter','Filter',Filter,!!view.filter)}{tab('props','Properties',ListChecks)}{tab('config','Configure',Settings2)}
-   {(onAdd||available.length>0)&&<button type="button" aria-label={available.length||view.recipe||view.source!=='children'?'New item':'Add note or link'} title="New item" disabled={off} onClick={available.length||view.recipe||view.source!=='children'?newItem:onAdd}><Plus size={14}/><span>New</span></button>}
+   <label className={'collection-search'+(search?' has-value':'')}><Search size={14}/><input ref={searchBox} type="search" aria-label="Search this collection" placeholder={`Find in ${total}`} value={search} onChange={e=>onSearch(e.target.value)} onKeyDown={e=>{if(e.key==='Escape'&&search){e.stopPropagation();onSearch('');}}}/></label>
+   <button type="button" className={'collection-sort-chip'+(view.sort?' is-active':'')} aria-label="Sort" title="Sort" aria-expanded={open==='sort'} onClick={()=>setOpen(open==='sort'?'':'sort')}><ArrowUpDown size={15}/><span>{view.sort?sortName(view.sort)+(view.dir==='desc'?' ↓':' ↑'):'Sort'}</span></button>
+   {tab('filter','Filter',Filter,filterCount>0,false,filterCount)}
+   {tab('group','Group',Rows3,!!view.group,true)}{tab('props','Properties',ListChecks,false,true)}{tab('config','Configure',Settings2,false,true)}
+   {extras}
+   {(onAdd||available.length>0)&&<button type="button" className="collection-new" aria-label={available.length||view.recipe||view.source!=='children'?'New item':'Add note or link'} title="New item" disabled={off} onClick={available.length||view.recipe||view.source!=='children'?newItem:onAdd}><Plus size={15}/><span>New</span></button>}
   </div>
   {open==='views'&&<div className="collection-panel collection-panel-left" role="group" aria-label="Saved views">
    <div className="collection-tabs">{view.tabs.map(t=>renaming===t.id?<form key={t.id} onSubmit={e=>{e.preventDefault();void run(d=>renameTraitTab(d,parent,t.id,tabName)).then(()=>setRenaming(''));}}><input autoFocus aria-label="View name" maxLength={40} value={tabName} onChange={e=>setTabName(e.target.value)}/><button type="submit">Save</button></form>
@@ -156,8 +169,8 @@ function CollectionBar({parent,view,available,imageNames,dateKeys,mode,count,tot
    <small>A new view starts as a copy of the current one. Each view keeps its own sort, group, filters, traits and layout.</small>
   </div>}
   {open&&open!=='views'&&<div className="collection-panel" role="group" aria-label={{sort:'Sort',group:'Group',filter:'Filter',props:'Properties',config:'Configure view'}[open]}>
-   {open==='sort'&&<><label>Sort by<select aria-label="Sort by" value={view.sort} disabled={off} onChange={e=>set({sort:e.target.value})}><option value="">Outline order</option><option value="title">Title</option>{options}</select></label>
-    {view.sort&&<label>Order<select aria-label="Sort order" value={view.dir} disabled={off} onChange={e=>set({dir:e.target.value as 'asc'|'desc'})}><option value="asc">Ascending (A→Z, 1→9)</option><option value="desc">Descending (Z→A, 9→1)</option></select></label>}</>}
+   {open==='sort'&&<><div className="collection-sort-list" role="radiogroup" aria-label="Sort by">{([['','Outline order'],['title','Title'],...TIME_SORTS,...available.map(k=>[k,k])] as string[][]).map(([k,l])=><button type="button" key={k||'outline'} role="radio" aria-checked={view.sort===k} disabled={off} onClick={()=>set({sort:k,...(k.startsWith('__')&&!view.sort.startsWith('__')?{dir:'desc' as const}:{})})}><span>{l}</span>{view.sort===k&&<Check size={14}/>}</button>)}</div>
+    {view.sort&&<div className="rn-seg collection-sort-dir" role="group" aria-label="Sort order"><button type="button" aria-pressed={view.dir!=='desc'} disabled={off} onClick={()=>set({dir:'asc'})}>{timeSort?'Oldest first':'Ascending ↑'}</button><button type="button" aria-pressed={view.dir==='desc'} disabled={off} onClick={()=>set({dir:'desc'})}>{timeSort?'Newest first':'Descending ↓'}</button></div>}</>}
    {open==='group'&&<><label>Group by<select aria-label="Group by" value={view.group} disabled={off} onChange={e=>set({group:e.target.value})}><option value="">No grouping</option>{options}</select></label>
     {view.group&&<label>Group order<select aria-label="Group order" value={view.groupDir} disabled={off} onChange={e=>set({groupDir:e.target.value as 'asc'|'desc'})}><option value="asc">Ascending (A→Z, 1→9)</option><option value="desc">Descending (Z→A, 9→1)</option></select></label>}</>}
    {open==='filter'&&<><label>Trait<select aria-label="Filter trait" value={view.filterKey} disabled={off} onChange={e=>set({filterKey:e.target.value})}><option value="">Any trait or title</option>{options}</select></label>

@@ -40,3 +40,25 @@ Code: `src/traits-block.mjs` (parsing, adding the Traits bullet, sort/filter/cov
 NookTraits (`#nooktraits`, note types, the heading eye, Manage NookTraits and its shelf views) was only ever on web staging. It was removed on 25 November 2026 so that one simple system remains. What was removed: `src/nooktraits.mjs`, `src/NookTraits.tsx`, `src/nooktraits.css`, their tests and harness, the bullet-menu and command-palette entries, and the NookTraits parts of note templates.
 
 **Data is kept, not deleted.** `web.nookTraits` and `web.noteProperties` stay in the workspace untouched and keep syncing, so nothing a tester entered is lost, and it could be converted later if wanted. `#nooktraits` tags are now ordinary tags.
+
+## Collection toolbar
+
+One row, left to right:
+- **Find:** searches titles and every Trait value, and every word must match. The search is not saved with the view.
+- **Sort:** shows what it does, e.g. "Year ↓" or "Last edited ↓".
+- **Filter:** with a badge counting the active conditions.
+- **Group, Properties and Configure:** small icons.
+- **Layout switch:** Outline / Grid / Compact list / Table.
+- **Movie actions:** for movie collections.
+- **New.**
+
+**Sort** opens a list:
+- Outline order
+- Title
+- Date created
+- Last edited
+- each Trait
+
+Then a direction switch: Ascending/Descending, or Oldest/Newest first for dates.
+
+The dates come from the synced note clock (`web.noteTimes`). **Last edited** counts edits anywhere inside an item, including its Traits. **Date created** and **Last edited** start newest first.

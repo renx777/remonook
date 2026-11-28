@@ -9,17 +9,18 @@ Open **Settings → Connections → Movies** and paste a key:
 - **TMDB:** either the short "API Key" or the long "API Read Access Token". Both work; the token is sent as a bearer header and never in the URL.
 - **OMDb:** the key OMDb emailed you.
 
-**Connect** checks the key with one request. **Remember on this device** is on by default.
+**Connect** checks the key with one request.
 
-**Where the key is kept (`src/movie-keys.ts`):**
-- In this browser's storage, separately for each account and workspace.
-- Never written into notes, synced or backed up, and never sent to RemoNook. It goes only to the provider.
-- Without "remember", it lasts until the app reloads.
-- **Forget** removes it.
+**Keep the key on** (chosen per provider; it can be changed later without re-entering the key):
+- **This device** (default): stored in this browser for this account. Never synced or backed up.
+- **All my devices:** stored in the account's synced settings (`web.providerKeys`), so every signed-in device can use it. It is left out of backup files, but anyone who can open the account's notes can read it.
+- **Until reload:** forgotten when the app reloads.
+
+Moving the key removes it from the old place. **Forget** removes it everywhere. Wherever it is kept, the key is only sent to the provider, never to RemoNook.
 
 ## Where it appears
 
-**Movie collections** show **Add movie** and **Update from TMDB** under the title. A collection counts as a movie collection when either:
+**Movie collections** show **Add movie** and **Update from TMDB** in the collection toolbar (or under the title when the collection has no `#views`). A collection counts as a movie collection when either:
 - it is tagged `#MovieSearch`, or
 - its Configure → recipe is Movie shelf.
 

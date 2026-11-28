@@ -119,6 +119,20 @@ export function deleteTraitTab(doc,id,tab,make=uuid,now=Date.now()){const v=trai
  if(tab!==v.active)return setTraitView(doc,id,{tabs},make,now);return setTraitView(doc,id,{...tabs[0].settings,tabs,active:tabs[0].id},make,now);}
 const plainTitle=n=>String(n.text||'').split('\n')[0].replace(/\[([^\]]*)\]\([^)]*\)/g,'$1').trim();
 /** Applies a collection's filter and sort to its items. Items without the sort trait go last. */
+/** Built-in sort fields besides Title and Traits. Times come from the synced note clock. */
+export const TIME_SORTS=[['__created','Date created'],['__modified','Last edited']];
+export const noteCreated=(doc,id)=>{const t=doc.web?.noteTimes?.[id]?.createdAt;return Number.isFinite(t)?t:null;};
+/** A note counts as edited when it or anything inside it (its Traits, its notes) changed. */
+export function noteModified(doc,id,idx=snapshotIndex(doc.tables.bullets)){
+ const times=doc.web?.noteTimes||{};let best=null;const stack=[id],seen=new Set();
+ while(stack.length){const at=stack.pop();if(seen.has(at))continue;seen.add(at);const t=times[at]?.updatedAt??times[at]?.createdAt;if(Number.isFinite(t)&&(best==null||t>best))best=t;for(const c of idx.children.get(at)||[])stack.push(c.id);}
+ return best;
+}
+/** Quick search inside a collection: every word must appear in the title or any Trait value. Not saved with the view. */
+export function searchCollection(doc,nodes,query,idx=snapshotIndex(doc.tables.bullets)){
+ const words=String(query||'').toLocaleLowerCase().split(/\s+/).filter(Boolean);if(!words.length)return nodes;
+ return nodes.filter(n=>{const id=n.mirrorSourceId||n.id,hay=[plainTitle(n),...noteTraits(doc,id,idx).map(t=>t.key+' '+t.value)].join(' ').toLocaleLowerCase();return words.every(w=>hay.includes(w));});
+}
 export function arrangeCollection(doc,nodes,view,idx=snapshotIndex(doc.tables.bullets)){
  const id=n=>n.mirrorSourceId||n.id,q=view.filter.trim().toLocaleLowerCase();
  let out=nodes;
@@ -128,7 +142,7 @@ export function arrangeCollection(doc,nodes,view,idx=snapshotIndex(doc.tables.bu
     case 'gt':case 'lt':{if(!v)return false;const cmp=isNumber(v)&&isNumber(c.value)?Number(v)-Number(c.value):v.localeCompare(c.value.trim(),undefined,{numeric:true});return c.op==='gt'?cmp>0:cmp<0;}}return true;};
   out=out.filter(n=>view.match==='any'?conds.some(c=>test(n,c)):conds.every(c=>test(n,c)));}
  if(q)out=out.filter(n=>{const values=view.filterKey?[noteTrait(doc,id(n),view.filterKey,idx)]:[plainTitle(n),...noteTraits(doc,id(n),idx).map(t=>t.value)];return values.some(v=>v!=null&&String(v).toLocaleLowerCase().includes(q));});
- if(view.sort){const val=n=>view.sort==='title'?plainTitle(n):noteTrait(doc,id(n),view.sort,idx),sign=view.dir==='desc'?-1:1;
+ if(view.sort){const val=n=>view.sort==='title'?plainTitle(n):view.sort==='__created'?noteCreated(doc,id(n)):view.sort==='__modified'?noteModified(doc,id(n),idx):noteTrait(doc,id(n),view.sort,idx),sign=view.dir==='desc'?-1:1;
   out=out.map((n,i)=>({n,i,v:val(n)})).sort((a,b)=>{const ae=a.v==null||a.v==='',be=b.v==null||b.v==='';if(ae||be)return ae===be?a.i-b.i:ae?1:-1;
    const c=isNumber(a.v)&&isNumber(b.v)?Number(a.v)-Number(b.v):String(a.v).localeCompare(String(b.v),undefined,{numeric:true,sensitivity:'base'});return c*sign||a.i-b.i;}).map(x=>x.n);}
  return out;
