@@ -2,6 +2,17 @@
 
 ## Current state
 
+### Search focus and Outline toolbar on web staging — 28 November 2026
+
+Web staging runs branch `ccr-641b18bf-2fe80f`, commit `4695dabb749a0b46b69d05cac7b5e64672005c5b`, release `2026-11-14.1`.
+
+Changes:
+- Bordered search fields show a single focus ring.
+- The Outline layout of a `#views` note uses the same toolbar as Grid, List and Table.
+- Sources and History sit on one line in every layout.
+
+Web only. Checks run locally: collection, views and Smart Collections tests (15 passed); views/tags, collection toolbar and MovieSearch browser scripts passed. This deploy was not re-checked on staging after it went live.
+
 ### Collections toolbar revamp on web staging — 28 November 2026
 
 Web staging runs branch `ccr-641b18bf-2fe80f`, commit `1487495be7182cb56f7d3c1009ee6eaddf02f842`, release `2026-11-14.1`.
