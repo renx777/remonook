@@ -63,3 +63,12 @@ test('a synced provider key travels with sync but never into a backup file',asyn
  const {repairDocument}=await import('../src/sync-checks.mjs');const repaired=repairDocument(structuredClone(d));assert.ok(!repaired||repaired.doc?.web?.providerKeys?.tmdb?.key==='synced-secret-key','sync validation keeps it');
  if(setSyncedKey){const cleared=setSyncedKey(d,'tmdb','');assert.deepEqual(syncedMovieKeys(cleared),{});}
 });
+
+test('the default movie database is the user choice while it is connected, else whichever is connected',async()=>{
+ const m=await import('./.build/movie-keys.mjs');const store=new Map();globalThis.localStorage={getItem:k=>store.get(k)??null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};globalThis.window??=new EventTarget();
+ assert.equal(m.preferredProvider(),null);
+ m.saveMovieKey('omdb','o-key',true);assert.equal(m.preferredProvider(),'omdb');
+ m.saveMovieKey('tmdb','t-key',true);assert.equal(m.preferredProvider(),'tmdb','TMDB first when nothing is chosen');
+ m.setDefaultProvider('omdb');assert.equal(m.preferredProvider(),'omdb');assert.deepEqual(m.connectedProviders(),['tmdb','omdb']);
+ m.forgetLocalMovieKey('omdb');assert.equal(m.preferredProvider(),'tmdb','a disconnected default falls back');
+});

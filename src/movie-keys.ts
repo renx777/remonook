@@ -28,7 +28,12 @@ export function setSyncedKey(doc:Workspace,p:MovieProvider,key:string):Workspace
  const all={...syncedMovieKeys(doc)};if(key.trim())all[p]={key:key.trim(),updatedAt:Date.now()};else delete all[p];
  return {...doc,web:{...doc.web,providerKeys:all} as any};
 }
-export function preferredProvider():MovieProvider|null{return movieKey('tmdb')?'tmdb':movieKey('omdb')?'omdb':null;}
+const PREF=()=>accountLocalKey('remo-movie-provider');
+/** The provider the user picked as default; it only counts while that provider is connected. */
+export function defaultProvider():MovieProvider|null{try{const v=localStorage.getItem(PREF());return v==='tmdb'||v==='omdb'?v:null;}catch{return null;}}
+export function setDefaultProvider(p:MovieProvider){try{localStorage.setItem(PREF(),p);}catch{}notify();}
+export function connectedProviders():MovieProvider[]{return (['tmdb','omdb'] as MovieProvider[]).filter(p=>!!movieKey(p));}
+export function preferredProvider():MovieProvider|null{const d=defaultProvider();if(d&&movieKey(d))return d;return movieKey('tmdb')?'tmdb':movieKey('omdb')?'omdb':null;}
 const FIELDS=()=>accountLocalKey('remo-movie-fields');
 export function movieFieldPrefs(fallback:string[]){try{const v=JSON.parse(localStorage.getItem(FIELDS())||'null');return Array.isArray(v)?v.filter(x=>typeof x==='string'):fallback;}catch{return fallback;}}
 export function saveMovieFieldPrefs(v:string[]){try{localStorage.setItem(FIELDS(),JSON.stringify(v));}catch{}}
@@ -37,5 +42,5 @@ export function useMovieKeys(){
  const ctx=useContext(NoteMetadataContext),[,set]=useState(0),remote=syncedMovieKeys(ctx?.doc);
  synced=remote;
  useEffect(()=>{const f=()=>set(n=>n+1);window.addEventListener('remo-movie-keys',f);return ()=>window.removeEventListener('remo-movie-keys',f);},[]);
- return {tmdb:movieKey('tmdb'),omdb:movieKey('omdb'),provider:preferredProvider()};
+ return {tmdb:movieKey('tmdb'),omdb:movieKey('omdb'),provider:preferredProvider(),connected:connectedProviders()};
 }

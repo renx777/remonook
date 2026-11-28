@@ -27,9 +27,19 @@ try{for(const mobile of [false,true]){
  await page.getByRole('button',{name:'Apply to 2 movies'}).click();await page.getByText(/Updated 2 movies/).waitFor();await page.keyboard.press('Escape');
  // Add a new movie from search.
  await page.getByRole('button',{name:'Add movie'}).click();await page.getByLabel('Search movies').fill('Dune');await page.getByRole('button',{name:'Add Dune 2021'}).click();await page.getByText('✓ Added').waitFor();await page.keyboard.press('Escape');
+ // Connect OMDb too, make it the default, then switch back to TMDB inside one sheet.
+ await page.route('https://www.omdbapi.com/**',route=>{const u=new URL(route.request().url());if(u.searchParams.get('i'))return route.fulfill({json:{Response:'True',imdbID:'tt0084787',Title:'The Thing',Year:'1982',Poster:'N/A',Director:'John Carpenter',Genre:'Horror',Runtime:'109 min',imdbRating:'8.2'}});return route.fulfill({json:{Response:'True',Search:[{imdbID:'tt0084787',Title:'The Thing',Year:'1982',Poster:'N/A'}]}});});
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('remo-open-settings',{detail:'connections'})));
+ await page.getByLabel('OMDb key',{exact:true}).fill('omdb-test-key');await page.getByRole('group',{name:'OMDb connection'}).getByRole('button',{name:'Connect',exact:true}).click();
+ await page.getByRole('group',{name:'Movie database to use'}).getByRole('button',{name:'OMDb (IMDb data)'}).click();await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'Update from OMDb'}).waitFor();
+ await page.getByRole('button',{name:'Add movie'}).click();const source=page.getByRole('group',{name:'Movie database'});await source.getByRole('button',{name:'OMDb'}).waitFor();
+ await page.getByLabel('Search movies').fill('The Thing');await page.getByRole('button',{name:'Add The Thing 1982'}).or(page.getByText('In list')).first().waitFor();
+ await source.getByRole('button',{name:'TMDB'}).click();await page.getByLabel('Search movies').fill('Alien');await page.getByText('In list').first().waitFor();await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'Update from OMDb'}).waitFor();// the per-sheet switch does not change the default
  // The key is remembered after a reload; a movie note offers Match.
  await page.reload();await page.locator('.outline-scroll').waitFor();
- await page.locator('[data-node-id="alien"] [aria-label="Zoom into bullet"]').first().click();await page.getByRole('button',{name:'Match on TMDB'}).waitFor();
+ await page.locator('[data-node-id="alien"] [aria-label="Zoom into bullet"]').first().click();await page.getByRole('button',{name:'Match on OMDb'}).waitFor();
  await page.evaluate(fixture);const doc=await page.evaluate(async()=>globalThis.fixture.data.load());const texts=doc.tables.bullets.map(n=>n.text);
  for(const t of ['Director: John Carpenter','Director: Ridley Scott','Runtime: 117 min','TMDB: https://www.themoviedb.org/movie/2','Cover: https://image.tmdb.org/t/p/w500/alien.jpg','Dune','Director: Denis Villeneuve'])assert.ok(texts.includes(t),'missing '+t);
  assert.ok(!JSON.stringify(doc.tables).includes(KEY),'the key never enters notes');assert.equal(doc.web.providerKeys.tmdb.key,KEY,'synced setting holds the key');

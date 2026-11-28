@@ -18,6 +18,14 @@ Open **Settings → Connections → Movies** and paste a key:
 
 Moving the key removes it from the old place. **Forget** removes it everywhere. Wherever it is kept, the key is only sent to the provider, never to RemoNook.
 
+## Choosing TMDB or OMDb
+
+When both are connected:
+- **Use for movies** in Settings → Connections → Movies sets the default. It is kept per device and account. Without a choice, TMDB is used.
+- **For one search:** the Add movie, Update and Match sheets show a TMDB | OMDb switch at the top. It applies only while that sheet is open.
+
+OMDb returns IMDb data: an IMDb rating Trait and an IMDb link Trait. A default that is no longer connected falls back to the other database.
+
 ## Where it appears
 
 **Movie collections** show **Add movie** and **Update from TMDB** in the collection toolbar (or under the title when the collection has no `#views`). A collection counts as a movie collection when either:

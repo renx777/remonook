@@ -1,7 +1,7 @@
 import {useContext,useRef,useState} from 'react';
 import {NoteMetadataContext} from './NoteMetadataContext';
 import {testMovieKey,isTmdbToken} from './movie-search.mjs';
-import {movieKey,keyPlace,saveMovieKey,forgetLocalMovieKey,setSyncedKey,syncedMovieKeys,useMovieKeys,type MovieProvider,type KeyPlace} from './movie-keys';
+import {setDefaultProvider,movieKey,keyPlace,saveMovieKey,forgetLocalMovieKey,setSyncedKey,syncedMovieKeys,useMovieKeys,type MovieProvider,type KeyPlace} from './movie-keys';
 import './movie-search.css';
 const INFO:Record<MovieProvider,{name:string;help:string;link:string}>={
  tmdb:{name:'TMDB',help:'Paste the API Key or the API Read Access Token from your TMDB account settings.',link:'https://www.themoviedb.org/settings/api'},
@@ -35,10 +35,16 @@ function ProviderRow({provider}:{provider:MovieProvider}){
   {state.ok&&<p role="status" className="movie-ok">{state.ok}</p>}{state.error&&<p role="alert" className="movie-error">{state.error}</p>}
  </div>;
 }
+/** With both connected, the user picks which one movie lookups start with. */
+function DefaultProvider(){
+ const keys=useMovieKeys();if(keys.connected.length<2)return null;
+ return <div className="movie-default" role="group" aria-label="Movie database to use"><span>Use for movies</span><div className="rn-seg">{(['tmdb','omdb'] as MovieProvider[]).map(p=><button type="button" key={p} aria-pressed={keys.provider===p} onClick={()=>setDefaultProvider(p)}>{p==='tmdb'?'TMDB':'OMDb (IMDb data)'}</button>)}</div><small>You can still switch for a single search inside Add movie, Update and Match.</small></div>;
+}
 /** Settings → Connections: movie metadata providers. */
 export function MovieConnections(){
  return <section className="movie-connections" aria-label="Movie metadata">
   <h3>Movies</h3><p className="movie-muted">Add movies and fill their Traits from a movie database. Keys go only to the provider. Keep each one on this device, or sync it to all your signed-in devices.</p>
+  <DefaultProvider/>
   <ProviderRow provider="tmdb"/><ProviderRow provider="omdb"/>
   <p className="movie-muted movie-credit">This product uses the TMDB API but is not endorsed or certified by TMDB. OMDb data is provided by the OMDb API.</p>
  </section>;
