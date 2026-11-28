@@ -14,7 +14,13 @@ export function useLinkPreview(url:string|null){
  const cached=cachedLinkPreview(url),current=cached?{url,data:cached,error:'',loading:false}:state.url===url?state:{url,data:null,error:'',loading:!!url};
  return {...current,root,retry:()=>{if(url)invalidateLinkPreview(url);setAttempt(v=>v+1);}};
 }
-export function PreviewImage({src,title,onUnavailable}:{src:string|null|undefined;title:string;onUnavailable?:()=>void}){const [failed,setFailed]=useState(false);useEffect(()=>setFailed(false),[src]);return src&&!failed?<img src={src} alt={title} loading="lazy" referrerPolicy="no-referrer" onError={()=>{setFailed(true);onUnavailable?.();}}/>:<span className="link-preview-placeholder" aria-hidden="true"><Link2 size={22}/></span>;}
+// TMDB serves the same poster at several widths; let the browser pick the smallest that stays sharp.
+const TMDB=/^(https:\/\/image\.tmdb\.org\/t\/p\/)(w\d+|original)(\/[\w.-]+)$/;
+const tmdbOnly=(src:string)=>{const m=src.match(TMDB);return m?['w185 185w','w342 342w','w500 500w','w780 780w'].map(x=>m[1]+x.split(' ')[0]+m[3]+' '+x.split(' ')[1]).join(', '):undefined;};
+// IMDb/Amazon posters ("…@._V1_.jpg") accept a width such as "._V1_SX300.jpg".
+const AMAZON=/^(https:\/\/m\.media-amazon\.com\/images\/M\/[^/]+?\._V1_)(?:[A-Z]{2}\d+[^.]*)?(\.jpg)$/;
+export const tmdbSrcSet=(src:string)=>{const a=src.match(AMAZON);if(a)return [200,320,480,720].map(w=>`${a[1]}SX${w}${a[2]} ${w}w`).join(', ');return tmdbOnly(src);};
+export function PreviewImage({src,title,onUnavailable,sizes}:{src:string|null|undefined;title:string;onUnavailable?:()=>void;sizes?:string}){const [failed,setFailed]=useState(false);useEffect(()=>setFailed(false),[src]);return src&&!failed?<img src={src} srcSet={tmdbSrcSet(src)} sizes={tmdbSrcSet(src)?sizes||'240px':undefined} alt={title} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={()=>{setFailed(true);onUnavailable?.();}}/>:<span className="link-preview-placeholder" aria-hidden="true"><Link2 size={22}/></span>;}
 export function LinkPreview({url,nodeId}:{url:string;nodeId?:string}){
  const {root,data,error,loading,retry}=useLinkPreview(url),context=useContext(GalleryContext),details=context&&nodeId?cardDetails(context.doc,nodeId,url):null;
  const title=details?.title||data?.title,image=details?.image||data?.image,description=details?.description||data?.description,price=details?.amount?{amount:details.amount,currency:details.currency,from:false}:data?.price;let host='Website';try{host=new URL(url).hostname.replace(/^www\./,'');}catch{}

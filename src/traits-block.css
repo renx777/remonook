@@ -174,3 +174,17 @@ tfoot .totals-label{font-size:11.5px;color:var(--muted);font-weight:500;text-ali
  .collection-bar-actions .collection-sort-chip span{display:inline}
  .collection-bar-actions .movie-bar.is-compact .movie-add span{display:none}.collection-bar-actions .movie-bar.is-compact .movie-add{width:36px;padding:0;justify-content:center}
 }
+
+/* Scrolling large collections: cards far off-screen skip layout and paint until they come near. */
+.poster-card{content-visibility:auto;contain-intrinsic-size:auto 220px auto 420px}
+.bullet-collection .collection-card{content-visibility:auto;contain-intrinsic-size:auto 140px}
+.collection-table-scroll tbody tr{content-visibility:auto;contain-intrinsic-size:auto 56px}
+.poster-image img{background:color-mix(in srgb,var(--muted) 10%,var(--bg))}
+/* The infinite-scroll trigger: quiet dots instead of a "Show more" button. */
+.bullet-collection .collection-more{display:flex;justify-content:center;align-items:center;width:100%;min-height:48px;margin:12px 0;border:0;background:transparent;color:var(--muted);cursor:pointer}
+.collection-more-dots{display:inline-flex;gap:5px}
+.collection-more-dots i{width:6px;height:6px;border-radius:99px;background:currentColor;opacity:.35;animation:collection-dot 1s infinite ease-in-out}
+.collection-more-dots i:nth-child(2){animation-delay:.15s}.collection-more-dots i:nth-child(3){animation-delay:.3s}
+@keyframes collection-dot{50%{opacity:.9}}
+.collection-end{text-align:center;font-size:12.5px;color:var(--muted);margin:18px 0 8px}
+@media (prefers-reduced-motion:reduce){.collection-more-dots i{animation:none}}

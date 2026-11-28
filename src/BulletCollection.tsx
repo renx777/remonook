@@ -4,7 +4,8 @@ import {cardDetails} from './card-details.mjs';
 import {useContext,useEffect,useMemo,useRef,useState} from 'react';
 import {NoteMetadataContext,type MetadataContext} from './NoteMetadataContext';
 import {LayoutGrid,List,ListTree,Table2,ExternalLink,ArrowUpRight,Plus,ArrowUpDown,Filter,ListChecks,Settings2,Rows3,ChevronDown,Pencil,Trash2,X,Link2,Columns3,CalendarDays,ChevronLeft,ChevronRight,Search,Check} from 'lucide-react';
-import type {ReactNode} from 'react';
+import {memo,type ReactNode} from 'react';
+import {useInfiniteLimit} from './useInfiniteLimit';
 import {mediaLinks} from './media.mjs';
 import {snapshotIndex} from './outline-snapshot.mjs';
 import {useImageUrl} from './ImageTools';
@@ -45,16 +46,16 @@ function Stars({doc,node,k}:{doc:Workspace;node:Node;k:string}){
 }
 const isRating=(doc:Workspace,node:Node,k:string)=>{const v=noteTrait(doc,node.mirrorSourceId||node.id,k);return v!==null&&!!ratingOf(k,v);};
 function TraitCell({doc,node,k}:{doc:Workspace;node:Node;k:string}){const v=noteTrait(doc,node.mirrorSourceId||node.id,k);if(v!==null&&ratingOf(k,v))return <Stars doc={doc} node={node} k={k}/>;if(!v)return <>—</>;if(isUrl(v))return <a className="trait-url" href={v} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}>{v.replace(/^https?:\/\/(www\.)?/,'')}</a>;return <>{v}</>;}
-function PosterCard({doc,node,assets,onOpen,traitKeys,cover,source}:ItemProps){
+const PosterCard=memo(function PosterCard({doc,node,assets,onOpen,traitKeys,cover,source}:ItemProps){
  const item=useItem(doc,node,assets,cover),id=node.mirrorSourceId||node.id;
  const shown=traitKeys.filter(k=>!(item.image&&k.toLocaleLowerCase()===String(cover).toLocaleLowerCase())).map(k=>[k,noteTrait(doc,id,k)] as const).filter(([k,v])=>v!==null&&(isRating(doc,node,k)||(v&&!isUrl(v)))).slice(0,4);
  return <article ref={item.root} className="poster-card">
-  <button type="button" className="poster-image" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}>{cover!=='none'&&<PreviewImage src={item.image} title={item.title}/>}</button>
+  <button type="button" className="poster-image" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}>{cover!=='none'&&<PreviewImage src={item.image} title={item.title} sizes="(max-width: 600px) 50vw, 300px"/>}</button>
   <div className="poster-copy"><button type="button" className="poster-title" title={item.title} onClick={()=>onOpen(node.id)}><EmojiText text={item.title}/></button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}
    {shown.map(([k,v])=><div key={k} className="poster-trait"><span>{k}</span>{isRating(doc,node,k)?<Stars doc={doc} node={node} k={k}/>:<strong>{v}</strong>}</div>)}</div>
  </article>;
-}
-function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys,cover,source}:ItemProps){
+});
+const CollectionCard=memo(function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys,cover,source}:ItemProps){
  const item=useItem(doc,node,assets,cover),[imageFailed,setImageFailed]=useState(false);useEffect(()=>setImageFailed(false),[item.image]);
  return <article ref={item.root} className={'collection-card'+(item.url||item.image?' has-cover':'')}>
   {((item.image&&!imageFailed)||item.loading)&&<button className="collection-cover" type="button" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><PreviewImage src={item.image} title={item.title} onUnavailable={()=>setImageFailed(true)}/></button>}
@@ -65,7 +66,8 @@ function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys,cover,sourc
    {item.details&&<small className="collection-status">Your details{item.details.amount?' · entered price':''}</small>}{item.error&&!item.details&&<small className="collection-status">Preview unavailable · link kept</small>}{item.loading&&item.url&&<small className="collection-status" role="status">Loading preview…</small>}
   </div>
  </article>;
-}
+});
+
 function CollectionTableRow({doc,node,assets,onOpen,traitKeys,links,cover,source}:ItemProps){
  const item=useItem(doc,node,assets,cover);
  return <tr><td><div ref={item.root} className="collection-table-item"><div className="collection-table-thumbnail"><PreviewImage src={item.image} title={item.title}/></div><div><button className="collection-title" type="button" onClick={()=>onOpen(node.id)}><EmojiText text={item.title}/></button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}{item.error&&<small>Preview unavailable · link kept</small>}{item.loading&&item.url&&<small role="status">Loading…</small>}</div></div></td>{traitKeys.map(k=><td key={k}><EditableCell doc={doc} node={node} k={k}/></td>)}{links&&<><td>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">{item.site}<ExternalLink size={11}/></a>:'Note'}</td><td>{item.price||'—'}{item.details?.amount&&<small className="collection-status">Your price</small>}</td><td>{item.data?.availability||'—'}</td></>}<td>{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="collection-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={15}/></button></td></tr>;
@@ -81,17 +83,20 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
  const parent=parentId||all[0]?.parentId||'';
  const view=(parent?traitView(doc,parent):traitView(doc,'')) as unknown as View;
  const pageKey=JSON.stringify([parent,mode,view.active,view.source,view.sourceBranch,view.filterKey,view.filter,view.conditions,view.match,search]),limit=paging.key===pageKey?paging.limit:24;
- const members=useMemo(()=>parentId?smartMembers(doc,parentId,view):all.filter(n=>!isTraitsBlock(n)),[doc.tables.bullets,doc.tables.media,parentId,all,view.source,view.sourceBranch]);
+ // Smart members come from the document; the passed rows only matter without a parent (and are a new array on every render).
+ const members=useMemo(()=>parentId?smartMembers(doc,parentId,view):all.filter(n=>!isTraitsBlock(n)),[doc.tables.bullets,doc.tables.media,parentId,parentId?null:all,view.source,view.sourceBranch]);
  const available=useMemo(()=>collectionTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
  const imageNames=useMemo(()=>imageTraitNames(doc,members.map(n=>n.mirrorSourceId||n.id),idx).filter((k:string)=>!available.some(a=>a.toLocaleLowerCase()===k.toLocaleLowerCase())),[doc,members,idx,available]);
  const [closed,setClosed]=useState<Set<string>>(new Set());
 
  const arranged:Node[]=useMemo(()=>arrangeCollection(doc,members,view,idx) as Node[],[doc,members,idx,JSON.stringify(view)]);
  const nodes:Node[]=useMemo(()=>searchCollection(doc,arranged,search,idx) as Node[],[doc,arranged,search,idx]);
- const traitKeys:string[]=shownTraits(view,available);
+ const traitKeys:string[]=useMemo(()=>shownTraits(view,available),[JSON.stringify(view.fields),available]);
  const smartAdd=!!parentId&&(view.source!=='children'||!!view.recipe||available.length>0),add=smartAdd?()=>{setAddError('');void addCollectionNote(metadata,parent,available,onOpen).catch(e=>setAddError(e.message));}:onAdd;
  const sourceUnavailable=view.source==='branch'&&(!idx.byId.has(view.sourceBranch)||traitBulletIds(doc.tables.bullets).has(idx.byId.get(view.sourceBranch)?.mirrorSourceId||view.sourceBranch));
  const links=useMemo(()=>!available.length||members.some(n=>mediaLinks(n.text).length>0),[members,available]);
+ const loadMore=()=>setPaging(p=>({key:pageKey,limit:(p.key===pageKey?p.limit:24)+24}));
+ const sentinel=useInfiniteLimit(nodes.length>limit,limit,loadMore);
  const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links,cover:view.cover,source:view.source!=='children'});
  const dateKeys:string[]=useMemo(()=>dateTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
  const renderItems=(list:Node[])=>mode==='board'?<Board doc={doc} parent={parent} view={view} available={available} items={list} assets={assets} onOpen={onOpen}/>
@@ -109,7 +114,8 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
   {nodes.length>0&&(view.group&&mode!=='board'&&mode!=='calendar'?groupCollection(doc,items,view.group,view.groupDir,idx).map((g:{label:string;items:Node[]})=>{const key=g.label.toLocaleLowerCase()||'\u0000';const isClosed=closed.has(key);
     return <section key={key} className="collection-group"><button type="button" className="collection-group-head" aria-expanded={!isClosed} onClick={()=>setClosed(c=>{const n=new Set(c);if(n.has(key))n.delete(key);else n.add(key);return n;})}><ChevronDown size={14} className={isClosed?'is-closed':''}/><span>{g.label||'No '+view.group}</span><small>{g.items.length}</small></button>{!isClosed&&renderItems(g.items)}</section>;})
    :renderItems(items))}
-  {nodes.length>limit&&<button className="collection-more" type="button" onClick={()=>setPaging({key:pageKey,limit:limit+24})}>Show {Math.min(24,nodes.length-limit)} more · {nodes.length-limit} remaining</button>}
+  {nodes.length>limit&&<button ref={sentinel as any} className="collection-more" type="button" aria-label={`Load ${Math.min(24,nodes.length-limit)} more`} onClick={loadMore}><span className="collection-more-dots" aria-hidden="true"><i/><i/><i/></span></button>}
+  {nodes.length>24&&nodes.length<=limit&&<p className="collection-end">All {nodes.length} shown</p>}
   {nodes.length>0&&<p className="collection-footnote">Your original notes, in a different view. Website details may be unavailable or change.</p>}
  </div>;
 }

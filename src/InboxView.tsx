@@ -6,6 +6,7 @@ import {inboxItems,inboxDestinations,processInbox,inboxReminderId} from './inbox
 import {snapshotIndex} from './outline-snapshot.mjs';
 import {calendarEvents,localDate} from './calendar-events.mjs';
 import {UndoToast,type Toast} from './UndoToast';
+import {useInfiniteLimit} from './useInfiniteLimit';
 import {relativeDay} from './natural-date.mjs';
 import './inbox.css';
 type Action='file'|'link'|'schedule';
@@ -21,6 +22,7 @@ export function InboxView({doc,disabled,onChange,onOpen,onCapture,onTrash,onUndo
  const destinations=useMemo(()=>{const q=query.trim().toLocaleLowerCase();return q?destinationNotes.filter(n=>(n.title+' '+n.path).toLocaleLowerCase().includes(q)):destinationNotes;},[destinationNotes,query]);
  const receipts=useMemo(()=>new Map(Object.values(doc.web.androidShareReceipts||{}).map((r:any)=>[r.id,r.receivedAt])),[doc.web.androidShareReceipts]);
  useEffect(()=>{setLimit(30);},[search]);
+ const moreRef=useInfiniteLimit(matches.length>limit,limit,()=>setLimit(n=>n+30));
  useLayoutEffect(()=>{if(panel)panelInput.current?.focus();},[panel?.id,panel?.kind]);
  useEffect(()=>{if(panel&&!items.some(n=>n.id===panel.id)){setPanel(null);setError('The capture moved or was removed. Your other notes are unchanged.');}},[items,panel]);
  const history=(redo=false)=>{setNotice('');setToast(null);setError('');setPanel(null);onUndo(redo);};
@@ -71,6 +73,6 @@ export function InboxView({doc,disabled,onChange,onOpen,onCapture,onTrash,onUndo
    </li>;
   })}</ol>}
   <UndoToast toast={toast} onUndo={()=>history()} onClose={()=>setToast(null)}/>
-  {matches.length>limit&&<button className="inbox-more" onClick={()=>setLimit(n=>n+30)}>Show more captures ({matches.length-limit} remaining)</button>}
+  {matches.length>limit&&<button ref={moreRef as any} className="inbox-more rn-more" aria-label={`Load more captures (${matches.length-limit} remaining)`} onClick={()=>setLimit(n=>n+30)}><span className="collection-more-dots" aria-hidden="true"><i/><i/><i/></span></button>}
  </section>;
 }

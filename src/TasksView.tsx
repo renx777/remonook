@@ -7,6 +7,7 @@ import {TASK_VIEWS,taskCatalog,taskPlan,updateTask,quickAddTask} from './tasks.m
 import {parseQuickTask,relativeDay,deadlineLabel,addMinutes,addDays} from './natural-date.mjs';
 import {UndoToast,type Toast} from './UndoToast';
 import {Sheet} from './Sheet';
+import {useInfiniteLimit} from './useInfiniteLimit';
 import {TASK_FIELDS} from './task-fields.mjs';
 import {GoogleTasksWidget} from './GoogleTasksWidget';
 import {useReminderClock} from './CalendarReminders';
@@ -70,6 +71,7 @@ export function TasksView({doc,disabled,canUndo,canRedo,onChange,onOpen,onNew,on
   });
  },[catalog,view,search,project,sort]);
  useEffect(()=>{setLimit(40);setEditing(null);setError('');setLeaving({});},[view,search,project,google]);
+ const moreRef=useInfiniteLimit(tasks.length>limit,limit,()=>setLimit(n=>n+40));
  const selected=editing?doc.tables.bullets.find(n=>n.id===editing):undefined;
  const lastSelected=useRef<Node|null>(null);if(selected)lastSelected.current=selected as Node;
  const planNode=selected||(editing&&lastSelected.current?.id===editing?lastSelected.current:null);
@@ -108,7 +110,7 @@ export function TasksView({doc,disabled,canUndo,canRedo,onChange,onOpen,onNew,on
      <div className="task-row-actions">{done&&p.taskRepeat!=='NONE'&&Object.values(doc.web.taskRepeatReceipts?.[n.id]||{}).filter((r:any)=>doc.tables.bullets.some(b=>b.id===r.nextId)).map((r:any)=><button key={r.nextId} onClick={()=>onOpen(r.nextId)}>Next task · {relativeDay(r.date,today)}</button>)}<button onClick={()=>onOpen(n.id)}><Icon name="notes" size={14}/>Open note</button><button disabled={disabled} aria-expanded={editing===n.id} onClick={e=>{origin.current=e.currentTarget;setEditing(editing===n.id?null:n.id);}}><Icon name="sliders" size={14}/>Plan</button></div>
     </li>;
    })}</ol>}
-   {tasks.length>limit&&<button className="tasks-more" onClick={()=>setLimit(n=>n+40)}>Show more tasks ({tasks.length-limit} remaining)</button>}
+   {tasks.length>limit&&<button ref={moreRef as any} className="tasks-more rn-more" aria-label={`Load more tasks (${tasks.length-limit} remaining)`} onClick={()=>setLimit(n=>n+40)}><span className="collection-more-dots" aria-hidden="true"><i/><i/><i/></span></button>}
   </>}
   <UndoToast toast={toast} onUndo={()=>history()} onClose={()=>setToast(null)}/>
  </section>;
