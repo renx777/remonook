@@ -2,6 +2,56 @@
 
 ## Current state
 
+### Phase 6: weekly review, study goals and citations — 28 November 2026
+
+Web staging runs branch
+`codex/weekly-review-study-citations` at
+`cfd45d9cb5b0df207a77a5c8bfa631a5e7803635`, release `2026-11-14.1`,
+confirmed by the public staging-source.json. PR
+[#123](https://github.com/renx777/remonook/pull/123) targets the preceding
+Phase 5 branch and retains the existing staging UI, MovieSearch and quota fixes.
+
+- Tasks → Weekly review projects canonical captures/tasks, recent notes and
+  actual spaced logs. Checklist/reflection drafts are device-local; explicit Save
+  creates an ordinary linked review note. Completed tasks are labelled all-time.
+- Study Desk → Study goals saves a snapshot of up to 500 new card source links,
+  target date and time budget. Forecasts respect eligibility/daily limits and use
+  observed response times or a 45-second fallback. They are lower bounds, not
+  predictions of future FSRS repeats or readiness. Suggested new-card counts are
+  advisory; Review uses the normal SPACED queue and resumes unfinished sessions.
+- Sources on a zoomed note adds bibliographic Traits under References, outside
+  answer trees. Saved reading anchors can prefill known facts; missing data stays
+  blank. Exact quotes, stale/duplicate/formatted-field guards, safe links and
+  CSL-JSON/BibTeX export are supported. No citation-style processor or lookup API.
+- Final local staging build and full suite passed: **815 tests, zero failures**.
+  [CI](https://github.com/renx777/remonook/actions/runs/46140849835) also passed all
+  **815 tests**. Sync rejection reproduction: all batches accepted. A restricted
+  sandbox run first hit existing subprocess/loopback permission failures; the
+  permitted full run resolved those execution restrictions.
+- Development, packaged and independent hosted guest checks passed on
+  desktop/light and phone/dark: drafts/reload, task state, unchanged scheduling,
+  goal creation, session resume, citation edits/export, undo/redo and overflow.
+  Local hosted checking required a test-only HTTPS interception exception.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/46141129716)
+  completed successfully. Frontend Worker version:
+  `00348225-9ca1-4096-8ac1-7b47443d00c2`. All **22 signed-in sync checks passed**,
+  preserving this run's **3,576 of 3,576 baseline notes** through cleanup.
+  All hosted acceptance steps passed: collections, Inbox, Tasks, Calendar,
+  Smart Collections, Grid/Calendar controls, History/portability, Library discovery
+  and Phase 6 on both viewport/theme combinations. This does not explain or
+  resolve the historical baseline discrepancies.
+- Backend health remains healthy: syncProtocol 3, workdaysSchema 2,
+  attachmentRecovery 1, aiAssist 1, aiEnabled true, bookmarkReader 1 and
+  googleTasksConfigured true. No backend deployment or migration was needed.
+- No main merge, production or native release. Physical-device gates remain
+  separate. Saved data uses ordinary notes/Traits/links and normal undo, outbox,
+  sync and backups; drafts remain device-local. See
+  [REVIEW-GOALS-CITATIONS.md](REVIEW-GOALS-CITATIONS.md) for use and limits.
+  Screenshots: docs/screenshots/review-{weekly,goals,sources}-{desktop,phone}.png.
+  This release record changes documentation only; deployed application source
+  remains the exact commit above.
+
+
 ### Phase 5: note history and portability — 28 November 2026
 
 Owner-authorized web-staging source: branch
