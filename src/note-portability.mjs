@@ -142,6 +142,11 @@ export function parseOpml(text, Parser = globalThis.DOMParser) {
   walk(body, 0);
   return { items, warnings };
 }
+function movedFormatting(formatting,text,map,warnings){
+  const unknown=(formatting||"").split(";").filter(Boolean).filter(part=>!marks(part,text.length).length);
+  if(unknown.length)warnings.push("Unrecognized formatting retained verbatim; review remapped note: "+unknown.join(";"));
+  return [encode(marks(formatting||"",text.length).map(m=>({...m,start:map(m.start),end:map(m.end)}))),...unknown].filter(Boolean).join(";");
+}
 export function remapNoteLinks(node, ids, warnings) {
   let text = node.text,
     changes = [];
@@ -171,17 +176,8 @@ export function remapNoteLinks(node, ids, warnings) {
     }
     return p + delta;
   };
-  return {
-    ...node,
-    text: next,
-    formatting: encode(
-      marks(node.formatting || "", text.length).map((m) => ({
-        ...m,
-        start: offset(m.start),
-        end: offset(m.end),
-      })),
-    ),
-  };
+  if(next===text)return node;
+  return {...node,text:next,formatting:movedFormatting(node.formatting,text,offset,warnings)};
 }
 export async function exportPortable(doc, assets) {
   validate(doc.tables.bullets);
@@ -447,13 +443,7 @@ export async function preparePortable(
           p +
           replacements.filter((m) => m.index + old.length <= p).length *
             (path.length - old.length);
-        n.formatting = encode(
-          marks(n.formatting || "", oldText.length).map((m) => ({
-            ...m,
-            start: shift(m.start),
-            end: shift(m.end),
-          })),
-        );
+        n.formatting=movedFormatting(n.formatting,oldText,shift,warnings);
       }
   for (const path of emojiFiles(emojis)) {
     if (!files.has(path)) {

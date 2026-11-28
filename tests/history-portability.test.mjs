@@ -404,3 +404,7 @@ test("custom emoji artwork is retained by history and portable notes without ove
   assert.throws(() => applyPortable(conflict, p), /different artwork/);
   assert.equal(conflict.tables.emojis[0].fileName, "different.json");
 });
+
+test("legacy formatting survives portable identity remapping even when the renderer does not understand it",async()=>{
+ const d=data.empty();d.tables.bullets=[bullet("legacy",{text:"Legacy",formatting:"FUTURE_STYLE=original"}),bullet("linked",{text:"[[Legacy|legacy]]",formatting:"FUTURE_STYLE=kept"})];const out=await exportPortable(d,new Map());const p=await preparePortable(file(out.blob,"legacy.zip"),{Parser});assert.equal(p.nodes.find(n=>n.text==="Legacy").formatting,"FUTURE_STYLE=original");const linked=p.nodes.find(n=>n.text.startsWith("[[Legacy|"));assert.ok(linked.formatting.includes("FUTURE_STYLE=kept"));assert.ok(p.warnings.some(w=>w.includes("Unrecognized formatting")));
+});
