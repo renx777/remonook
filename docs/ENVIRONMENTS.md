@@ -2,6 +2,23 @@
 
 ## Current state
 
+### Infinite scroll and smoother collections on web staging — 28 November 2026
+
+Web staging runs branch `ccr-641b18bf-2fe80f`, commit `6d5d5c44ac074d21c8cc081ef33efe7756061918`, release `2026-11-14.1`.
+
+Changes:
+- Collections, Tasks and Inbox load more items as you scroll.
+- Cards are memoized, so loading more draws only the new ones.
+- Off-screen cards skip layout and paint (`content-visibility`).
+- Images decode asynchronously.
+- TMDB and IMDb posters load at the size the card needs (`srcset`).
+
+Web only.
+
+Checks, all run locally:
+- Unit tests: 820 passed.
+- Browser scripts: collection scroll (230 movies, about 17 ms per frame, no frames over 50 ms), collection toolbar, Tasks, Inbox and Smart Collections passed on desktop and phone.
+
 ### Search focus and Outline toolbar on web staging — 28 November 2026
 
 Web staging runs branch `ccr-641b18bf-2fe80f`, commit `4695dabb749a0b46b69d05cac7b5e64672005c5b`, release `2026-11-14.1`.
