@@ -2,6 +2,20 @@
 
 ## Current state
 
+### Remove and Trash for movies on web staging — 28 November 2026
+
+Web staging runs branch `ccr-641b18bf-2fe80f`, commit `c4fa4c85fcad1295660d8f25615829097fbef261`, release `2026-11-14.1`. The branch includes `codex/emoji-artwork-packs`.
+
+Changes:
+- **Add movie sheet:** Remove, for mistaken adds and movies already in the list.
+- **Grid, List and Table:** a Trash button on each item, with an Undo toast.
+
+Web only.
+
+Checks, all run locally:
+- Unit tests: 826 passed.
+- Browser scripts on desktop and phone: MovieSearch, collection toolbar (Trash and Undo), link collections, Smart Collections and collection scroll passed.
+
 ### TMDB/OMDb choice on web staging — 28 November 2026
 
 Web staging runs branch `ccr-641b18bf-2fe80f`, commit `f5621e944eb18ae4008542d4871ad6d979bbe394`, release `2026-11-14.1`.
