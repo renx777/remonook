@@ -1,0 +1,150 @@
+.phase6-link {
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.phase6-launch {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+.image-dialog.phase6-dialog {
+  padding: 0 20px 16px;
+  width: min(820px, calc(100vw - 24px));
+  max-height: 88dvh;
+  overflow: auto;
+}
+.phase6-dialog label {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.phase6-dialog input:not([type="checkbox"]),
+.phase6-dialog select,
+.phase6-dialog textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.phase6-dialog textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.phase6-dialog button {
+  min-height: 36px;
+  max-width: 100%;
+  white-space: normal;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--bg);
+  color: var(--text);
+}
+.phase6-dialog summary {
+  cursor: pointer;
+  min-height: 36px;
+  padding-top: 10px;
+}
+.phase6-dialog details {
+  border-top: 1px solid var(--line);
+  margin: 12px 0;
+}
+.phase6-muted {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.phase6-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.phase6-stats span {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.phase6-stats strong {
+  font-size: 22px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.phase6-review-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 6px 0;
+}
+.phase6-review-row input {
+  flex: none;
+}
+.phase6-review-row button {
+  border: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.phase6-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.phase6-goal,
+.phase6-citation {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.phase6-actions,
+.phase6-dialog footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.phase6-citation blockquote {
+  white-space: pre-wrap;
+  color: var(--muted);
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+  margin-left: 0;
+}
+@media (max-width: 600px) {
+  .phase6-fields {
+    grid-template-columns: 1fr;
+  }
+  .phase6-link,
+  .phase6-dialog button {
+    min-height: 44px;
+  }
+  .image-dialog.phase6-dialog {
+    max-height: 92dvh;
+  }
+  .phase6-stats {
+    gap: 16px;
+  }
+}
+
+.phase6-dialog > .image-dialog-header {
+  margin: 0 -20px;
+}
+@media (max-width: 600px) {
+  .phase6-dialog input:not([type="checkbox"]),
+  .phase6-dialog select,
+  .phase6-dialog textarea {
+    font-size: 16px;
+    min-height: 44px;
+  }
+}
