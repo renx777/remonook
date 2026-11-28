@@ -2,6 +2,22 @@
 
 ## Current state
 
+### TMDB/OMDb choice on web staging — 28 November 2026
+
+Web staging runs branch `ccr-641b18bf-2fe80f`, commit `f5621e944eb18ae4008542d4871ad6d979bbe394`, release `2026-11-14.1`.
+
+The branch includes `codex/emoji-artwork-packs` (`1069710`), which was on staging before this deploy, so its Twemoji/OpenMoji artwork stays live. An earlier deploy of `e7102cb` was cancelled before it went live, so it never replaced Codex's build.
+
+Changes:
+- "Use for movies" default in Settings → Connections → Movies.
+- A TMDB | OMDb switch in the Add movie, Update and Match sheets.
+
+Web only.
+
+Checks, all run locally on the merged commit:
+- Unit tests: 826 passed.
+- MovieSearch browser script (both providers connected, OMDb default, per-sheet switch) passed on desktop and phone.
+
 ### Twemoji and OpenMoji on web staging — 28 November 2026
 
 Owner-approved web staging runs `codex/emoji-artwork-packs` at
