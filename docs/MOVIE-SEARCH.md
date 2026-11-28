@@ -1,36 +1,68 @@
 # MovieSearch
 
-Add `#MovieSearch` to an ordinary bullet, then zoom into it. The MovieSearch
-button appears under its heading, including when it also uses `#views`.
+Fill movie notes from TMDB or OMDb, and add new movies by searching.
 
-Choose TMDB or OMDb and enter your own API key (TMDB v3 API key, not a v4 bearer
-token). Keys stay in account/workspace-scoped session memory and are not persisted, synced, backed up
-or sent to RemoNook's backend. Re-enter after reload; keys are reused across tagged notes within the session. Clear key removes the selected provider key.
-Requests go directly to the selected provider on explicit lookup. Provider
-terms, browser CORS availability, credits and rate limits still apply. BYOK is
-not a commercial licensing exemption. No real-provider credential was available
-for acceptance testing; automated browser checks use mocked provider responses.
+## Connect once
 
-For one movie, edit title/year, Search, choose a result and review Apply. It
-updates this note's Poster Trait with an HTTPS URL. It does not download the
-poster as an attachment. Existing image previews fetch that URL as usual.
+Open **Settings → Connections → Movies** and paste a key:
 
-For a shelf, choose Find posters for child movies. Up to 50 ordinary direct
-children are processed sequentially, resolving mirrors to their source identity.
-The query uses the child's title and Year Trait (or trailing parenthesized year).
-Only an exact case-insensitive title, matching year when supplied, and exactly
-one candidate with a poster prepares a proposal. Other candidates are left
-unchanged; tag and open an individual note to search manually. Review each
-replacement and uncheck unwanted changes before Apply.
+- **TMDB:** either the short "API Key" or the long "API Read Access Token". Both work; the token is sent as a bearer header and never in the URL.
+- **OMDb:** the key OMDb emailed you.
 
-Apply uses one existing outline mutation, so normal persistence, synchronization
-and undo apply. Deleted targets and changed titles or Poster values invalidate
-the batch rather than overwrite newer edits. Other Traits, ratings and prose
-are preserved. Cancel, source switches, account/workspace switches and unmount
-invalidate lookup responses. No API response, key or result history is stored.
-The imported Poster URL becomes an ordinary synced Trait.
+**Connect** checks the key with one request. **Remember on this device** is on by default.
 
-Current scope: existing movie notes and poster URLs. Creating a new movie note,
-selecting additional metadata fields, saved credentials, pagination beyond the
-first ten provider results, localized fuzzy matching and a backend API proxy are
-not part of this version.
+**Where the key is kept (`src/movie-keys.ts`):**
+- In this browser's storage, separately for each account and workspace.
+- Never written into notes, synced or backed up, and never sent to RemoNook. It goes only to the provider.
+- Without "remember", it lasts until the app reloads.
+- **Forget** removes it.
+
+## Where it appears
+
+**Movie collections** show **Add movie** and **Update from TMDB** under the title. A collection counts as a movie collection when either:
+- it is tagged `#MovieSearch`, or
+- its Configure → recipe is Movie shelf.
+
+**A single movie** (a note tagged `#MovieSearch` inside such a collection, or any child of one) shows **Match on TMDB**.
+
+## Add movie
+
+1. Search as you type and pick a result.
+2. RemoNook fetches the full details and creates a child note titled after the movie, with the chosen Traits:
+   - Cover
+   - Year
+   - Director
+   - Genre
+   - Runtime
+   - TMDB rating (IMDb rating with OMDb)
+   - TMDB or IMDb link
+
+**Traits to fill** remembers your choice. Your own `Rating` Trait is never touched. Movies already in the list are marked "In list".
+
+## Update from TMDB
+
+Checks every direct child, up to 200, three at a time.
+
+**Matching:**
+1. A movie that already has a TMDB/IMDb link Trait is looked up by that id, so later updates always find the same film.
+2. Otherwise titles are compared ignoring case, accents, punctuation and a leading "The/A/An", with the Year Trait (or a trailing "(1982)") allowed to differ by one year.
+3. When several films share a title, the one matching the year wins; failing that, a clearly more popular one wins.
+4. Otherwise you pick from the top three in the review list.
+
+**Review:**
+- Each movie lists old → new values with a checkbox.
+- Only empty Traits are filled unless **Replace values that are already filled** is on.
+- An existing `Poster` Trait is updated as the cover instead of adding `Cover`, so there are no duplicate images.
+
+**Apply** writes all chosen changes as one undoable step. A note renamed during review is refused rather than overwritten. A rejected key or a rate limit stops the run.
+
+## Match on TMDB
+
+Search by title and year, choose the film, see exactly what changes (replacing existing values by default), then **Apply**.
+
+## Notes
+
+- Requests go straight from the device to `api.themoviedb.org` or `www.omdbapi.com`, with credentials omitted, redirects refused and no referrer. Provider terms, credits and rate limits apply.
+- Poster images stay as HTTPS links; they are not downloaded as attachments.
+- TMDB attribution appears in Settings and in the Add movie sheet.
+- On the native apps the key is stored the same way as on the web, in the app's storage for that account.

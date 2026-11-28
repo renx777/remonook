@@ -204,6 +204,7 @@ import "./mcq.css";
 import "./mobile.css";
 import "./navigation-refinement.css";
 import "./design-tokens.css";
+import { MovieConnections } from "./MovieConnections";
 const Bookmarks=React.lazy(()=>import('./Bookmarks').then(module=>({default:module.Bookmarks})));
 const ReaderBookNotes = React.lazy(()=>import('./ReaderBookNotes').then(module=>({default:module.ReaderBookNotes})));
 const AiBulletDialog = React.lazy(()=>import('./AiBulletDialog'));
@@ -2698,7 +2699,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           </section>
           <section className="upload-storage-status"><h3>Attachment storage</h3><p className="dialog-muted">{(attachmentBytes(assets)/1024/1024).toFixed(1)} MB / 20 MB used · 2 MB per file</p><progress aria-label="Attachment storage used" max={MAX_ATTACHMENT_BYTES} value={Math.min(attachmentBytes(assets),MAX_ATTACHMENT_BYTES)}/><p className="dialog-muted">Note attachments in this workspace. Books have separate on-demand storage in Settings → Storage. Embedded links use no space.</p></section>
           </section>}
-          {settingsPanel==="connections"&&<GoogleTasksConnection/>}
+          {settingsPanel==="connections"&&<><GoogleTasksConnection/><MovieConnections/></>}
           {settingsPanel==="ai"&&<AiApps user={cloudUser}/>}
           {settingsPanel==="desktop"&&isDesktop()&&<DesktopSettings/>}
           {settingsPanel==="about"&&<About/>}

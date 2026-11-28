@@ -241,3 +241,4 @@
 .app .mindmap-library > header.rn-head > button { min-height: 36px; }
 @media (max-width: 760px) { .app .mindmap-library > header.rn-head > button { font-size: 0; gap: 0; width: 36px; padding: 0; justify-content: center; } }
 .app .bookmark-library .bl-tools { flex-direction: row !important; align-items: center !important; }
+@media (min-width: 761px) { .rn-sheet.is-wide { width: 560px; } }

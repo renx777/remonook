@@ -1,1 +1,63 @@
-.movie-search{margin:12px 22px}.movie-search button{min-height:36px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);padding:6px 12px}.movie-search-panel{border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:8px;max-width:760px}.movie-search-fields{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:12px 0}.movie-search label{display:grid;gap:6px;font-size:13px}.movie-search input:not([type=checkbox]),.movie-search select{min-height:36px;max-width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px}.movie-search small{display:block;color:var(--muted);font-size:12px}.movie-search .movie-search-result{display:flex;align-items:center;gap:12px;margin:12px 0;flex-wrap:wrap}.movie-search-result img{width:48px;height:72px;object-fit:contain}.movie-search-result span{flex:1;min-width:120px;overflow-wrap:anywhere}@media(max-width:760px){.movie-search{margin:12px 8px}.movie-search button{min-height:44px}.movie-search-fields label{max-width:100%}}
+/* MovieSearch v2: a quiet action bar, sheets for adding, updating and matching. */
+.movie-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 12px}
+.movie-btn{display:inline-flex;align-items:center;gap:6px;height:32px;min-height:32px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel,var(--bg));color:var(--text);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.movie-btn:hover:not(:disabled){background:var(--hover)}
+.movie-btn:disabled{opacity:.45;cursor:default}
+.movie-btn.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
+.movie-btn.danger{color:var(--deadline-ink,#9a3412)}
+.movie-wide{width:100%;justify-content:center;height:40px;margin-top:14px}
+.movie-link{border:0;background:none;padding:0 4px;color:var(--accent);font:inherit;font-size:13px;cursor:pointer}
+.movie-muted{font-size:13px;color:var(--muted);line-height:1.5;margin:6px 0}
+.movie-credit{font-size:11.5px;margin-top:12px}
+.movie-ok{font-size:13px;color:var(--done,#2f7d4f);margin:8px 0}
+.movie-error{font-size:13px;color:var(--deadline-ink,#9a3412);margin:8px 0}
+.movie-sheet h2{font-size:var(--fs-title,15px);font-weight:600;margin:0 0 12px}
+.movie-search-box{display:flex;align-items:center;gap:8px;flex:1;min-width:0;height:40px;padding:0 12px;border:1.5px solid var(--accent);border-radius:10px;color:var(--accent)}
+.movie-search-box input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:15px}
+.movie-query{display:flex;gap:8px}
+.movie-year{width:72px;height:40px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--text);font:inherit;font-size:14px;padding:0 10px}
+.movie-fields{margin:10px 0 4px}
+.movie-fields summary{font-size:13px;color:var(--muted);cursor:pointer;padding:4px 0}
+.movie-fields summary span{opacity:.75;margin-left:4px}
+.movie-fields .rn-sheet-row{margin-top:6px}
+.movie-remember{display:flex;align-items:center;gap:8px;font-size:13px;margin:8px 0}
+.movie-results,.movie-review,.movie-changes{list-style:none;margin:8px 0 0;padding:0}
+.movie-results li{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.movie-result-text{flex:1;min-width:0;display:flex;flex-direction:column}
+.movie-result-text b,.movie-review-head b{font-size:14.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.movie-result-text small,.movie-review-head small{font-size:12.5px;color:var(--muted)}
+.movie-thumb{flex:none;border-radius:4px;object-fit:cover;background:var(--hover);display:grid;place-items:center;font-size:14px}
+.movie-done{font-size:13px;font-weight:600;color:var(--done,#2f7d4f)}
+.movie-progress{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:4px 0 8px}
+.movie-review li{padding:10px 0;border-bottom:1px solid var(--line)}
+.movie-review-head{display:flex;align-items:center;gap:10px;min-width:0}
+.movie-review-head>span{display:flex;flex-direction:column;min-width:0}
+.movie-review li.is-likely small{color:var(--deadline-ink,#9a3412)}
+.movie-changes{margin:6px 0 0 70px;font-size:12.5px;color:var(--muted)}
+.movie-changes li{padding:1px 0;border:0}
+.movie-changes b{font-weight:600;color:var(--text);margin-right:6px}
+.movie-changes s{opacity:.7}
+.movie-changes span{color:var(--block-ink,var(--accent))}
+.movie-candidates{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0 42px}
+.movie-candidate{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--text);font:inherit;font-size:13px;cursor:pointer;text-align:left}
+.movie-candidate:hover{border-color:var(--accent)}
+.movie-candidate span{display:flex;flex-direction:column}
+.movie-candidate small{color:var(--muted);font-size:11.5px}
+.movie-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.movie-chosen{display:flex;gap:12px;align-items:flex-start;margin-bottom:6px}
+.movie-chosen>span{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+.movie-chosen small{color:var(--muted);font-size:12.5px}
+.movie-connect{padding:24px 8px}
+/* Settings → Connections */
+.movie-connections{margin-top:28px}
+.movie-connections h3{margin:0 0 4px}
+.movie-connection{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0}
+.movie-connection-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.movie-connection-status{font-size:12.5px;color:var(--muted)}
+.movie-connection-status.is-on{color:var(--done,#2f7d4f)}
+.movie-connection form{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.movie-connection form input[type=password]{flex:1 1 220px;min-width:0;height:36px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--text);padding:0 10px;font:inherit;font-size:14px}
+.movie-connection form small{flex-basis:100%;font-size:12px;color:var(--muted);line-height:1.5}
+.movie-connection form .movie-remember{margin:0}
+.movie-connection-actions{display:flex;flex-wrap:wrap;gap:6px}
+@media(max-width:760px){.movie-changes{margin-left:0}.movie-candidates{margin-left:0}}
