@@ -242,3 +242,24 @@
 @media (max-width: 760px) { .app .mindmap-library > header.rn-head > button { font-size: 0; gap: 0; width: 36px; padding: 0; justify-content: center; } }
 .app .bookmark-library .bl-tools { flex-direction: row !important; align-items: center !important; }
 @media (min-width: 761px) { .rn-sheet.is-wide { width: 560px; } }
+
+/* Inputs inside a bordered field: the field shows focus, so the input itself draws no second ring. */
+.app .collection-search input:focus, .app .collection-search input:focus-visible,
+.app .movie-search-box input:focus, .app .movie-search-box input:focus-visible,
+.app .task-quick-add input:focus, .app .task-quick-add input:focus-visible,
+.app .task-phrase input:focus, .app .task-phrase input:focus-visible,
+.app .study-filter input:focus, .app .study-filter input:focus-visible,
+.app .bookshelf-find input:focus, .app .bookshelf-find input:focus-visible,
+.rn-sheet .movie-search-box input:focus, .rn-sheet .movie-search-box input:focus-visible { outline: none !important; box-shadow: none !important; border-color: transparent !important; }
+.app .collection-search:focus-within, .rn-sheet .movie-search-box:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+.rn-sheet .movie-search-box { border-width: 1px; border-color: var(--line); color: var(--muted); }
+.rn-sheet .movie-search-box:focus-within { border-color: var(--accent); color: var(--accent); }
+.app .movie-year:focus-visible { outline: none; border-color: var(--accent); }
+
+/* Note tools (Sources, History) sit on one line in every layout. */
+.app .note-tools-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 4px 0 6px; }
+.app .note-tools-row > * { margin: 0; }
+/* Outline layout uses the same toolbar as Grid, List and Table. */
+.app .collection-bar.is-outline { margin: 6px 0 12px; }
+.app .collection-bar.is-outline { align-self: stretch; width: 100%; box-sizing: border-box; justify-content: space-between; }
+.app .zoomed-header:has(> .collection-bar.is-outline), .app .zoomed-header .collection-bar.is-outline { max-width: none; }

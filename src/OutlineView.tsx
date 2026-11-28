@@ -642,7 +642,7 @@ export function OutlineView(p: Props) {
 
   if(collectionActive&&scopedNode&&galleryContext)return <section ref={scroller} className="outline-scroll collection-page" aria-label={scopedNode.text+' collection'}>
     <div className="zoomed-header" ref={headingElement}><div className="nook-heading"><LiveTitleInput key={scopedNode.id} className="zoomed-title zoomed-title-input" hideTags value={scopedNode.text} readCurrent={()=>p.readCurrentNode?.(scopedNode.id)?.text??scopedNode.text} onBlur={()=>p.onCommand('action:traits-tag',scopedNode.id,0,0)} aria-label="Zoomed node title" placeholder="Untitled" disabled={p.disabled||!!scopedNode.formatting} onValue={text=>(p.onEditorChange||p.onChange)(scopedNode.id,{text,formatting:scopedNode.formatting||''})}/></div></div>
-    <CitationTools key={"sources-"+scopedNode.id} id={scopedNode.id}/><NoteHistory key={"history-"+scopedNode.id} id={scopedNode.id}/>
+    <div className="note-tools-row"><CitationTools key={"sources-"+scopedNode.id} id={scopedNode.id}/><NoteHistory key={"history-"+scopedNode.id} id={scopedNode.id}/></div>
     <BulletCollection parentId={scopedNode.id} doc={galleryContext.doc} nodes={rs.filter(row=>row.bullet.parentId===p.scope).map(row=>row.bullet)} mode={viewMode} assets={p.assets} onOpen={p.onZoom} onAdd={p.disabled||!p.onAdd?undefined:()=>p.onAdd?.(p.scope)} extras={<>{viewsTagged&&<BulletViewSwitch compact value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}<MovieSearch key={scopedNode.id} id={scopedNode.id} compact/></>}/>
   </section>;
   return (
@@ -725,7 +725,7 @@ export function OutlineView(p: Props) {
               }}
             />
             </div>
-            <CitationTools key={"sources-"+scopedNode.id} id={scopedNode.id}/><NoteHistory key={"history-"+scopedNode.id} id={scopedNode.id}/><MovieSearch key={scopedNode.id} id={scopedNode.id}/>{viewsTagged&&<BulletViewSwitch value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/>}
+            <div className="note-tools-row"><CitationTools key={"sources-"+scopedNode.id} id={scopedNode.id}/><NoteHistory key={"history-"+scopedNode.id} id={scopedNode.id}/></div>{viewsTagged?<div className="collection-bar is-outline"><div className="collection-bar-left"><span className="collection-count">{(()=>{const n=rs.filter(row=>row.bullet.parentId===p.scope&&!isTraitsBlock(row.bullet)).length;return n+(n===1?' item':' items');})()}</span></div><div className="collection-bar-actions"><BulletViewSwitch compact value={viewMode} disabled={p.disabled} onChange={view=>p.onCommand('view:'+view,scopedNode.id,0,0)}/><MovieSearch key={scopedNode.id} id={scopedNode.id} compact/></div></div>:<MovieSearch key={scopedNode.id} id={scopedNode.id}/>}
             {viewMode!=='outline'&&p.editing&&<div className="collection-editing-hint">Editing in outline<button type="button" onClick={()=>p.onEdit(null)}>Return to {viewMode==='list'?'compact list':viewMode}</button></div>}
           </div>
         ) : <h1 className="page-title-hidden">My notes</h1>)}
