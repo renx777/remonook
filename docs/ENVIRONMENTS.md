@@ -2,6 +2,27 @@
 
 ## Current state
 
+### MovieSearch v2 on web staging — 28 November 2026
+
+Web staging runs branch `ccr-641b18bf-2fe80f`, commit `b6979181f0207eb0ad3c146f0fee61ed61476b09`, release `2026-11-14.1`. The branch includes everything on `codex/weekly-review-study-citations` (`e72ef79`), so nothing from the previous staging build is lost.
+
+MovieSearch v2 (docs/MOVIE-SEARCH.md):
+- Settings → Connections → Movies, with keys remembered per device and account.
+- Add movie, Update from TMDB with a review step, and Match on TMDB.
+
+Also fixed: `tests/review-planning.test.mjs` depended on the real clock and failed after 12:00 UTC on 28 November. Its card times are now pinned.
+
+Web only: no Worker, migration, native or production change.
+
+Checks:
+- Unit tests: 818 passed locally.
+- `scripts/e2e-movie-search.mjs` (mocked TMDB) passed locally on desktop and phone.
+- On deployed staging, as a guest:
+  - Movies connection row connected (mocked TMDB), with no page errors.
+  - Tasks script passed on desktop and phone.
+
+No real TMDB key was used.
+
 ### Phase 6: weekly review, study goals and citations — 28 November 2026
 
 Web staging runs branch
