@@ -437,3 +437,15 @@ existing asset/outbox path; imports never acknowledge pending edits or replace a
 workspace snapshot. Readable Markdown/OPML plus a note/media sidecar is not a
 workspace or study-progress backup. No shared protocol, new binding or server
 deployment is required. See HISTORY-PORTABILITY.md.
+
+### Weekly review, study goals and citations
+
+Phase 6 adds no shared schema, server migration or replacement snapshot.
+Saved review notes, goals/card-source links and citation records are ordinary
+bullets, Traits and internal note links through canonical mutations and the
+existing durable outbox. Citations are stored outside study answer trees.
+Drafts and review checkboxes are device-local and account/workspace-scoped;
+saved notes use normal sync/backups. Stable attempt identities and stale-version
+guards retain drafts after a failed save and prevent repeated insertion.
+Study goals never alter FSRS state, due dates, limits or active session queues.
+See REVIEW-GOALS-CITATIONS.md for estimates, progress and source-preservation rules.

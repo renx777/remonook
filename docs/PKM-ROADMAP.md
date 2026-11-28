@@ -172,4 +172,22 @@ Missing files and unsupported data are reported. See
 [HISTORY-PORTABILITY.md](HISTORY-PORTABILITY.md) for use, limits and retention.
 
 The web-staging implementation is first; physical-device verification and native
-rollout remain separate gates. Phase 6 has not started.
+rollout remain separate gates. Phase 6 is implemented below.
+
+## Phase 6 implementation
+
+Owner authorized the next phase on 28 November 2026. Tasks now offers a weekly
+review of canonical Inbox/tasks, recent notes and actual spaced-review evidence.
+Reflections become ordinary linked review notes only on explicit save.
+
+Study goals retain a bounded snapshot of new card identities with a target date
+and daily time budget. Current FSRS eligibility, daily limits and observed/fallback
+response times inform a lower-bound workload estimate. Goals never reschedule
+cards, change limits or replace an unfinished study queue.
+
+Sources on a zoomed note saves bibliographic Traits in a separate References
+branch, preserving the question/answer tree. Saved reading anchors can prefill
+known metadata; missing facts stay blank. Plain copy, CSL-JSON and BibTeX export
+are provided without a paid API or full citation-style processor.
+See [REVIEW-GOALS-CITATIONS.md](REVIEW-GOALS-CITATIONS.md) for usage and limits.
+Web staging first; physical-device and native release remain separate gates.
