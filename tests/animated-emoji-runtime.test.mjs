@@ -63,3 +63,17 @@ test('WebP retries are bounded, recover on focus and asset refresh, and respect 
   await act(async()=>window.dispatchEvent(new window.Event('online')));await act(async()=>t.mock.timers.tick(60000));assert.match(document.querySelector('img').src,/svg$/,'Recovery must not override the animation preference');
  }finally{await act(async()=>root.unmount());t.mock.timers.reset();}
 });
+
+test('static catalog artwork stays visible with motion disabled and never starts an animation player',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ try{
+  for(const pack of ['twemoji','openmoji']){
+   const staticItem={token:':'+pack+'_1f600:',fileName:pack+'_1f600.svg',label:'Grinning face'};
+   await act(async()=>root.render(React.createElement(EmojiProvider,{emojis:[staticItem],assets:new Map(),animate:false},React.createElement(AnimatedEmoji,{item:staticItem,localAssetBase:'/saved'}))));
+   const image=document.querySelector('.static-emoji img');assert.ok(image);assert.match(image.src,new RegExp('/saved/'+pack+'_1f600.svg$'));
+   await act(async()=>image.dispatchEvent(new window.Event('load')));assert.ok(document.querySelector('.static-emoji.is-ready'));assert.equal(image.testPlayer,undefined);
+  }
+  await act(async()=>root.render(React.createElement(AnimatedEmoji,{item:{token:':twemoji_1f600:',fileName:'twemoji_1f600.svg',label:'Grinning face'}})));
+  assert.equal(document.querySelector('.static-emoji img'),null,'saved notes with missing files must not fall back to remote provider requests');
+ }finally{await act(async()=>root.unmount());}
+});

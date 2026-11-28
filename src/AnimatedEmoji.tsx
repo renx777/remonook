@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import type { AnimationItem } from 'lottie-web';
 import type { RecordData } from './data';
 import { decodeAnimation, emojiMatcher, emojiParts } from './emoji.mjs';
-import { getCatalogEmoji, isCatalogEmoji, catalogAssetUrl, catalogPosterPath } from './emoji-catalog.mjs';
+import { getCatalogEmoji, isCatalogEmoji, isStaticEmoji, catalogAssetUrl, catalogPosterPath } from './emoji-catalog.mjs';
 import {isFluentEmoji} from './fluent-emojis.mjs';
 
 const cache = new WeakMap<Blob, Promise<any>>();
@@ -18,12 +18,21 @@ export function EmojiProvider({ emojis, assets, animate, children, onInsert }: {
 }
 type EmojiProps = { item: RecordData; blob?: Blob; data?: any; preview?: boolean; playRequest?: number; localAssetBase?: string };
 export function AnimatedEmoji(props: EmojiProps) {
-  return isCatalogEmoji(props.item) ? <CatalogImageEmoji {...props} /> : <LottieEmoji {...props} />;
+  return isStaticEmoji(props.item) ? <StaticImageEmoji {...props}/> : isCatalogEmoji(props.item) ? <CatalogImageEmoji {...props} /> : <LottieEmoji {...props} />;
 }
 function useEmojiUrl(blob?: Blob, mime?: string) {
   const [url, setUrl] = useState('');
   useEffect(() => { if (!blob || typeof URL.createObjectURL !== 'function') { setUrl(''); return; } const next = URL.createObjectURL(mime && blob.type !== mime ? new Blob([blob], { type: mime }) : blob); setUrl(next); return () => URL.revokeObjectURL(next); }, [blob, mime]);
   return url;
+}
+function StaticImageEmoji({item,blob,preview=false,localAssetBase}:EmojiProps){
+ const {assets}=useEmojiLibrary(),known=getCatalogEmoji(item.token),saved=blob||assets.get('emoji/'+item.fileName),local=useEmojiUrl(saved,'image/svg+xml');
+ const src=local||(!saved?(localAssetBase?localAssetBase+'/'+item.fileName:preview&&known?catalogAssetUrl(known,true):''):'');
+ const [loaded,setLoaded]=useState(''),[failed,setFailed]=useState('');
+ return <span className={'animated-emoji static-emoji '+(preview?'emoji-preview ':'')+(src&&loaded===src&&failed!==src?'is-ready':'')} role="img" aria-label={item.label||known?.label||'Emoji'} title={item.label||known?.label} data-emoji-token={item.token}>
+ <span className="emoji-fallback" aria-hidden="true">{known?.fallback||item.fallback||'◈'}</span>
+ {src&&<img key={src} className="emoji-animation" src={src} alt="" aria-hidden="true" loading="lazy" decoding="async" referrerPolicy="no-referrer" onLoad={()=>setLoaded(src)} onError={()=>setFailed(src)}/>}
+ </span>;
 }
 function CatalogImageEmoji({ item, blob, preview = false, playRequest = 0, localAssetBase }: EmojiProps) {
   const { assets, animate } = useContext(EmojiContext), host = useRef<HTMLSpanElement>(null), lastPlay = useRef(playRequest), known = getCatalogEmoji(item.token), fluent = isFluentEmoji(item);

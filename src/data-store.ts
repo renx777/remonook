@@ -159,7 +159,7 @@ export function androidBlockers(doc: Workspace) {
   if(Object.keys(doc.web.occlusions||{}).length)reasons.push("Image occlusion cards require a full web backup");
   if (doc.tables.bullets.some(node => /(?:^|;)\d+:\d+:MASK(?:;|$)/.test(node.formatting || ""))) reasons.push("Masked text requires a full web backup");
   if (doc.tables.bullets.some(node => /(?:^|;)\d+:\d+:ROUGH_/.test(node.formatting || ''))) reasons.push('Sketch annotations require a full web backup');
-  if (doc.tables.emojis.some(isCatalogEmoji)) reasons.push("Google Noto and Microsoft Fluent animated emojis require a full web backup");
+  if (doc.tables.emojis.some(isCatalogEmoji)) reasons.push("Catalog emojis (Google Noto, Microsoft Fluent, Twemoji and OpenMoji) require a full web backup");
   if (Object.keys(doc.web.deckDesigns || {}).length || doc.web.pinnedDecks?.length)
     reasons.push("Notebook covers and shelf preferences require a full web backup");
   if (Object.keys(doc.web.mcqs || {}).length || Object.keys(doc.web.deckTypes || {}).length || Object.keys(doc.web.mcqRuns || {}).length || doc.web.quizReactions)

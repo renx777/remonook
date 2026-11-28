@@ -8,6 +8,7 @@ import {act} from 'react';
 import {empty,withNodes,save,load,getAssets} from './.build/data.mjs';
 import {bullet} from '../src/domain.mjs';
 import {FLUENT_CREDIT_PATH} from '../src/fluent-emojis.mjs';
+import {catalogEmojis} from '../src/emoji-catalog.mjs';
 const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost',pretendToBeVisual:true});
 for(const key of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','Node','DOMParser','MutationObserver','getComputedStyle'])Object.defineProperty(globalThis,key,{value:key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key],configurable:true});
 installOverlayGlobals(dom);
@@ -19,16 +20,16 @@ dom.window.Range.prototype.getClientRects=()=>[];dom.window.Range.prototype.getB
 dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
 const wait=async check=>{for(let i=0;i<150;i++){if(check())return;await act(()=>new Promise(r=>setTimeout(r,20)));}throw Error('Timed out waiting for Fluent UI');};
 const click=async element=>{assert.ok(element);await act(async()=>element.click());};
-const filter=label=>[...document.querySelectorAll('.emoji-collection-filters button, .inline-emoji-tabs [role="tab"]')].find(x=>x.textContent===label);
-const search=async value=>act(async()=>{const input=document.querySelector('[aria-label="Find an animated emoji"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new window.Event('input',{bubbles:true}));});
-const open=async()=>{await click(document.querySelector('[data-node-id="mixed"] .row-hover-more'));await click(document.querySelector('[data-category="1"]'));await click([...document.querySelectorAll('button')].find(x=>x.textContent.trim().endsWith('Insert animated emoji…')));await wait(()=>document.querySelector('.emoji-grid'));};
+const filter=label=>[...document.querySelectorAll('.emoji-collection-filters button, .inline-emoji-tabs [role="tab"]')].find(x=>(x.getAttribute('aria-label')||x.textContent)===label);
+const search=async value=>act(async()=>{const input=document.querySelector('[aria-label="Find an emoji"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new window.Event('input',{bubbles:true}));});
+const open=async()=>{await click(document.querySelector('[data-node-id="mixed"] .row-hover-more'));await click(document.querySelector('[data-category="1"]'));await click([...document.querySelectorAll('button')].find(x=>x.textContent.trim().endsWith('Insert emoji…')));await wait(()=>document.querySelector('.emoji-grid'));};
 test('both collections can coexist in a note; collection choice persists across full and inline pickers, and Fluent insertion reuses offline assets',async()=>{
  await save(null,withNodes(empty(),[bullet('mixed',{text:'Nice '})]));
  const originalFetch=globalThis.fetch,requests=[];let app;
  globalThis.fetch=async url=>{requests.push(String(url));return new Response(await readFile(new URL(String(url).includes('fluentui-emoji-animated')?'./fixtures/fluent/1f600.png':`./fixtures/noto/1f600.${String(url).endsWith('webp')?'webp':'svg'}`,import.meta.url)));};
  try{
   await act(async()=>{app=await import('./.build/app.mjs');});await wait(()=>document.querySelector('[data-node-id="mixed"]'));await open();
-  assert.equal(filter('All').getAttribute('aria-pressed'),'true');assert.match(document.querySelector('.emoji-result-count').textContent,/1695/);
+  assert.equal(filter('All').getAttribute('aria-pressed'),'true');assert.match(document.querySelector('.emoji-result-count').textContent,new RegExp('^'+catalogEmojis.length+' emojis'));
   await search('grinning face');assert.ok(document.querySelector('.emoji-grid [data-emoji-token=":noto_1f600:"]'));assert.ok(document.querySelector('.emoji-grid [data-emoji-token=":fluent_1f600:"]'));
   await click(filter('Microsoft Fluent'));assert.ok([...document.querySelectorAll('.emoji-grid [data-emoji-token]')].every(x=>x.dataset.emojiToken.startsWith(':fluent_')));
   await click(document.querySelector('[data-emoji-token=":fluent_1f600:"]').closest('button'));await wait(()=>!document.querySelector('.emoji-picker'));

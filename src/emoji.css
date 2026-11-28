@@ -170,3 +170,8 @@ dialog:has(.emoji-picker) .dialog-head { margin-bottom: 4px; }
 .inline-emoji-preview-animation { width:38px; height:38px; }
 .inline-emoji-picker footer { padding-top:6px; }
 @media(pointer:coarse) { .inline-emoji-picker { width:min(360px,calc(100vw - 16px)); padding:10px; } .inline-emoji-picker .inline-emoji-results { flex-basis:260px; } .inline-emoji-results .inline-emoji-thumbnail { width:30px; height:30px; flex-basis:30px; } .inline-emoji-categories button { flex-basis:29px; min-width:29px; } .inline-emoji-search { min-height:44px; } .inline-emoji-tabs [role="tab"] { min-height:36px; } .inline-emoji-categories button { min-height:36px; } }
+
+/* Five collections remain readable and keyboard-scrollable on narrow screens. */
+.inline-emoji-tabs {overflow-x:auto;max-width:100%;scrollbar-width:thin;}
+.inline-emoji-tabs [role="tab"] {flex:1 1 0;min-width:0;padding-inline:3px;}
+@media(pointer:coarse){.inline-emoji-tabs [role="tab"],.emoji-collection-filters button{min-height:44px;}}
