@@ -2,6 +2,22 @@
 
 ## Current state
 
+### Collections toolbar revamp on web staging — 28 November 2026
+
+Web staging runs branch `ccr-641b18bf-2fe80f`, commit `1487495be7182cb56f7d3c1009ee6eaddf02f842`, release `2026-11-14.1`.
+
+Changes (docs/TRAITS.md, docs/MOVIE-SEARCH.md):
+- One-row collection toolbar: Find in list, Sort chip, Filter badge, icon Group/Properties/Configure, and the layout switch and movie actions moved into the bar.
+- Sort by Date created and Last edited, with a direction switch.
+- Movie keys can be kept on this device, synced to all devices (`web.providerKeys`, left out of backups), or kept until reload.
+
+Web only: no Worker, migration, native or production change.
+
+Checks:
+- Unit tests: 820 passed locally.
+- Run locally, desktop and phone: collection toolbar, MovieSearch (mocked TMDB), Smart Collections, link collections and views/tags browser scripts passed.
+- On deployed staging: Smart Collections passed on desktop and phone, and the key-location choice renders with no page errors.
+
 ### MovieSearch v2 on web staging — 28 November 2026
 
 Web staging runs branch `ccr-641b18bf-2fe80f`, commit `b6979181f0207eb0ad3c146f0fee61ed61476b09`, release `2026-11-14.1`. The branch includes everything on `codex/weekly-review-study-citations` (`e72ef79`), so nothing from the previous staging build is lost.
