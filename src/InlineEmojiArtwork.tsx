@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';
 import {AnimatedEmoji,useEmojiLibrary} from './AnimatedEmoji';
-import {catalogAssetUrl,catalogPosterPath,getCatalogEmoji,isCatalogEmoji} from './emoji-catalog.mjs';
+import {catalogAssetUrl,catalogPosterPath,getCatalogEmoji,isCatalogEmoji,isStaticEmoji} from './emoji-catalog.mjs';
 import {loadEmojiPreview} from './emoji-preview-cache.mjs';
 import type {RecordData} from './data';
 
@@ -11,8 +11,8 @@ function useBlobUrl(blob?:Blob){
 }
 export function EmojiThumbnail({item,hidden=false}:{item:RecordData;hidden?:boolean}){
  const {assets}=useEmojiLibrary(),known=getCatalogEmoji(item.token);
- const local=useBlobUrl(isCatalogEmoji(item)?assets.get(catalogPosterPath(item)):undefined);
- const src=local||(known?catalogAssetUrl(known,true):'');
+ const saved=isCatalogEmoji(item)?assets.get(catalogPosterPath(item)):undefined,local=useBlobUrl(saved);
+ const src=local||(!saved&&known?catalogAssetUrl(known,true):'');
  const [failed,setFailed]=useState(false),[loadedSrc,setLoadedSrc]=useState('');
  const ready=!!src&&loadedSrc===src&&!failed;
  useEffect(()=>setFailed(false),[src]);
@@ -30,7 +30,7 @@ export function InlineEmojiPreview({item}:{item:RecordData}){
   return()=>{media.removeEventListener?.('change',update);document.removeEventListener('visibilitychange',update);};
  },[animate]);
  useEffect(()=>{
-  setAnimation(undefined);setState('');if(!allowed)return;
+  setAnimation(undefined);setState('');if(!allowed||isStaticEmoji(item))return;
   const controller=new AbortController();
   const timer=setTimeout(async()=>{
    if(!isCatalogEmoji(item)){setState('custom');return;}

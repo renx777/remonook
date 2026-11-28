@@ -39,8 +39,8 @@ test('colon picker supports keyboard insertion, caret continuation, offline reus
     assert.ok(document.querySelectorAll('.inline-emoji-picker [role="option"]').length>=48);
     assert.ok(document.querySelectorAll('.inline-emoji-picker [role="option"]').length<=81,'Only viewport rows and a small overscan are mounted');
     assert.equal(document.querySelector('.inline-emoji-picker [role="option"]').getAttribute('aria-setsize'),'881','All collection choices remain available');
-    assert.equal(document.querySelectorAll('.inline-emoji-picker [role="tab"]').length, 3);
-    assert.equal(document.querySelector('.inline-emoji-picker [role="tab"][aria-selected="true"]').textContent, 'Google Noto');
+    assert.equal(document.querySelectorAll('.inline-emoji-picker [role="tab"]').length, 5);
+    assert.equal(document.querySelector('.inline-emoji-picker [role="tab"][aria-selected="true"]').textContent, 'Noto');
     assert.equal(document.querySelectorAll('.inline-emoji-results .animated-emoji').length, 0, 'Result tiles never create animation players');
     const originalCoordinates=editor.view.coordsAtPos;
     editor.view.coordsAtPos=()=>({left:100,right:100,top:140,bottom:160});
@@ -112,7 +112,7 @@ test('colon picker supports keyboard insertion, caret continuation, offline reus
     assert.match(editor.getText(), /plain :noto_1f680:$/);
     await type(' :');
     assert.equal(document.querySelector('.inline-emoji-results [role="option"] [data-emoji-token]').getAttribute('data-emoji-token'), ':noto_1f680:', 'Successful insertions lead the recent suggestions');
-    const collection = name => [...document.querySelectorAll('.inline-emoji-tabs button')].find(button => button.textContent === name);
+    const collection = name => [...document.querySelectorAll('.inline-emoji-tabs button')].find(button => (button.getAttribute('aria-label')||button.textContent) === name);
     await act(async()=>collection('My library').click());
     assert.ok(document.querySelector('.inline-emoji-results [data-emoji-token=":remo_smile:"]'), 'Custom emojis have their own library tab');
     await act(async()=>collection('Microsoft Fluent').click());

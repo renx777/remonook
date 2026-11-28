@@ -1116,7 +1116,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         added.push({ token: ':remo_' + id + ':', fileName, label: file.name.replace(/\.(json|tgs)$/i, '').slice(0, 100) || 'Emoji' });
       }
       const current = docRef.current!;
-      if (current.tables.emojis.filter(item => !isCatalogEmoji(item)).length + added.length > 500) throw Error('This workspace supports up to 500 custom emojis. Google and Microsoft catalog emojis do not use this allowance.');
+      if (current.tables.emojis.filter(item => !isCatalogEmoji(item)).length + added.length > 500) throw Error('This workspace supports up to 500 custom emojis. Built-in catalog emojis do not use this allowance.');
       checkAttachmentBudget(nextAssets);
       if (failed.current) throw Error('Saving is paused. Return to Settings to recover your draft.');
       for (const item of added) pendingAssets.current.set('emoji/' + item.fileName, nextAssets.get('emoji/' + item.fileName)!);
@@ -1148,7 +1148,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       if (failed.current) throw Error('Saving is paused. Export your draft before trying again.');
       const current = docRef.current!, node = current.tables.bullets.find(n => n.id === id);
       if (!node || unsupportedFormatting(node as Node)) return;
-      if (inline && node.text !== originalText) throw Error('This bullet changed while downloading. Choose the emoji again.');
+      if (node.text !== originalText) throw Error('This bullet changed while downloading. Choose the emoji again.');
       const nextAssets = new Map(assetsRef.current);
       for (const [path, blob] of added) {checkUploadFile(blob);nextAssets.set(path, blob);}
       checkAttachmentBudget(nextAssets);
@@ -1162,7 +1162,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
         editor.current.commands.setContent(toEditor(updated as Node), { emitUpdate: false });
         editor.current.commands.setTextSelection(start + item.token.length + 1);
       } else if (!inline) setEditing(null);
-      setDialog(null); setNotice('Animated emoji inserted and saved for offline use. Undo removes it.');
+      setDialog(null); setNotice('Emoji inserted and saved for offline use. Undo removes it.');
     } finally { if (emojiDownload.current === controller) { emojiDownload.current = null; setWorking(false); } }
   };
   const toggleStar = (id: string) => {
@@ -2475,7 +2475,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 </div></details><details data-tour="insert-category" className="bullet-action-section"><summary><Icon name="insert" size={16}/><span>Insert</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content"><button disabled={disabled} onClick={()=>command('action:music',menuNode.id,0,0)}><Icon name="music" size={16}/><span>{doc.web.musicNodes?.[menuNode.id]?"Turn off music gallery":"Music gallery"}</span></button><button disabled={disabled} onClick={()=>command('action:gallery',menuNode.id,0,0)}><Icon name="image" size={16}/><span>{doc.web.galleryNodes?.[menuNode.id]?"Turn off gallery":"Show as gallery"}</span></button><button disabled={disabled} onClick={()=>command('action:table',menuNode.id,0,0)}><Icon name="table" size={16}/><span>Insert table</span></button>            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => insertNotation(menuNode.id, false)}><Icon name="equation" size={16}/><span>Insert LaTeX equation</span></button>
             <button disabled={disabled || unsupportedFormatting(menuNode as Node)} data-tour="create-diagram" data-keywords="diagram flowchart mindmap chart sequence" onClick={() => openDiagram({id:menuNode.id})}><Icon name="diagram" size={16}/><span>Create diagram…</span></button><button disabled={disabled} data-tour="create-drawing" data-keywords="drawing sketch excalidraw canvas whiteboard" onClick={()=>openDrawing(menuNode.id)}><Icon name="sketch" size={16}/><span>Draw with Excalidraw…</span></button>
             <button data-tour="insert-image" disabled={disabled} onClick={() => { mediaTarget.current = menuNode.id; imageInput.current?.click(); }}><Icon name="image" size={16} /><span>Add images…</span></button>
-            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => openEmojiPicker(menuNode.id)}><Icon name="emoji" size={16} /><span>Insert animated emoji…</span></button>
+            <button disabled={disabled || unsupportedFormatting(menuNode as Node)} onClick={() => openEmojiPicker(menuNode.id)}><Icon name="emoji" size={16} /><span>Insert emoji…</span></button>
             <button disabled={disabled} onClick={() => { mediaTarget.current = menuNode.id; setEmbedValue(""); setMenu(null); setDialog("embed"); }}><Icon name="play" size={16} /><span>Insert media link…</span></button>
 </div></details><details className="bullet-action-section"><summary><Icon name="connections" size={16}/><span>Connections</span><Icon name="chevron" size={13}/></summary><div className="bullet-section-content">            <button disabled={disabled} onClick={()=>command('relation:link',menuNode.id,menuNode.text.length,menuNode.text.length)}><Icon name="link" size={16}/><span>Link to a bullet…</span><kbd>[[</kbd></button>
             <button disabled={disabled} onClick={()=>command('relation:mirror',menuNode.id,menuNode.text.length,menuNode.text.length)}><Icon name="mirror" size={16}/><span>Mirror a bullet here…</span><kbd>((</kbd></button>
@@ -2578,7 +2578,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
 </div>        </OutlinePopover>
       )}
       <input ref={imageInput} type="file" className="media-file-input" aria-label="Choose images for bullet" accept="image/*,audio/*,video/mp4,video/webm,video/ogg,.heic,.heif,.tif,.tiff,.jxl,.psd,.raw" multiple onChange={event => { const files = [...(event.target.files || [])]; event.target.value = ""; if (mediaTarget.current) void attachImages(mediaTarget.current, files); }} />
-      {dialog === 'emoji' && <Dialog title="Animated emojis" onClose={() => { emojiDownload.current?.abort(); emojiTarget.current = null; setDialog(null); }}><EmojiPicker emojis={doc.tables.emojis} assets={assets} disabled={disabled} onChoose={chooseEmoji} onImport={importEmojiFiles} /></Dialog>}
+      {dialog === 'emoji' && <Dialog title="Emojis" onClose={() => { emojiDownload.current?.abort(); emojiTarget.current = null; setDialog(null); }}><EmojiPicker emojis={doc.tables.emojis} assets={assets} disabled={disabled} onChoose={chooseEmoji} onImport={importEmojiFiles} /></Dialog>}
       {dialog === "embed" && <Dialog title="Insert media link" onClose={() => setDialog(null)}><form onSubmit={event => {
         event.preventDefault();
         const raw = embedValue.trim(), iframeSource = raw.match(/<iframe[^>]+src\s*=\s*["']([^"']+)["']/i)?.[1],

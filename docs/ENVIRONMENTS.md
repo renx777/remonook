@@ -2,6 +2,48 @@
 
 ## Current state
 
+### Twemoji and OpenMoji on web staging — 28 November 2026
+
+Owner-approved web staging runs `codex/emoji-artwork-packs` at
+`0104c4eebc816c83d2e1ee5967b033861713f429`, release `2026-11-14.1`,
+confirmed by staging-source.json. PR
+[#124](https://github.com/renx777/remonook/pull/124) targets the preceding
+`ccr-641b18bf-2fe80f` branch and retains its collection toolbar, MovieSearch,
+infinite scroll and prior Phase 0–6 work.
+
+- Full and inline emoji pickers offer 3,944 Twemoji and 3,963 OpenMoji static
+  SVG choices alongside Noto/Fluent. The collection preference stays on this
+  device for new insertions; existing artwork and Unicode text are preserved.
+- Selected artwork is fetched from pinned paths, checked against Git blobs,
+  validated and saved before insertion. Static previews do not load animations.
+  Saved SVGs are reused offline. Attribution/license metadata travels inside
+  each primary file through existing sync, backups, history and portable exports.
+- [CI](https://github.com/renx777/remonook/actions/runs/46152654148) passed the
+  build and all **825 tests**. Final local staging build/full suite also passed.
+  Development and packaged desktop/light and phone/dark checks passed both
+  pickers, preferences, insertion, reload, offline reuse, undo and Grid rendering.
+  Live pinned source downloads and their CORS headers were verified separately.
+- [Staging frontend](https://github.com/renx777/remonook/actions/runs/46153783169)
+  completed successfully. Frontend Worker version:
+  `05dca457-7751-40ba-b3c2-96b5d52aa440`. All **22 signed-in sync checks passed**,
+  preserving this run's **4,240 of 4,240 baseline notes** through cleanup.
+  This does not explain or resolve the historical baseline discrepancies.
+- All hosted acceptance steps passed: collections, Inbox, Tasks, Calendar,
+  Smart Collections, Grid/Calendar controls, History/portability, Library,
+  weekly review/goals/citations and the new emoji checks on desktop and phone.
+  Independent hosted emoji checks also passed; that local browser required a
+  test-only HTTPS interception exception.
+- Backend health remains healthy: syncProtocol 3, workdaysSchema 2,
+  attachmentRecovery 1, aiAssist 1, aiEnabled true, bookmarkReader 1 and
+  googleTasksConfigured true. No backend deployment or migration was needed.
+- No production, main merge or native release. Older app builds need an update
+  to render the new static styles; generic records/attachments remain compatible.
+  Physical/native gates remain separate. See
+  [EMOJI-COLLECTIONS.md](EMOJI-COLLECTIONS.md) and the PR screenshots.
+  This release-record commit changes documentation only; deployed app source
+  remains the exact tested commit above.
+
+
 ### Infinite scroll and smoother collections on web staging — 28 November 2026
 
 Web staging runs branch `ccr-641b18bf-2fe80f`, commit `6d5d5c44ac074d21c8cc081ef33efe7756061918`, release `2026-11-14.1`.

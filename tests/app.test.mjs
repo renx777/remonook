@@ -367,7 +367,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   // Explicit questions, local images, and study sessions use the same saved workspace.
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
   await click(document.querySelector('[data-category="1"]'));
-  await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Insert animated emoji…'));
+  await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Insert emoji…'));
   await click([...document.querySelectorAll('.emoji-sources button')].find(button => button.textContent === 'RemoNook'));
   assert.equal(document.querySelectorAll('.emoji-grid button').length, 4);
   await click(document.querySelector('[aria-label="Insert Smile"]'));
@@ -378,7 +378,7 @@ test("DOM integration: blank persistence, keyboard split, nesting, undo and Tras
   assert.ok(document.querySelector('[data-node-id="welcome"] [data-emoji-token=":remo_smile:"]'));
   await click(document.querySelector('[data-node-id="welcome"] [aria-label="Bullet actions"]'));
   await click(document.querySelector('[data-category="1"]'));
-  await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Insert animated emoji…'));
+  await click([...document.querySelectorAll('.outline-popover button')].find(button => button.textContent === 'Insert emoji…'));
   const emojiInput = document.querySelector('[aria-label="Import animated emoji files"]');
   Object.defineProperty(emojiInput, 'files', { configurable: true, value: [new File(['not-json'], 'broken.json', { type: 'application/json' })] });
   await act(async () => emojiInput.dispatchEvent(new window.Event('change', { bubbles: true })));

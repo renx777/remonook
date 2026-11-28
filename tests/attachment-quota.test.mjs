@@ -73,7 +73,7 @@ test('quota maintenance uses attachment reference indexes without assembling eve
 });
 test('lightweight catalogue paths retain animations, posters and required attribution for every current catalogue item',async()=>{
  const {catalogEmojis,catalogPosterPath,catalogCreditPath}=await import('../src/emoji-catalog.mjs');const {catalogAssetPaths}=await import('../src/emoji-asset-paths.mjs');
- for(const item of catalogEmojis)assert.deepEqual(catalogAssetPaths(item),['emoji/'+item.fileName,catalogPosterPath(item),catalogCreditPath(item)]);
+ for(const item of catalogEmojis)assert.deepEqual(catalogAssetPaths(item),[...new Set(['emoji/'+item.fileName,catalogPosterPath(item),catalogCreditPath(item)])]);
  assert.deepEqual(catalogAssetPaths({token:':custom:',fileName:'local.gif'}),['emoji/local.gif']);
 });
 

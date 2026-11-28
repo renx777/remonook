@@ -4,7 +4,7 @@ import type {Editor} from '@tiptap/core';
 import type {RecordData} from './data';
 import {Icon} from './icons';
 import {useEmojiLibrary} from './AnimatedEmoji';
-import {catalogEmojis,emojiCollection,emojiCollectionLabel} from './emoji-catalog.mjs';
+import {catalogEmojis,emojiCollection,emojiCollectionLabel,isStaticEmoji} from './emoji-catalog.mjs';
 import {useEmojiCollection} from './useEmojiCollection';
 import {builtinEmojis} from './emoji-builtins.mjs';
 import {emojiQuery,createEmojiSearchIndex,searchEmojiIndex} from './emoji-suggestions.mjs';
@@ -12,13 +12,17 @@ import {EmojiThumbnail,InlineEmojiPreview} from './InlineEmojiArtwork';
 import {LayoutGrid,Clock3,Smile,UserRound,Leaf,Coffee,Car,Volleyball,Lightbulb,Heart,Flag} from 'lucide-react';
 
 const catalog=new Map(catalogEmojis.map(item=>[item.token,item]));
-const tabs=[['noto','Google Noto'],['fluent','Microsoft Fluent'],['library','My library']] as const;
+const tabs=[['noto','Google Noto'],['fluent','Microsoft Fluent'],['twemoji','Twemoji'],['openmoji','OpenMoji'],['library','My library']] as const;
 const recentKey='remo-inline-emoji-recents';
 const categories=[['all','All emojis',LayoutGrid],['recent','Recently used',Clock3],['Smileys and emotions','Smileys & emotion',Smile],['People','People',UserRound],['Animals and nature','Animals & nature',Leaf],['Food and drink','Food & drink',Coffee],['Travel and places','Travel & places',Car],['Activities and events','Activities',Volleyball],['Objects','Objects',Lightbulb],['Symbols','Symbols',Heart],['Flags','Flags',Flag]] as const;
-const searchLibraries=new WeakMap<Map<string,RecordData>,{items:RecordData[];index:ReturnType<typeof createEmojiSearchIndex>}>();
+type SearchLibrary={items:RecordData[];index:ReturnType<typeof createEmojiSearchIndex>};
+const searchLibraries=new WeakMap<Map<string,RecordData>,Map<string,SearchLibrary>>();
 const emptyItems:RecordData[]=[],emptyIndex=createEmojiSearchIndex([]);
-function searchLibrary(emojis:Map<string,RecordData>){
- let value=searchLibraries.get(emojis);if(!value){const items=[...new Map([...catalogEmojis,...builtinEmojis,...emojis.values()].map(item=>[item.token,{...item,...catalog.get(item.token)}])).values()];value={items,index:createEmojiSearchIndex(items)};searchLibraries.set(emojis,value);}return value;
+function searchLibrary(emojis:Map<string,RecordData>,provider:string){
+ let providers=searchLibraries.get(emojis);if(!providers){providers=new Map();searchLibraries.set(emojis,providers);}
+ let value=providers.get(provider);
+ if(!value){const items:RecordData[]=provider==='library'?[...new Map([...builtinEmojis,...emojis.values()].map(item=>[item.token,{...item,...catalog.get(item.token)}])).values()]:catalogEmojis.filter(item=>emojiCollection(item)===provider);value={items,index:createEmojiSearchIndex(items)};providers.set(provider,value);}
+ return value;
 }
 const rowHeight=40;
 function readRecent():string[]{try{const value=JSON.parse(window.localStorage.getItem(recentKey)||'[]');return Array.isArray(value)?value.filter(x=>typeof x==='string').slice(0,20):[];}catch{return [];}}
@@ -28,7 +32,7 @@ export function InlineEmojiPicker({editor,nodeId,enabled,keyHandler}:{editor:Edi
  const {emojis,assets,onInsert}=useEmojiLibrary(),listId=useId();
  const [collection,setCollection]=useEmojiCollection(),[libraryTab,setLibraryTab]=useState(readLibraryTab),[recent,setRecent]=useState(readRecent);
  const previousCollection=useRef(collection);
- const selectedTab=libraryTab?'library':collection==='fluent'?'fluent':'noto';
+ const selectedTab=libraryTab?'library':['fluent','twemoji','openmoji'].includes(collection)?collection:'noto';
  const [query,setQuery]=useState<ReturnType<typeof emojiQuery>>(null),[active,setActive]=useState(0),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [category,setCategory]=useState('all'),[searchOverride,setSearchOverride]=useState<string|null>(null),[scrollTop,setScrollTop]=useState(0),[gridHeight,setGridHeight]=useState(240),[columns,setColumns]=useState(8);
  const grid=useRef<HTMLDivElement>(null),editorQuery=useRef('');
@@ -36,7 +40,7 @@ export function InlineEmojiPicker({editor,nodeId,enabled,keyHandler}:{editor:Edi
  const [position,setPosition]=useState({left:8,top:8,height:390});
  const dismissed=useRef(''),lastQuery=useRef(''),pending=useRef(false),mounted=useRef(true),popup=useRef<HTMLDivElement>(null),touch=useRef(false);
  // Ordinary editing never builds a catalogue that is not being displayed.
- const library=useMemo(()=>query?searchLibrary(emojis):null,[emojis,!!query]);
+ const library=useMemo(()=>query?searchLibrary(emojis,selectedTab):null,[emojis,!!query,selectedTab]);
  const items=library?.items||emptyItems,index=library?.index||emptyIndex;
  const matches:RecordData[]=useMemo(()=>{
   if(!query)return [];
@@ -49,11 +53,12 @@ export function InlineEmojiPicker({editor,nodeId,enabled,keyHandler}:{editor:Edi
  },[index,searchText,!!query,selectedTab,recent,items,emojis,category]);
  const alternatives=useMemo(()=>{
   if(!searchText||matches.length)return [];
-  return tabs.filter(([value])=>value!==selectedTab&&searchEmojiIndex(index,searchText,1,(item:RecordData)=>value==='library'?emojis.has(item.token):emojiCollection(item)===value).length);
+  return tabs.filter(([value])=>value!==selectedTab&&searchEmojiIndex(searchLibrary(emojis,value).index,searchText,1).length);
  },[index,searchText,matches.length,selectedTab,emojis]);
  const selected=matches[Math.min(active,Math.max(0,matches.length-1))];
  const selectTab=(value:string)=>{setLibraryTab(value==='library');try{window.localStorage.setItem('remo-inline-emoji-library',String(value==='library'));}catch{}if(value!=='library')setCollection(value);setActive(0);setError('');};
  useEffect(()=>{if(previousCollection.current!==collection){previousCollection.current=collection;setLibraryTab(false);try{window.localStorage.setItem('remo-inline-emoji-library','false');}catch{}}},[collection]);
+ useEffect(()=>{const list=popup.current?.querySelector<HTMLElement>('.inline-emoji-tabs'),active=list?.querySelector<HTMLElement>('[aria-selected="true"]');if(list&&active)list.scrollLeft=Math.max(0,active.offsetLeft-list.offsetLeft-(list.clientWidth-active.offsetWidth)/2);},[selectedTab,!!query]);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  useEffect(()=>{
   const update=(event?:{transaction?:{getMeta:(key:string)=>any}})=>{
@@ -138,13 +143,13 @@ export function InlineEmojiPicker({editor,nodeId,enabled,keyHandler}:{editor:Edi
  if(selected&&(active<first||active>=last))visible.push({item:selected,index:active});
  return createPortal(<div ref={popup} className="inline-emoji-picker" data-compact={position.height<300} style={{left:position.left,top:position.top,maxHeight:position.height}} onPointerDown={event=>event.stopPropagation()} onMouseDown={event=>{event.stopPropagation();if(!(event.target as HTMLElement).closest('input'))event.preventDefault();}} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();dismiss();editor.commands.focus();}else if(event.target instanceof HTMLInputElement&&(['ArrowDown','ArrowUp','Enter'].includes(event.key)||event.altKey)&&keyHandler.current?.(event.nativeEvent)){event.preventDefault();event.stopPropagation();}}}>
   <label className="inline-emoji-search"><Icon name="search" size={17}/><input role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={selected?`${listId}-${Math.min(active,matches.length-1)}`:undefined} aria-label="Search emoji" placeholder="Search emoji" value={searchText} maxLength={128} disabled={busy} onChange={event=>{setSearchOverride(event.target.value);setError('');}}/><button type="button" className="inline-emoji-close" aria-label="Close emoji suggestions" disabled={busy} onClick={dismiss}><Icon name="close" size={14}/></button></label>
-  <div className="inline-emoji-tabs" role="tablist" aria-label="Emoji artwork collection" onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||busy)return;event.preventDefault();event.stopPropagation();const at=tabs.findIndex(([value])=>value===selectedTab),next=event.key==='Home'?0:event.key==='End'?2:(at+(event.key==='ArrowRight'?1:2))%3;selectTab(tabs[next][0]);event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();}}>{tabs.map(([value,label])=><button type="button" role="tab" key={value} aria-selected={selectedTab===value} aria-controls={listId} tabIndex={selectedTab===value?0:-1} disabled={busy} onClick={()=>selectTab(value)}>{label}</button>)}</div>
+  <div className="inline-emoji-tabs" role="tablist" aria-label="Emoji artwork collection" onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||busy)return;event.preventDefault();event.stopPropagation();const at=tabs.findIndex(([value])=>value===selectedTab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(at+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length;selectTab(tabs[next][0]);event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();}}>{tabs.map(([value,label])=><button type="button" role="tab" key={value} aria-label={label} title={label} aria-selected={selectedTab===value} aria-controls={listId} tabIndex={selectedTab===value?0:-1} disabled={busy} onClick={()=>selectTab(value)}>{value==='noto'?'Noto':value==='fluent'?'Fluent':value==='library'?'Library':label}</button>)}</div>
   <div className="inline-emoji-categories" role="toolbar" aria-label="Emoji categories">{categories.map(([value,label,Glyph])=><button type="button" key={value} title={label} aria-label={label} aria-pressed={!searchText&&category===value} disabled={busy} onClick={()=>{setCategory(value);setSearchOverride('');setError('');}}><Glyph size={18} strokeWidth={1.6}/></button>)}</div>
   <div className="inline-emoji-query"><span>{searchText?'Search results':categories.find(([value])=>value===category)?.[1]}</span><small>{matches.length} emojis</small></div>
   <div ref={grid} className="inline-emoji-results" role="listbox" id={listId} aria-label="Emoji suggestions" aria-busy={busy} onScroll={event=>setScrollTop(event.currentTarget.scrollTop)}><div className="inline-emoji-virtual-content" style={{height:Math.ceil(matches.length/columns)*rowHeight}}>{visible.map(({item,index:i})=><button type="button" role="option" style={{position:"absolute",top:Math.floor(i/columns)*rowHeight,left:`${i%columns*100/columns}%`,width:`${100/columns}%`}} aria-posinset={i+1} aria-setsize={matches.length} id={`${listId}-${i}`} key={item.token} aria-selected={active===i} aria-label={`${item.label} · ${emojiCollectionLabel(item)}`} title={item.label} disabled={busy} tabIndex={-1} onPointerDown={event=>{touch.current=event.pointerType==='touch'||event.pointerType==='pen';}} onMouseEnter={()=>{if(!window.matchMedia('(pointer: coarse)').matches)setActive(i);}} onClick={()=>{const previewOnly=touch.current||window.matchMedia('(pointer: coarse)').matches;touch.current=false;if(previewOnly)setActive(i);else void choose(item);}}><EmojiThumbnail item={item}/><span className="inline-emoji-label">{item.label}</span>{assets.has('emoji/'+item.fileName)&&<small className="inline-emoji-offline" title="Saved offline"><Icon name="check" size={10}/></small>}</button>)}</div></div>
   {!matches.length&&<div className="inline-emoji-empty"><p>No matches in {tabs.find(([value])=>value===selectedTab)?.[1]}.</p>{alternatives.map(([value,label])=><button type="button" key={value} onClick={()=>selectTab(value)}>Search {label}</button>)}</div>}
   {error&&<p role="alert" className="emoji-import-error">{error}</p>}
-  {selected&&<div className="inline-emoji-selection"><InlineEmojiPreview key={selected.token} item={selected}/><div className="inline-emoji-caption"><strong>{selected.label}</strong><small>{busy?'Saving for offline use…':emojiCollectionLabel(selected)}</small></div><button type="button" className="inline-emoji-insert" title="Enter to insert · Escape to close" disabled={busy} onClick={()=>void choose(selected)}>{busy?'Saving…':'Insert'}</button></div>}
+  {selected&&<div className="inline-emoji-selection"><InlineEmojiPreview key={selected.token} item={selected}/><div className="inline-emoji-caption"><strong>{selected.label}</strong><small>{busy?'Saving for offline use…':emojiCollectionLabel(selected)}{isStaticEmoji(selected)&&<> · <a href={'https://creativecommons.org/licenses/'+(emojiCollection(selected)==='openmoji'?'by-sa':'by')+'/4.0/'} target="_blank" rel="noreferrer">{emojiCollection(selected)==='openmoji'?'CC BY-SA 4.0':'CC BY 4.0'}</a></>}</small></div><button type="button" className="inline-emoji-insert" title="Enter to insert · Escape to close" disabled={busy} onClick={()=>void choose(selected)}>{busy?'Saving…':'Insert'}</button></div>}
 
  </div>,editor.view.dom.closest('.app')||document.body);
 }
