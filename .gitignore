@@ -22,3 +22,4 @@ cloud/config.*.local.json
 /public/excalidraw/
 
 /public/ocr/
+__pycache__/
