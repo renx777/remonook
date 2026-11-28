@@ -174,6 +174,8 @@ try {
       globalThis.fixture.data.load(),
     );
     assert.ok(reloaded.tables.bullets.some((n) => n.text === "Read this"));
+    const importedRoot=reloaded.tables.bullets.find(n=>n.text==="Imported · Reading.md");
+    assert.ok(reloaded.web.noteTimes[importedRoot.id]?.createdAt,"Imported notes receive normal creation metadata");
     assert.ok(
       (
         await page.evaluate(async () =>

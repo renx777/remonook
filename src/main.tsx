@@ -783,8 +783,12 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
           "Open the original workspace and resolve the save issue first.",
         );
       const current = docRef.current!,
-        next = update(current);
-      if (next === current) return;
+        proposed = update(current);
+      if (proposed === current) return;
+      const next = withNodes(
+        {...proposed,tables:{...proposed.tables,bullets:current.tables.bullets}},
+        proposed.tables.bullets as Node[]
+      );
       const added = files(),
         snapshot = assetsRef.current;
       for (const [path, blob] of added) {
