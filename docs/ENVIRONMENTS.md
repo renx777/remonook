@@ -2,6 +2,59 @@
 
 ## Current state
 
+### Phase 5: note history and portability — 28 November 2026
+
+Owner-authorized web-staging source: branch
+`codex/note-history-portability` at
+`fd424cdd7df6ba8a72a4104eadb8271505af6bf1`, release `2026-11-14.1`.
+The public staging-source.json confirms the branch/commit/release.
+PR [#122](https://github.com/renx777/remonook/pull/122) targets the previous staging
+branch, preserving MovieSearch, the UI consistency work and quota recovery.
+
+- Meaningful local edits, deletions and remote adoptions retain before/after
+  bullet revisions and media/emoji files in the same transaction as notes and
+  their existing durable outbox. History is device-local and starts with observed
+  saves; no automatic pruning or server-wide history claim.
+- History restores a new ordinary note/media copy using canonical outline
+  mutation, save, undo and sync. Current notes/files remain intact. Workspace
+  history includes deleted bullets. Separate history ZIP export/import retains
+  historical binaries independently of current attachment deletion.
+- Backups adds reviewed Markdown/OPML portability: readable files plus note/media/
+  emoji metadata, fresh imported identities, within-package link remapping,
+  retained import reports and legacy formatting. Stale destinations, partial
+  collisions, unsafe XML/ZIP, conflicting files/emoji libraries and oversized
+  note+report operations refuse before insertion.
+- [CI on the deployed commit](https://github.com/renx777/remonook/actions/runs/46111141315)
+  passed the build and all **802 tests**. Sequential local build and full suite
+  passed **801 tests** before the final legacy-formatting regression; all **10**
+  focused tests then passed. Sync rejection reproduction: all batches accepted.
+  An earlier parallel build/test attempt had three missing-dist artifact failures;
+  the sequential run resolved that verification race.
+- Local desktop/light and phone/dark browser acceptance passed revision preview,
+  copy restore/undo, reviewed import/save/report, export, reload, creation metadata
+  and overflow checks. Strict ordinary-typing proxies passed all four 1,000/
+  10,000-bullet cases. The optimized 10,000-bullet phone-emulation proxy measured
+  **13.8 ms typing p95 / 207.5 ms Enter p95**. Enter remains slower; these are
+  browser proxies, not physical-device input measurements.
+- [Staging frontend release](https://github.com/renx777/remonook/actions/runs/46111435602)
+  completed successfully. Frontend Worker version: `a6008782-cadb-428c-97b5-705109a543d5`.
+  All **22 signed-in sync checks passed**, retaining this run's **3,576** baseline
+  notes through cleanup. This does not explain or resolve earlier count findings.
+  All hosted guest acceptance passed: collections, Inbox, Tasks, Calendar planning,
+  Smart Collections, Grid/Calendar controls, History/portability and Library
+  discovery on desktop/light and phone/dark. Independent hosted Phase 5 checks
+  also passed (the local browser required a test-only HTTPS interception exception).
+  Backend health remains healthy: syncProtocol 3, workdaysSchema 2,
+  attachmentRecovery 1, aiAssist 1, aiEnabled true, bookmarkReader 1 and
+  googleTasksConfigured true. No backend was deployed.
+  Screenshots: docs/screenshots/history-portability-desktop.png and
+  docs/screenshots/history-portability-phone.png.
+- Frontend only: no backend, migration, native, production or main release.
+  Historical test-account count discrepancies remain unresolved. No claim is made
+  to reconstruct unobserved past versions. Native/physical-device gates remain
+  separate. Usage and limits: docs/HISTORY-PORTABILITY.md.
+
+
 ### MovieSearch on web staging — 28 November 2026
 
 Owner requested web-staging publication of `codex/movie-search`, application
@@ -29,9 +82,8 @@ Grid/Calendar staging branch and retains the current UI and quota fixes.
   credential exclusion from notes and no overflow, using mocked TMDB responses.
   This environment's browser needed its HTTPS interception certificate exception
   for that hosted test. Real-provider key access remains unverified.
-  Backend health remains healthy with AI and Google Tasks enabled. The workflow's
-  broader signed-in sync acceptance is still running as of this record; do not
-  describe the full release workflow as passed. It was left running.
+  Backend health remains healthy with AI and Google Tasks enabled. The MovieSearch workflow subsequently completed successfully; its prior pending
+  status is superseded by that result.
   No backend deployment, native release,
   production change or main merge. Earlier test-account preservation discrepancies
   are not claimed resolved by this feature.

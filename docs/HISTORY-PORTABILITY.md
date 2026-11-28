@@ -83,3 +83,21 @@ files are also retained in history and portable packages. Imports/restores reuse
 only identical existing emoji definitions and refuse a token conflict instead of
 overwriting either library. Attachment path collisions with different bytes also
 refuse before a note commit. Use a separate workspace for conflicting libraries.
+
+
+## Release verification — 28 November 2026
+
+Web staging source fd424cdd7df6ba8a72a4104eadb8271505af6bf1, PR #122.
+CI passed 802 tests; staging workflow 46111435602 passed all 22 signed-in sync
+checks and the desktop/light + phone/dark guest acceptance. Phase 5 checks verify
+revision preview, copy restore/undo, import preview/save/report, Markdown/OPML
+export, reload, creation metadata and no page overflow. Ten focused storage/
+portability tests include atomic rollback with the durable outbox, deleted media
+and emoji bytes, remote adoption, unsafe XML/ZIP and legacy formatting preservation.
+
+Strict ordinary-typing proxies passed 1,000/10,000-bullet desktop/phone cases;
+the optimized 10,000-bullet phone-emulation result was 13.8 ms typing p95 and
+207.5 ms Enter p95. Structural Enter remains slower. These are browser timing
+proxies; physical-device input, native rollout and production remain unverified/
+unreleased. This feature cannot reconstruct historical versions not observed by
+the device and does not resolve the earlier test-account count discrepancy.
