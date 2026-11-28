@@ -415,3 +415,25 @@ Worker is released separately. Deploy the supporting server first. A rollback to
 a server without recovery support does not recreate retired allocation rows,
 although the R2 originals remain. Prefer rolling forward; any server rollback
 needs to preserve retained-object allocation checks before accepting references.
+
+
+## Device-local bullet history and portable note import
+
+Meaningful note/media changes retain before/after revisions and immutable local
+blobs in namespaced recovery-store records within the same save transaction as
+note rows and the existing CRDT outbox. A history storage error aborts that
+transaction; no note or pending update is silently omitted. Incoming remote
+adoptions are recorded locally without creating another cloud operation. History
+is not a server journal UI and cannot reconstruct revisions not observed by this
+device. History archives are explicit separate exports; ordinary full backups do
+not implicitly contain this device-local store. No automatic history pruning.
+
+Restore creates a new note/media copy through normal mutation/persistence/undo,
+with fresh attachment paths. The original remains untouched. Portable imports
+also append new note identities, remap within-package links/mirrors, retain an
+import report and reject stale destinations. Reviewed retries use stable inserted
+IDs, so a committed import is not duplicated. Binary transfers still follow the
+existing asset/outbox path; imports never acknowledge pending edits or replace a
+workspace snapshot. Readable Markdown/OPML plus a note/media sidecar is not a
+workspace or study-progress backup. No shared protocol, new binding or server
+deployment is required. See HISTORY-PORTABILITY.md.

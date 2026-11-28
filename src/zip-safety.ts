@@ -1,5 +1,5 @@
 /** Validate central directory before JSZip can overwrite duplicate paths or inflate entries. */
-export function inspectZip(buffer: ArrayBuffer) {
+export function inspectZip(buffer: ArrayBuffer, policy: {allowed?:(name:string)=>boolean;required?:string|null;maxTotal?:number;maxEntry?:number} = {}) {
   const bytes = new Uint8Array(buffer),
     v = new DataView(buffer);
   let end = -1;
@@ -42,17 +42,17 @@ export function inspectZip(buffer: ArrayBuffer) {
     if (seen.has(name)) throw Error("Duplicate backup entry");
     seen.add(name);
     if (
-      name !== "remo.json" &&
+      (policy.allowed ? !policy.allowed(name) : (name !== "remo.json" &&
       (!(/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(name)||/^articles\/[a-f0-9]{64}\.json$/.test(name)||/^books\/[a-f0-9]{64}\.(pdf|epub)$/.test(name)) ||
-        [".", ".."].includes(name.split("/")[1]))
+        [".", ".."].includes(name.split("/")[1]))))
     )
       throw Error("Unsafe backup entry");
-    if (expanded > 64 * 1024 * 1024) throw Error("Oversized backup entry");
+    if (expanded > (policy.maxEntry ?? 64 * 1024 * 1024)) throw Error("Oversized backup entry");
     total += expanded;
-    if (total > 1024 * 1024 * 1024 + 64 * 1024 * 1024)
+    if (total > (policy.maxTotal ?? 1024 * 1024 * 1024 + 64 * 1024 * 1024))
       throw Error("Expanded backup exceeds limit");
     pos += 46 + nameLength + extra + comment;
   }
-  if (pos !== end || !seen.has("remo.json"))
+  if (pos !== end || ((policy.required===undefined||policy.required!==null)&&!seen.has(policy.required??"remo.json")))
     throw Error("Incomplete ZIP directory");
 }

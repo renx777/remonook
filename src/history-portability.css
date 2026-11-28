@@ -1,0 +1,88 @@
+.history-action {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 8px;
+  min-height: 36px;
+}
+.history-dialog {
+  width: min(900px, calc(100vw - 24px));
+  max-height: 85dvh;
+  overflow: auto;
+}
+.history-caption,
+.portability-tools p {
+  font-size: 13px;
+  color: var(--muted);
+}
+.history-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.history-toolbar button,
+.history-dialog button,
+.portability-tools button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--bg);
+  color: var(--text);
+}
+.history-browser {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+}
+.history-list {
+  max-height: 50dvh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.history-list button {
+  text-align: left;
+}
+.history-list strong,
+.history-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.history-list small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.history-preview pre {
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40dvh;
+  overflow: auto;
+}
+.history-dialog button[aria-pressed="true"] {
+  background: var(--hover);
+}
+.portability-tools {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 16px;
+}
+@media (max-width: 600px) {
+  .history-browser {
+    grid-template-columns: 1fr;
+  }
+  .history-list {
+    max-height: 25dvh;
+  }
+  .history-dialog button,
+  .portability-tools button {
+    min-height: 44px;
+  }
+  .history-dialog {
+    max-height: 90dvh;
+  }
+}
