@@ -59,16 +59,18 @@ function useSearch(provider:MovieProvider,query:string,year:string){
 function AddMovie({id,provider}:{id:string;provider:MovieProvider}){
  const ctx=useContext(NoteMetadataContext)!,[query,setQuery]=useState(''),[fields,setFields]=useState(()=>movieFieldPrefs(DEFAULT_MOVIE_FIELDS)),[added,setAdded]=useState<Record<string,string>>({}),[error,setError]=useState('');
  const {results,busy,error:searchError}=useSearch(provider,query,'');
- const existing=useMemo(()=>new Set(movieTargets(ctx.doc,id).map((n:any)=>normTitle(movieQuery(n,ctx.doc).title)+'|'+movieQuery(n,ctx.doc).year)),[ctx.doc,id]);
- const add=async(m:Movie)=>{setError('');setAdded(a=>({...a,[m.id]:'adding'}));try{const full=await movieDetails(provider,movieKey(provider),m.id);await ctx.save!(d=>createMovieNote(d,id,provider,full,fields).doc);setAdded(a=>({...a,[m.id]:'added'}));}catch(e:any){setAdded(a=>{const n={...a};delete n[m.id];return n;});setError(e.message);}};
+ // Movies already in this list, by title and year, so a mistaken add can be removed from here too.
+ const existing=useMemo(()=>{const m=new Map<string,string>();for(const n of movieTargets(ctx.doc,id) as any[]){const q=movieQuery(n,ctx.doc);m.set(normTitle(q.title)+'|'+q.year,n.id);}return m;},[ctx.doc,id]);
+ const remove=(noteId:string,movieId:string)=>{if(!ctx.trash||ctx.disabled)return;ctx.trash([noteId]);setAdded(a=>{const n={...a};delete n[movieId];return n;});};
+ const add=async(m:Movie)=>{setError('');setAdded(a=>({...a,[m.id]:'adding'}));try{const full=await movieDetails(provider,movieKey(provider),m.id);let created='';await ctx.save!(d=>{const r=createMovieNote(d,id,provider,full,fields);created=r.id;return r.doc;});setAdded(a=>({...a,[m.id]:'added:'+created}));}catch(e:any){setAdded(a=>{const n={...a};delete n[m.id];return n;});setError(e.message);}};
  return <>
   <h2>Add a movie</h2>
   <label className="movie-search-box"><Icon name="search" size={16}/><input autoFocus aria-label="Search movies" placeholder="Title, e.g. Alien" value={query} onChange={e=>setQuery(e.target.value)}/></label>
   <FieldChips fields={fields} onChange={setFields}/>
   {(searchError||error)&&<p role="alert" className="movie-error">{error||searchError}</p>}
-  <ul className="movie-results" aria-busy={busy}>{results.map(m=>{const have=existing.has(normTitle(m.title)+'|'+m.year)||existing.has(normTitle(m.title)+'|'),state=added[m.id];
+  <ul className="movie-results" aria-busy={busy}>{results.map(m=>{const state=added[m.id],noteId=state?.startsWith('added:')?state.slice(6):existing.get(normTitle(m.title)+'|'+m.year)||existing.get(normTitle(m.title)+'|')||'',have=!!noteId&&!state;
    return <li key={m.id}><Poster src={m.poster}/><span className="movie-result-text"><b>{m.title}</b><small>{m.year||'Year unknown'}</small></span>
-    {state==='added'?<span className="movie-done">✓ Added</span>:have?<span className="movie-muted">In list</span>:<button className="movie-btn" disabled={!!state||ctx.disabled} aria-label={`Add ${m.title} ${m.year}`} onClick={()=>void add(m)}>{state?'Adding…':'Add'}</button>}</li>;})}</ul>
+    {state?.startsWith('added')||have?<span className="movie-added">{state?<span className="movie-done">✓ Added</span>:<span className="movie-muted">In list</span>}{ctx.trash&&noteId&&<button className="movie-link" disabled={ctx.disabled} aria-label={`Remove ${m.title} ${m.year} from the list`} onClick={()=>remove(noteId,m.id)}>Remove</button>}</span>:<button className="movie-btn" disabled={!!state||ctx.disabled} aria-label={`Add ${m.title} ${m.year}`} onClick={()=>void add(m)}>{state?'Adding…':'Add'}</button>}</li>;})}</ul>
   {busy&&!results.length&&<p className="movie-muted">Searching…</p>}
   <p className="movie-muted movie-credit">{provider==='tmdb'?'Data from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.':'Data from the OMDb API.'}</p>
  </>;

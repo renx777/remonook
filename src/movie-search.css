@@ -66,3 +66,5 @@
 .movie-sheet .movie-source{margin:0 0 12px}
 .movie-default{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:10px 0 4px;font-size:13px}
 .movie-default small{flex-basis:100%;font-size:12px;color:var(--muted)}
+.movie-added{display:inline-flex;align-items:center;gap:6px}
+.movie-added .movie-link{color:var(--deadline-ink,#9a3412)}

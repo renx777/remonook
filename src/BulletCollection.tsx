@@ -1,7 +1,8 @@
 import {EmojiText} from './AnimatedEmoji';
 import {CardDetailsButton} from './CardDetailsDialog';
 import {cardDetails} from './card-details.mjs';
-import {useContext,useEffect,useMemo,useRef,useState} from 'react';
+import {useCallback,useContext,useEffect,useMemo,useRef,useState} from 'react';
+import {UndoToast,type Toast} from './UndoToast';
 import {NoteMetadataContext,type MetadataContext} from './NoteMetadataContext';
 import {LayoutGrid,List,ListTree,Table2,ExternalLink,ArrowUpRight,Plus,ArrowUpDown,Filter,ListChecks,Settings2,Rows3,ChevronDown,Pencil,Trash2,X,Link2,Columns3,CalendarDays,ChevronLeft,ChevronRight,Search,Check} from 'lucide-react';
 import {memo,type ReactNode} from 'react';
@@ -36,7 +37,9 @@ function useItem(doc:Workspace,node:Node,assets:Map<string,Blob>,cover='auto'){
  const image=cover==='none'?null:(cover!=='auto'&&traitLocal)||chosen||details?.image||local||(link?.kind==='image'?url:preview.data?.image)||traitLocal||traitCover(doc,node.mirrorSourceId||node.id)||null;
  return {...preview,url,title,image,site:preview.data?.site||(url?new URL(url).hostname.replace(/^www\./,''):''),details,price:previewPrice(details?.amount?{amount:details.amount,currency:details.currency,from:false}:preview.data?.price||null),description:details?.description||preview.data?.description||(!url?node.text.split('\n').slice(1).join('\n'):'')};
 }
-type ItemProps={doc:Workspace;node:Node;assets:Map<string,Blob>;onOpen:(id:string)=>void;childCount:number;traitKeys:string[];links:boolean;cover:string;source?:boolean};
+type ItemProps={doc:Workspace;node:Node;assets:Map<string,Blob>;onOpen:(id:string)=>void;childCount:number;traitKeys:string[];links:boolean;cover:string;source?:boolean;onTrash?:(id:string,title:string)=>void};
+/** Moves one item to Trash (Undo appears in a toast). */
+const TrashButton=({node,title,onTrash}:{node:Node;title:string;onTrash?:(id:string,title:string)=>void})=>onTrash?<button type="button" className="card-trash" aria-label={`Move ${title} to Trash`} title="Move to Trash" onClick={e=>{e.stopPropagation();onTrash(node.id,title);}}><Trash2 size={14}/></button>:null;
 /** A rating trait as stars; tapping a star sets it (tapping the current one clears it). */
 function Stars({doc,node,k}:{doc:Workspace;node:Node;k:string}){
  const ctx=useContext(NoteMetadataContext),row=noteTraits(doc,node.mirrorSourceId||node.id).find((t:any)=>!t.duplicate&&t.key.toLocaleLowerCase()===k.toLocaleLowerCase());
@@ -46,31 +49,31 @@ function Stars({doc,node,k}:{doc:Workspace;node:Node;k:string}){
 }
 const isRating=(doc:Workspace,node:Node,k:string)=>{const v=noteTrait(doc,node.mirrorSourceId||node.id,k);return v!==null&&!!ratingOf(k,v);};
 function TraitCell({doc,node,k}:{doc:Workspace;node:Node;k:string}){const v=noteTrait(doc,node.mirrorSourceId||node.id,k);if(v!==null&&ratingOf(k,v))return <Stars doc={doc} node={node} k={k}/>;if(!v)return <>—</>;if(isUrl(v))return <a className="trait-url" href={v} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}>{v.replace(/^https?:\/\/(www\.)?/,'')}</a>;return <>{v}</>;}
-const PosterCard=memo(function PosterCard({doc,node,assets,onOpen,traitKeys,cover,source}:ItemProps){
+const PosterCard=memo(function PosterCard({doc,node,assets,onOpen,traitKeys,cover,source,onTrash}:ItemProps){
  const item=useItem(doc,node,assets,cover),id=node.mirrorSourceId||node.id;
  const shown=traitKeys.filter(k=>!(item.image&&k.toLocaleLowerCase()===String(cover).toLocaleLowerCase())).map(k=>[k,noteTrait(doc,id,k)] as const).filter(([k,v])=>v!==null&&(isRating(doc,node,k)||(v&&!isUrl(v)))).slice(0,4);
  return <article ref={item.root} className="poster-card">
-  <button type="button" className="poster-image" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}>{cover!=='none'&&<PreviewImage src={item.image} title={item.title} sizes="(max-width: 600px) 50vw, 300px"/>}</button>
+  <button type="button" className="poster-image" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}>{cover!=='none'&&<PreviewImage src={item.image} title={item.title} sizes="(max-width: 600px) 50vw, 300px"/>}</button><TrashButton node={node} title={item.title} onTrash={onTrash}/>
   <div className="poster-copy"><button type="button" className="poster-title" title={item.title} onClick={()=>onOpen(node.id)}><EmojiText text={item.title}/></button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}
    {shown.map(([k,v])=><div key={k} className="poster-trait"><span>{k}</span>{isRating(doc,node,k)?<Stars doc={doc} node={node} k={k}/>:<strong>{v}</strong>}</div>)}</div>
  </article>;
 });
-const CollectionCard=memo(function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys,cover,source}:ItemProps){
+const CollectionCard=memo(function CollectionCard({doc,node,assets,onOpen,childCount,traitKeys,cover,source,onTrash}:ItemProps){
  const item=useItem(doc,node,assets,cover),[imageFailed,setImageFailed]=useState(false);useEffect(()=>setImageFailed(false),[item.image]);
  return <article ref={item.root} className={'collection-card'+(item.url||item.image?' has-cover':'')}>
   {((item.image&&!imageFailed)||item.loading)&&<button className="collection-cover" type="button" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><PreviewImage src={item.image} title={item.title} onUnavailable={()=>setImageFailed(true)}/></button>}
   <div className="collection-card-copy"><span className="collection-site">{item.site||'Note'}</span><button type="button" className="collection-title" onClick={()=>onOpen(node.id)}><EmojiText text={item.title}/></button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}{item.description&&<p>{item.description}</p>}
    {traitKeys.length>0&&<dl className="collection-traits">{traitKeys.filter(k=>!(item.image&&k.toLocaleLowerCase()===String(cover).toLocaleLowerCase())&&!isUrl(noteTrait(doc,node.mirrorSourceId||node.id,k)||'x')).slice(0,4).filter(k=>noteTrait(doc,node.mirrorSourceId||node.id,k)).map(k=><div key={k}><dt>{k}</dt><dd><TraitCell doc={doc} node={node} k={k}/></dd></div>)}</dl>}
    {item.price&&<><strong className="collection-price" title={item.details?.amount?'Your entered price':'Page preview · prices may change'}>{item.price}</strong><small className="collection-price-source">{item.details?.amount?'Your price':'Website preview'}</small></>}
-   <footer>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">Open website <ExternalLink size={12}/></a>:<span>{childCount?childCount+' nested '+(childCount===1?'note':'notes'):'Text note'}</span>}<span className="collection-card-actions">{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={14}/></button></span></footer>
+   <footer>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">Open website <ExternalLink size={12}/></a>:<span>{childCount?childCount+' nested '+(childCount===1?'note':'notes'):'Text note'}</span>}<span className="collection-card-actions">{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="card-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={14}/></button><TrashButton node={node} title={item.title} onTrash={onTrash}/></span></footer>
    {item.details&&<small className="collection-status">Your details{item.details.amount?' · entered price':''}</small>}{item.error&&!item.details&&<small className="collection-status">Preview unavailable · link kept</small>}{item.loading&&item.url&&<small className="collection-status" role="status">Loading preview…</small>}
   </div>
  </article>;
 });
 
-function CollectionTableRow({doc,node,assets,onOpen,traitKeys,links,cover,source}:ItemProps){
+function CollectionTableRow({doc,node,assets,onOpen,traitKeys,links,cover,source,onTrash}:ItemProps){
  const item=useItem(doc,node,assets,cover);
- return <tr><td><div ref={item.root} className="collection-table-item"><div className="collection-table-thumbnail"><PreviewImage src={item.image} title={item.title}/></div><div><button className="collection-title" type="button" onClick={()=>onOpen(node.id)}><EmojiText text={item.title}/></button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}{item.error&&<small>Preview unavailable · link kept</small>}{item.loading&&item.url&&<small role="status">Loading…</small>}</div></div></td>{traitKeys.map(k=><td key={k}><EditableCell doc={doc} node={node} k={k}/></td>)}{links&&<><td>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">{item.site}<ExternalLink size={11}/></a>:'Note'}</td><td>{item.price||'—'}{item.details?.amount&&<small className="collection-status">Your price</small>}</td><td>{item.data?.availability||'—'}</td></>}<td>{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="collection-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={15}/></button></td></tr>;
+ return <tr><td><div ref={item.root} className="collection-table-item"><div className="collection-table-thumbnail"><PreviewImage src={item.image} title={item.title}/></div><div><button className="collection-title" type="button" onClick={()=>onOpen(node.id)}><EmojiText text={item.title}/></button>{source&&<small className="smart-source">{sourcePath(doc,node.id)}</small>}{item.error&&<small>Preview unavailable · link kept</small>}{item.loading&&item.url&&<small role="status">Loading…</small>}</div><TrashButton node={node} title={item.title} onTrash={onTrash}/></div></td>{traitKeys.map(k=><td key={k}><EditableCell doc={doc} node={node} k={k}/></td>)}{links&&<><td>{item.url?<a href={item.url} target="_blank" rel="noopener noreferrer">{item.site}<ExternalLink size={11}/></a>:'Note'}</td><td>{item.price||'—'}{item.details?.amount&&<small className="collection-status">Your price</small>}</td><td>{item.data?.availability||'—'}</td></>}<td>{item.url&&<CardDetailsButton nodeId={node.id} url={item.url} label={item.title}/>}<button type="button" className="collection-open" aria-label={'Open note: '+item.title} onClick={()=>onOpen(node.id)}><ArrowUpRight size={15}/></button></td></tr>;
 }
 async function addCollectionNote(ctx:MetadataContext|null,parent:string,names:string[],onOpen:(id:string)=>void){
  if(!ctx?.save||ctx.disabled)return;let id='';await ctx.save(d=>{const r=newSmartCollectionItem(d,parent,names);id=r.id;return r.doc;});if(id)onOpen(id);
@@ -97,7 +100,9 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
  const links=useMemo(()=>!available.length||members.some(n=>mediaLinks(n.text).length>0),[members,available]);
  const loadMore=()=>setPaging(p=>({key:pageKey,limit:(p.key===pageKey?p.limit:24)+24}));
  const sentinel=useInfiniteLimit(nodes.length>limit,limit,loadMore);
- const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links,cover:view.cover,source:view.source!=='children'});
+ const [toast,setToast]=useState<Toast>(null);
+ const onTrash=useCallback((nodeId:string,title:string)=>{if(!metadata?.trash||metadata.disabled)return;metadata.trash([nodeId]);setToast({id:Date.now(),text:`Moved “${title.slice(0,48)}” to Trash`,undo:!!metadata.undo});},[metadata?.trash,metadata?.disabled]);
+ const items=nodes.slice(0,limit),props=(node:Node)=>({doc,node,assets,onOpen,childCount:(idx.children.get(node.id)||[]).filter((c:any)=>!isTraitsBlock(c)).length,traitKeys,links,cover:view.cover,source:view.source!=='children',onTrash:metadata?.trash&&!metadata.disabled?onTrash:undefined});
  const dateKeys:string[]=useMemo(()=>dateTraitKeys(doc,members.map(n=>n.mirrorSourceId||n.id),idx),[doc,members,idx]);
  const renderItems=(list:Node[])=>mode==='board'?<Board doc={doc} parent={parent} view={view} available={available} items={list} assets={assets} onOpen={onOpen}/>
   :mode==='calendar'?<TraitCalendar doc={doc} view={view} dateKeys={dateKeys} items={list} onOpen={onOpen}/>
@@ -117,6 +122,7 @@ export function BulletCollection({doc,nodes:all,mode,assets,onOpen,onAdd,parentI
   {nodes.length>limit&&<button ref={sentinel as any} className="collection-more" type="button" aria-label={`Load ${Math.min(24,nodes.length-limit)} more`} onClick={loadMore}><span className="collection-more-dots" aria-hidden="true"><i/><i/><i/></span></button>}
   {nodes.length>24&&nodes.length<=limit&&<p className="collection-end">All {nodes.length} shown</p>}
   {nodes.length>0&&<p className="collection-footnote">Your original notes, in a different view. Website details may be unavailable or change.</p>}
+  <UndoToast toast={toast} onUndo={()=>{setToast(null);metadata?.undo?.();}} onClose={()=>setToast(null)}/>
  </div>;
 }
 

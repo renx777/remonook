@@ -26,7 +26,9 @@ try{for(const mobile of [false,true]){
  await page.getByRole('button',{name:'Update from TMDB'}).click();await page.getByRole('button',{name:'Check 2 movies'}).click();
  await page.getByRole('button',{name:'Apply to 2 movies'}).click();await page.getByText(/Updated 2 movies/).waitFor();await page.keyboard.press('Escape');
  // Add a new movie from search.
- await page.getByRole('button',{name:'Add movie'}).click();await page.getByLabel('Search movies').fill('Dune');await page.getByRole('button',{name:'Add Dune 2021'}).click();await page.getByText('✓ Added').waitFor();await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'Add movie'}).click();await page.getByLabel('Search movies').fill('Dune');await page.getByRole('button',{name:'Add Dune 2021'}).click();await page.getByText('✓ Added').waitFor();await page.getByRole('button',{name:'Add Alien 1979'}).or(page.getByRole('button',{name:'Remove Alien 1979 from the list'})).first().waitFor().catch(()=>{});
+ // A mistaken add can be removed right from the sheet.
+ await page.getByRole('button',{name:'Remove Dune 2021 from the list'}).click();await page.getByRole('button',{name:'Add Dune 2021'}).waitFor();await page.getByRole('button',{name:'Add Dune 2021'}).click();await page.getByText('✓ Added').waitFor();await page.keyboard.press('Escape');
  // Connect OMDb too, make it the default, then switch back to TMDB inside one sheet.
  await page.route('https://www.omdbapi.com/**',route=>{const u=new URL(route.request().url());if(u.searchParams.get('i'))return route.fulfill({json:{Response:'True',imdbID:'tt0084787',Title:'The Thing',Year:'1982',Poster:'N/A',Director:'John Carpenter',Genre:'Horror',Runtime:'109 min',imdbRating:'8.2'}});return route.fulfill({json:{Response:'True',Search:[{imdbID:'tt0084787',Title:'The Thing',Year:'1982',Poster:'N/A'}]}});});
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('remo-open-settings',{detail:'connections'})));

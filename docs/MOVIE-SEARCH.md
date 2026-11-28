@@ -48,6 +48,8 @@ OMDb returns IMDb data: an IMDb rating Trait and an IMDb link Trait. A default t
 
 **Traits to fill** remembers your choice. Your own `Rating` Trait is never touched. Movies already in the list are marked "In list".
 
+**Removing a mistaken add:** in the Add movie sheet, an added movie (or one already in the list) shows **Remove**, which moves that note to Trash.
+
 ## Update from TMDB
 
 Checks every direct child, up to 200, three at a time.

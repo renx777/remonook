@@ -21,6 +21,9 @@ try{for(const mobile of [false,true]){
  await bar.getByRole('button',{name:'Sort',exact:true}).click();await page.getByRole('radio',{name:'Last edited'}).click();
  await bar.getByRole('button',{name:'Sort',exact:true}).filter({hasText:'Last edited ↓'}).waitFor();assert.deepEqual(await titles(),['Alien','Brazil','Clue']);
  await page.getByRole('radio',{name:'Date created'}).click();await page.getByRole('button',{name:'Oldest first'}).click();await page.waitForTimeout(200);assert.deepEqual(await titles(),['Brazil','Clue','Alien']);
+ // Move an item to Trash from the list, then Undo from the toast.
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'Move Clue to Trash'}).click();await page.getByText('Moved “Clue” to Trash').waitFor();assert.ok(!(await titles()).includes('Clue'));
+ await page.locator('.rn-toast').getByRole('button',{name:/^Undo/}).click();await page.waitForTimeout(300);assert.ok((await titles()).includes('Clue'),'Undo brings it back');
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no page overflow');assert.deepEqual(errors,[]);
  console.log(`Collection toolbar ${mobile?'phone dark':'desktop light'}: one-row bar, in-list search, sort by edited/created with direction passed`);await context.close();
 }}finally{await browser.close();}

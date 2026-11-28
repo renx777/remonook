@@ -62,3 +62,5 @@ One row, left to right:
 Then a direction switch: Ascending/Descending, or Oldest/Newest first for dates.
 
 The dates come from the synced note clock (`web.noteTimes`). **Last edited** counts edits anywhere inside an item, including its Traits. **Date created** and **Last edited** start newest first.
+
+**Deleting an item:** cards in Grid and List, and rows in Table, have a Trash button (shown on hover or focus; always shown on touch screens). It moves the note and everything inside it to Trash and shows a toast with Undo.
