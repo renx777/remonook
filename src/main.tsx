@@ -1,3 +1,4 @@
+import {PortabilityTools} from './HistoryPortability';
 import {BackgroundReminders} from './BackgroundReminders';
 import {hasPendingRepeat} from './recurring-tasks.mjs';
 import {ReminderDelivery} from './ReminderDelivery';
@@ -770,6 +771,53 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
   },[]);
   const traitSaveQueue=React.useRef<Promise<unknown>>(Promise.resolve());
   const saveTraits=(update:(d:Workspace)=>Workspace)=>{const owner=storageAccountKey();const run=async()=>{await flush();if(failed.current||owner!==storageAccountKey())throw Error('Open the original workspace and resolve the save issue first. Your draft is kept.');const current=docRef.current;if(!current)throw Error('This workspace is not ready.');const next=update(current);if(next!==current)commit(next,undefined,true);await flush();if(failed.current||owner!==storageAccountKey())throw Error('Saving needs attention. Your draft is kept.');};const result=traitSaveQueue.current.then(run);traitSaveQueue.current=result.catch(()=>{});return result;};
+  const saveTraitsAssets = (
+    update: (d: Workspace) => Workspace,
+    files: () => Map<string, Blob>,
+  ) => {
+    const owner = storageAccountKey();
+    const run = async () => {
+      await flush();
+      if (failed.current || owner !== storageAccountKey())
+        throw Error(
+          "Open the original workspace and resolve the save issue first.",
+        );
+      const current = docRef.current!,
+        next = update(current);
+      if (next === current) return;
+      const added = files(),
+        snapshot = assetsRef.current;
+      for (const [path, blob] of added) {
+        const existing = snapshot.get(path);
+        if (existing && existing !== blob) {
+          const a = new Uint8Array(await existing.arrayBuffer()),
+            b = new Uint8Array(await blob.arrayBuffer());
+          if (a.length !== b.length || a.some((v, i) => v !== b[i]))
+            throw Error(
+              "An attachment path already contains different bytes. Import into a separate workspace to preserve both.",
+            );
+        }
+      }
+      if (
+        owner !== storageAccountKey() ||
+        docRef.current !== current ||
+        assetsRef.current !== snapshot
+      )
+        throw Error("Notes or attachments changed. Review and retry.");
+      const combined = new Map([...snapshot, ...added]);
+      checkAttachmentBudget(combined);
+      for (const [path, blob] of added) pendingAssets.current.set(path, blob);
+      assetsRef.current = combined;
+      setAssets(combined);
+      commit(next, undefined, true);
+      await flush();
+      if (failed.current || owner !== storageAccountKey())
+        throw Error("Saving needs attention. Your prepared changes are kept.");
+    };
+    const result = traitSaveQueue.current.then(run);
+    traitSaveQueue.current = result.catch(() => {});
+    return result;
+  };
   const openPkm=(kind:'properties'|'templates'|'save-template',id:string|null)=>{setMenu(null);setEditing(null);setPkm({kind,id,account:storageAccountKey()});};
   const pkmSave=async(update:(d:Workspace)=>Workspace)=>{const owner=pkm?.account;await flush();if(failed.current||!owner||owner!==storageAccountKey())throw Error('Save your changes and open the original workspace first. Your form is kept.');const current=docRef.current!,next=update(current);if(next!==current)commit(next,undefined,true);await flush();if(failed.current||owner!==storageAccountKey())throw Error('Saving needs attention. Your draft stays available.');};
   const openBulletMenu = (id: string, anchor?: HTMLElement, selectedIds?: string[]) => {
@@ -1944,7 +1992,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
       </aside>
   );
   return (
-    <NoteMetadataContext.Provider value={{doc,disabled,save:saveTraits,scope:storageAccountKey(),studying:tab==='study',openNote:id=>navigateTo(id),properties:id=>openPkm('properties',id),templates:id=>openPkm('templates',id)}}><GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onPreviewDetails:disabled?undefined:async(id,url,details)=>{if(failed.current)throw Error('Saving needs attention. Your details remain in this form.');const next=saveCardDetails(docRef.current!,id,url,details);if(next!==docRef.current)commit(next);await flush();if(failed.current)throw Error('Could not save on this device. Your details remain in this form.');},onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing,ocr:extractImageText}}>
+    <NoteMetadataContext.Provider value={{doc,disabled,save:saveTraits,saveAssets:saveTraitsAssets,getAssets:()=>assetsRef.current,scope:storageAccountKey(),studying:tab==='study',openNote:id=>navigateTo(id),properties:id=>openPkm('properties',id),templates:id=>openPkm('templates',id)}}><GoogleTasksProvider key={cloudUser?.uid||'guest'} user={cloudUser} onSignIn={()=>accountAction()}><ReadingSources.Provider value={readingSourceValue}><MusicProvider assets={assets}><GalleryContext.Provider value={{doc,onPreviewDetails:disabled?undefined:async(id,url,details)=>{if(failed.current)throw Error('Saving needs attention. Your details remain in this form.');const next=saveCardDetails(docRef.current!,id,url,details);if(next!==docRef.current)commit(next);await flush();if(failed.current)throw Error('Could not save on this device. Your details remain in this form.');},onAdd:disabled?undefined:id=>{mediaTarget.current=id;imageInput.current?.click();}}}><TableContext.Provider value={disabled?null:(id,text)=>mutate(ns=>ns.map(n=>n.id===id?{...n,text}:n))}><SearchContext.Provider value={{times:doc.web.noteTimes||{}}}><VisualToolsContext.Provider value={disabled?{}:{diagram:openDiagram,drawing:openDrawing,ocr:extractImageText}}>
     <TagSettingsContext.Provider value={tagSettings}><ConnectionContext.Provider value={{nodes,onOpenPane:openPane,onNavigate:id=>navigateTo(id),onTag:tag=>{navigateTo(null);setSearch(tag);},onMirror:mirrorHere}}>
     <EmojiProvider emojis={doc.tables.emojis} assets={assets} animate={doc.preferences.appearance.animateEmojis !== false} onInsert={async (item, id, start, end) => {
       emojiTarget.current = { id, start, end };
@@ -2669,7 +2717,7 @@ export function App({cloudUser=null}: {cloudUser?:User|null} = {}) {
             <Icon name="upload" />
             Restore from backup…
           </button>
-          </div><p className="dialog-muted">Automatic folder syncing has been retired. Existing RemoNook folder ZIPs were not deleted; use “Restore from backup…” to import a copy when needed.</p>
+          </div><p className="dialog-muted">Automatic folder syncing has been retired. Existing RemoNook folder ZIPs were not deleted; use “Restore from backup…” to import a copy when needed.</p><PortabilityTools/>
           <details className="settings-disclosure"><summary><Icon name="history" size={16}/>Recovery & more</summary><div className="settings-advanced">
           <button
             className="wide action"

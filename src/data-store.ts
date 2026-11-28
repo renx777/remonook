@@ -1,3 +1,5 @@
+import {emojiFiles,portableMime,mergePortableEmojis} from './portable-emoji.mjs';
+import {historyChanges} from './note-history.mjs';
 import {attachmentReferences} from './asset-references.mjs';
 import {TASK_FIELDS} from './task-fields.mjs';
 import {localBookFiles,localBookManifest,isBookPath} from './local-books';
@@ -315,6 +317,7 @@ export async function save(
           store.delete(k);
           changes.push({ key: k, deleted: true });
         }
+      await recordNoteHistory(tx,before,next,operation,assets);
       const { tables, ...header } = next;
       meta.put({ ...header, tableNames: Object.keys(tables) }, "workspace");
       if (assets) {
@@ -843,4 +846,332 @@ export async function researchStore(change?: (value:ResearchState)=>ResearchStat
   if(change)value=change(value);
   store.put(value,'ai-drafts');await finished;return value;
  }finally{db.close();}
+}
+
+// Local history is committed atomically with the note records and durable outbox.
+async function recordNoteHistory(
+  tx: IDBTransaction,
+  before: Workspace | null,
+  after: Workspace,
+  operation: string,
+  files?: Map<string, Blob>,
+) {
+  const changes = historyChanges(before, after, [...(files?.keys() || [])]);
+  if (!changes.length) return;
+  const meta = tx.objectStore("meta"),
+    store = tx.objectStore("recovery"),
+    refs =
+      (await request<Record<string, string>>(meta.get("note-history-files"))) ||
+      {},
+    prior = { ...refs };
+  const paths = new Set<string>(
+    changes.flatMap((c: any) =>
+      [...c.beforeMedia, ...c.afterMedia]
+        .map((m: any) => "media/" + m.fileName)
+        .concat(
+          emojiFiles([...(c.beforeEmojis || []), ...(c.afterEmojis || [])]),
+        ),
+    ),
+  );
+  for (const path of paths) {
+    if (!refs[path]) {
+      const blob = await request<Blob>(tx.objectStore("assets").get(path));
+      if (blob) {
+        const key = uuid();
+        store.put(blob, ["history-asset", key]);
+        refs[path] = key;
+        prior[path] = key;
+      }
+    }
+    const blob = files?.get(path);
+    if (blob) {
+      const key = uuid();
+      store.put(blob, ["history-asset", key]);
+      refs[path] = key;
+    }
+  }
+  for (const c of changes) {
+    const at = Date.now(),
+      id = uuid(),
+      map = (media: any[], r: Record<string, string>) =>
+        Object.fromEntries(
+          media
+            .map((m) => ["media/" + m.fileName, r["media/" + m.fileName]])
+            .filter((x) => x[1]),
+        );
+    store.put(
+      {
+        ...c,
+        id,
+        at,
+        operation,
+        revision: after.revision,
+        beforeFiles: {
+          ...map(c.beforeMedia, prior),
+          ...Object.fromEntries(
+            emojiFiles(c.beforeEmojis || [])
+              .filter((p: string) => prior[p])
+              .map((p: string) => [p, prior[p]]),
+          ),
+        },
+        afterFiles: {
+          ...map(c.afterMedia, refs),
+          ...Object.fromEntries(
+            emojiFiles(c.afterEmojis || [])
+              .filter((p: string) => refs[p])
+              .map((p: string) => [p, refs[p]]),
+          ),
+        },
+      },
+      ["note-history", after.revision, id],
+    );
+  }
+  meta.put(refs, "note-history-files");
+}
+export async function noteHistory(
+  noteId?: string,
+  limit = 100,
+  account = storageName,
+): Promise<any[]> {
+  const db = await openDb(account);
+  try {
+    const tx = db.transaction("recovery", "readonly"),
+      finished = done(tx),
+      store = tx.objectStore("recovery"),
+      out: any[] = [];
+    const range = IDBKeyRange.bound(["note-history"], ["note-history", []]);
+    await new Promise<void>((resolve, reject) => {
+      const r = store.openCursor(range, "prev");
+      r.onerror = () => reject(r.error);
+      r.onsuccess = () => {
+        const c = r.result;
+        if (!c || out.length >= limit) {
+          resolve();
+          return;
+        }
+        if (!noteId || c.value.noteId === noteId) out.push(c.value);
+        c.continue();
+      };
+    });
+    await finished;
+    return out.sort((a, b) => b.at - a.at || b.revision - a.revision);
+  } finally {
+    db.close();
+  }
+}
+export async function historicalFiles(
+  entry: any,
+  version = "before",
+  account = storageName,
+): Promise<Map<string, Blob>> {
+  const db = await openDb(account);
+  try {
+    const tx = db.transaction("recovery", "readonly"),
+      finished = done(tx),
+      out = new Map<string, Blob>();
+    for (const [path, key] of Object.entries(entry[version + "Files"] || {})) {
+      const blob = await request<Blob>(
+        tx.objectStore("recovery").get(["history-asset", key as string]),
+      );
+      if (!blob)
+        throw Error(
+          "A historical attachment is unavailable. Export history before attempting recovery.",
+        );
+      out.set(path, blob);
+    }
+    await finished;
+    return out;
+  } finally {
+    db.close();
+  }
+}
+export async function exportNoteHistory(
+  account = storageName,
+  noteId?: string,
+): Promise<Blob> {
+  const entries = await noteHistory(noteId, Number.MAX_SAFE_INTEGER, account),
+    zip = new JSZip(),
+    blobs = new Set<string>();
+  for (const e of entries)
+    for (const side of ["before", "after"])
+      for (const key of Object.values(e[side + "Files"] || {}))
+        blobs.add(key as string);
+  const collected: [string, Blob][] = [];
+  const db = await openDb(account);
+  try {
+    const tx = db.transaction("recovery", "readonly"),
+      finished = done(tx);
+    for (const key of blobs) {
+      const blob = await request<Blob>(
+        tx.objectStore("recovery").get(["history-asset", key]),
+      );
+      if (!blob) throw Error("History attachment missing.");
+      collected.push([key, blob]);
+    }
+    await finished;
+  } finally {
+    db.close();
+  }
+  for (const [key, blob] of collected)
+    zip.file("assets/" + key, await blob.arrayBuffer(), {
+      createFolders: false,
+    });
+  const manifest = JSON.stringify({
+    format: "remo-note-history",
+    version: 1,
+    entries,
+  });
+  if (
+    new TextEncoder().encode(manifest).length +
+      collected.reduce((n, [, b]) => n + b.size, 0) >
+    63 * 1024 * 1024
+  )
+    throw Error(
+      "History export exceeds 63 MiB. Export individual bullet histories instead.",
+    );
+  zip.file("history.json", manifest);
+  if (blobs.size>60000) throw Error("Too many history files. Export individual bullet histories.");
+  const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE"});
+  if(blob.size>64*1024*1024)throw Error("History ZIP exceeds 64 MiB. Export individual bullet histories.");
+  return blob;
+}
+export async function prepareHistoryImport(file: Blob): Promise<{
+  entries: any[];
+  files: Map<string, Blob>;
+}> {
+  if (file.size > 64 * 1024 * 1024)
+    throw Error("History archive exceeds 64 MiB.");
+  const bytes = await file.arrayBuffer();
+  inspectZip(bytes, {
+    required: "history.json",
+    allowed: (p) => p === "history.json" || /^assets\/[a-f0-9-]{36}$/.test(p),
+    maxTotal: 64 * 1024 * 1024,
+  });
+  const zip = await JSZip.loadAsync(bytes);
+  let total = 0;
+  for (const e of Object.values(zip.files)) {
+    const path = (e as any).unsafeOriginalName || e.name,
+      size = (e as any)._data?.uncompressedSize;
+    if (
+      e.dir ||
+      path !== e.name ||
+      !(path === "history.json" || /^assets\/[a-f0-9-]{36}$/.test(path)) ||
+      !Number.isFinite(size) ||
+      (total += size) > 64 * 1024 * 1024
+    )
+      throw Error("Unsafe or oversized history archive.");
+  }
+  const source = zip.file("history.json");
+  if (!source) throw Error("History manifest missing.");
+  const value = JSON.parse(await source.async("string"), (key, value) => {
+    if ((["__proto__", "constructor", "prototype"].includes(key) || key.startsWith("_sync")))
+      throw Error("Unsafe history field.");
+    return value;
+  });
+  if (
+    value.format !== "remo-note-history" ||
+    value.version !== 1 ||
+    !Array.isArray(value.entries) ||
+    value.entries.length > 100000
+  )
+    throw Error("Unsupported history archive.");
+  const files = new Map<string, Blob>();
+  for (const e of value.entries) {
+    if (
+      !e ||
+      typeof e.noteId !== "string" ||
+      !Number.isSafeInteger(e.revision) ||
+      !Number.isFinite(e.at) ||
+      typeof e.id !== "string"
+    )
+      throw Error("Invalid history entry.");
+    for (const side of ["before", "after"]) {
+      if (e[side]) validate([{ ...e[side], parentId: null }]);
+      mergePortableEmojis([], e[side + "Emojis"] || []);
+      for (const m of e[side + "Media"] || [])
+        if (
+          !m ||
+          typeof m.id !== "string" ||
+          typeof m.fileName !== "string" ||
+          !/^media\/[A-Za-z0-9._-]+$/.test("media/" + m.fileName) ||
+          [".", ".."].includes(m.fileName)
+        )
+          throw Error("Invalid historical media.");
+      if (
+        !Array.isArray(e[side + "Media"]) ||
+        !e[side + "Files"] ||
+        typeof e[side + "Files"] !== "object"
+      )
+        throw Error("Invalid history attachments.");
+      for (const [path, key] of Object.entries(e[side + "Files"])) {
+        if (
+          !/^(media|emoji)\/[A-Za-z0-9._-]+$/.test(path) ||
+          typeof key !== "string" ||
+          !/^[a-f0-9-]{36}$/.test(key)
+        )
+          throw Error("Invalid history file.");
+        if (!files.has(key)) {
+          const f = zip.file("assets/" + key);
+          if (!f) throw Error("Historical attachment missing.");
+          files.set(
+            key,
+            new Blob([await f.async("arraybuffer")], {
+              type: portableMime(path),
+            }),
+          );
+        }
+      }
+    }
+  }
+  return { entries: value.entries, files };
+}
+export async function importNoteHistory(
+  prepared: {
+    entries: any[];
+    files: Map<string, Blob>;
+  },
+  account = storageName,
+) {
+  const db = await openDb(account);
+  try {
+    const tx = db.transaction("recovery", "readwrite"),
+      finished = done(tx),
+      store = tx.objectStore("recovery");
+    try {
+      const keys = new Map<string, string>();
+      for (const [key, blob] of prepared.files) {
+        const fresh = uuid();
+        keys.set(key, fresh);
+        store.put(blob, ["history-asset", fresh]);
+      }
+      for (const e of prepared.entries) {
+        const fresh = {
+          ...e,
+          id: uuid(),
+          beforeFiles: Object.fromEntries(
+            Object.entries(e.beforeFiles).map(([p, k]) => [
+              p,
+              keys.get(k as string),
+            ]),
+          ),
+          afterFiles: Object.fromEntries(
+            Object.entries(e.afterFiles).map(([p, k]) => [
+              p,
+              keys.get(k as string),
+            ]),
+          ),
+        };
+        store.put(fresh, ["note-history", e.revision, fresh.id]);
+      }
+      await finished;
+    } catch (e) {
+      try {
+        tx.abort();
+      } catch {}
+      await finished.catch(() => {});
+      throw e;
+    }
+  } finally {
+    db.close();
+  }
 }

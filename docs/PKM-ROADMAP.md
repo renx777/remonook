@@ -131,7 +131,7 @@ recipes. Existing filtering, grouping, saved views and table edits are reused.
 See [SMART-COLLECTIONS.md](SMART-COLLECTIONS.md). Web staging runs the integrated
 rollout in PR #117, preserving Phase 2B. The final full CI suite passed 755 tests;
 19 deployed signed-in sync checks and desktop/phone-layout Smart Collections
-acceptance passed. Physical/native checks remain separate. Phase 4 has not started.
+acceptance passed. Physical/native checks remain separate. Phase 4 was implemented subsequently as described below.
 
 ## Phase 4 implementation
 
@@ -153,3 +153,23 @@ migration. See [LIBRARY-DISCOVERY.md](LIBRARY-DISCOVERY.md) for usage and limits
 
 Release checks and physical-device gates are recorded in ENVIRONMENTS.md.
 Native deployment and the next roadmap phase remain separate owner decisions.
+
+## Phase 5 implementation
+
+The owner authorized completion of Phase 5 on 28 November 2026. History records
+meaningful bullet changes and media versions in the existing account/workspace
+save transaction, alongside notes and the durable outbox. It is device-local,
+captures future local edits and remote adoptions, and keeps deleted-note versions.
+History exports retain original blobs independently of current asset deletion.
+Restoring creates a new ordinary note and attachment identities through normal
+save/undo/sync, preserving the original and rejecting cross-workspace callbacks.
+
+Markdown/OPML portability adds readable note packages with a lossless note/media
+sidecar, fresh-ID import, internal-link remapping, safe XML/ZIP parsing, attachment
+bytes, explicit preview and retained ordinary import reports. It never adopts a
+workspace snapshot. History and scheduling/settings are clearly separate exports.
+Missing files and unsupported data are reported. See
+[HISTORY-PORTABILITY.md](HISTORY-PORTABILITY.md) for use, limits and retention.
+
+The web-staging implementation is first; physical-device verification and native
+rollout remain separate gates. Phase 6 has not started.
