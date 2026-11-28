@@ -36,7 +36,7 @@ const make = () => "generated-" + serial++;
 function fixture() {
   const d = empty();
   d.tables.decks = [{ rootId: "deck", createdAt: now, pinned: 0 }];
-  return withNodes(d, [
+  return pinCards(withNodes(d, [
     bullet("deck", { text: "Biology" }),
     ...Array.from({ length: 8 }, (_, i) => [
       bullet("q" + i, {
@@ -50,7 +50,11 @@ function fixture() {
     bullet("source", { position: 1, text: "Research note" }),
     bullet("todo", { position: 2, text: "Prepare", taskState: "TODO" }),
     bullet("done", { position: 3, text: "Finished", taskState: "DONE" }),
-  ]);
+  ]));
+}
+// New cards are stamped with the real clock; pin them before the fixed test time so the test does not depend on today's date.
+function pinCards(d) {
+  return { ...d, tables: { ...d.tables, cards: d.tables.cards.map(c => ({ ...c, createdAtEpochMillis: Math.min(c.createdAtEpochMillis, now - 3600000), dueAtEpochMillis: Math.min(c.dueAtEpochMillis, now - 3600000) })) } };
 }
 const draft = () => ({
   id: "goal",
